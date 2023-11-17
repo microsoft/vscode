@@ -26,7 +26,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReplyResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -37,14 +37,13 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 export const enum State {
@@ -245,12 +244,6 @@ export class InlineChatController implements IEditorContribution {
 
 	joinCurrentRun(): Promise<void> | undefined {
 		return this._currentRun;
-	}
-
-
-	private _createChatResponse(session: Session, markdownString: IMarkdownString, requestId: string, isComplete: boolean = false): ChatResponseModel {
-		const sessionModel = new ChatModel(`inlinechat-provider-${session.provider.debugName}`, undefined, this._logService, this._chatAgentService);
-		return new ChatResponseModel(markdownString, sessionModel, undefined, requestId, isComplete, false, undefined);
 	}
 
 	// ---- state machine
@@ -619,7 +612,7 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		let progressiveChatResponse: ChatResponseModel | undefined;
+		let progressiveChatResponse: IInlineChatMessageAppender | undefined;
 
 		const progress = new Progress<IInlineChatProgressItem>(data => {
 			this._log('received chunk', data, request);
@@ -667,11 +660,14 @@ export class InlineChatController implements IEditorContribution {
 			}
 			if (data.markdownFragment) {
 				if (!progressiveChatResponse) {
-					const markdownContents = new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-					progressiveChatResponse = this._createChatResponse(this._activeSession!, markdownContents, request.requestId, false);
-					this._zone.value.widget.updateChatResponse(progressiveChatResponse);
+					const message = {
+						message: new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false }),
+						providerId: this._activeSession!.provider.debugName,
+						requestId: request.requestId,
+					};
+					progressiveChatResponse = this._zone.value.widget.updateChatMessage(message, true);
 				} else {
-					progressiveChatResponse.updateContent({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });
+					progressiveChatResponse.appendContent(data.markdownFragment);
 				}
 			}
 		});
@@ -686,7 +682,7 @@ export class InlineChatController implements IEditorContribution {
 		let response: ReplyResponse | ErrorResponse | EmptyResponse;
 		let reply: IInlineChatResponse | null | undefined;
 		try {
-			this._zone.value.widget.updateChatResponse(undefined);
+			this._zone.value.widget.updateChatMessage(undefined);
 			this._zone.value.widget.updateMarkdownMessage(undefined);
 			this._zone.value.widget.updateProgress(true);
 			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
@@ -696,6 +692,9 @@ export class InlineChatController implements IEditorContribution {
 			if (progressiveEditsQueue.size > 0) {
 				// we must wait for all edits that came in via progress to complete
 				await Event.toPromise(progressiveEditsQueue.onDrained);
+			}
+			if (progressiveChatResponse) {
+				progressiveChatResponse.cancel();
 			}
 
 			if (!reply) {
@@ -833,7 +832,8 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof ReplyResponse) {
 			// real response -> complex...
 			this._zone.value.widget.updateStatus('');
-			this._zone.value.widget.updateChatResponse(this._createChatResponse(this._activeSession, response.mdContent, response.requestId, true));
+			const message = { message: response.mdContent, providerId: this._activeSession.provider.debugName, requestId: response.requestId };
+			this._zone.value.widget.updateChatMessage(message);
 
 			//this._zone.value.widget.updateMarkdownMessage(response.mdContent);
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;

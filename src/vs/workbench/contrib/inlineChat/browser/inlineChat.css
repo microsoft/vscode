@@ -193,15 +193,15 @@
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
-.monaco-editor .inline-chat .chatResponse {
+.monaco-editor .inline-chat .chatMessage {
 	padding: 8px 3px;
 }
 
-.monaco-editor .inline-chat .chatResponse .response {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent {
 	padding: 2px 2px;
 }
 
-.monaco-editor .inline-chat .chatResponse.hidden {
+.monaco-editor .inline-chat .chatMessage.hidden {
 	display: none;
 }
 
