@@ -1012,10 +1012,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private handleContextKeys(contextKeyService: IContextKeyService): void {
+		const isAuxiliaryEditorPartContext = IsAuxiliaryEditorPartContext.bindTo(contextKeyService);
+		isAuxiliaryEditorPartContext.set(this.isAuxiliary);
+
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
-
-		IsAuxiliaryEditorPartContext.bindTo(contextKeyService).set(this.isAuxiliary);
 
 		const updateContextKeys = () => {
 			const groupCount = this.count;
@@ -1400,7 +1401,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
-		editorPartsView: IEditorPartsView,
+				editorPartsView: IEditorPartsView,
 		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
