@@ -75,7 +75,7 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 async function main() {
 	const artifacts = await retry(() => getPipelineArtifacts());
 
-	for (const artifact of artifacts) {
+	await Promise.all(artifacts.map(async artifact => {
 		const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
 		console.log(`Downloading ${artifact.name}...`);
@@ -85,7 +85,7 @@ async function main() {
 		const downloadDurationS = (Date.now() - start) / 1000;
 		const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
 		console.log(`Successfully downloaded ${artifact.name} in ${Math.floor(downloadDurationS)} seconds (${downloadSpeedKBS} KB/s).`);
-	}
+	}));
 }
 
 if (require.main === module) {
