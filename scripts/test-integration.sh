@@ -112,6 +112,11 @@ echo
 yarn test-extension -l configuration-editing
 kill_app
 
+echo
+echo "### GitHub Authentication tests"
+echo
+yarn test-extension -l github-authentication
+kill_app
 
 # Tests standalone (CommonJS)
 

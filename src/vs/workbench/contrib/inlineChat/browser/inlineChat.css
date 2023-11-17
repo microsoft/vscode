@@ -164,6 +164,19 @@
 	margin: unset;
 }
 
+.monaco-editor .inline-chat .markdownMessage .message code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
+}
+
+.monaco-editor .inline-chat .markdownMessage .message .interactive-result-code-block {
+	margin: 16px 0;
+}
+
 .monaco-editor .inline-chat .markdownMessage .message {
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
@@ -305,7 +318,6 @@
 /* create zone */
 
 .monaco-editor .inline-chat-newfile-widget {
-	padding: 3px 0 6px 0;
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
@@ -313,5 +325,42 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 3px 6px 3px 0;
+}
+
+.monaco-editor .inline-chat-newfile-widget .title .detail {
+	margin-left: 4px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget {
+	display: flex;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
+	display: inline-flex;
+	white-space: nowrap;
+	margin-left: 4px;
+}
+
+/* gutter decoration */
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	display: block;
+	cursor: pointer;
+	transition: opacity .2s ease-in-out;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
+	opacity: 0.5;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	opacity: 0;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
+	opacity: 1;
 }

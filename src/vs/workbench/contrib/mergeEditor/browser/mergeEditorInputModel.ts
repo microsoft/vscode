@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { ConfirmResult, IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
@@ -40,7 +39,7 @@ export interface IMergeEditorInputModelFactory {
 	createInputModel(args: MergeEditorArgs): Promise<IMergeEditorInputModel>;
 }
 
-export interface IMergeEditorInputModel extends IDisposable, IEditorModel {
+export interface IMergeEditorInputModel extends IDisposable {
 	readonly resultUri: URI;
 
 	readonly model: MergeEditorModel;

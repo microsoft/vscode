@@ -21,7 +21,7 @@ import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
@@ -793,7 +793,7 @@ export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 	notebook: NotebookTextModel;
 }
 
-export interface INotebookEditorModel extends IEditorModel {
+export interface INotebookEditorModel extends IDisposable {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 	readonly onDidChangeOrphaned: Event<void>;
@@ -815,7 +815,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
-export interface INotebookDiffEditorModel extends IEditorModel {
+export interface INotebookDiffEditorModel extends IDisposable {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
 }
@@ -950,6 +950,7 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	formatOnSave: 'notebook.formatOnSave.enabled',
+	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
@@ -965,7 +966,8 @@ export const NotebookSetting = {
 	remoteSaving: 'notebook.experimental.remoteSave',
 	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
-	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell'
+	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
+	cellChat: 'notebook.experimental.cellChat'
 } as const;
 
 export const enum CellStatusbarAlignment {

@@ -135,14 +135,16 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				createEditorInput: ({ resource, options }) => {
 					const data = CellUri.parse(resource);
 					let cellOptions: IResourceEditorInput | undefined;
+					let IwResource = resource;
 
 					if (data) {
 						cellOptions = { resource, options };
+						IwResource = data.notebook;
 					}
 
 					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 
-					const editorInput = createEditor(resource, this.instantiationService);
+					const editorInput = createEditor(IwResource, this.instantiationService);
 					return {
 						editor: editorInput,
 						options: notebookOptions
@@ -488,7 +490,7 @@ registerAction2(class extends Action2 {
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
-				const collapseState = editorControl.notebookEditor.notebookOptions.getLayoutConfiguration().interactiveWindowCollapseCodeCells === 'fromEditor' ?
+				const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
 					{
 						inputCollapsed: false,
 						outputCollapsed: false

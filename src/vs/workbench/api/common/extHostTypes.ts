@@ -4078,6 +4078,10 @@ export class TerminalEditorTabInput {
 export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
+
+export class ChatEditorTabInput {
+	constructor(readonly providerId: string) { }
+}
 //#endregion
 
 //#region Interactive session
@@ -4100,7 +4104,8 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 	Undone = 2,
-	Accepted = 3
+	Accepted = 3,
+	Bug = 4
 }
 
 export enum ChatMessageRole {

@@ -32,6 +32,7 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
+import { getActiveElement } from 'vs/base/browser/dom';
 import { SCMSyncViewPane } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 
 ModesRegistry.registerLanguage({
@@ -80,7 +81,7 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	weight: 60,
+	weight: 80,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -227,7 +228,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
 				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
 			],
-			description: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers only appear when there is more than one provider."),
+			markdownDescription: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers appear in the \"Source Control\", and \"Source Control Sync\" views when there is more than one provider or when the {0} setting is enabled, as well as in the \"Source Control Repositories\" view.", '\`#scm.alwaysShowRepositories#\`'),
 			default: 'hidden'
 		},
 		'scm.defaultViewMode': {
@@ -266,6 +267,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
 			default: 13
 		},
+		'scm.inputMaxLines': {
+			type: 'number',
+			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
+			default: 10
+		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
@@ -292,6 +298,28 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
 		},
+		'scm.showIncomingChanges': {
+			type: 'string',
+			enum: ['always', 'never', 'auto'],
+			enumDescriptions: [
+				localize('scm.showIncomingChanges.always', "Always show incoming changes in the Source Control view."),
+				localize('scm.showIncomingChanges.never', "Never show incoming changes in the Source Control view."),
+				localize('scm.showIncomingChanges.auto', "Only show incoming changes in the Source Control view when any exist."),
+			],
+			description: localize('scm.showIncomingChanges', "Controls whether incoming changes are shown in the Source Control view."),
+			default: 'never'
+		},
+		'scm.showOutgoingChanges': {
+			type: 'string',
+			enum: ['always', 'never', 'auto'],
+			enumDescriptions: [
+				localize('scm.showOutgoingChanges.always', "Always show outgoing changes in the Source Control view."),
+				localize('scm.showOutgoingChanges.never', "Never show outgoing changes in the Source Control view."),
+				localize('scm.showOutgoingChanges.auto', "Only show outgoing changes in the Source Control view when any exist."),
+			],
+			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
+			default: 'never'
+		},
 		'scm.experimental.showSyncView': {
 			type: 'boolean',
 			description: localize('showSyncView', "Controls whether the Source Control Sync view is shown."),
@@ -308,7 +336,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 
 		if (!repositoryId) {
@@ -336,7 +364,7 @@ const viewNextCommitCommand = {
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const scmService = accessor.get(ISCMService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showNextHistoryValue();
@@ -349,7 +377,7 @@ const viewPreviousCommitCommand = {
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const scmService = accessor.get(ISCMService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showPreviousHistoryValue();

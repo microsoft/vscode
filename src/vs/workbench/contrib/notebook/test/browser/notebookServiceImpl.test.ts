@@ -13,6 +13,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -43,7 +44,8 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IFileService>() {
 				override hasProvider() { return true; }
 			},
-			new class extends mock<INotebookEditorModelResolverService>() { }
+			new class extends mock<INotebookEditorModelResolverService>() { },
+			new class extends mock<IUriIdentityService>() { }
 		);
 		disposables.add(store);
 

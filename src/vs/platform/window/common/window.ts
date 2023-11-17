@@ -24,6 +24,16 @@ export const WindowMinimumSize = {
 	HEIGHT: 270
 };
 
+export interface IPoint {
+	readonly x: number;
+	readonly y: number;
+}
+
+export interface IRectangle extends IPoint {
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface IBaseOpenWindowsOptions {
 
 	/**
@@ -63,12 +73,23 @@ export interface IAddFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
 }
 
-export interface IOpenedWindow {
+interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
+}
+
+export interface IOpenedMainWindow extends IOpenedWindow {
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+}
+
+export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
+	readonly parentId: number;
+}
+
+export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAuxiliaryWindow): candidate is IOpenedAuxiliaryWindow {
+	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }

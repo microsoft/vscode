@@ -81,7 +81,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
-			this._contributedCodeActions = extensionPoints.flatMap(x => x.value);
+			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
 			this.updateConfigurationSchema(this._contributedCodeActions);
 			this._onDidChangeContributions.fire();
 		});

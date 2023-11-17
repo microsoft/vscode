@@ -38,6 +38,7 @@ import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfi
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { mainWindow } from 'vs/base/browser/window';
 
 /**
  * Description of an action contribution
@@ -119,7 +120,7 @@ export interface IGlobalEditorOptions {
 	 * Controls whether completions should be computed based on words in the document.
 	 * Defaults to true.
 	 */
-	wordBasedSuggestions?: boolean;
+	wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 	/**
 	 * Controls whether word based completions should be included from opened documents of the same language or any language.
 	 */
@@ -252,7 +253,7 @@ function createAriaDomNode(parent: HTMLElement | undefined) {
 		}
 		ariaDomNodeCreated = true;
 	}
-	aria.setARIAContainer(parent || document.body);
+	aria.setARIAContainer(parent || mainWindow.document.body);
 }
 
 /**
@@ -367,6 +368,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			uniqueId,
 			label,
 			label,
+			undefined,
 			precondition,
 			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService
