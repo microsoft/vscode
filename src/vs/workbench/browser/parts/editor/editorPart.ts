@@ -946,9 +946,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	//#region Part
 
 	// TODO @sbatten @joao find something better to prevent editor taking over #79897
-	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions().width); }
+	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions(this.layoutService.getContainer(getWindow(this.container))).width); }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
-	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
+	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions(this.layoutService.getContainer(getWindow(this.container))).height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
 	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }

@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -190,13 +190,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get mainContainerDimension(): IDimension { return this._mainContainerDimension; }
 
 	get activeContainerDimension(): IDimension {
-		const activeContainer = this.activeContainer;
-		if (activeContainer === this.mainContainer) {
+		return this.getContainerDimension(this.activeContainer);
+	}
+
+	private getContainerDimension(container: HTMLElement): IDimension {
+		if (container === this.mainContainer) {
 			// main window
 			return this.mainContainerDimension;
 		} else {
 			// auxiliary window
-			return getClientArea(activeContainer);
+			return getClientArea(container);
 		}
 	}
 
@@ -1245,28 +1248,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	getDimension(part: Parts): Dimension | undefined {
+	getDimension(part: Parts): IDimension | undefined {
 		return this.getPart(part).dimension;
 	}
 
-	getMaximumEditorDimensions(): Dimension {
-		const panelPosition = this.getPanelPosition();
-		const isColumn = panelPosition === Position.RIGHT || panelPosition === Position.LEFT;
-		const takenWidth =
-			(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.PANEL_PART) && isColumn ? this.panelPartView.minimumWidth : 0) +
-			(this.isVisible(Parts.AUXILIARYBAR_PART) ? this.auxiliaryBarPartView.minimumWidth : 0);
+	getMaximumEditorDimensions(container: HTMLElement): IDimension {
+		if (container === this.mainContainer) {
+			const panelPosition = this.getPanelPosition();
+			const isColumn = panelPosition === Position.RIGHT || panelPosition === Position.LEFT;
+			const takenWidth =
+				(this.isVisible(Parts.ACTIVITYBAR_PART) ? this.activityBarPartView.minimumWidth : 0) +
+				(this.isVisible(Parts.SIDEBAR_PART) ? this.sideBarPartView.minimumWidth : 0) +
+				(this.isVisible(Parts.PANEL_PART) && isColumn ? this.panelPartView.minimumWidth : 0) +
+				(this.isVisible(Parts.AUXILIARYBAR_PART) ? this.auxiliaryBarPartView.minimumWidth : 0);
 
-		const takenHeight =
-			(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
-			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
-			(this.isVisible(Parts.PANEL_PART) && !isColumn ? this.panelPartView.minimumHeight : 0);
+			const takenHeight =
+				(this.isVisible(Parts.TITLEBAR_PART) ? this.titleBarPartView.minimumHeight : 0) +
+				(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
+				(this.isVisible(Parts.PANEL_PART) && !isColumn ? this.panelPartView.minimumHeight : 0);
 
-		const availableWidth = this._mainContainerDimension.width - takenWidth;
-		const availableHeight = this._mainContainerDimension.height - takenHeight;
+			const availableWidth = this._mainContainerDimension.width - takenWidth;
+			const availableHeight = this._mainContainerDimension.height - takenHeight;
 
-		return new Dimension(availableWidth, availableHeight);
+			return { width: availableWidth, height: availableHeight };
+		} else {
+			return this.getContainerDimension(container);
+		}
 	}
 
 	toggleZenMode(skipLayout?: boolean, restoring = false): void {
