@@ -693,6 +693,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
 			f1: true,
 			keybinding: {
