@@ -1134,6 +1134,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$removeKernelSourceActionProvider(handle: number, eventHandle: number): void;
 	$emitNotebookKernelSourceActionsChangeEvent(eventHandle: number): void;
 	$receiveVariable(requestId: string, variable: VariablesResult): void;
+	$variablesUpdated(notebookUri: UriComponents): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {

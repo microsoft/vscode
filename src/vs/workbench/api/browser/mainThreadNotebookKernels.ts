@@ -440,4 +440,8 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			emitter.fire(undefined);
 		}
 	}
+
+	$variablesUpdated(notebookUri: UriComponents): void {
+		this._notebookKernelService.notifyVariablesChange(URI.revive(notebookUri));
+	}
 }
