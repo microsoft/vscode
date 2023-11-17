@@ -9,6 +9,7 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 
 import 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class CellChatPart extends CellContentPart {
 	private _controller: NotebookCellChatController | undefined;
@@ -21,13 +22,17 @@ export class CellChatPart extends CellContentPart {
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _partContainer: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
 		this._controller?.dispose();
-		this._controller = this._instantiationService.createInstance(NotebookCellChatController, this._notebookEditor, this, element, this._partContainer);
+		const enabled = this._configurationService.getValue<boolean>('notebook.experimental.cellChat');
+		if (enabled) {
+			this._controller = this._instantiationService.createInstance(NotebookCellChatController, this._notebookEditor, this, element, this._partContainer);
+		}
 
 		super.didRenderCell(element);
 	}
