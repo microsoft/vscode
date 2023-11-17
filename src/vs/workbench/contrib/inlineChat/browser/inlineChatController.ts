@@ -690,20 +690,6 @@ export class InlineChatController implements IEditorContribution {
 				a11yResponse = this._strategy.checkChanges(replyResponse) && a11yVerboseInlineChat
 					? a11yMessageResponse ? localize('editResponseMessage2', "{0}, also review proposed changes in the diff editor.", a11yMessageResponse) : localize('editResponseMessage', "Review proposed changes in the diff editor.")
 					: a11yMessageResponse;
-
-
-				if (this._activeSession.provider.provideFollowups && replyResponse.responseType !== InlineChateResponseTypes.OnlyEdits) {
-					const followupCts = new CancellationTokenSource(requestCts.token);
-					const followupTask = this._activeSession.provider.provideFollowups(this._activeSession.session, reply, followupCts.token);
-					this._log('followup request started', this._activeSession.provider.debugName, this._activeSession.session, reply);
-					const followupReply = await raceCancellationError(Promise.resolve(followupTask), followupCts.token);
-					if (followupReply) {
-						this._log('followup request receiver', this._activeSession.provider.debugName, this._activeSession.session, followupReply);
-						for (const message of followupReply) {
-							markdownContents.appendMarkdown(message.message.value);
-						}
-					}
-				}
 			}
 
 		} catch (e) {

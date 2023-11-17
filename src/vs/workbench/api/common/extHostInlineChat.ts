@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType, InteractiveEditorReplyFollowup } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostInlineChatShape, IInlineChatResponseDto, IMainContext, MainContext, MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -19,6 +19,7 @@ import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } fro
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { raceCancellation } from 'vs/base/common/async';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 class ProviderWrapper {
 
@@ -223,18 +224,14 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		};
 	}
 
-	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<InteractiveEditorReplyFollowup[] | undefined> {
+	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
-		if (entry && response) {
-			const task = Promise.resolve(entry.provider.provideFollowups?.(sessionData.session, response, token));
-			const res = await raceCancellation(task, token);
-			if (res) {
-				return res.map(f => ({
-					message: typeConvert.MarkdownString.from(f.contents),
-				}));
-			}
+		if (entry && response && entry.provider.provideFollowups) {
+			const task = Promise.resolve(entry.provider.provideFollowups(sessionData.session, response, token));
+			const followups = await raceCancellation(task, token);
+			return followups?.map(typeConvert.ChatReplyFollowup.from);
 		}
 		return undefined;
 	}

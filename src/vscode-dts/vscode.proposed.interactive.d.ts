@@ -75,7 +75,9 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorReplyFollowup {
-		contents: MarkdownString;
+		message: string;
+		tooltip?: string;
+		title?: string;
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
