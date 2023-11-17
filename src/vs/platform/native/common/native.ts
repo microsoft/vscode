@@ -6,13 +6,13 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -33,6 +33,10 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
+export interface INativeOptions {
+	readonly targetWindowId?: number;
+}
+
 export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
@@ -41,13 +45,16 @@ export interface ICommonNativeHostService {
 	readonly windowId: number;
 
 	// Events
-	readonly onDidOpenWindow: Event<number>;
+	readonly onDidOpenMainWindow: Event<number>;
 
-	readonly onDidMaximizeWindow: Event<number>;
-	readonly onDidUnmaximizeWindow: Event<number>;
+	readonly onDidMaximizeMainWindow: Event<number>;
+	readonly onDidUnmaximizeMainWindow: Event<number>;
 
-	readonly onDidFocusWindow: Event<number>;
-	readonly onDidBlurWindow: Event<number>;
+	readonly onDidFocusMainWindow: Event<number>;
+	readonly onDidBlurMainWindow: Event<number>;
+
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
 
@@ -57,24 +64,29 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangePassword: Event<{ service: string; account: string }>;
 
-	readonly onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
+	readonly onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 
 	// Window
-	getWindows(): Promise<IOpenedWindow[]>;
+	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(options?: INativeOptions): Promise<void>;
 
 	handleTitleDoubleClick(): Promise<void>;
+
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
+	moveWindowTop(options?: INativeOptions): Promise<void>;
+	positionWindow(position: IRectangle, options?: INativeOptions): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
@@ -95,7 +107,7 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { windowId?: number; force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeOptions & { force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -109,13 +121,14 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string): Promise<void>;
-	setDocumentEdited(edited: boolean): Promise<void>;
+	setRepresentedFilename(path: string, options?: INativeOptions): Promise<void>;
+	setDocumentEdited(edited: boolean, options?: INativeOptions): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
+	isRunningUnderARM64Translation(): Promise<boolean>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
@@ -162,14 +175,13 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
-	sendInputEvent(event: MouseInputEvent): Promise<void>;
-	enableSandbox(enabled: boolean): Promise<void>; // TODO@bpasero remove me
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (windows only)

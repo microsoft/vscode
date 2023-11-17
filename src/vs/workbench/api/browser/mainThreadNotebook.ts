@@ -14,11 +14,16 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { INotebookCellStatusBarItemProvider, INotebookContributionData, NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookCellStatusBarItemProvider, INotebookContributionData, INotebookExclusiveDocumentFilter, NotebookData, NotebookExtensionDescription, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { revive } from 'vs/base/common/marshalling';
+import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
+import { coalesce } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -49,9 +54,15 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		disposables.add(this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
-				const sw = new StopWatch(true);
-				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-				const result = NotebookDto.fromNotebookDataDto(dto.value);
+				const sw = new StopWatch();
+				let result: NotebookData;
+				if (data.byteLength === 0 && viewType === 'interactive') {
+					// we don't want any starting cells for an empty interactive window.
+					result = NotebookDto.fromNotebookDataDto({ cells: [], metadata: {} });
+				} else {
+					const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
+					result = NotebookDto.fromNotebookDataDto(dto.value);
+				}
 				this._logService.trace(`[NotebookSerializer] dataToNotebook DONE after ${sw.elapsed()}ms`, {
 					viewType,
 					extensionId: extension.id.value,
@@ -59,13 +70,58 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				return result;
 			},
 			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
 				this._logService.trace(`[NotebookSerializer] notebookToData DONE after ${sw.elapsed()}`, {
 					viewType,
 					extensionId: extension.id.value,
 				});
 				return result;
+			},
+			save: async (uri, versionId, options, token) => {
+				const stat = await this._proxy.$saveNotebook(handle, uri, versionId, options, token);
+				return {
+					...stat,
+					children: undefined,
+					resource: uri
+				};
+			},
+			searchInNotebooks: async (textQuery, token, allPriorityInfo): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
+				const contributedType = this._notebookService.getContributedNotebookType(viewType);
+				if (!contributedType) {
+					return { results: [], limitHit: false };
+				}
+				const fileNames = contributedType.selectors;
+
+				const includes = fileNames.map((selector) => {
+					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
+					return globPattern.toString();
+				});
+
+				if (!includes.length) {
+					return {
+						results: [], limitHit: false
+					};
+				}
+
+				const thisPriorityInfo = coalesce([<NotebookPriorityInfo>{ isFromSettings: false, filenamePatterns: includes }, ...allPriorityInfo.get(viewType) ?? []]);
+				const otherEditorsPriorityInfo = Array.from(allPriorityInfo.keys())
+					.flatMap(key => {
+						if (key !== viewType) {
+							return allPriorityInfo.get(key) ?? [];
+						}
+						return [];
+					});
+
+				const searchComplete = await this._proxy.$searchInNotebooks(handle, textQuery, thisPriorityInfo, otherEditorsPriorityInfo, token);
+				const revivedResults: INotebookFileMatchNoModel<URI>[] = searchComplete.results.map(result => {
+					const resource = URI.revive(result.resource);
+					return {
+						resource,
+						cellResults: result.cellResults.map(e => revive(e))
+					};
+				});
+				return { results: revivedResults, limitHit: searchComplete.limitHit };
 			}
 		}));
 

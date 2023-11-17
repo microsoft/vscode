@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -15,9 +15,7 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 
 suite('UserDataSyncService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test first time sync ever', async () => {
 		// Setup the client
@@ -680,6 +678,102 @@ suite('UserDataSyncService', () => {
 		} catch (error) {
 			/* expected */
 		}
+	});
+
+	test('test sync when there are local profile that uses default profile', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Setup and sync from the client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		const testObject = client.instantiationService.get(IUserDataSyncService);
+		await (await testObject.createSyncTask(null)).run();
+		target.reset();
+
+		// Do changes in the client
+		const fileService = client.instantiationService.get(IFileService);
+		const environmentService = client.instantiationService.get(IEnvironmentService);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1', { useDefaultFlags: { settings: true } });
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{}`));
+		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+
+		// Sync from the client
+		await (await testObject.createSyncTask(null)).run();
+
+		assert.deepStrictEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Settings
+			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
+			// Keybindings
+			{ type: 'POST', url: `${target.url}/v1/resource/keybindings`, headers: { 'If-Match': '1' } },
+			// Snippets
+			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
+			// Global state
+			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '1' } },
+			// Profiles
+			{ type: 'POST', url: `${target.url}/v1/collection`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/profiles`, headers: { 'If-Match': '0' } },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/keybindings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
+		]);
+	});
+
+	test('test sync when there is a remote profile that uses default profile', async () => {
+		const target = new UserDataSyncTestServer();
+
+		// Sync from first client
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+
+		// Sync from test client
+		const testClient = disposableStore.add(new UserDataSyncClient(target));
+		await testClient.setUp();
+		const testObject = testClient.instantiationService.get(IUserDataSyncService);
+		await (await testObject.createSyncTask(null)).run();
+
+		// Do changes in first client and sync
+		const fileService = client.instantiationService.get(IFileService);
+		const environmentService = client.instantiationService.get(IEnvironmentService);
+		const userDataProfilesService = client.instantiationService.get(IUserDataProfilesService);
+		await userDataProfilesService.createNamedProfile('1', { useDefaultFlags: { keybindings: true } });
+		await fileService.writeFile(userDataProfilesService.defaultProfile.settingsResource, VSBuffer.fromString(JSON.stringify({ 'editor.fontSize': 14 })));
+		await fileService.writeFile(userDataProfilesService.defaultProfile.keybindingsResource, VSBuffer.fromString(JSON.stringify([{ 'command': 'abcd', 'key': 'cmd+c' }])));
+		await fileService.writeFile(joinPath(userDataProfilesService.defaultProfile.snippetsHome, 'html.json'), VSBuffer.fromString(`{ "a": "changed" }`));
+		await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'de' })));
+		await (await client.instantiationService.get(IUserDataSyncService).createSyncTask(null)).run();
+
+		// Sync from test client
+		target.reset();
+		await (await testObject.createSyncTask(null)).run();
+
+		assert.deepStrictEqual(target.requests, [
+			// Manifest
+			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Settings
+			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: { 'If-None-Match': '1' } },
+			// Keybindings
+			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: { 'If-None-Match': '1' } },
+			// Snippets
+			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: { 'If-None-Match': '1' } },
+			// Global state
+			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: { 'If-None-Match': '1' } },
+			// Profiles
+			{ type: 'GET', url: `${target.url}/v1/resource/profiles/latest`, headers: { 'If-None-Match': '0' } },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/settings/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/snippets/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/tasks/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/globalState/latest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/collection/1/resource/extensions/latest`, headers: {} },
+		]);
+
 	});
 
 });

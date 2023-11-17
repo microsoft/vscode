@@ -117,7 +117,7 @@ export class CommitCommandsCenter {
 		const commandFromStorage = allCommands.find(c => c.arguments?.length === 2 && c.arguments[1] === this.getPostCommitCommandStringFromStorage());
 		const commandFromSetting = allCommands.find(c => c.arguments?.length === 2 && c.arguments[1] === this.getPostCommitCommandStringFromSetting());
 
-		return commandFromStorage ?? commandFromSetting ?? this.getCommitCommand();
+		return commandFromStorage ?? commandFromSetting ?? this.getCommitCommands()[0];
 	}
 
 	getSecondaryCommands(): Command[][] {
@@ -131,7 +131,7 @@ export class CommitCommandsCenter {
 		}
 
 		if (commandGroups.length > 0) {
-			commandGroups[0].splice(0, 0, this.getCommitCommand());
+			commandGroups.splice(0, 0, this.getCommitCommands());
 		}
 
 		return commandGroups;
@@ -169,7 +169,7 @@ export class CommitCommandsCenter {
 		return `postCommitCommand:${this.repository.root}`;
 	}
 
-	private getCommitCommand(): Command {
+	private getCommitCommands(): Command[] {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 
 		// Branch protection
@@ -196,7 +196,10 @@ export class CommitCommandsCenter {
 				l10n.t('Committing Changes to New Branch...');
 		}
 
-		return { command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] };
+		return [
+			{ command: 'git.commit', title: l10n.t('{0} Commit', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+			{ command: 'git.commitAmend', title: l10n.t('{0} Commit (Amend)', icon ?? '$(check)'), tooltip, arguments: [this.repository.sourceControl, null] },
+		];
 	}
 
 	private getPostCommitCommandStringFromSetting(): string | undefined {

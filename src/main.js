@@ -33,8 +33,27 @@ const portable = bootstrapNode.configurePortable(product);
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event
 const args = parseCLIArgs();
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+// Enable sandbox globally unless
+// 1) disabled via command line using either
+//    `--no-sandbox` or `--disable-chromium-sandbox` argument.
+// 2) argv.json contains `disable-chromium-sandbox: true`.
+if (args['sandbox'] &&
+	!args['disable-chromium-sandbox'] &&
+	!argvConfig['disable-chromium-sandbox']) {
+	app.enableSandbox();
+} else if (app.commandLine.hasSwitch('no-sandbox') &&
+	!app.commandLine.hasSwitch('disable-gpu-sandbox')) {
+	// Disable GPU sandbox whenever --no-sandbox is used.
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+} else {
+	app.commandLine.appendSwitch('no-sandbox');
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
+// Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 if (process.platform === 'win32') {
 	const userDataUNCHost = getUNCHost(userDataPath);
@@ -46,9 +65,6 @@ app.setPath('userData', userDataPath);
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
-
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Disable default menu (https://github.com/electron/electron/issues/35512)
 Menu.setApplicationMenu(null);
@@ -189,9 +205,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	];
 
 	if (process.platform === 'linux') {
-
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// override which password-store is used on Linux
+		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -200,7 +218,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Use an in-memory storage for secrets
+		'use-inmemory-secretstorage'
 	];
 
 	// Read argv config
@@ -212,8 +233,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
 
-			// Color profile
-			if (argvKey === 'force-color-profile') {
+			if (
+				// Color profile
+				argvKey === 'force-color-profile' ||
+				// Password store
+				argvKey === 'password-store'
+			) {
 				if (argvValue) {
 					app.commandLine.appendSwitch(argvKey, argvValue);
 				}
@@ -249,13 +274,21 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						}
 					}
 					break;
+
+				case 'use-inmemory-secretstorage':
+					if (argvValue) {
+						process.argv.push('--use-inmemory-secretstorage');
+					}
+					break;
 			}
 		}
 	});
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+	const featuresToDisable =
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
@@ -378,9 +411,6 @@ function configureCrashReporter() {
 			if (uuidPattern.test(crashReporterId)) {
 				if (isWindows) {
 					switch (process.arch) {
-						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
 						case 'x64':
 							submitURL = appCenter['win32-x64'];
 							break;
@@ -461,7 +491,16 @@ function parseCLIArgs() {
 			'locale',
 			'js-flags',
 			'crash-reporter-directory'
-		]
+		],
+		boolean: [
+			'disable-chromium-sandbox',
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 

@@ -6,11 +6,13 @@
 import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { removeLinkSuffix, removeLinkQueryString, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPath, posix, win32 } from 'vs/base/common/path';
+import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
 	declare _serviceBrand: undefined;
@@ -168,9 +170,9 @@ class LinkCache {
 	set(link: string | URI, value: ResolvedLink) {
 		// Reset cached link TTL on any set
 		if (this._cacheTilTimeout) {
-			window.clearTimeout(this._cacheTilTimeout);
+			getActiveWindow().clearTimeout(this._cacheTilTimeout);
 		}
-		this._cacheTilTimeout = window.setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
+		this._cacheTilTimeout = getActiveWindow().setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
 		this._cache.set(this._getKey(link), value);
 	}
 

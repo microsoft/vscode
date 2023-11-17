@@ -264,7 +264,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 				const index = extensionsToEnable.findIndex(e => areSameExtensions(e.identifier, extension.identifier));
 
-				// Extension is not aded to the disablement list so add it
+				// Extension is not added to the disablement list so add it
 				if (index === -1) {
 					extensionsToEnable.push(extension);
 				}

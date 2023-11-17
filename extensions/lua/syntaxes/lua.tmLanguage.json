@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/sumneko/lua.tmbundle/commit/d0d89a3734dd36938d8498a3c16bc734291727cb",
+	"version": "https://github.com/sumneko/lua.tmbundle/commit/3a18700941737c3ab66ac5964696f141aee61800",
 	"name": "Lua",
 	"scopeName": "source.lua",
 	"patterns": [
@@ -184,7 +184,7 @@
 		},
 		{
 			"match": "\\b(and|or|not|\\|\\||\\&\\&|\\!)\\b",
-			"name": "keyword.operator.logical.lua"
+			"name": "keyword.operator.lua"
 		},
 		{
 			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b(?=\\s*(?:[({\"']|\\[\\[))",
@@ -372,7 +372,10 @@
 							"name": "comment.block.lua",
 							"patterns": [
 								{
-									"include": "#comment_documentation_bracket"
+									"include": "#emmydoc"
+								},
+								{
+									"include": "#ldoc_tag"
 								}
 							]
 						},
@@ -437,33 +440,12 @@
 					"name": "comment.block.lua",
 					"patterns": [
 						{
-							"include": "#comment_documentation_asterisk"
+							"include": "#emmydoc"
+						},
+						{
+							"include": "#ldoc_tag"
 						}
 					]
-				}
-			]
-		},
-		"comment_documentation_asterisk": {
-			"begin": "(?<=/\\*\\*)([^*]|\\*(?!/))*$",
-			" ": "^[ \\t]*\\*(?!/)(?=([^*]|[*](?!/))*$)",
-			"patterns": [
-				{
-					"include": "#emmydoc"
-				},
-				{
-					"include": "#ldoc_tag"
-				}
-			]
-		},
-		"comment_documentation_bracket": {
-			"begin": "(?<=--\\[\\[)([^-]|\\-(?!\\]\\]))*$",
-			"while": "^[ \\t]*-*(?!\\]\\])(?=([^-]|[-](?!\\]\\]))*$)",
-			"patterns": [
-				{
-					"include": "#emmydoc"
-				},
-				{
-					"include": "#ldoc_tag"
 				}
 			]
 		},

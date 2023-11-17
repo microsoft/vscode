@@ -63,6 +63,7 @@ export class CellComments extends CellContentPart {
 		this._commentThreadWidget = this.instantiationService.createInstance(
 			CommentThreadWidget,
 			this.container,
+			this.notebookEditor,
 			owner,
 			this.notebookEditor.textModel!.uri,
 			this.contextKeyService,

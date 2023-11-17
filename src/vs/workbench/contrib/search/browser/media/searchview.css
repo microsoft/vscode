@@ -35,6 +35,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	background-color: unset;
 }
 
 .monaco-workbench .search-view .search-widget .toggle-replace-button:hover {

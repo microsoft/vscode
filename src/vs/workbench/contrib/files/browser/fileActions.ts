@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extname, basename } from 'vs/base/common/path';
+import { extname, basename, isAbsolute } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -517,14 +517,14 @@ export class GlobalCompareResourcesAction extends Action2 {
 
 export class ToggleAutoSaveAction extends Action2 {
 	static readonly ID = 'workbench.action.toggleAutoSave';
-	static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
 
 	constructor() {
 		super({
 			id: ToggleAutoSaveAction.ID,
-			title: { value: ToggleAutoSaveAction.LABEL, original: 'Toggle Auto Save' },
+			title: nls.localize2('toggleAutoSave', "Toggle Auto Save"),
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: { description: nls.localize2('toggleAutoSaveDescription', "Toggle the ability to save files automatically after typing") }
 		});
 	}
 
@@ -720,7 +720,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 	// Check for invalid file name.
 	if (names.some(folderName => !pathService.hasValidBasename(item.resource, os, folderName))) {
 		// Escape * characters
-		const escapedName = name.replace(/\*/g, '\\*');
+		const escapedName = name.replace(/\*/g, '\\*'); // CodeQL [SM02383] This only processes filenames which are enforced against having backslashes in them farther up in the stack.
 		return {
 			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(escapedName)),
 			severity: Severity.Error
@@ -1082,7 +1082,7 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
-export const pasteFileHandler = async (accessor: ServicesAccessor) => {
+export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
@@ -1093,7 +1093,34 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const dialogService = accessor.get(IDialogService);
 
 	const context = explorerService.getContext(true);
-	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
+	const hasNativeFilesToPaste = fileList && fileList.length > 0;
+	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
+
+	const toPaste = await getFilesToPaste(fileList, clipboardService);
+
+	if (confirmPasteNative) {
+		const message = toPaste.length > 1 ?
+			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.length) :
+			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));
+		const detail = toPaste.length > 1 ? getFileNamesMessage(toPaste) : undefined;
+		const confirmation = await dialogService.confirm({
+			message,
+			detail,
+			checkbox: {
+				label: nls.localize('doNotAskAgain', "Do not ask me again")
+			},
+			primaryButton: nls.localize({ key: 'pasteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Paste")
+		});
+
+		if (!confirmation.confirmed) {
+			return;
+		}
+
+		// Check for confirmation checkbox
+		if (confirmation.checkboxChecked === true) {
+			await configurationService.updateValue('explorer.confirmPasteNative', false);
+		}
+	}
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
@@ -1175,6 +1202,16 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	}
 };
 
+async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> {
+	if (fileList && fileList.length > 0) {
+		// with a `fileList` we support natively pasting files from clipboard
+		return [...fileList].filter(file => !!file.path && isAbsolute(file.path)).map(file => URI.file(file.path));
+	} else {
+		// otherwise we fallback to reading resources from our clipboard service
+		return resources.distinctParents(await clipboardService.readResources(), resource => resource);
+	}
+}
+
 export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1218,7 +1255,7 @@ class BaseSetActiveEditorReadonlyInSession extends Action2 {
 export class SetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.setActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Readonly in Session");
+	static readonly LABEL = nls.localize('setActiveEditorReadonlyInSession', "Set Active Editor Read-only in Session");
 
 	constructor() {
 		super(
@@ -1246,7 +1283,7 @@ export class SetActiveEditorWriteableInSession extends BaseSetActiveEditorReadon
 export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.toggleActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Readonly in Session");
+	static readonly LABEL = nls.localize('toggleActiveEditorReadonlyInSession', "Toggle Active Editor Read-only in Session");
 
 	constructor() {
 		super(
@@ -1260,7 +1297,7 @@ export class ToggleActiveEditorReadonlyInSession extends BaseSetActiveEditorRead
 export class ResetActiveEditorReadonlyInSession extends BaseSetActiveEditorReadonlyInSession {
 
 	static readonly ID = 'workbench.action.files.resetActiveEditorReadonlyInSession';
-	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Readonly in Session");
+	static readonly LABEL = nls.localize('resetActiveEditorReadonlyInSession', "Reset Active Editor Read-only in Session");
 
 	constructor() {
 		super(

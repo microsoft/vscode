@@ -30,13 +30,16 @@ import { basename } from 'vs/base/common/resources';
 import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
-export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
+export const COMMENTS_VIEW_TITLE: ILocalizedString = nls.localize2('comments.view.title', "Comments");
 
 interface IResourceTemplateData {
 	resourceLabel: IResourceLabel;
+	separator: HTMLElement;
+	owner: HTMLElement;
 }
 
 interface ICommentThreadTemplateData {
@@ -94,12 +97,23 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	renderTemplate(container: HTMLElement) {
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
 		const resourceLabel = this.labels.create(labelContainer);
+		const separator = dom.append(labelContainer, dom.$('.separator'));
+		const owner = labelContainer.appendChild(dom.$('.owner'));
 
-		return { resourceLabel };
+		return { resourceLabel, owner, separator };
 	}
 
 	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
 		templateData.resourceLabel.setFile(node.element.resource);
+		templateData.separator.innerText = '\u00b7';
+
+		if (node.element.ownerLabel) {
+			templateData.owner.innerText = node.element.ownerLabel;
+			templateData.separator.style.display = 'inline';
+		} else {
+			templateData.owner.innerText = '';
+			templateData.separator.style.display = 'none';
+		}
 	}
 
 	disposeTemplate(templateData: IResourceTemplateData): void {
@@ -188,7 +202,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		if (node.element.threadState !== undefined) {
 			const color = this.getCommentThreadWidgetStateColor(node.element.threadState, this.themeService.getColorTheme());
 			templateData.threadMetadata.icon.style.setProperty(commentViewThreadStateColorVar, `${color}`);
-			templateData.threadMetadata.icon.style.color = `var(${commentViewThreadStateColorVar}`;
+			templateData.threadMetadata.icon.style.color = `var(${commentViewThreadStateColorVar})`;
 		}
 		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
 		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);
@@ -336,7 +350,6 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 		options: ICommentsListOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
@@ -368,13 +381,7 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 						return '';
 					}
 				},
-				expandOnlyOnTwistieClick: (element: any) => {
-					if (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) {
-						return false;
-					}
-
-					return true;
-				},
+				expandOnlyOnTwistieClick: true,
 				collapseByDefault: false,
 				overrideStyles: options.overrideStyles,
 				filter: options.filter,

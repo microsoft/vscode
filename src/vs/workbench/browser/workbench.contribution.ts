@@ -7,10 +7,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, securityConfigurationNodeBase, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurationWorkbenchContribution, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ActivityBarPosition, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import product from 'vs/platform/product/common/product';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -19,6 +21,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	// Migration support
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ConfigurationMigrationWorkbenchContribution, LifecyclePhase.Eventually);
+
+	// Dynamic Configuration
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicWorkbenchConfigurationWorkbenchContribution, LifecyclePhase.Ready);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -34,24 +39,41 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
 			},
-			'workbench.editor.showTabs': {
-				'type': 'boolean',
-				'description': localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
-				'default': true
+			[LayoutSettings.EDITOR_TABS_MODE]: {
+				'type': 'string',
+				'enum': [EditorTabsMode.MULTIPLE, EditorTabsMode.SINGLE, EditorTabsMode.NONE],
+				'enumDescriptions': [
+					localize('workbench.editor.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
+					localize('workbench.editor.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
+					localize('workbench.editor.showTabs.none', "The editor title area is not displayed."),
+				],
+				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
+				'default': 'multiple'
+			},
+			'workbench.editor.editorActionsLocation': {
+				'type': 'string',
+				'enum': ['default', 'titleBar', 'hidden'],
+				'enumDescriptions': [
+					localize('workbench.editor.editorActionsLocation.default', "Show editor actions in the window title bar when `#workbench.editor.showTabs#` is set to `none`. Otherwise, editor actions are shown in the editor tab bar."),
+					localize('workbench.editor.editorActionsLocation.titleBar', "Show editor actions in the window title bar. If `#window.titleBarStyle#` is set to `native`, editor actions are hidden."),
+					localize('workbench.editor.editorActionsLocation.hidden', "Editor actions are not shown."),
+				],
+				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
+				'default': 'default'
 			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 				'default': false
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 				'default': false
 			},
 			'workbench.editor.decorations.badges': {
@@ -92,11 +114,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					key: 'untitledLabelFormat'
 				}, "Controls the format of the label for an untitled editor."),
 			},
-			'workbench.editor.untitled.hint': {
+			'workbench.editor.empty.hint': {
 				'type': 'string',
 				'enum': ['text', 'hidden'],
 				'default': 'text',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'untitledHint' }, "Controls if the untitled text hint should be visible in the editor.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'emptyEditorHint' }, "Controls if the empty editor text hint should be visible in the editor.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -133,21 +155,50 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					}
 				}
 			},
-			'workbench.editor.tabCloseButton': {
-				'type': 'string',
-				'enum': ['left', 'right', 'off'],
-				'default': 'right',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+			'workbench.editor.tabActionLocation': {
+				type: 'string',
+				enum: ['left', 'right'],
+				default: 'right',
+				markdownDescription: localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabActionLocation' }, "Controls the position of the editor's tabs action buttons (close, unpin). This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
+			},
+			'workbench.editor.tabActionCloseVisibility': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.tabActionCloseVisibility', "Controls the visibility of the tab close action button.")
+			},
+			'workbench.editor.tabActionUnpinVisibility': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.tabActionUnpinVisibility', "Controls the visibility of the tab unpin action button.")
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
-				'enum': ['fit', 'shrink'],
+				'enum': ['fit', 'shrink', 'fixed'],
 				'default': 'fit',
 				'enumDescriptions': [
 					localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
-					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once."),
+					localize('workbench.editor.tabSizing.fixed', "Make all tabs the same size, while allowing them to get smaller when the available space is not enough to show all tabs at once.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the size of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
+			},
+			'workbench.editor.tabSizingFixedMinWidth': {
+				'type': 'number',
+				'default': 50,
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMinWidth' }, "Controls the minimum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
+			},
+			'workbench.editor.tabSizingFixedMaxWidth': {
+				'type': 'number',
+				'default': 160,
+				'minimum': 38,
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
+			},
+			'window.density.editorTabHeight': {
+				'type': 'string',
+				'enum': ['default', 'compact'],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -158,26 +209,49 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
 					localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
+			},
+			'workbench.editor.pinnedTabsOnSeparateRow': {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
+			},
+			'workbench.editor.preventPinnedEditorClose': {
+				'type': 'string',
+				'enum': ['keyboardAndMouse', 'keyboard', 'mouse', 'never'],
+				'default': 'keyboardAndMouse',
+				'enumDescriptions': [
+					localize('workbench.editor.preventPinnedEditorClose.always', "Always prevent closing the pinned editor when using mouse middle click or keyboard."),
+					localize('workbench.editor.preventPinnedEditorClose.onlyKeyboard', "Prevent closing the pinned editor when using the keyboard."),
+					localize('workbench.editor.preventPinnedEditorClose.onlyMouse', "Prevent closing the pinned editor when using mouse middle click."),
+					localize('workbench.editor.preventPinnedEditorClose.never', "Never prevent closing a pinned editor.")
+				],
+				description: localize('workbench.editor.preventPinnedEditorClose', "Controls whether pinned editors should close when keyboard or middle mouse click is used for closing."),
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
-				'enum': ['distribute', 'split'],
-				'default': 'distribute',
+				'enum': ['auto', 'distribute', 'split'],
+				'default': 'auto',
 				'enumDescriptions': [
+					localize('workbench.editor.splitSizingAuto', "Splits the active editor group to equal parts, unless all editor groups are already in equal parts. In that case, splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingDistribute', "Splits all the editor groups to equal parts."),
 					localize('workbench.editor.splitSizingSplit', "Splits the active editor group to equal parts.")
 				],
-				'description': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the sizing of editor groups when splitting them.")
+				'description': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'splitSizing' }, "Controls the size of editor groups when splitting them.")
 			},
 			'workbench.editor.splitOnDragAndDrop': {
 				'type': 'boolean',
 				'default': true,
 				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
 			},
+			'workbench.editor.dragToOpenWindow': {
+				'type': 'boolean',
+				'default': product.quality !== 'stable',
+				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new floating window. Press and hold `Alt`-key while dragging to toggle this dynamically.")
+			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
-				'description': localize('focusRecentEditorAfterClose', "Controls whether tabs are closed in most recently used order or from left to right."),
+				'description': localize('focusRecentEditorAfterClose', "Controls whether editors are closed in most recently used order or from left to right."),
 				'default': true
 			},
 			'workbench.editor.showIcons': {
@@ -274,6 +348,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
 			},
+			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
+				'type': 'string',
+				'enum': ['maximize', 'expand', 'off'],
+				'default': 'expand',
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls how the editor group is resized when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
+				'enumDescriptions': [
+					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.maximize', "All other editor groups are hidden and the current editor group is maximized to take up the entire editor area."),
+					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.expand', "The editor group takes as much space as possible by making all other editor groups as small as possible."),
+					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.off', "No editor group is resized when double clicking on a tab.")
+				]
+			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
@@ -320,7 +405,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'patternProperties': {
 					'.*': { 'type': 'boolean' }
 				},
-				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
+				'markdownDescription': localize('exclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files from the local file history. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.mergeWindow': {
@@ -343,13 +428,26 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.commandPalette.experimental.suggestCommands': {
 				'type': 'boolean',
+				tags: ['experimental'],
 				'description': localize('suggestCommands', "Controls whether the command palette should have a list of commonly used commands."),
 				'default': false
 			},
-			'workbench.commandPalette.experimental.useSemanticSimilarity': {
+			'workbench.commandPalette.experimental.askChatLocation': {
+				'type': 'string',
+				tags: ['experimental'],
+				'description': localize('askChatLocation', "Controls where the command palette should ask chat questions."),
+				'default': 'chatView',
+				enum: ['chatView', 'quickChat'],
+				enumDescriptions: [
+					localize('askChatLocation.chatView', "Ask chat questions in the Chat view."),
+					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
+				]
+			},
+			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {
 				'type': 'boolean',
-				'description': localize('useSemanticSimilarity', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Semantic Similarity."),
-				'default': false
+				tags: ['experimental'],
+				'description': localize('enableNaturalLanguageSearch', "Controls whether the command palette should include similar commands. You must have an extension installed that provides Natural Language support."),
+				'default': true
 			},
 			'workbench.quickOpen.closeOnFocusLost': {
 				'type': 'boolean',
@@ -404,10 +502,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
 			},
-			'workbench.activityBar.visible': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
+				'type': 'string',
+				'enum': ['side', 'top', 'hidden'],
+				'default': 'side',
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the activity bar. It can either show to the `side` or `top` (requires {0} set to {1}) of the primary side bar or `hidden`.", '`#window.titleBarStyle#`', '`custom`'),
+				'enumDescriptions': [
+					localize('workbench.activityBar.location.side', "Show the activity bar to the side of the primary side bar."),
+					localize('workbench.activityBar.location.top', "Show the activity bar on top of the primary side bar."),
+					localize('workbench.activityBar.location.hide', "Hide the activity bar.")
+				]
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
@@ -497,7 +601,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 	// Window
 
-	let windowTitleDescription = localize('windowTitle', "Controls the window title based on the active editor. Variables are substituted based on the context:");
+	let windowTitleDescription = localize('windowTitle', "Controls the window title based on the current context such as the opened workspace or active editor. Variables are substituted based on the context:");
 	windowTitleDescription += '\n- ' + [
 		localize('activeEditorShort', "`${activeEditorShort}`: the file name (e.g. myFile.txt)."),
 		localize('activeEditorMedium', "`${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
@@ -514,6 +618,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('appName', "`${appName}`: e.g. VS Code."),
 		localize('remoteName', "`${remoteName}`: e.g. SSH"),
 		localize('dirty', "`${dirty}`: an indicator for when the active editor has unsaved changes."),
+		localize('focusedView', "`${focusedView}`: the name of the view that is currently focused."),
 		localize('separator', "`${separator}`: a conditional separator (\" - \") that only shows when surrounded by variables with values or static text.")
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
@@ -544,10 +649,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
 			},
-			'window.commandCenter': {
+			[LayoutSettings.COMMAND_CENTER]: {
 				type: 'boolean',
-				default: false,
-				tags: ['experimental'],
+				default: true,
 				markdownDescription: isWeb ?
 					localize('window.commandCenterWeb', "Show command launcher together with the window title.") :
 					localize({ key: 'window.commandCenter', comment: ['{0} is a placeholder for a setting identifier.'] }, "Show command launcher together with the window title. This setting only has an effect when {0} is set to {1}.", '`#window.titleBarStyle#`', '`custom`')
@@ -633,7 +737,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': (isWeb && !isStandalone()) ? 'keyboardOnly' : 'never', // on by default in web, unless PWA, never on desktop
 				'markdownDescription': isWeb ?
 					localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases.") :
-					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing the window or quitting the application."),
+					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing a window or quitting the application."),
 				'scope': ConfigurationScope.APPLICATION
 			}
 		}
@@ -656,10 +760,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
 			},
-			'zenMode.hideTabs': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
+			'zenMode.showTabs': {
+				'type': 'string',
+				'enum': ['multiple', 'single', 'none'],
+				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab or hide the editor title area completely."),
+				'enumDescriptions': [
+					localize('zenMode.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
+					localize('zenMode.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
+					localize('zenMode.showTabs.none', "The editor title area is not displayed."),
+				],
+				'default': 'multiple'
 			},
 			'zenMode.hideStatusBar': {
 				'type': 'boolean',
@@ -688,21 +798,57 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			}
 		}
 	});
-
-	// Security
-	registry.registerConfiguration({
-		...securityConfigurationNodeBase,
-		'properties': {
-			'security.allowedUNCHosts': {
-				'type': 'array',
-				'items': {
-					'type': 'string'
-				},
-				'default': [],
-				'markdownDescription': localize('security.allowedUNCHosts', 'A set of UNC host names (without leading or trailing backslash, for example `192.168.0.1` or `my-server`) to allow without user confirmation. If a UNC host is being accessed that is not allowed via this setting or has not been acknowledged via user confirmation, an error will occur and the operation stopped. A restart is required when changing this setting. Find out more about this setting at https://aka.ms/vscode-windows-unc.'),
-				'included': isWeb ? true /* web maybe connected to a windows machine */ : isWindows,
-				'scope': ConfigurationScope.MACHINE
-			}
-		}
-	});
 })();
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.activityBar.visible', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push(['workbench.activityBar.visible', { value: undefined }]);
+			}
+			if (value === false) {
+				result.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.HIDDEN }]);
+			}
+			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.doubleClickTabToToggleEditorGroupSizes', migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
+			if (typeof value === 'boolean') {
+				value = value ? 'expand' : 'off';
+				results.push(['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value }]);
+			}
+			return results;
+		}
+	}, {
+		key: LayoutSettings.EDITOR_TABS_MODE, migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
+			if (typeof value === 'boolean') {
+				value = value ? EditorTabsMode.MULTIPLE : EditorTabsMode.SINGLE;
+				results.push([LayoutSettings.EDITOR_TABS_MODE, { value }]);
+			}
+			return results;
+		}
+	}, {
+		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value === 'left' || value === 'right') {
+				result.push(['workbench.editor.tabActionLocation', { value }]);
+			} else if (value === 'off') {
+				result.push(['workbench.editor.tabActionCloseVisibility', { value: false }]);
+			}
+			return result;
+		}
+	}, {
+		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
+			if (value === true) {
+				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);

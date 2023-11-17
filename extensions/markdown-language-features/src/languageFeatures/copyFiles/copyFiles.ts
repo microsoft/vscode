@@ -2,22 +2,49 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
-import { getParentDocumentUri } from './dropIntoEditor';
+import { getParentDocumentUri } from '../../util/document';
+
+type OverwriteBehavior = 'overwrite' | 'nameIncrementally';
+
+interface CopyFileConfiguration {
+	readonly destination: Record<string, string>;
+	readonly overwriteBehavior: OverwriteBehavior;
+}
+
+function getCopyFileConfiguration(document: vscode.TextDocument): CopyFileConfiguration {
+	const config = vscode.workspace.getConfiguration('markdown', document);
+	return {
+		destination: config.get<Record<string, string>>('copyFiles.destination') ?? {},
+		overwriteBehavior: readOverwriteBehavior(config),
+	};
+}
+
+function readOverwriteBehavior(config: vscode.WorkspaceConfiguration): OverwriteBehavior {
+	switch (config.get('copyFiles.overwriteBehavior')) {
+		case 'overwrite': return 'overwrite';
+		default: return 'nameIncrementally';
+	}
+}
 
 export class NewFilePathGenerator {
 
 	private readonly _usedPaths = new Set<string>();
 
-	async getNewFilePath(document: vscode.TextDocument, file: vscode.DataTransferFile, token: vscode.CancellationToken): Promise<vscode.Uri | undefined> {
-		const desiredPath = getDesiredNewFilePath(document, file);
+	async getNewFilePath(
+		document: vscode.TextDocument,
+		file: vscode.DataTransferFile,
+		token: vscode.CancellationToken,
+	): Promise<{ readonly uri: vscode.Uri; readonly overwrite: boolean } | undefined> {
+		const config = getCopyFileConfiguration(document);
+		const desiredPath = getDesiredNewFilePath(config, document, file);
 
 		const root = Utils.dirname(desiredPath);
-		const ext = path.extname(file.name);
-		const baseName = path.basename(file.name, ext);
+		const ext = Utils.extname(desiredPath);
+		let baseName = Utils.basename(desiredPath);
+		baseName = baseName.slice(0, baseName.length - ext.length);
 		for (let i = 0; ; ++i) {
 			if (token.isCancellationRequested) {
 				return undefined;
@@ -29,13 +56,20 @@ export class NewFilePathGenerator {
 				continue;
 			}
 
+			// Try overwriting if it already exists
+			if (config.overwriteBehavior === 'overwrite') {
+				this._usedPaths.add(uri.toString());
+				return { uri, overwrite: true };
+			}
+
+			// Otherwise we need to check the fs to see if it exists
 			try {
 				await vscode.workspace.fs.stat(uri);
 			} catch {
 				if (!this._wasPathAlreadyUsed(uri)) {
 					// Does not exist
 					this._usedPaths.add(uri.toString());
-					return uri;
+					return { uri, overwrite: false };
 				}
 			}
 		}
@@ -46,12 +80,11 @@ export class NewFilePathGenerator {
 	}
 }
 
-function getDesiredNewFilePath(document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
-	const docUri = getParentDocumentUri(document);
-	const config = vscode.workspace.getConfiguration('markdown').get<Record<string, string>>('experimental.copyFiles.destination') ?? {};
-	for (const [rawGlob, rawDest] of Object.entries(config)) {
+function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
+	const docUri = getParentDocumentUri(document.uri);
+	for (const [rawGlob, rawDest] of Object.entries(config.destination)) {
 		for (const glob of parseGlob(rawGlob)) {
-			if (picomatch.isMatch(docUri.path, glob)) {
+			if (picomatch.isMatch(docUri.path, glob, { dot: true })) {
 				return resolveCopyDestination(docUri, file.name, rawDest, uri => vscode.workspace.getWorkspaceFolder(uri)?.uri);
 			}
 		}
@@ -92,7 +125,10 @@ export function resolveCopyDestination(documentUri: vscode.Uri, fileName: string
 
 
 function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string, dest: string, getWorkspaceFolder: GetWorkspaceFolder): string {
-	let outDest = dest;
+	let outDest = dest.trim();
+	if (!outDest) {
+		outDest = '${fileName}';
+	}
 
 	// Destination that start with `/` implicitly means go to workspace root
 	if (outDest.startsWith('/')) {
