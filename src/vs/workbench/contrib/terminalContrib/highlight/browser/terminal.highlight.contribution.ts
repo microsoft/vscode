@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { addDisposableGenericMouseMoveListener, addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -25,8 +24,6 @@ class TerminalHighlightContribution extends Disposable implements ITerminalContr
 		private readonly _instance: ITerminalInstance | IDetachedTerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo,
 		widgetManager: TerminalWidgetManager,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
 	) {
 		super();
 	}
@@ -46,9 +43,9 @@ class TerminalHighlightContribution extends Disposable implements ITerminalContr
 			console.log(`@${mouseCursorY}`, e.offsetY);
 			const command = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.getCommandForLine(xterm.raw.buffer.active.viewportY + mouseCursorY);
 			if (command && 'getOutput' in command) {
-				xterm.markTracker.highlight(command);
+				xterm.markTracker.showCommandGuide(command);
 			} else {
-				xterm.markTracker.highlight(undefined);
+				xterm.markTracker.showCommandGuide(undefined);
 			}
 		}));
 	}

@@ -260,7 +260,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	private _highlightedCommand?: ITerminalCommand;
 	private _outputHighlights = this._register(new MutableDisposable<DisposableStore>());
 
-	highlight(command: ITerminalCommand | undefined): void {
+	showCommandGuide(command: ITerminalCommand | undefined): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -271,39 +271,33 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (this._highlightedCommand === command) {
 			return;
 		}
-		const promptRowCount = command.getPromptRowCount();
-		const commandRowCount = command.getCommandRowCount();
 		if (command.marker) {
 			this._highlightedCommand = command;
-			this.registerTemporaryDecoration(command.marker.line - (promptRowCount - 1), command.marker.line + (commandRowCount - 1), false);
 
 			// Highlight output
 			const store = this._outputHighlights.value = new DisposableStore();
 			if (!command.executedMarker || !command.endMarker) {
 				return;
 			}
-			const startLine = toLineIndex(command.executedMarker);
+			const startLine = command.marker.line - (command.getPromptRowCount() - 1);
 			const decorationCount = toLineIndex(command.endMarker) - startLine;
-			console.trace('highlight', startLine, decorationCount, command);
 			for (let i = 0; i < decorationCount; i++) {
 				const decoration = this._terminal.registerDecoration({
-					marker: this._createMarkerForOffset(command.executedMarker, i),
-					width: this._terminal.cols
+					marker: this._createMarkerForOffset(command.executedMarker, i)
 				});
 				if (decoration) {
 					store.add(decoration);
 					let renderedElement: HTMLElement | undefined;
-
 					store.add(decoration.onRender(element => {
 						if (!renderedElement) {
 							renderedElement = element;
-							element.classList.add('terminal-scroll-highlight-output');
-							// if (command.exitCode === 0) {
-							// 	element.classList.add('success');
-							// } else if (command.exitCode !== undefined) {
-							// 	element.classList.add('error');
-							// }
-							element.style.opacity = '0.5';
+							element.classList.add('terminal-command-guide');
+							if (i === 0) {
+								element.classList.add('top');
+							}
+							if (i === decorationCount - 1) {
+								element.classList.add('bottom');
+							}
 						}
 						if (this._terminal?.element) {
 							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;

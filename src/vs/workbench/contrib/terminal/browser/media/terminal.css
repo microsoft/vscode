@@ -479,16 +479,21 @@
 	pointer-events: none;
 }
 
-.terminal-scroll-highlight-output {
+.terminal-command-guide {
 	left: 0;
-	border-left: 5px solid #ffffff;
-	border-color: var(--vscode-terminalCommandDecoration-defaultBackground);
+	border: 1.5px solid #ffffff;
+	width: 0px !important;
+	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
+	box-sizing: border-box;
+	transform: translateX(3px);
 }
-.terminal-scroll-highlight-output.success {
-	border-color: var(--vscode-terminalCommandDecoration-successBackground);
+.terminal-command-guide.top {
+	border-top-left-radius: 1px;
+	border-top-right-radius: 1px;
 }
-.terminal-scroll-highlight-output.error {
-	border-color: var(--vscode-terminalCommandDecoration-errorBackground);
+.terminal-command-guide.bottom {
+	border-bottom-left-radius: 1px;
+	border-bottom-right-radius: 1px;
 }
 
 .terminal-scroll-highlight-outline {
