@@ -34,6 +34,7 @@ import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
@@ -75,6 +76,7 @@ export class NotebookCellChatController extends Disposable {
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@INotebookExecutionStateService _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -101,6 +103,21 @@ export class NotebookCellChatController extends Disposable {
 				this._widgetDisposableStore.add(this._widget.onDidChangeHeight(() => {
 					this._updateHeight();
 				}));
+
+				this._widgetDisposableStore.add(_notebookExecutionStateService.onDidChangeExecution(e => {
+					if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
+						return;
+					}
+
+					if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri) && e.changed === undefined /** complete */) {
+						// check if execution is successfull
+						const { lastRunSuccess } = this._cell.internalMetadata;
+						if (lastRunSuccess) {
+							this._strategy?.createSnapshot();
+						}
+					}
+				}));
+
 
 				this._partContainer.appendChild(this._widget.domNode);
 				this._partContainer.appendChild(this._toolbarDOM.editorToolbar);
@@ -454,6 +471,12 @@ class EditStrategy {
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
 		while (targetAltVersion < modelN.getAlternativeVersionId() && modelN.canUndo()) {
 			modelN.undo();
+		}
+	}
+
+	createSnapshot(): void {
+		if (this._session && !this._session.textModel0.equalsTextBuffer(this._session.textModelN.getTextBuffer())) {
+			this._session.createSnapshot();
 		}
 	}
 }
