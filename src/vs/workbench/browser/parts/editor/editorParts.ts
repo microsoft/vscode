@@ -297,14 +297,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		return this.activePart.getLayout();
 	}
 
-	centerLayout(active: boolean): void {
-		this.activePart.centerLayout(active);
-	}
-
-	isLayoutCentered(): boolean {
-		return this.activePart.isLayoutCentered();
-	}
-
 	get orientation() {
 		return this.activePart.orientation;
 	}

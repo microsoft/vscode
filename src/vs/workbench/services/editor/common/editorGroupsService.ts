@@ -302,16 +302,6 @@ export interface IEditorGroupsContainer {
 	getLayout(): EditorGroupLayout;
 
 	/**
-	 * Enable or disable centered editor layout.
-	 */
-	centerLayout(active: boolean): void;
-
-	/**
-	 * Find out if the editor layout is currently centered.
-	 */
-	isLayoutCentered(): boolean;
-
-	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
 	 */
 	setGroupOrientation(orientation: GroupOrientation): void;
@@ -462,6 +452,16 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * from a previous session.
 	 */
 	readonly hasRestorableState: boolean;
+
+	/**
+	 * Enable or disable centered editor layout.
+	 */
+	centerLayout(active: boolean): void;
+
+	/**
+	 * Find out if the editor layout is currently centered.
+	 */
+	isLayoutCentered(): boolean;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {

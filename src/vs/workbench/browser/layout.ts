@@ -335,7 +335,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
-			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
 		});
 
 		// Configuration changes
@@ -358,8 +358,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
 
 		// Group changes
-		this._register(this.editorGroupService.onDidAddGroup(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
-		this._register(this.editorGroupService.onDidRemoveGroup(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+		this._register(this.editorGroupService.mainPart.onDidAddGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
+		this._register(this.editorGroupService.mainPart.onDidRemoveGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
 
 		// Prevent workbench from scrolling #55456
 		this._register(addDisposableListener(this.mainContainer, EventType.SCROLL, () => this.mainContainer.scrollTop = 0));
@@ -485,7 +485,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Centered Layout
 		this.editorGroupService.mainPart.whenRestored.then(() => {
-			this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
+			this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
 		});
 	}
 
@@ -1047,9 +1047,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.toggleZenMode(false, true);
 		}
 
-		// Restore Editor Center Mode
+		// Restore Main Editor Center Mode
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED)) {
-			this.centerEditorLayout(true, true);
+			this.centerMainEditorLayout(true, true);
 		}
 
 		// Await for promises that we recorded to update
@@ -1320,7 +1320,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (!restoring) {
 				zenModeExitInfo.transitionedToFullScreen = toggleFullScreen;
-				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
+				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
 				zenModeExitInfo.handleNotificationsDoNotDisturbMode = !this.notificationService.doNotDisturbMode;
 				zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 				zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
@@ -1362,7 +1362,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 
 			if (config.centerLayout) {
-				this.centerEditorLayout(true, true);
+				this.centerMainEditorLayout(true, true);
 			}
 		}
 
@@ -1389,7 +1389,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (zenModeExitInfo.transitionedToCenteredEditorLayout) {
-				this.centerEditorLayout(false, true);
+				this.centerMainEditorLayout(false, true);
 			}
 
 			if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
@@ -1530,32 +1530,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	isEditorLayoutCentered(): boolean {
+	isMainEditorLayoutCentered(): boolean {
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED);
 	}
 
-	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
+	centerMainEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_CENTERED, active);
 
-		const activeEditor = this.editorService.activeEditor;
+		const activeMainEditor = this.mainPartEditorService.activeEditor;
 
 		let isEditorComplex = false;
-		if (activeEditor instanceof DiffEditorInput) {
+		if (activeMainEditor instanceof DiffEditorInput) {
 			isEditorComplex = this.configurationService.getValue('diffEditor.renderSideBySide');
-		} else if (activeEditor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
+		} else if (activeMainEditor?.hasCapability(EditorInputCapabilities.MultipleEditors)) {
 			isEditorComplex = true;
 		}
 
 		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
 		if (
 			isCenteredLayoutAutoResizing &&
-			(this.editorGroupService.groups.length > 1 || isEditorComplex)
+			(this.editorGroupService.mainPart.groups.length > 1 || isEditorComplex)
 		) {
 			active = false; // disable centered layout for complex editors or when there is more than one group
 		}
 
-		if (this.editorGroupService.isLayoutCentered() !== active) {
-			this.editorGroupService.centerLayout(active);
+		if (this.editorGroupService.mainPart.isLayoutCentered() !== active) {
+			this.editorGroupService.mainPart.centerLayout(active);
 
 			if (!skipLayout) {
 				this.layout();
@@ -1877,7 +1877,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (focusEditor) {
-			this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
+			this.editorGroupService.mainPart.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 		}
 	}
 
