@@ -213,6 +213,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this.updateLightBulbTitleAndIcon();
 	}
 
+	// make private once again, because we can find the actions directly from this file, do not need to trigger this method from someplace else
 	public updateLightBulbTitleAndIcon(iconMode: LightBulbMenuIconMode = LightBulbMenuIconMode.Standard): void {
 
 		if (iconMode !== LightBulbMenuIconMode.Standard) {

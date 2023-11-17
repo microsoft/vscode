@@ -260,6 +260,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			return;
 		}
 
+		// place into the lightBulbWidget file, will need to define the icon there
 		console.log('actionsToShow : ', actionsToShow);
 		let lightbulbMode = LightBulbMenuIconMode.Standard;
 		actionsToShow.forEach(action => {
@@ -272,6 +273,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		});
 		console.log('lightbulbMode : ', lightbulbMode);
 		this._lightBulbWidget.rawValue?.updateLightBulbTitleAndIcon(lightbulbMode);
+		//
+
+		if (actionsToShow.length === 1 && actionsToShow[0].action.isAI) {
+			// There is exactly one code action and it is an AI code action, then automatically trigger it
+			actionsToShow[0].resolve(CancellationToken.None);
+			return;
+		}
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
