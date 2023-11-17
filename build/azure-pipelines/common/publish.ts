@@ -694,7 +694,7 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 		throw rejectedPromiseResults[0]?.reason;
 	}
 
-	const assetUrl = `${e('AZURE_CDN_URL')} / ${quality} / ${blobName}`;
+	const assetUrl = `${e('AZURE_CDN_URL')}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;
 	const mooncakeUrl = `${e('MOONCAKE_CDN_URL')}${blobPath}`;
 
