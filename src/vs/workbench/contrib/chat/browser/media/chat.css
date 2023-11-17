@@ -460,8 +460,10 @@
 }
 
 .interactive-item-container.filtered-response .value > .rendered-markdown {
-	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
-	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+	pointer-events: none;
+	filter: blur(1.8px);
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.02));
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.02));
 }
 
 /* #region Quick Chat */

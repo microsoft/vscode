@@ -201,7 +201,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	get target(): TerminalLocation | undefined { return this._target; }
-	set target(value: TerminalLocation | undefined) { this._target = value; }
+	set target(value: TerminalLocation | undefined) {
+		this._target = value;
+		this._onDidChangeTarget.fire(value);
+	}
 
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
@@ -322,6 +325,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidRunText = this._register(new Emitter<void>());
 	readonly onDidRunText = this._onDidRunText.event;
+	private readonly _onDidChangeTarget = this._register(new Emitter<TerminalLocation | undefined>());
+	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,

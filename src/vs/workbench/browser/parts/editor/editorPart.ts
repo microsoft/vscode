@@ -34,7 +34,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -946,9 +946,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	//#region Part
 
 	// TODO @sbatten @joao find something better to prevent editor taking over #79897
-	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions().width); }
+	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions(this.layoutService.getContainer(getWindow(this.container))).width); }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
-	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
+	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions(this.layoutService.getContainer(getWindow(this.container))).height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
 	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }
@@ -1012,6 +1012,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private handleContextKeys(contextKeyService: IContextKeyService): void {
+		const isAuxiliaryEditorPartContext = IsAuxiliaryEditorPartContext.bindTo(contextKeyService);
+		isAuxiliaryEditorPartContext.set(this.isAuxiliary);
+
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
 
@@ -1398,6 +1401,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
+		readonly windowId: number,
 		editorPartsView: IEditorPartsView,
 		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,

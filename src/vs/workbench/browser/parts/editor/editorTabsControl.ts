@@ -333,8 +333,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
 		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
 		const window = getWindow(e);
-		if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
-			return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
+		if (window.document.visibilityState === 'visible') {
+			if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
+				return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
+			}
 		}
 
 		const offsetX = offsetElement.offsetWidth / 2;
