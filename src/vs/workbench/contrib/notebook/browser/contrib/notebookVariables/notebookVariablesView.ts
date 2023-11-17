@@ -5,6 +5,7 @@
 
 import { IObjectTreeElement } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -56,6 +57,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		this._register(this.editorService.onDidActiveEditorChange(this.handleActiveEditorChange.bind(this)));
 		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
+		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -102,6 +104,12 @@ export class NotebookVariablesView extends ViewPane {
 			if (event.changed === undefined && event.affectsNotebook(this.activeNotebook?.uri)) {
 				this.updateVariables(this.activeNotebook);
 			}
+		}
+	}
+
+	private handleVariablesChanged(notebookUri: URI) {
+		if (this.activeNotebook && notebookUri.toString() === this.activeNotebook.uri.toString()) {
+			this.updateVariables(this.activeNotebook);
 		}
 	}
 

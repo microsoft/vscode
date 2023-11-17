@@ -212,6 +212,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				checkProposedApiEnabled(extension, 'notebookVariableProvider');
 				_variableProvider = value;
 				data.hasVariableProvider = !!value;
+				value?.onDidChangeVariables(e => that._proxy.$variablesUpdated(e.uri));
 				_update();
 			},
 			get variableProvider() {
