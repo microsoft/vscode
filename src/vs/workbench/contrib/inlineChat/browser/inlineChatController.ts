@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Barrier, Queue, raceCancellationError } from 'vs/base/common/async';
+import { Barrier, Queue, raceCancellation, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -684,6 +684,7 @@ export class InlineChatController implements IEditorContribution {
 		try {
 			this._zone.value.widget.updateChatMessage(undefined);
 			this._zone.value.widget.updateMarkdownMessage(undefined);
+			this._zone.value.widget.updateFollowUps(undefined);
 			this._zone.value.widget.updateProgress(true);
 			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
 			this._ctxHasActiveRequest.set(true);
@@ -840,6 +841,27 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateToolbar(true);
 
 			await this._strategy.renderChanges(response);
+
+			if (this._activeSession.provider.provideFollowups) {
+				const followupCts = new CancellationTokenSource();
+				const msgListener = Event.once(this._messages.event)(() => {
+					followupCts.cancel();
+				});
+				const followupTask = this._activeSession.provider.provideFollowups(this._activeSession.session, response.raw, followupCts.token);
+				this._log('followup request started', this._activeSession.provider.debugName, this._activeSession.session, response.raw);
+				raceCancellation(Promise.resolve(followupTask), followupCts.token).then(followupReply => {
+					if (followupReply && this._activeSession) {
+						this._log('followup request received', this._activeSession.provider.debugName, this._activeSession.session, followupReply);
+						this._zone.value.widget.updateFollowUps(followupReply, followup => {
+							this.updateInput(followup.message);
+							this.acceptInput();
+						});
+					}
+				}).finally(() => {
+					msgListener.dispose();
+					followupCts.dispose();
+				});
+			}
 		}
 		this._showWidget(false);
 

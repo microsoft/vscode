@@ -67,8 +67,9 @@ import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/c
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer'; import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -144,7 +145,6 @@ export interface IInlineChatWidgetConstructionOptions {
 
 export interface IInlineChatMessage {
 	message: IMarkdownString;
-	followups?: IChatFollowup[];
 	requestId: string;
 	providerId: string;
 }
@@ -182,6 +182,7 @@ export class InlineChatWidget {
 				h('div.message@message'),
 				h('div.messageActions@messageActions')
 			]),
+			h('div.followUps.hidden@followUps'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
 				h('div.actions.hidden@statusToolbar'),
@@ -234,6 +235,7 @@ export class InlineChatWidget {
 	private readonly _editorOptions: ChatEditorOptions;
 	private _codeBlockDisposables = this._store.add(new DisposableStore());
 	private _chatMessageDisposables = this._store.add(new DisposableStore());
+	private _followUpDisposables = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -419,10 +421,14 @@ export class InlineChatWidget {
 		this._previewCreateTitle = this._store.add(_instantiationService.createInstance(ResourceLabel, this._elements.previewCreateTitle, { supportIcons: true }));
 		this._previewCreateEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedCodeEditorWidget, this._elements.previewCreate, _previewEditorEditorOptions, codeEditorWidgetOptions, parentEditor)));
 
-		this._elements.message.tabIndex = 0;
-		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 		this._elements.chatMessageContent.tabIndex = 0;
 		this._elements.chatMessageContent.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+		this._elements.message.tabIndex = 0;
+		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+		this._elements.followUps.tabIndex = 0;
+		this._elements.followUps.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+
+
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._store.add(markdownMessageToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
@@ -507,11 +513,12 @@ export class InlineChatWidget {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
 		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
+		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const chatResponseHeight = getTotalHeight(this._elements.chatMessage);
 		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
-		return base + editorHeight + markdownMessageHeight + chatResponseHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
+		return base + editorHeight + markdownMessageHeight + followUpsHeight + chatResponseHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -609,6 +616,18 @@ export class InlineChatWidget {
 			this._onDidChangeHeight.fire();
 			return undefined;
 		}
+	}
+
+	updateFollowUps(items: IChatReplyFollowup[], onFollowup: (followup: IChatReplyFollowup) => void): void;
+	updateFollowUps(items: undefined): void;
+	updateFollowUps(items: IChatReplyFollowup[] | undefined, onFollowup?: ((followup: IChatReplyFollowup) => void)) {
+		this._followUpDisposables.clear();
+		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
+		reset(this._elements.followUps);
+		if (items && items.length > 0 && onFollowup) {
+			this._followUpDisposables.add(new ChatFollowups(this._elements.followUps, items, undefined, onFollowup, this._contextKeyService));
+		}
+		this._onDidChangeHeight.fire();
 	}
 
 	updateMarkdownMessage(message: IMarkdownString | undefined) {
@@ -718,6 +737,7 @@ export class InlineChatWidget {
 		this.value = '';
 		this.updateMarkdownMessage(undefined);
 		this.updateChatMessage(undefined);
+		this.updateFollowUps(undefined);
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
