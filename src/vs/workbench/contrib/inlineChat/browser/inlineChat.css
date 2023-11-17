@@ -193,6 +193,20 @@
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
+.monaco-editor .inline-chat .followUps {
+	padding: 5px 5px;
+}
+
+.monaco-editor .inline-chat .followUps .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+}
+
+.monaco-editor .inline-chat .followUps.hidden {
+	display: none;
+}
+
 .monaco-editor .inline-chat .chatMessage {
 	padding: 8px 3px;
 }
