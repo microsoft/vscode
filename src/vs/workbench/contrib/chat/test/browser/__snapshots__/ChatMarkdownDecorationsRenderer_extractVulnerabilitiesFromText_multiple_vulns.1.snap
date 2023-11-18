@@ -2,7 +2,7 @@
   newText: "some code\nover\nmultiple lines content with vuln\nand\nnewlinesmore code\nwith newlinecontent with vuln\nand\nnewlines",
   vulnerabilities: [
     {
-      title: "(title)",
+      title: "title",
       description: "vuln",
       range: {
         startLineNumber: 3,
@@ -12,7 +12,7 @@
       }
     },
     {
-      title: "(title)",
+      title: "title",
       description: "vuln",
       range: {
         startLineNumber: 6,

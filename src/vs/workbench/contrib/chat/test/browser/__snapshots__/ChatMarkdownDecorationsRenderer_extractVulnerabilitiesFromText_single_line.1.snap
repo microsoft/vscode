@@ -2,7 +2,7 @@
   newText: "some code content with vuln after",
   vulnerabilities: [
     {
-      title: "(title)",
+      title: "title",
       description: "vuln",
       range: {
         startLineNumber: 1,

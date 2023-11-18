@@ -1,7 +1,7 @@
 [
   {
     content: {
-      value: "some code <vscode_annotation title=\"(title)\" description=\"vuln\">content with vuln</vscode_annotation> after",
+      value: "some code <vscode_annotation title=\"title\" description=\"vuln\">content with vuln</vscode_annotation> after",
       isTrusted: false,
       supportThemeIcons: false,
       supportHtml: false
