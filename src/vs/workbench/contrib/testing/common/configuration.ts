@@ -19,6 +19,7 @@ export const enum TestingConfigKeys {
 	AlwaysRevealTestOnStateChange = 'testing.alwaysRevealTestOnStateChange',
 	CountBadge = 'testing.countBadge',
 	ShowAllMessages = 'testing.showAllMessages',
+	CoveragePercent = 'testing.displayedCoveragePercent',
 }
 
 export const enum AutoOpenTesting {
@@ -45,6 +46,12 @@ export const enum TestingCountBadge {
 	Off = 'off',
 	Passed = 'passed',
 	Skipped = 'skipped',
+}
+
+export const enum TestingDisplayedCoveragePercent {
+	TotalCoverage = 'totalCoverage',
+	Statement = 'statement',
+	Minimum = 'minimum',
 }
 
 export const testingConfiguration: IConfigurationNode = {
@@ -149,6 +156,20 @@ export const testingConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 		},
+		[TestingConfigKeys.CoveragePercent]: {
+			markdownDescription: localize('testing.displayedCoveragePercent', "Configures what percentage is displayed by default for test coverage."),
+			default: TestingDisplayedCoveragePercent.TotalCoverage,
+			enum: [
+				TestingDisplayedCoveragePercent.TotalCoverage,
+				TestingDisplayedCoveragePercent.Statement,
+				TestingDisplayedCoveragePercent.Minimum,
+			],
+			enumDescriptions: [
+				localize('testing.displayedCoveragePercent.totalCoverage', 'A calculate of the combined statement, function, and branch coverage.'),
+				localize('testing.displayedCoveragePercent.statement', 'The statement coverage.'),
+				localize('testing.displayedCoveragePercent.minimum', 'The minimum of statement, function, and branch coverage.'),
+			],
+		},
 	}
 };
 
@@ -164,6 +185,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
 	[TestingConfigKeys.ShowAllMessages]: boolean;
+	[TestingConfigKeys.CoveragePercent]: TestingDisplayedCoveragePercent;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);
