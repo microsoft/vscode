@@ -11,7 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import * as yauzl from 'yauzl';
 import * as crypto from 'crypto';
 import { retry } from './retry';
-import { BlobServiceClient, BlockBlobParallelUploadOptions, StoragePipelineOptions, StorageRetryPolicyType } from '@azure/storage-blob';
+import { BlobServiceClient, BlockBlobParallelUploadOptions, StorageRetryPolicyType } from '@azure/storage-blob';
 import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
 import { ClientSecretCredential } from '@azure/identity';
@@ -632,10 +632,8 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 	const fileName = path.basename(filePath);
 	const blobName = commit + '/' + fileName;
 
-	const storagePipelineOptions: StoragePipelineOptions = { retryOptions: { retryPolicyType: StorageRetryPolicyType.EXPONENTIAL, maxTries: 6, tryTimeoutInMs: 10 * 60 * 1000 } };
-
 	const credential = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
-	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, storagePipelineOptions);
+	const blobServiceClient = new BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, { retryOptions: { retryPolicyType: StorageRetryPolicyType.FIXED, tryTimeoutInMs: 2 * 60 * 1000 } });
 	const containerClient = blobServiceClient.getContainerClient(quality);
 	const blobClient = containerClient.getBlockBlobClient(blobName);
 
@@ -652,14 +650,13 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 	uploadPromises.push((async (): Promise<void> => {
 		log(`Checking for blob in Azure...`);
 
-		if (await retry(() => blobClient.exists())) {
+		if (await blobClient.exists()) {
+			log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		} else {
-			await retry(async attempt => {
-				log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
-				await blobClient.uploadFile(filePath, blobOptions);
-				log('Blob successfully uploaded to Azure storage.');
-			});
+			log(`Uploading blobs to Azure storage...`);
+			await blobClient.uploadFile(filePath, blobOptions);
+			log('Blob successfully uploaded to Azure storage.');
 		}
 	})());
 
@@ -667,21 +664,20 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 
 	if (shouldUploadToMooncake) {
 		const mooncakeCredential = new ClientSecretCredential(e('AZURE_MOONCAKE_TENANT_ID'), e('AZURE_MOONCAKE_CLIENT_ID'), e('AZURE_MOONCAKE_CLIENT_SECRET'));
-		const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+		const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, { retryOptions: { retryPolicyType: StorageRetryPolicyType.FIXED, tryTimeoutInMs: 5 * 60 * 1000 } });
 		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
 		uploadPromises.push((async (): Promise<void> => {
 			log(`Checking for blob in Mooncake Azure...`);
 
-			if (await retry(() => mooncakeBlobClient.exists())) {
+			if (await mooncakeBlobClient.exists()) {
+				log(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
 				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
 			} else {
-				await retry(async attempt => {
-					log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
-					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
-					log('Blob successfully uploaded to Mooncake Azure storage.');
-				});
+				log(`Uploading blobs to Mooncake Azure storage...`);
+				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+				log('Blob successfully uploaded to Mooncake Azure storage.');
 			}
 		})());
 	}
@@ -692,14 +688,13 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 	if (rejectedPromiseResults.length === 0) {
 		log('All blobs successfully uploaded.');
 	} else if (rejectedPromiseResults[0]?.reason?.message?.includes('already exists')) {
-		log(rejectedPromiseResults[0].reason.message);
 		log('Some blobs successfully uploaded.');
 	} else {
 		// eslint-disable-next-line no-throw-literal
 		throw rejectedPromiseResults[0]?.reason;
 	}
 
-	const assetUrl = `${e('AZURE_CDN_URL')} / ${quality} / ${blobName}`;
+	const assetUrl = `${e('AZURE_CDN_URL')}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;
 	const mooncakeUrl = `${e('MOONCAKE_CDN_URL')}${blobPath}`;
 
@@ -805,7 +800,7 @@ async function main() {
 				continue;
 			}
 
-			console.log(`${artifact.name} Found new artifact`);
+			console.log(`[${artifact.name}] Found new artifact`);
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
@@ -816,7 +811,7 @@ async function main() {
 				const archiveSize = fs.statSync(artifactZipPath).size;
 				const downloadDurationS = (Date.now() - start) / 1000;
 				const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
-				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB / s).`);
+				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
 			});
 
 			const artifactFilePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
