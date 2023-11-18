@@ -14,7 +14,7 @@
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc",
-    "onLanguage:jsontm"
+    "onLanguage:snippets"
   ],
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
