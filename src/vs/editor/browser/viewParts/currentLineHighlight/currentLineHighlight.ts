@@ -120,7 +120,8 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 			this._renderData = null;
 			return;
 		}
-		const renderedLine = this._renderOne(ctx);
+		const renderedLineExact = this._renderOne(ctx, true);
+		const renderedLineWrapped = this._renderOne(ctx, false);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const len = this._cursorLineNumbers.length;
@@ -132,17 +133,17 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 				index++;
 			}
 			if (index < len && this._cursorLineNumbers[index] === lineNumber) {
-				renderData[lineIndex] = renderedLine;
-			} else if (lineIndex > 0 && ctx.viewportData.getViewLineRenderingData(lineNumber - 1).continuesWithWrappedLine) {
-				renderData[lineIndex] = renderData[lineIndex - 1];
+				renderData[lineIndex] = renderedLineExact;
+			} else if (lineIndex > 0 && renderData[lineIndex - 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber - 1).continuesWithWrappedLine) {
+				renderData[lineIndex] = renderedLineWrapped;
 			} else {
 				renderData[lineIndex] = '';
 			}
 		}
 		for (let lineNumber = visibleEndLineNumber - 1; lineNumber >= visibleStartLineNumber; lineNumber--) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			if (ctx.viewportData.getViewLineRenderingData(lineNumber).continuesWithWrappedLine) {
-				renderData[lineIndex] = renderData[lineIndex + 1];
+			if (renderData[lineIndex] === '' && renderData[lineIndex + 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber).continuesWithWrappedLine) {
+				renderData[lineIndex] = renderedLineWrapped;
 			}
 		}
 		this._renderData = renderData;
@@ -176,13 +177,13 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 
 	protected abstract _shouldRenderThis(): boolean;
 	protected abstract _shouldRenderOther(): boolean;
-	protected abstract _renderOne(ctx: RenderingContext): string;
+	protected abstract _renderOne(ctx: RenderingContext, exact: boolean): string;
 }
 
 export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
-	protected _renderOne(ctx: RenderingContext): string {
-		const className = 'current-line' + (this._shouldRenderOther() ? ' current-line-both' : '');
+	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
+		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-both' : '') + (exact ? ' current-line-exact' : '');
 		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px; height:${this._lineHeight}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
@@ -194,8 +195,8 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 }
 
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
-	protected _renderOne(ctx: RenderingContext): string {
-		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
+	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
+		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '') + (this._shouldRenderInMargin() && exact ? ' current-line-exact-margin' : '');
 		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
@@ -215,11 +216,11 @@ registerThemingParticipant((theme, collector) => {
 	if (!lineHighlight || lineHighlight.isTransparent() || theme.defines(editorLineHighlightBorder)) {
 		const lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
-			collector.addRule(`.monaco-editor .view-overlays .current-line { border: 2px solid ${lineHighlightBorder}; }`);
-			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
+			collector.addRule(`.monaco-editor .view-overlays .current-line-exact { border: 2px solid ${lineHighlightBorder}; }`);
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-exact-margin { border: 2px solid ${lineHighlightBorder}; }`);
 			if (isHighContrast(theme.type)) {
-				collector.addRule(`.monaco-editor .view-overlays .current-line { border-width: 1px; }`);
-				collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }`);
+				collector.addRule(`.monaco-editor .view-overlays .current-line-exact { border-width: 1px; }`);
+				collector.addRule(`.monaco-editor .margin-view-overlays .current-line-exact-margin { border-width: 1px; }`);
 			}
 		}
 	}
