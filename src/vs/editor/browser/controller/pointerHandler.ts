@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
@@ -83,9 +82,29 @@ export class PointerEventHandler extends MouseHandler {
 		}
 	}
 
-	private onChange(e: GestureEvent): void {
+	private onChange(event: GestureEvent): void {
 		if (this._lastPointerType === 'touch') {
-			this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
+			this._context.viewModel.viewLayout.deltaScrollNow(-event.translationX, -event.translationY);
+		}
+		if (this._lastPointerType === 'pen') {
+			const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+			if (target.position) {
+				this.viewController.dispatchMouse({
+					position: target.position,
+					mouseColumn: target.position.column,
+					startedOnLineNumbers: false,
+					revealType: NavigationCommandRevealType.Minimal,
+					mouseDownCount: event.tapCount,
+					inSelectionMode: true,
+					altKey: false,
+					ctrlKey: false,
+					metaKey: false,
+					shiftKey: false,
+					leftButton: false,
+					middleButton: false,
+					onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
+				});
+			}
 		}
 	}
 
@@ -137,7 +156,7 @@ export class PointerHandler extends Disposable {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
-		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
+		if ((BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if (mainWindow.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
