@@ -35,6 +35,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { getActiveElement, getActiveWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -335,7 +336,7 @@ export class ReloadWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		if (getActiveWindow() === window) {
+		if (getActiveWindow() === mainWindow) {
 			return hostService.reload(); // only supported for main window
 		}
 	}

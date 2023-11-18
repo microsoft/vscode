@@ -29,7 +29,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalConfigHelper, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -37,7 +37,7 @@ import { getColorStyleContent, getUriClasses } from 'vs/workbench/contrib/termin
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -52,16 +52,17 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { mark } from 'vs/base/common/performance';
-import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { DetachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
-	private _detachedXterms = new Set<IXtermTerminal>();
+	private _detachedXterms = new Set<IDetachedTerminalInstance>();
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
@@ -94,7 +95,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
-	get detachedXterms(): Iterable<IXtermTerminal> {
+	get detachedInstances(): Iterable<IDetachedTerminalInstance> {
 		return this._detachedXterms;
 	}
 
@@ -228,7 +229,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this.initializePrimaryBackend();
 
 		// Create async as the class depends on `this`
-		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, document.head)));
+		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, mainWindow.document.head)));
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
@@ -553,13 +554,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
-	async revealActiveTerminal(): Promise<void> {
+	async revealActiveTerminal(preserveFocus?: boolean): Promise<void> {
 		const instance = this.activeInstance;
 		if (!instance) {
 			return;
 		}
 		if (instance.target === TerminalLocation.Editor) {
-			await this._terminalEditorService.revealActiveEditor();
+			await this._terminalEditorService.revealActiveEditor(preserveFocus);
 		} else {
 			await this._terminalGroupService.showPanel();
 		}
@@ -967,7 +968,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
-			await instance.focusWhenReady();
+			await instance?.focusWhenReady();
 			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
@@ -1022,13 +1023,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		this._detachedXterms.add(xterm);
+		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
+		this._detachedXterms.add(instance);
 		const l = xterm.onDidDispose(() => {
-			this._detachedXterms.delete(xterm);
+			this._detachedXterms.delete(instance);
 			l.dispose();
 		});
 
-		return new DeatachedTerminal(xterm, options, this._instantiationService);
+		return instance;
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {

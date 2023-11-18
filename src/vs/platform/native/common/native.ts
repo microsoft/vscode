@@ -6,13 +6,13 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -78,6 +78,8 @@ export interface ICommonNativeHostService {
 	toggleFullScreen(options?: INativeOptions): Promise<void>;
 
 	handleTitleDoubleClick(): Promise<void>;
+
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;
@@ -173,13 +175,13 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
-	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (windows only)

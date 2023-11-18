@@ -60,10 +60,10 @@ export class HoverWidget extends Widget {
 	private _addedFocusTrap: boolean = false;
 
 	private get _targetWindow(): Window {
-		return this._target.targetElements?.[0].ownerDocument.defaultView || window;
+		return dom.getWindow(this._target.targetElements[0]);
 	}
 	private get _targetDocumentElement(): HTMLElement {
-		return this._target.targetElements?.[0].ownerDocument.documentElement;
+		return dom.getWindow(this._target.targetElements[0]).document.documentElement;
 	}
 
 	get isDisposed(): boolean { return this._isDisposed; }
@@ -642,30 +642,30 @@ class CompositeMouseTracker extends Widget {
 		private _elements: HTMLElement[]
 	) {
 		super();
-		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver()));
-		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave()));
+		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver(n)));
+		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave(n)));
 	}
 
-	private _onTargetMouseOver(): void {
+	private _onTargetMouseOver(target: HTMLElement): void {
 		this._isMouseIn = true;
-		this._clearEvaluateMouseStateTimeout();
+		this._clearEvaluateMouseStateTimeout(target);
 	}
 
-	private _onTargetMouseLeave(): void {
+	private _onTargetMouseLeave(target: HTMLElement): void {
 		this._isMouseIn = false;
-		this._evaluateMouseState();
+		this._evaluateMouseState(target);
 	}
 
-	private _evaluateMouseState(): void {
-		this._clearEvaluateMouseStateTimeout();
+	private _evaluateMouseState(target: HTMLElement): void {
+		this._clearEvaluateMouseStateTimeout(target);
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = window.setTimeout(() => this._fireIfMouseOutside(), 0);
+		this._mouseTimeout = dom.getWindow(target).setTimeout(() => this._fireIfMouseOutside(), 0);
 	}
 
-	private _clearEvaluateMouseStateTimeout(): void {
+	private _clearEvaluateMouseStateTimeout(target: HTMLElement): void {
 		if (this._mouseTimeout) {
-			clearTimeout(this._mouseTimeout);
+			dom.getWindow(target).clearTimeout(this._mouseTimeout);
 			this._mouseTimeout = undefined;
 		}
 	}

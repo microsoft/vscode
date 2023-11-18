@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
  * Represents an observable value.
  *
- * @template T The type of the value.
- * @template TChange The type of delta information (usually `void` and only used in advanced scenarios).
+ * @template T The type of the values the observable can hold.
+ * @template TChange The type used to describe value changes
+ * (usually `void` and only used in advanced scenarios).
+ * While observers can miss temporary values of an observable,
+ * they will receive all change values (as long as they are subscribed)!
  */
 export interface IObservable<T, TChange = unknown> {
 	/**
@@ -23,7 +27,7 @@ export interface IObservable<T, TChange = unknown> {
 	get(): T;
 
 	/**
-	 * Forces the observable to check for and report changes.
+	 * Forces the observable to check for changes and report them.
 	 *
 	 * Has the same effect as calling {@link IObservable.get}, but does not force the observable
 	 * to actually construct the value, e.g. if change deltas are used.
@@ -45,20 +49,25 @@ export interface IObservable<T, TChange = unknown> {
 	removeObserver(observer: IObserver): void;
 
 	/**
-	 * Reads the current value and subscribes to this observable.
+	 * Reads the current value and subscribes the reader to this observable.
 	 *
-	 * Just calls {@link IReader.readObservable} if a reader is given, otherwise {@link IObservable.get}
-	 * (see {@link ConvenientObservable.read}).
+	 * Calls {@link IReader.readObservable} if a reader is given, otherwise {@link IObservable.get}
+	 * (see {@link ConvenientObservable.read} for the implementation).
 	 */
 	read(reader: IReader | undefined): T;
 
 	/**
 	 * Creates a derived observable that depends on this observable.
 	 * Use the reader to read other observables
-	 * (see {@link ConvenientObservable.map}).
+	 * (see {@link ConvenientObservable.map} for the implementation).
 	 */
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+
+	/**
+	 * Makes sure this value is computed eagerly.
+	 */
+	recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T>;
 
 	/**
 	 * A human-readable name for debugging purposes.
@@ -92,12 +101,14 @@ export interface IObserver {
 	 * Signals that the given observable might have changed and a transaction potentially modifying that observable started.
 	 * Before the given observable can call this method again, is must call {@link IObserver.endUpdate}.
 	 *
+	 * Implementations must not get/read the value of other observables, as they might not have received this event yet!
 	 * The method {@link IObservable.reportChanges} can be used to force the observable to report the changes.
 	 */
 	beginUpdate<T>(observable: IObservable<T>): void;
 
 	/**
 	 * Signals that the transaction that potentially modified the given observable ended.
+	 * This is a good place to react to (potential) changes.
 	 */
 	endUpdate<T>(observable: IObservable<T>): void;
 
@@ -105,16 +116,18 @@ export interface IObserver {
 	 * Signals that the given observable might have changed.
 	 * The method {@link IObservable.reportChanges} can be used to force the observable to report the changes.
 	 *
-	 * Implementations must not call into other observables, as they might not have received this event yet!
+	 * Implementations must not get/read the value of other observables, as they might not have received this event yet!
 	 * The change should be processed lazily or in {@link IObserver.endUpdate}.
 	 */
 	handlePossibleChange<T>(observable: IObservable<T>): void;
 
 	/**
-	 * Signals that the given observable changed.
+	 * Signals that the given {@link observable} changed.
 	 *
-	 * Implementations must not call into other observables, as they might not have received this event yet!
+	 * Implementations must not get/read the value of other observables, as they might not have received this event yet!
 	 * The change should be processed lazily or in {@link IObserver.endUpdate}.
+	 *
+	 * @param change Indicates how or why the value changed.
 	 */
 	handleChange<T, TChange>(observable: IObservable<T, TChange>, change: TChange): void;
 }
@@ -123,6 +136,9 @@ export interface ISettable<T, TChange = void> {
 	/**
 	 * Sets the value of the observable.
 	 * Use a transaction to batch multiple changes (with a transaction, observers only react at the end of the transaction).
+	 *
+	 * @param transaction When given, value changes are handled on demand or when the transaction ends.
+	 * @param change Describes how or why the value changed.
 	 */
 	set(value: T, transaction: ITransaction | undefined, change: TChange): void;
 }
@@ -133,6 +149,12 @@ export interface ITransaction {
 	 * and {@link Observer.endUpdate} when the transaction ends.
 	 */
 	updateObserver(observer: IObserver, observable: IObservable<any, any>): void;
+}
+
+let _recomputeInitiallyAndOnChange: typeof recomputeInitiallyAndOnChange;
+
+export function _setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange: typeof _recomputeInitiallyAndOnChange) {
+	_recomputeInitiallyAndOnChange = recomputeInitiallyAndOnChange;
 }
 
 let _derived: typeof derivedOpts;
@@ -197,6 +219,11 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 		);
 	}
 
+	public recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T> {
+		store.add(_recomputeInitiallyAndOnChange!(this, handleValue));
+		return this;
+	}
+
 	public abstract get debugName(): string;
 }
 
@@ -222,12 +249,36 @@ export abstract class BaseObservable<T, TChange = void> extends ConvenientObserv
 	protected onLastObserverRemoved(): void { }
 }
 
+/**
+ * Starts a transaction in which many observables can be changed at once.
+ * {@link fn} should start with a JS Doc using `@description` to give the transaction a debug name.
+ * Reaction run on demand or when the transaction ends.
+ */
+
 export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () => string): void {
 	const tx = new TransactionImpl(fn, getDebugName);
 	try {
 		fn(tx);
 	} finally {
 		tx.finish();
+	}
+}
+
+let _globalTransaction: ITransaction | undefined = undefined;
+
+export function globalTransaction(fn: (tx: ITransaction) => void) {
+	if (_globalTransaction) {
+		fn(_globalTransaction);
+	} else {
+		const tx = new TransactionImpl(fn, undefined);
+		_globalTransaction = tx;
+		try {
+			fn(tx);
+		} finally {
+			tx.finish(); // During finish, more actions might be added to the transaction.
+			// Which is why we only clear the global transaction after finish.
+			_globalTransaction = undefined;
+		}
 	}
 }
 
@@ -240,6 +291,9 @@ export async function asyncTransaction(fn: (tx: ITransaction) => Promise<void>, 
 	}
 }
 
+/**
+ * Allows to chain transactions.
+ */
 export function subtransaction(tx: ITransaction | undefined, fn: (tx: ITransaction) => void, getDebugName?: () => string): void {
 	if (!tx) {
 		transaction(fn, getDebugName);
@@ -263,17 +317,19 @@ export class TransactionImpl implements ITransaction {
 	}
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
+		// When this gets called while finish is active, they will still get considered
 		this.updatingObservers!.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
 
 	public finish(): void {
 		const updatingObservers = this.updatingObservers!;
-		// Prevent anyone from updating observers from now on.
-		this.updatingObservers = null;
-		for (const { observer, observable } of updatingObservers) {
+		for (let i = 0; i < updatingObservers.length; i++) {
+			const { observer, observable } = updatingObservers[i];
 			observer.endUpdate(observable);
 		}
+		// Prevent anyone from updating observers from now on.
+		this.updatingObservers = null;
 		getLogger()?.handleEndTransaction();
 	}
 }
@@ -372,12 +428,17 @@ export function getFunctionName(fn: Function): string | undefined {
 	return result?.trim();
 }
 
+/**
+ * A settable observable.
+ */
 export interface ISettableObservable<T, TChange = void> extends IObservable<T, TChange>, ISettable<T, TChange> {
 }
 
 /**
  * Creates an observable value.
  * Observers get informed when the value changes.
+ * @template TChange An arbitrary type to describe how or why the value changed. Defaults to `void`.
+ * Observers will receive every single change value.
  */
 export function observableValue<T, TChange = void>(name: string, initialValue: T): ISettableObservable<T, TChange>;
 export function observableValue<T, TChange = void>(owner: object, initialValue: T): ISettableObservable<T, TChange>;
@@ -445,6 +506,10 @@ export class ObservableValue<T, TChange = void>
 	}
 }
 
+/**
+ * A disposable observable. When disposed, its value is also disposed.
+ * When a new value is set, the previous value is disposed.
+ */
 export function disposableObservableValue<T extends IDisposable | undefined, TChange = void>(nameOrOwner: string | object, initialValue: T): ISettableObservable<T, TChange> & IDisposable {
 	if (typeof nameOrOwner === 'string') {
 		return new DisposableObservableValue(undefined, nameOrOwner, initialValue);
@@ -469,17 +534,20 @@ export class DisposableObservableValue<T extends IDisposable | undefined, TChang
 	}
 }
 
+export interface IChangeTracker {
+	/**
+	 * Returns if this change should cause an invalidation.
+	 * Implementations can record changes.
+	*/
+	handleChange(context: IChangeContext): boolean;
+}
+
 export interface IChangeContext {
 	readonly changedObservable: IObservable<any, any>;
 	readonly change: unknown;
 
-	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
-}
-
-export interface IChangeTracker {
 	/**
-	 * Returns if this change should cause an invalidation.
-	 * Can record the changes to just process deltas.
-	*/
-	handleChange(context: IChangeContext): boolean;
+	 * Returns if the given observable caused the change.
+	 */
+	didChange<T, TChange>(observable: IObservable<T, TChange>): this is { change: TChange };
 }

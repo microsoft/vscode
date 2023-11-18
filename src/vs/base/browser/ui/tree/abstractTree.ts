@@ -1860,6 +1860,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.model.isCollapsed(location);
 	}
 
+	expandTo(location: TRef): void {
+		this.model.expandTo(location);
+	}
+
 	triggerTypeNavigation(): void {
 		this.view.triggerTypeNavigation();
 	}

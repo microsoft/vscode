@@ -31,6 +31,10 @@
 	justify-content: space-between;
 }
 
+.interactive-item-container .header.hidden {
+	display: none;
+}
+
 .interactive-item-container .header .user {
 	display: flex;
 	align-items: center;
@@ -46,6 +50,11 @@
 .interactive-item-container .header .detail-container {
 	font-size: 0.9em;
 	opacity: 0.7;
+}
+
+.interactive-item-container .chat-animated-ellipsis {
+	display: inline-block;
+	width: 11px;
 }
 
 .interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
@@ -70,7 +79,7 @@
 	}
 }
 
-.chat-animated-ellipsis::after {
+.interactive-item-container .chat-animated-ellipsis::after {
 	content: '';
 	white-space: nowrap;
 	overflow: hidden;
@@ -265,13 +274,17 @@
 	padding: 8px 20px;
 }
 
+.interactive-item-container.interactive-item-compact.no-padding {
+	padding: unset;
+}
+
 .interactive-item-container.interactive-item-compact .header {
 	height: 16px;
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar {
-	width: 16px;
-	height: 16px;
+	width: 18px;
+	height: 18px;
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
@@ -279,7 +292,7 @@
 	height: 16px;
 }
 
-.interactive-item-container.interactive-item-compact .header .avatar+.avatar .codicon {
+.interactive-item-container.interactive-item-compact .header .codicon-avatar .codicon {
 	font-size: 12px;
 }
 
@@ -390,10 +403,6 @@
 	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-item-container .value .interactive-slash-command {
-	color: var(--vscode-textLink-foreground);
-}
-
 .interactive-session .interactive-input-part {
 	padding: 12px 0px;
 	display: flex;
@@ -459,8 +468,9 @@
 }
 
 .interactive-item-container.filtered-response .value > .rendered-markdown {
-	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
-	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
+	pointer-events: none;
+	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
+	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
 }
 
 /* #region Quick Chat */
@@ -546,6 +556,7 @@
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
+	padding: 4px;
 }
 
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
@@ -583,4 +594,22 @@
 
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
 	margin: 0 0 0 4px;
+}
+
+.interactive-item-container .progress-steps {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-left: 4px;
+}
+
+.interactive-item-container .progress-steps .progress-step {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+	opacity: 0.7;
+}
+
+.interactive-item-container .progress-steps .progress-step .codicon-check {
+	color: var(--vscode-debugIcon-startForeground);
 }

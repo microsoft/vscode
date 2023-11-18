@@ -119,6 +119,8 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariables';
+
 /*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -718,6 +720,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSel
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
 
 registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
@@ -964,6 +967,12 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
+		[NotebookSetting.insertFinalNewline]: {
+			markdownDescription: nls.localize('notebook.insertFinalNewline', "When enabled, insert a final new line into the end of code cells when saving a notebook."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
 		[NotebookSetting.codeActionsOnSave]: {
 			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
 			type: 'object',
@@ -1044,5 +1053,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-
-

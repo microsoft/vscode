@@ -1534,7 +1534,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
 		terminal.xterm.write('\x1b[?25l'); // hide cursor
-		dom.scheduleAtNextAnimationFrame(() => this.layoutTerminal(terminal), dom.getWindow(this.container));
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(this.container), () => this.layoutTerminal(terminal));
 		terminal.attachToElement(this.container, { enableGpu: false });
 	}
 
@@ -1558,7 +1558,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	) {
 		width -= 10 + 20; // scrollbar width + margin
 		this.xtermLayoutDelayer.trigger(() => {
-			const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
+			const scaled = getXtermScaledDimensions(dom.getWindow(this.container), xterm.getFont(), width, height);
 			if (scaled) {
 				xterm.resize(scaled.cols, scaled.rows);
 			}

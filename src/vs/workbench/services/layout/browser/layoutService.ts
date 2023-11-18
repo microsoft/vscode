@@ -7,7 +7,7 @@ import { refineServiceDecorator } from 'vs/platform/instantiation/common/instant
 import { Event } from 'vs/base/common/event';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension } from 'vs/base/browser/dom';
+import { IDimension } from 'vs/base/browser/dom';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 
 export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
@@ -138,18 +138,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeNotificationsVisibility: Event<boolean>;
 
 	/**
-	 * An event that is emitted when a new container is added. This
-	 * can happen in multi-window environments.
-	 */
-	readonly onDidAddContainer: Event<HTMLElement>;
-
-	/**
-	 * An event that is emitted when a container is removed. This
-	 * can happen in multi-window environments.
-	 */
-	readonly onDidRemoveContainer: Event<HTMLElement>;
-
-	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
 	readonly openedDefaultEditors: boolean;
@@ -194,7 +182,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns if the part is visible.
 	 */
-	getDimension(part: Parts): Dimension | undefined;
+	getDimension(part: Parts): IDimension | undefined;
 
 	/**
 	 * Set part hidden or not
@@ -258,9 +246,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setPanelAlignment(alignment: PanelAlignment): void;
 
 	/**
-	 * Gets the maximum possible size for editor.
+	 * Gets the maximum possible size for editor in the given container.
 	 */
-	getMaximumEditorDimensions(): Dimension;
+	getMaximumEditorDimensions(container: HTMLElement): IDimension;
 
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
@@ -268,14 +256,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleZenMode(): void;
 
 	/**
-	 * Returns whether the centered editor layout is active.
+	 * Returns whether the centered editor layout is active on the main editor part.
 	 */
-	isEditorLayoutCentered(): boolean;
+	isMainEditorLayoutCentered(): boolean;
 
 	/**
-	 * Sets the workbench in and out of centered editor layout.
+	 * Sets the main editor part in and out of centered layout.
 	 */
-	centerEditorLayout(active: boolean): void;
+	centerMainEditorLayout(active: boolean): void;
 
 	/**
 	 * Resizes currently focused part on main access

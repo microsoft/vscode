@@ -9,12 +9,13 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/window/common/window';
 import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, getActiveDocument, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -37,48 +38,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { disposableInterval } from 'vs/base/common/async';
-
-/**
- * A workspace to open in the workbench can either be:
- * - a workspace file with 0-N folders (via `workspaceUri`)
- * - a single folder (via `folderUri`)
- * - empty (via `undefined`)
- */
-export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
-
-export interface IWorkspaceProvider {
-
-	/**
-	 * The initial workspace to open.
-	 */
-	readonly workspace: IWorkspace;
-
-	/**
-	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
-	 */
-	readonly payload?: object;
-
-	/**
-	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
-	 */
-	readonly trusted: boolean | undefined;
-
-	/**
-	 * Asks to open a workspace in the current or a new window.
-	 *
-	 * @param workspace the workspace to open.
-	 * @param options optional options for the workspace to open.
-	 * - `reuse`: whether to open inside the current window or a new window
-	 * - `payload`: arbitrary payload that should be made available
-	 * to the opening window via the `IWorkspaceProvider.payload` property.
-	 * @param payload optional payload to send to the workspace to open.
-	 *
-	 * @returns true if successfully opened, false otherwise.
-	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
-}
+import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
 
 enum HostShutdownReason {
 
@@ -192,7 +152,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
 			), undefined, disposables)(focus => emitter.fire(focus));
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 
 		return emitter.event;
 	}
@@ -219,7 +179,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		const emitter = this._register(new Emitter<number>());
 
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			const windowId = isAuxiliaryWindow(window) ? window.vscodeWindowId : -1;
+			const windowId = getWindowId(window);
 
 			// Emit via focus tracking
 			const focusTracker = disposables.add(trackFocus(window));
@@ -228,8 +188,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// Emit via interval: immediately when opening an auxiliary window,
 			// it is possible that document focus has not yet changed, so we
 			// poll for a while to ensure we catch the event.
-			if (windowId !== -1) {
-				disposables.add(disposableInterval(() => {
+			if (isAuxiliaryWindow(window)) {
+				disposables.add(disposableWindowInterval(window, () => {
 					const hasFocus = window.document.hasFocus();
 					if (hasFocus) {
 						emitter.fire(windowId);
@@ -238,7 +198,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					return hasFocus;
 				}, 100, 20));
 			}
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 
 		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
 	}
@@ -542,6 +502,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		// There seems to be no API to bring a window to front in browsers
 	}
 
+	async getCursorScreenPoint(): Promise<undefined> {
+		return undefined;
+	}
+
 	//#endregion
 
 	//#region Lifecycle
@@ -553,13 +517,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async reload(): Promise<void> {
 		await this.handleExpectedShutdown(ShutdownReason.RELOAD);
 
-		window.location.reload();
+		mainWindow.location.reload();
 	}
 
 	async close(): Promise<void> {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
-		window.close();
+		mainWindow.close();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

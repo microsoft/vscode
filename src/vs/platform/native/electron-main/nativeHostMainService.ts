@@ -19,7 +19,6 @@ import { realpath } from 'vs/base/node/extpath';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
-import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -33,7 +32,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 import { getFocusedOrLastActiveWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -43,6 +42,7 @@ import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfil
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { loadSystemCertificates } from '@vscode/proxy-agent';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -150,7 +150,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getActiveWindowId(windowId: number | undefined): Promise<number | undefined> {
-		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (activeWindow) {
 			return activeWindow.id;
 		}
@@ -208,6 +208,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.handleTitleDoubleClick();
 	}
 
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+		const point = screen.getCursorScreenPoint();
+		const display = screen.getDisplayNearestPoint(point);
+
+		return { point, display: display.bounds };
+	}
+
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
 		const window = this.codeWindowById(windowId);
 		if (window?.win) {
@@ -245,8 +252,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async positionWindow(firstArg: number | undefined, position: IRectangle, options?: INativeOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(firstArg);
+	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
 			if (window.win.isFullScreen()) {
 				const fullscreenLeftFuture = Event.toPromise(Event.once(Event.fromNodeEventEmitter(window.win, 'leave-full-screen')));
@@ -391,6 +398,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		return { source, target };
 	}
+
+	//#endregion
 
 	//#region Dialog
 
@@ -585,13 +594,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return virtualMachineHint.value();
 	}
 
-	public async getOSColorScheme(): Promise<IColorScheme> {
+	async getOSColorScheme(): Promise<IColorScheme> {
 		return this.themeMainService.getColorScheme();
 	}
 
 
 	// WSL
-	public async hasWSLFeatureInstalled(): Promise<boolean> {
+	async hasWSLFeatureInstalled(): Promise<boolean> {
 		return isWindows && hasWSLFeatureInstalled();
 	}
 
@@ -756,6 +765,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return session?.resolveProxy(url);
 	}
 
+	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
+		return loadSystemCertificates({ log: this.logService });
+	}
+
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
 		return findFreePort(startPort, giveUpAfter, timeout, stride);
 	}
@@ -775,13 +788,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.getTargetWindow(windowId);
 
 		window?.win?.webContents.toggleDevTools();
-	}
-
-	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
-		const window = this.codeWindowById(windowId);
-		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
-			window.win.webContents.sendInputEvent(event);
-		}
 	}
 
 	//#endregion

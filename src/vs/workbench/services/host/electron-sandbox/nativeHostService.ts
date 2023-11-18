@@ -9,15 +9,15 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint, IRectangle } from 'vs/platform/window/common/window';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getActiveDocument, getWindowsCount, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { disposableWindowInterval, getActiveDocument, getWindowsCount, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
-import { disposableInterval } from 'vs/base/common/async';
+import { isAuxiliaryWindow } from 'vs/base/browser/window';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -82,16 +82,14 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			// Emit via interval: immediately when opening an auxiliary window,
 			// it is possible that document focus has not yet changed, so we
 			// poll for a while to ensure we catch the event.
-			if (isAuxiliaryWindow(window)) {
-				disposables.add(disposableInterval(() => {
-					const hasFocus = window.document.hasFocus();
-					if (hasFocus) {
-						emitter.fire(window.vscodeWindowId);
-					}
+			disposables.add(disposableWindowInterval(window, () => {
+				const hasFocus = window.document.hasFocus();
+				if (hasFocus) {
+					emitter.fire(window.vscodeWindowId);
+				}
 
-					return hasFocus;
-				}, 100, 20));
-			}
+				return hasFocus;
+			}, 100, 20));
 		}));
 
 		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
@@ -153,6 +151,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		}
 
 		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(targetWindow) ? { targetWindowId: targetWindow.vscodeWindowId } : undefined);
+	}
+
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+		return this.nativeHostService.getCursorScreenPoint();
 	}
 
 	//#endregion

@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatProgressMessage, IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
@@ -55,7 +55,6 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
-	readonly providerRequestId: string | undefined;
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -88,7 +87,6 @@ export interface IChatResponseViewModel {
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly providerId: string;
-	readonly providerResponseId: string | undefined;
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
 	readonly username: string;
@@ -96,6 +94,9 @@ export interface IChatResponseViewModel {
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
+	readonly usedContext: IChatUsedContext | undefined;
+	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
@@ -173,12 +174,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
 			} else if (e.kind === 'removeRequest') {
-				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.id === e.requestId);
 				if (requestIdx >= 0) {
 					this._items.splice(requestIdx, 1);
 				}
 
-				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.id === e.responseId);
 				if (typeof responseIdx === 'number' && responseIdx >= 0) {
 					const items = this._items.splice(responseIdx, 1);
 					const item = items[0];
@@ -216,10 +217,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
-	}
-
-	get providerRequestId() {
-		return this._model.providerRequestId;
 	}
 
 	get dataId() {
@@ -269,10 +266,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.providerId;
 	}
 
-	get providerResponseId() {
-		return this._model.providerResponseId;
-	}
-
 	get sessionId() {
 		return this._model.session.sessionId;
 	}
@@ -295,6 +288,18 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get response(): IResponse {
 		return this._model.response;
+	}
+
+	get usedContext(): IChatUsedContext | undefined {
+		return this._model.usedContext;
+	}
+
+	get contentReferences(): ReadonlyArray<IChatContentReference> {
+		return this._model.contentReferences;
+	}
+
+	get progressMessages(): ReadonlyArray<IChatProgressMessage> {
+		return this._model.progressMessages;
 	}
 
 	get isComplete() {

@@ -24,7 +24,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
 export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
-	HideAccessibleView = 'accessibility.hideAccessibleView'
+	HideAccessibleView = 'accessibility.hideAccessibleView',
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -32,6 +33,11 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Minimum = 0.2,
 	Maximum = 1
 }
+
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+}
+export const SpeechTimeoutDefault = 1200;
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -147,6 +153,18 @@ const configuration: IConfigurationNode = {
 				localize('alert.format.never', "Never alerts.")
 			],
 			tags: ['accessibility']
+		},
+		[AccessibilityVoiceSettingId.SpeechTimeout]: {
+			'markdownDescription': localize('voice.speechTimeout', "Define the duration for which the voice speech recognition remains active after you stop speaking. For example in a chat session the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+			'type': 'number',
+			'default': SpeechTimeoutDefault,
+			'minimum': 0,
+			'tags': ['accessibility']
+		},
+		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
+			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the accessible view and focus the element from which it was invoked."),
+			type: 'boolean',
+			default: true
 		},
 	}
 };
