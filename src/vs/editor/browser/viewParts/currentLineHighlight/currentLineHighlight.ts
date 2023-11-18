@@ -19,6 +19,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
 	protected _lineHeight: number;
 	protected _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
+	protected _wordWrap: boolean;
 	protected _contentLeft: number;
 	protected _contentWidth: number;
 	protected _selectionIsEmpty: boolean;
@@ -37,6 +38,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._wordWrap = layoutInfo.isViewportWrapping;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		this._selectionIsEmpty = true;
@@ -82,6 +84,7 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
+		this._wordWrap = layoutInfo.isViewportWrapping;
 		this._contentLeft = layoutInfo.contentLeft;
 		this._contentWidth = layoutInfo.contentWidth;
 		return true;
@@ -134,16 +137,20 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 			}
 			if (index < len && this._cursorLineNumbers[index] === lineNumber) {
 				renderData[lineIndex] = renderedLineExact;
-			} else if (lineIndex > 0 && renderData[lineIndex - 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber - 1).continuesWithWrappedLine) {
+			} else if (this._wordWrap && lineIndex > 0 && renderData[lineIndex - 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber - 1).continuesWithWrappedLine) {
+				// found wrapped part (after selection)
 				renderData[lineIndex] = renderedLineWrapped;
 			} else {
 				renderData[lineIndex] = '';
 			}
 		}
-		for (let lineNumber = visibleEndLineNumber - 1; lineNumber >= visibleStartLineNumber; lineNumber--) {
-			const lineIndex = lineNumber - visibleStartLineNumber;
-			if (renderData[lineIndex] === '' && renderData[lineIndex + 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber).continuesWithWrappedLine) {
-				renderData[lineIndex] = renderedLineWrapped;
+		if (this._wordWrap) {
+			for (let lineNumber = visibleEndLineNumber - 1; lineNumber >= visibleStartLineNumber; lineNumber--) {
+				const lineIndex = lineNumber - visibleStartLineNumber;
+				if (renderData[lineIndex] === '' && renderData[lineIndex + 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber).continuesWithWrappedLine) {
+					// found wrapped part (before selection)
+					renderData[lineIndex] = renderedLineWrapped;
+				}
 			}
 		}
 		this._renderData = renderData;
