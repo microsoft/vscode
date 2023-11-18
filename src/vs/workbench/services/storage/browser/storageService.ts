@@ -34,6 +34,7 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	private workspaceStorage: IStorage | undefined;
 	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private readonly workspaceStorageDisposables = this._register(new DisposableStore());
 
 	get hasPendingUpdate(): boolean {
 		return Boolean(
@@ -44,7 +45,7 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	constructor(
-		private readonly workspace: IAnyWorkspaceIdentifier,
+		private workspace: IAnyWorkspaceIdentifier,
 		private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
@@ -118,12 +119,15 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	private async createWorkspaceStorage(): Promise<void> {
+		// First clear any previously associated disposables
+		this.workspaceStorageDisposables.clear();
+
 		const workspaceStorageIndexedDB = await IndexedDBStorageDatabase.createWorkspaceStorage(this.workspace.id, this.logService);
 
-		this.workspaceStorageDatabase = this._register(workspaceStorageIndexedDB);
-		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
+		this.workspaceStorageDatabase = this.workspaceStorageDisposables.add(workspaceStorageIndexedDB);
+		this.workspaceStorage = this.workspaceStorageDisposables.add(new Storage(this.workspaceStorageDatabase));
 
-		this._register(this.workspaceStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.WORKSPACE, e)));
+		this.workspaceStorageDisposables.add(this.workspaceStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.WORKSPACE, e)));
 
 		await this.workspaceStorage.init();
 
@@ -183,7 +187,18 @@ export class BrowserStorageService extends AbstractStorageService {
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
-		throw new Error('Migrating storage is currently unsupported in Web');
+		const oldWorkspaceStorage = assertIsDefined(this.workspaceStorage);
+		const oldItems = preserveData ? oldWorkspaceStorage.items : new Map();
+
+		// Close old workpace storage
+		await oldWorkspaceStorage.close();
+		this.workspace = toWorkspace;
+
+		// Create new workspace storage & init
+		await this.createWorkspaceStorage();
+
+		// Handle data switch and eventing
+		this.switchData(oldItems, assertIsDefined(this.workspaceStorage), StorageScope.WORKSPACE);
 	}
 
 	protected override shouldFlushWhenIdle(): boolean {
