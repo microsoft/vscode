@@ -33,7 +33,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigHelper, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -928,25 +928,45 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.ScrollToPreviousCommand,
-		title: { value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"), original: 'Scroll To Previous Command' },
+		title: terminalStrings.scrollToPreviousCommand,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		icon: Codicon.arrowUp,
+		menu: [
+			{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 4,
+				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+				isHiddenByDefault: true
+			}
+		],
 		run: (activeInstance) => activeInstance.xterm?.markTracker.scrollToPreviousMark(undefined, undefined, activeInstance.capabilities.has(TerminalCapability.CommandDetection))
 	});
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.ScrollToNextCommand,
-		title: { value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"), original: 'Scroll To Next Command' },
+		title: terminalStrings.scrollToNextCommand,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		icon: Codicon.arrowDown,
+		menu: [
+			{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 4,
+				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+				isHiddenByDefault: true
+			}
+		],
 		run: (activeInstance) => {
 			activeInstance.xterm?.markTracker.scrollToNextMark();
 			activeInstance.focus();

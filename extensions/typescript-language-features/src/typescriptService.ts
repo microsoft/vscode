@@ -76,6 +76,7 @@ interface StandardTsServerRequests {
 	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
+	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
 }
 
 interface NoResponseTsServerRequests {

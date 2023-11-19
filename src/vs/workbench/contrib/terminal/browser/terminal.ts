@@ -116,7 +116,8 @@ export interface IMarkTracker {
 
 	scrollToLine(line: number, position: ScrollPosition): void;
 	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
-	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void;
+	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
+	showCommandGuide(command: ITerminalCommand | undefined): void;
 }
 
 export interface ITerminalGroup {
@@ -653,6 +654,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
 	onDidRunText: Event<void>;
+	onDidChangeTarget: Event<TerminalLocation | undefined>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
