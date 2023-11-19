@@ -152,9 +152,9 @@ export class NotebookCellChatController extends Disposable {
 		try {
 			if (this._widget) {
 				this._partContainer.removeChild(this._widget.domNode);
+				this._partContainer.removeChild(this._toolbarDOM.editorToolbar);
 			}
 
-			this._partContainer.removeChild(this._toolbarDOM.editorToolbar);
 		} catch (_ex) {
 			// might not be attached
 		}
