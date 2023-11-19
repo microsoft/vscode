@@ -787,7 +787,7 @@ async function main() {
 					if (code === 0) {
 						resolve();
 					} else {
-						reject(new Error('Worker stopped with exit code ${code}'));
+						reject(new Error(`[${artifact.name}] Worker stopped with exit code ${code}`));
 					}
 				});
 			});
