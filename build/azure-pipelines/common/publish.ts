@@ -720,6 +720,7 @@ async function main() {
 		return;
 	}
 
+	const preventExit = setTimeout(() => { /* do nothing */ }, 24 * 60 * 60 * 1000);
 	const done = new State();
 	const processing = new Set<string>();
 
@@ -827,6 +828,7 @@ async function main() {
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
+	clearTimeout(preventExit);
 }
 
 if (require.main === module) {
