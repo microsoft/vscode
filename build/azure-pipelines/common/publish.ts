@@ -705,7 +705,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	log('Creating asset...', JSON.stringify(asset));
 
 	await retry(async (attempt) => {
-		log(`Creating asset in Cosmos DB(attempt ${attempt})...`);
+		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
 		const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 		const scripts = client.database('builds').container(quality).scripts;
@@ -772,7 +772,7 @@ async function main() {
 
 			await retry(async (attempt) => {
 				const start = Date.now();
-				console.log(`[${artifact.name}]Downloading(attempt ${attempt})...`);
+				console.log(`[${artifact.name}] Downloading (attempt ${attempt})...`);
 				await downloadArtifact(artifact, artifactZipPath);
 				const archiveSize = fs.statSync(artifactZipPath).size;
 				const downloadDurationS = (Date.now() - start) / 1000;
