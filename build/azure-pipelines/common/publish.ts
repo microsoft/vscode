@@ -628,7 +628,7 @@ function getRealType(type: string) {
 	}
 }
 
-async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ assetUrl: string; mooncakeUrl: string }> {
+async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<string> {
 	const fileName = path.basename(filePath);
 	const blobName = commit + '/' + fileName;
 
@@ -645,60 +645,17 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 		}
 	};
 
-	const uploadPromises: Promise<void>[] = [];
+	log(`Checking for blob in Azure...`);
 
-	uploadPromises.push((async (): Promise<void> => {
-		log(`Checking for blob in Azure...`);
-
-		if (await blobClient.exists()) {
-			log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-		} else {
-			log(`Uploading blobs to Azure storage...`);
-			await blobClient.uploadFile(filePath, blobOptions);
-			log('Blob successfully uploaded to Azure storage.');
-		}
-	})());
-
-	const shouldUploadToMooncake = /true/i.test(e('VSCODE_PUBLISH_TO_MOONCAKE'));
-
-	if (shouldUploadToMooncake) {
-		const mooncakeCredential = new ClientSecretCredential(e('AZURE_MOONCAKE_TENANT_ID'), e('AZURE_MOONCAKE_CLIENT_ID'), e('AZURE_MOONCAKE_CLIENT_SECRET'));
-		const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, { retryOptions: { retryPolicyType: StorageRetryPolicyType.FIXED, tryTimeoutInMs: 5 * 60 * 1000 } });
-		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
-		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
-
-		uploadPromises.push((async (): Promise<void> => {
-			log(`Checking for blob in Mooncake Azure...`);
-
-			if (await mooncakeBlobClient.exists()) {
-				log(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
-				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
-			} else {
-				log(`Uploading blobs to Mooncake Azure storage...`);
-				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
-				log('Blob successfully uploaded to Mooncake Azure storage.');
-			}
-		})());
-	}
-
-	const promiseResults = await Promise.allSettled(uploadPromises);
-	const rejectedPromiseResults = promiseResults.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
-
-	if (rejectedPromiseResults.length === 0) {
-		log('All blobs successfully uploaded.');
-	} else if (rejectedPromiseResults[0]?.reason?.message?.includes('already exists')) {
-		log('Some blobs successfully uploaded.');
+	if (await blobClient.exists()) {
+		log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 	} else {
-		// eslint-disable-next-line no-throw-literal
-		throw rejectedPromiseResults[0]?.reason;
+		log(`Uploading blobs to Azure storage...`);
+		await blobClient.uploadFile(filePath, blobOptions);
+		log('Blob successfully uploaded to Azure storage.');
 	}
 
-	const assetUrl = `${e('AZURE_CDN_URL')}/${quality}/${blobName}`;
-	const blobPath = new URL(assetUrl).pathname;
-	const mooncakeUrl = `${e('MOONCAKE_CDN_URL')}${blobPath}`;
-
-	return { assetUrl, mooncakeUrl };
+	return `${e('AZURE_CDN_URL')}/${quality}/${blobName}`;
 }
 
 async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
@@ -719,7 +676,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	const stream = fs.createReadStream(artifactFilePath);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
 
-	const [{ assetUrl, mooncakeUrl }, prssUrl] = await Promise.all([
+	const [assetUrl, prssUrl] = await Promise.all([
 		uploadAssetLegacy(log, quality, commit, artifactFilePath),
 		releaseAndProvision(
 			log,
@@ -736,7 +693,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 		)
 	]);
 
-	const asset: Asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
+	const asset: Asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl: prssUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
 	log('Creating asset...', JSON.stringify(asset));
 
 	await retry(async (attempt) => {
