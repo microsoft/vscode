@@ -738,6 +738,7 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
+	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
@@ -803,6 +804,7 @@ async function main() {
 			});
 
 			operations.push({ name: artifact.name, operation });
+			resultPromise = Promise.allSettled(operations.map(o => o.operation));
 		}
 
 		await new Promise(c => setTimeout(c, 10_000));
@@ -816,7 +818,7 @@ async function main() {
 		console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
 	}
 
-	const results = await Promise.allSettled(operations.map(o => o.operation));
+	const results = await resultPromise;
 
 	for (let i = 0; i < operations.length; i++) {
 		const result = results[i];
