@@ -1425,7 +1425,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			throw new Error('Disposing unknown element');
 		}
 
-		itemRenders.splice(renderedIndex, 1);
+		if (itemRenders.length === 1) {
+			this._renderedElements.delete(resource.element.handle);
+		} else {
+			itemRenders.splice(renderedIndex, 1);
+		}
 
 		this.treeViewsService.removeRenderedTreeItemElement(resource.element);
 
