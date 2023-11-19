@@ -478,7 +478,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 				// => to get the Copy and Paste context menu actions working on Firefox,
 				// there should be no timeout here
 				if (isFirefox) {
-					const mouseEvent = new StandardMouseEvent(e);
+					const mouseEvent = new StandardMouseEvent(getWindow(this.element), e);
 
 					// Allowing right click to trigger the event causes the issue described below,
 					// but since the solution below does not work in FF, we must disable right click
@@ -876,7 +876,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 			// Set the top value of the menu container before construction
 			// This allows the menu constructor to calculate the proper max height
-			const computedStyles = getComputedStyle(this.parentData.parent.domNode);
+			const computedStyles = getWindow(this.parentData.parent.domNode).getComputedStyle(this.parentData.parent.domNode);
 			const paddingTop = parseFloat(computedStyles.paddingTop || '0') || 0;
 			// this.submenuContainer.style.top = `${this.element.offsetTop - this.parentData.parent.scrollOffset - paddingTop}px`;
 			this.submenuContainer.style.zIndex = '1';

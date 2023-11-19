@@ -209,14 +209,6 @@ export interface ITerminalConfiguration {
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
 
-export interface ITerminalConfigHelper {
-	config: ITerminalConfiguration;
-
-	configFontIsMonospace(): boolean;
-	getFont(): ITerminalFont;
-	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
-}
-
 export interface ITerminalFont {
 	fontFamily: string;
 	fontSize: number;
@@ -410,7 +402,9 @@ export const enum TerminalCommandId {
 	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
 	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
 	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
+	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
+	CopyLastCommandAndLastCommandOutput = 'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
@@ -498,6 +492,7 @@ export const enum TerminalCommandId {
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
+	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
 
 	// Developer commands
 
@@ -512,7 +507,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
+	TerminalCommandId.CopyLastCommand,
 	TerminalCommandId.CopyLastCommandOutput,
+	TerminalCommandId.CopyLastCommandAndLastCommandOutput,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,

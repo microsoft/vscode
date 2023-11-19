@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/singleeditortabscontrol';
-import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorTabsControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver } from 'vs/base/browser/dom';
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
@@ -66,19 +66,19 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
-		// Right Actions Container
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('title-actions');
-		titleContainer.appendChild(actionsContainer);
-
-		// Editor actions toolbar
-		this.createEditorActionsToolBar(actionsContainer);
+		// Create editor actions toolbar
+		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
 
-		// Group dragging
-		this.enableGroupDragging(titleContainer);
+		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
+		this._register(new DragAndDropObserver(titleContainer, {
+			onDragStart: e => this.onGroupDragStart(e, titleContainer),
+			onDrag: e => { lastDragEvent = e; },
+			onDragEnd: e => { this.onGroupDragEnd(e, lastDragEvent, titleContainer); },
+		}));
 
 		// Pin on double click
 		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, e => this.onTitleDoubleClick(e)));

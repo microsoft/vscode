@@ -22,6 +22,7 @@ import { QuickInputList, QuickInputListFocus } from 'vs/platform/quickinput/brow
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { mainWindow } from 'vs/base/browser/window';
 
 const $ = dom.$;
 
@@ -58,14 +59,14 @@ export class QuickInputController extends Disposable {
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
 		this.styles = options.styles;
-		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window, disposables: this._store }));
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window: mainWindow, disposables: this._store }));
 		this._register(dom.onWillUnregisterWindow(window => {
 			if (this.ui && dom.getWindow(this.ui.container) === window) {
 				// The window this quick input is contained in is about to
 				// close, so we have to make sure to reparent it back to an
 				// existing parent to not loose functionality.
 				// (https://github.com/microsoft/vscode/issues/195870)
-				this.reparentUI(this.layoutService.container);
+				this.reparentUI(this.layoutService.mainContainer);
 			}
 		}));
 	}

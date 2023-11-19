@@ -15,7 +15,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
@@ -27,13 +27,12 @@ import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
+import { localize } from 'vs/nls';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -114,7 +113,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerActions();
-		this.registerGlobalActions();
 
 		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			telemetryService.publicLog2<{ location: string }, {
@@ -281,43 +279,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				return that.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value);
 			}
 		}));
-	}
-
-	private registerGlobalActions() {
-		this._register(registerAction2(
-			class extends Action2 {
-				constructor() {
-					super({
-						id: GLOBAL_ACTIVITY_ID,
-						title: { value: localize('manage', "Manage"), original: 'Manage' },
-						menu: [{
-							id: MenuId.TitleBarGlobalControlMenu,
-							when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
-							order: 2
-						}]
-					});
-				}
-
-				async run(): Promise<void> {
-				}
-			}));
-		this._register(registerAction2(
-			class extends Action2 {
-				constructor() {
-					super({
-						id: ACCOUNTS_ACTIVITY_ID,
-						title: { value: localize('accounts', "Accounts"), original: 'Accounts' },
-						menu: [{
-							id: MenuId.TitleBarGlobalControlMenu,
-							when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
-							order: 2
-						}]
-					});
-				}
-
-				async run(): Promise<void> {
-				}
-			}));
 	}
 
 	toJSON(): object {

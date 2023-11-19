@@ -17,6 +17,7 @@ export interface IDocumentDiffProviderOptions {
 
 export interface IDiffProviderFactoryService {
 	readonly _serviceBrand: undefined;
+	// TODO, don't include IDiffEditor
 	createDiffProvider(editor: IDiffEditor, options: IDocumentDiffProviderOptions): IDocumentDiffProvider;
 }
 

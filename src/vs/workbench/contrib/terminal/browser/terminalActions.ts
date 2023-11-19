@@ -16,7 +16,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -27,14 +27,13 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigHelper, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -251,15 +250,15 @@ export function registerActiveInstanceAction(
  * This includes detached xterm terminals that are not managed by an {@link ITerminalInstance}.
  */
 export function registerActiveXtermAction(
-	options: IAction2Options & { run: (activeTerminal: IXtermTerminal, accessor: ServicesAccessor, instance?: ITerminalInstance, args?: unknown) => void | Promise<unknown> }
+	options: IAction2Options & { run: (activeTerminal: IXtermTerminal, accessor: ServicesAccessor, instance: ITerminalInstance | IDetachedTerminalInstance, args?: unknown) => void | Promise<unknown> }
 ): IDisposable {
 	const originalRun = options.run;
 	return registerTerminalAction({
 		...options,
 		run: (c, accessor, args) => {
-			const activeDetached = Iterable.find(c.service.detachedXterms, d => d.isFocused);
+			const activeDetached = Iterable.find(c.service.detachedInstances, d => d.xterm.isFocused);
 			if (activeDetached) {
-				return originalRun(activeDetached, accessor, undefined, args);
+				return originalRun(activeDetached.xterm, accessor, activeDetached, args);
 			}
 
 			const activeInstance = c.service.activeInstance;
@@ -434,8 +433,26 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
+		id: TerminalCommandId.CopyLastCommand,
+		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		run: async (instance, c, accessor) => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command.command) {
+				return;
+			}
+			await clipboardService.writeText(command.command);
+		}
+	});
+
+	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandOutput,
-		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
+		title: { value: localize('workbench.action.terminal.copyLastCommandOutput', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
@@ -453,6 +470,28 @@ export function registerTerminalActions() {
 			}
 		}
 	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
+		title: { value: localize('workbench.action.terminal.copyLastCommandAndOutput', 'Copy Last Command and Output'), original: 'Copy Last Command and Output' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		run: async (instance, c, accessor) => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command?.hasOutput()) {
+				return;
+			}
+			const output = command.getOutput();
+			if (isString(output)) {
+				await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
+			}
+		}
+	});
+
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
@@ -609,7 +648,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true, true);
-			await c.service.revealActiveTerminal();
+			await c.service.revealActiveTerminal(true);
 		}
 	});
 
@@ -749,7 +788,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
-		run: (c, accessor) => getSelectedInstances(accessor)?.[0].changeIcon()
+		run: async (c, accessor) => {
+			let icon: TerminalIcon | undefined;
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				icon = await terminal.changeIcon(icon);
+			}
+		}
 	});
 
 	registerTerminalAction({
@@ -764,7 +808,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
-		run: (c, accessor) => getSelectedInstances(accessor)?.[0].changeColor()
+		run: async (c, accessor) => {
+			let color: string | undefined;
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				color = await terminal.changeColor(color);
+			}
+		}
 	});
 
 	registerTerminalAction({
@@ -879,25 +928,45 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.ScrollToPreviousCommand,
-		title: { value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"), original: 'Scroll To Previous Command' },
+		title: terminalStrings.scrollToPreviousCommand,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		icon: Codicon.arrowUp,
+		menu: [
+			{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 4,
+				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+				isHiddenByDefault: true
+			}
+		],
 		run: (activeInstance) => activeInstance.xterm?.markTracker.scrollToPreviousMark(undefined, undefined, activeInstance.capabilities.has(TerminalCapability.CommandDetection))
 	});
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.ScrollToNextCommand,
-		title: { value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"), original: 'Scroll To Next Command' },
+		title: terminalStrings.scrollToNextCommand,
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		icon: Codicon.arrowDown,
+		menu: [
+			{
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: 4,
+				when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+				isHiddenByDefault: true
+			}
+		],
 		run: (activeInstance) => {
 			activeInstance.xterm?.markTracker.scrollToNextMark();
 			activeInstance.focus();
@@ -1302,12 +1371,12 @@ export function registerTerminalActions() {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(TerminalContextKeys.focus, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.editorFocus)
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus)
 		},
 		run: (c, accessor) => accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID)
 	});
 
-	registerContextualInstanceAction({
+	registerTerminalAction({
 		id: TerminalCommandId.KillActiveTab,
 		title: terminalStrings.kill,
 		f1: false,
@@ -1321,8 +1390,12 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: TerminalContextKeys.tabsFocus
 		},
-		run: (instance, c) => c.service.safeDisposeTerminal(instance),
-		runAfter: (instances, c) => c.groupService.focusTabs()
+		run: async (c, accessor) => {
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				c.service.safeDisposeTerminal(terminal);
+			}
+			c.groupService.focusTabs();
+		}
 	});
 
 	registerTerminalAction({
@@ -1473,6 +1546,24 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		run: (activeInstance) => activeInstance.hideSuggestWidget()
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.ToggleStickyScroll,
+		title: { value: localize('workbench.action.terminal.toggleStickyScroll', "Toggle Sticky Scroll"), original: 'Toggle Sticky Scroll' },
+		toggled: {
+			condition: ContextKeyExpr.equals('config.terminal.integrated.stickyScroll.enabled', true),
+			title: localize('stickyScroll', "Sticky Scroll"),
+			mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
+		},
+		run: (c, accessor) => {
+			const configurationService = accessor.get(IConfigurationService);
+			const newValue = !configurationService.getValue(TerminalSettingId.StickyScrollEnabled);
+			return configurationService.updateValue(TerminalSettingId.StickyScrollEnabled, newValue);
+		},
+		menu: [
+			{ id: MenuId.TerminalStickyScrollContext }
+		]
 	});
 
 	// Some commands depend on platform features

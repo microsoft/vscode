@@ -151,7 +151,6 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
-
 .monaco-editor .inline-chat .markdownMessage {
 	padding: 10px 5px;
 }
@@ -192,6 +191,32 @@
 
 .monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
+}
+
+.monaco-editor .inline-chat .followUps {
+	padding: 5px 5px;
+}
+
+.monaco-editor .inline-chat .followUps .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+}
+
+.monaco-editor .inline-chat .followUps.hidden {
+	display: none;
+}
+
+.monaco-editor .inline-chat .chatMessage {
+	padding: 8px 3px;
+}
+
+.monaco-editor .inline-chat .chatMessage .chatMessageContent {
+	padding: 2px 2px;
+}
+
+.monaco-editor .inline-chat .chatMessage.hidden {
+	display: none;
 }
 
 .monaco-editor .inline-chat .status .label A {
@@ -318,7 +343,6 @@
 /* create zone */
 
 .monaco-editor .inline-chat-newfile-widget {
-	padding: 3px 0 6px 0;
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
@@ -326,19 +350,42 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 3px 6px 3px 0;
+}
+
+.monaco-editor .inline-chat-newfile-widget .title .detail {
+	margin-left: 4px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget {
+	display: flex;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
+	display: inline-flex;
+	white-space: nowrap;
+	margin-left: 4px;
 }
 
 /* gutter decoration */
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
 	display: block;
 	cursor: pointer;
-	opacity: 0.5;
 	transition: opacity .2s ease-in-out;
 }
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat:hover {
-	opacity: 1;
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
+	opacity: 0.5;
 }
 
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	opacity: 0;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
+	opacity: 1;
+}

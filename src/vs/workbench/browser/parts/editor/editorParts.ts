@@ -8,15 +8,15 @@ import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement,
 import { Event, Emitter } from 'vs/base/common/event';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { IRectangle } from 'vs/platform/window/common/window';
+import { distinct } from 'vs/base/common/arrays';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -40,31 +40,43 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Auxiliary Editor Parts
 
-	async createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart> {
+	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }>());
+	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
+
+	async createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart> {
 		const disposables = new DisposableStore();
 
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
-		disposables.add(Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose()));
 
 		const partContainer = document.createElement('div');
 		partContainer.classList.add('part', 'editor');
 		partContainer.setAttribute('role', 'main');
 		auxiliaryWindow.container.appendChild(partContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this, this.getGroupsLabel(this.parts.size)));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, auxiliaryWindow.window.vscodeWindowId, this, this.getGroupsLabel(this._parts.size)));
 		disposables.add(this.registerEditorPart(editorPart));
-
-		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
-		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
-
 		editorPart.create(partContainer, { restorePreviousState: false });
-
 		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
+
+		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
+		disposables.add(Event.once(auxiliaryWindow.onWillClose)(() => {
+			if (disposables.isDisposed) {
+				return; // the close happened as part of an earlier dispose call
+			}
+
+			editorCloseListener.dispose();
+			editorPart.close();
+			disposables.dispose();
+		}));
+		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 		auxiliaryWindow.layout();
 
 		this._onDidAddGroup.fire(editorPart.activeGroup);
+
+		const eventDisposables = disposables.add(new DisposableStore());
+		this._onDidCreateAuxiliaryEditorPart.fire({ part: editorPart, disposables: eventDisposables });
 
 		return editorPart;
 	}
@@ -73,10 +85,11 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Registration
 
-	private readonly parts = new Set<EditorPart>();
+	private readonly _parts = new Set<EditorPart>();
+	get parts() { return Array.from(this._parts); }
 
 	private registerEditorPart(part: EditorPart): IDisposable {
-		this.parts.add(part);
+		this._parts.add(part);
 
 		const disposables = this._register(new DisposableStore());
 		disposables.add(toDisposable(() => this.unregisterEditorPart(part)));
@@ -87,12 +100,12 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	private unregisterEditorPart(part: EditorPart): void {
-		this.parts.delete(part);
+		this._parts.delete(part);
 
 		// Notify all parts about a groups label change
 		// given it is computed based on the index
 
-		Array.from(this.parts).forEach((part, index) => {
+		this.parts.forEach((part, index) => {
 			if (part === this.mainPart) {
 				return;
 			}
@@ -103,7 +116,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	private registerEditorPartListeners(part: EditorPart, disposables: DisposableStore): void {
 		disposables.add(part.onDidFocus(() => {
-			if (this.parts.size > 1) {
+			if (this._parts.size > 1) {
 				this._onDidActiveGroupChange.fire(this.activeGroup); // this can only happen when we have more than 1 editor part
 			}
 		}));
@@ -132,8 +145,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	private getPartByDocument(document: Document): EditorPart {
-		if (this.parts.size > 1) {
-			for (const part of this.parts) {
+		if (this._parts.size > 1) {
+			for (const part of this._parts) {
 				if (part.element?.ownerDocument === document) {
 					return part;
 				}
@@ -146,7 +159,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	getPart(group: IEditorGroupView | GroupIdentifier): EditorPart;
 	getPart(element: HTMLElement): EditorPart;
 	getPart(groupOrElement: IEditorGroupView | GroupIdentifier | HTMLElement): EditorPart {
-		if (this.parts.size > 1) {
+		if (this._parts.size > 1) {
 			if (groupOrElement instanceof HTMLElement) {
 				const element = groupOrElement;
 
@@ -161,7 +174,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 					id = group.id;
 				}
 
-				for (const part of this.parts) {
+				for (const part of this._parts) {
 					if (part.hasGroup(id)) {
 						return part;
 					}
@@ -221,17 +234,23 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
-		if (this.parts.size > 1) {
-			// TODO@bpasero support non-creation-time group orders across parts
-			return [...this.parts].map(part => part.getGroups(order)).flat();
+		if (this._parts.size > 1) {
+			let parts: EditorPart[];
+			if (order === GroupsOrder.MOST_RECENTLY_ACTIVE) {
+				parts = distinct([this.activePart, ...this._parts]); // put active part first in this order
+			} else {
+				parts = this.parts;
+			}
+
+			return parts.map(part => part.getGroups(order)).flat();
 		}
 
 		return this.mainPart.getGroups(order);
 	}
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined {
-		if (this.parts.size > 1) {
-			for (const part of this.parts) {
+		if (this._parts.size > 1) {
+			for (const part of this._parts) {
 				const group = part.getGroup(identifier);
 				if (group) {
 					return group;
@@ -254,15 +273,15 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		this.getPart(group).setSize(group, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView): void {
+	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView | GroupIdentifier): void {
 		(group !== undefined ? this.getPart(group) : this.activePart).arrangeGroups(arrangement, group);
 	}
 
-	toggleMaximizeGroup(group?: IEditorGroupView): void {
+	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void {
 		(group !== undefined ? this.getPart(group) : this.activePart).toggleMaximizeGroup(group);
 	}
 
-	toggleExpandGroup(group?: IEditorGroupView): void {
+	toggleExpandGroup(group?: IEditorGroupView | GroupIdentifier): void {
 		(group !== undefined ? this.getPart(group) : this.activePart).toggleExpandGroup(group);
 	}
 
@@ -276,14 +295,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	getLayout(): EditorGroupLayout {
 		return this.activePart.getLayout();
-	}
-
-	centerLayout(active: boolean): void {
-		this.activePart.centerLayout(active);
-	}
-
-	isLayoutCentered(): boolean {
-		return this.activePart.isLayoutCentered();
 	}
 
 	get orientation() {
@@ -336,10 +347,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
-
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
-		return this.mainPart.enforcePartOptions(options);
-	}
 
 	//#endregion
 }

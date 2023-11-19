@@ -67,7 +67,7 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 
 	protected override getStoredProfiles(): StoredUserDataProfile[] {
 		try {
-			const value = window.localStorage.getItem(UserDataProfilesService.PROFILES_KEY);
+			const value = localStorage.getItem(UserDataProfilesService.PROFILES_KEY);
 			if (value) {
 				return revive(JSON.parse(value));
 			}
@@ -84,19 +84,19 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 	}
 
 	protected override saveStoredProfiles(storedProfiles: StoredUserDataProfile[]): void {
-		window.localStorage.setItem(UserDataProfilesService.PROFILES_KEY, JSON.stringify(storedProfiles));
+		localStorage.setItem(UserDataProfilesService.PROFILES_KEY, JSON.stringify(storedProfiles));
 	}
 
 	protected override getStoredProfileAssociations(): StoredProfileAssociations {
 		const migrateKey = 'profileAssociationsMigration';
 		try {
-			const value = window.localStorage.getItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY);
+			const value = localStorage.getItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY);
 			if (value) {
 				let associations: StoredProfileAssociations = JSON.parse(value);
-				if (!window.localStorage.getItem(migrateKey)) {
+				if (!localStorage.getItem(migrateKey)) {
 					associations = this.migrateStoredProfileAssociations(associations);
 					this.saveStoredProfileAssociations(associations);
-					window.localStorage.setItem(migrateKey, 'true');
+					localStorage.setItem(migrateKey, 'true');
 				}
 				return associations;
 			}
@@ -108,7 +108,7 @@ export class BrowserUserDataProfilesService extends UserDataProfilesService impl
 	}
 
 	protected override saveStoredProfileAssociations(storedProfileAssociations: StoredProfileAssociations): void {
-		window.localStorage.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, JSON.stringify(storedProfileAssociations));
+		localStorage.setItem(UserDataProfilesService.PROFILE_ASSOCIATIONS_KEY, JSON.stringify(storedProfileAssociations));
 	}
 
 }

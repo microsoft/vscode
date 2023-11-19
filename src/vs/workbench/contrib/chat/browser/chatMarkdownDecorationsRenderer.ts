@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
+import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentInlineReference, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
@@ -59,21 +60,21 @@ function renderFileWidget(href: string, a: HTMLAnchorElement): void {
 
 const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function reduceInlineContentReferences(response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>): ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData> {
-	const result: (IMarkdownString | IChatResponseProgressFileTreeData)[] = [];
+export function reduceInlineContentReferences(response: ReadonlyArray<IChatProgressResponseContent>): ReadonlyArray<Exclude<IChatProgressResponseContent, IChatContentInlineReference>> {
+	const result: Exclude<IChatProgressResponseContent, IChatContentInlineReference>[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];
-		if ('inlineReference' in item) {
+		if (item.kind === 'inlineReference') {
 			const location = 'uri' in item.inlineReference ? item.inlineReference : { uri: item.inlineReference };
 			const printUri = URI.parse(contentRefUrl).with({ fragment: JSON.stringify(location) });
 			const markdownText = `[${item.name || basename(location.uri)}](${printUri.toString()})`;
-			if (isMarkdownString(previousItem)) {
-				result[result.length - 1] = new MarkdownString(previousItem.value + markdownText, { isTrusted: previousItem.isTrusted });
+			if (previousItem?.kind === 'markdownContent') {
+				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 			} else {
-				result.push(new MarkdownString(markdownText));
+				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
-		} else if (isMarkdownString(item) && isMarkdownString(previousItem)) {
-			result[result.length - 1] = new MarkdownString(previousItem.value + item.value, { isTrusted: previousItem.isTrusted });
+		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
+			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 		} else {
 			result.push(item);
 		}
