@@ -350,13 +350,9 @@ async function releaseAndProvision(
 	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
 
-	console.log('CREDENTIALS', { provisionTenantId, provisionAADUsername, provisionAADPassword });
 	const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
-	console.log('GOT ACCESS TOKEN', accessToken.token.substring(0, 10));
-
 	const service = new ProvisionService(log, accessToken.token);
-
 	await service.provision(release.releaseId, release.fileId, fileName);
 
 	return result;
@@ -723,7 +719,6 @@ async function main() {
 		return;
 	}
 
-	const preventExit = setTimeout(() => { /* do nothing */ }, 24 * 60 * 60 * 1000);
 	const done = new State();
 	const processing = new Set<string>();
 
@@ -833,7 +828,6 @@ async function main() {
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
-	clearTimeout(preventExit);
 }
 
 if (require.main === module) {
