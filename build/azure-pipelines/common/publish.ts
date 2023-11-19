@@ -350,8 +350,11 @@ async function releaseAndProvision(
 	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
 
+	console.log('CREDENTIALS', { provisionTenantId, provisionAADUsername, provisionAADPassword });
 	const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
+	console.log('GOT ACCESS TOKEN', accessToken.token.substring(0, 10));
+
 	const service = new ProvisionService(log, accessToken.token);
 
 	await service.provision(release.releaseId, release.fileId, fileName);
