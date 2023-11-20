@@ -2891,7 +2891,7 @@ export class SCMViewPane extends ViewPane {
 		this.asyncOperationSequencer.queue(async () => {
 			const focusedInput = this.inputRenderer.getFocusedInput();
 
-			if (element && (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length > 1)) {
+			if (element && this.tree.hasNode(element)) {
 				// Refresh specific repository
 				await this.tree.updateChildren(element);
 			} else {
