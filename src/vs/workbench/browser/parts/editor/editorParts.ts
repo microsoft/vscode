@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -306,6 +306,12 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	findGroup(scope: IFindGroupScope, source?: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
+		if (scope.location === GroupLocation.FIRST || scope.location === GroupLocation.LAST) {
+			// TODO implement support for all scopes with multiple editor parts
+			// https://github.com/microsoft/vscode/issues/198651
+			return scope.location === GroupLocation.FIRST ? this.groups[0] : this.groups[this.groups.length - 1];
+		}
+
 		if (source) {
 			return this.getPart(source).findGroup(scope, source, wrap);
 		}
