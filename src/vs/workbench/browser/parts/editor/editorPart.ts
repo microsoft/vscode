@@ -34,7 +34,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -1012,6 +1012,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private handleContextKeys(contextKeyService: IContextKeyService): void {
+		const isAuxiliaryEditorPartContext = IsAuxiliaryEditorPartContext.bindTo(contextKeyService);
+		isAuxiliaryEditorPartContext.set(this.isAuxiliary);
+
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
 

@@ -2339,8 +2339,12 @@ export namespace ChatResponseProgress {
 		} else if ('agentName' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
-		} else {
+		} else if ('treeData' in progress) {
 			return { treeData: progress.treeData, kind: 'treeData' };
+		} else if ('message' in progress) {
+			return { content: progress.message, kind: 'progressMessage' };
+		} else {
+			throw new Error('Invalid progress type: ' + JSON.stringify(progress));
 		}
 	}
 }

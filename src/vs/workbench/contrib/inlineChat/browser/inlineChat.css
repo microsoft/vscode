@@ -151,7 +151,6 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
-
 .monaco-editor .inline-chat .markdownMessage {
 	padding: 10px 5px;
 }
@@ -192,6 +191,32 @@
 
 .monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
+}
+
+.monaco-editor .inline-chat .followUps {
+	padding: 5px 5px;
+}
+
+.monaco-editor .inline-chat .followUps .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+}
+
+.monaco-editor .inline-chat .followUps.hidden {
+	display: none;
+}
+
+.monaco-editor .inline-chat .chatMessage {
+	padding: 8px 3px;
+}
+
+.monaco-editor .inline-chat .chatMessage .chatMessageContent {
+	padding: 2px 2px;
+}
+
+.monaco-editor .inline-chat .chatMessage.hidden {
+	display: none;
 }
 
 .monaco-editor .inline-chat .status .label A {

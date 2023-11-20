@@ -298,6 +298,7 @@ export class ReplyResponse {
 		localUri: URI,
 		readonly modelAltVersionId: number,
 		progressEdits: TextEdit[][],
+		readonly requestId: string,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
