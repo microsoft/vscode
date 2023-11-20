@@ -2295,7 +2295,7 @@ export namespace InteractiveEditorResponseFeedbackKind {
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
 			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
 		} else if ('markdownContent' in progress) {
@@ -2349,7 +2349,7 @@ export namespace ChatResponseProgress {
 		} else if ('message' in progress) {
 			return { content: progress.message, kind: 'progressMessage' };
 		} else {
-			throw new Error('Invalid progress type: ' + JSON.stringify(progress));
+			return undefined;
 		}
 	}
 }

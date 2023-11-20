@@ -611,5 +611,6 @@
 }
 
 .interactive-item-container .progress-steps .progress-step .codicon-check {
+	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground);
 }
