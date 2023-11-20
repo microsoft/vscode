@@ -8,29 +8,31 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { IObservable, globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class TemplateData implements IObjectData {
 	constructor(
-		public readonly viewModel: IDiffEditorViewModel,
-		public readonly entry: IDocumentDiffItem,
+		public readonly viewModel: DocumentDiffItemViewModel,
 	) { }
 
 
 	getId(): unknown {
-		return this.entry;
+		return this.viewModel;
 	}
 }
 
 export class DiffEditorItemTemplate extends Disposable implements IPooledObject<TemplateData> {
+	private readonly _viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
+
+	private readonly _collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
+
 	private readonly _contentHeight = observableValue<number>(this, 500);
 	public readonly height = derived(this, reader => {
 		const h = this._collapsed.read(reader) ? 0 : this._contentHeight.read(reader);
@@ -52,29 +54,21 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	});
 
-	private readonly _collapsed = observableValue<boolean>(this, false);
-
-	private readonly _elements = h('div', {
-		style: {
-			display: 'flex',
-			flexDirection: 'column',
-		}
-	}, [
-		h('div', {
+	private readonly _elements = h('div.multiDiffEntry', [
+		h('div.content', {
 			style: {
 				display: 'flex',
 				flexDirection: 'column',
-
 				flex: '1',
 				overflow: 'hidden',
 			}
 		}, [
-			h('div@header', { style: { display: 'flex', alignItems: 'center', padding: '8px 5px', color: 'var(--vscode-foreground)', background: 'var(--vscode-editor-background)', zIndex: '10000' } }, [
-				h('div.expand-button@collapseButton', { style: { margin: '0 5px' } }),
-				h('div.show-file-icons@title', { style: { fontSize: '14px', lineHeight: '22px' } }, [] as any),
+			h('div.header@header', [
+				h('div.collapse-button@collapseButton'),
+				h('div.title.show-file-icons@title', [] as any),
 			]),
 
-			h('div', {
+			h('div.editorParent', {
 				style: {
 					flex: '1',
 					display: 'flex',
@@ -115,8 +109,11 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			btn.icon = this._collapsed.read(reader) ? Codicon.chevronRight : Codicon.chevronDown;
 		}));
 		this._register(btn.onDidClick(() => {
-			this._collapsed.set(!this._collapsed.get(), undefined);
-			this._elements.editor.style.display = this._collapsed.get() ? 'none' : 'block';
+			this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
+		}));
+
+		this._register(autorun(reader => {
+			this._elements.editor.style.display = this._collapsed.read(reader) ? 'none' : 'block';
 		}));
 
 		this.editor.getModifiedEditor().onDidLayoutChange(e => {
@@ -152,9 +149,6 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	private readonly _dataStore = new DisposableStore();
 
 	public setData(data: TemplateData): void {
-		this._resourceLabel?.setUri(data.viewModel.model.modified.uri);
-		this._dataStore.clear();
-
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
 				...options,
@@ -166,20 +160,26 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 					vertical: 'hidden',
 					horizontal: 'hidden',
 					handleMouseWheel: false,
+					useShadows: false,
 				},
 				renderOverviewRuler: false,
 				fixedOverflowWidgets: true,
 			};
 		}
 
-		if (data.entry.onOptionsDidChange) {
-			this._dataStore.add(data.entry.onOptionsDidChange(() => {
-				this.editor.updateOptions(updateOptions(data.entry.options ?? {}));
+		const value = data.viewModel.entry.value!; // TODO
+
+		if (value.onOptionsDidChange) {
+			this._dataStore.add(value.onOptionsDidChange(() => {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
 			}));
 		}
 		globalTransaction(tx => {
-			this.editor.setModel(data.viewModel, tx);
-			this.editor.updateOptions(updateOptions(data.entry.options ?? {}));
+			this._resourceLabel?.setUri(data.viewModel.diffEditorViewModel.model.modified.uri);
+			this._dataStore.clear();
+			this._viewModel.set(data.viewModel, tx);
+			this.editor.setModel(data.viewModel.diffEditorViewModel, tx);
+			this.editor.updateOptions(updateOptions(value.options ?? {}));
 		});
 	}
 
@@ -191,7 +191,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.position = 'absolute';
 
 		// For sticky scroll
-		this._elements.header.style.transform = `translateY(${Math.max(0, Math.min(verticalRange.length - this._elements.header.clientHeight, viewPort.start - verticalRange.start))}px)`;
+		const delta = Math.max(0, Math.min(verticalRange.length - this._elements.header.clientHeight, viewPort.start - verticalRange.start));
+		this._elements.header.style.transform = `translateY(${delta}px)`;
 
 		globalTransaction(tx => {
 			this.editor.layout({
@@ -200,6 +201,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			});
 		});
 		this.editor.getOriginalEditor().setScrollTop(editorScroll);
+
+		this._elements.header.classList.toggle('shadow', delta > 0 || editorScroll > 0);
 	}
 
 	public hide(): void {

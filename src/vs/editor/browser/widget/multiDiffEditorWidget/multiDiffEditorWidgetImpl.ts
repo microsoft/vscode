@@ -244,7 +244,7 @@ class VirtualizedViewItem extends Disposable {
 	public render(verticalSpace: OffsetRange, offset: number, width: number, viewPort: OffsetRange): void {
 		let ref = this._templateRef.get();
 		if (!ref) {
-			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel.diffEditorViewModel, this.viewModel.entry.value!));
+			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel));
 			this._templateRef.set(ref, undefined);
 		}
 		ref.object.render(verticalSpace, width, offset, viewPort);
