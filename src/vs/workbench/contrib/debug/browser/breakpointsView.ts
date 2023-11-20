@@ -137,7 +137,7 @@ export class BreakpointsView extends ViewPane {
 			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
 			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.labelService),
-			this.instantiationService.createInstance(DataBreakpointsRenderer),
+			this.instantiationService.createInstance(DataBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
 			new DataBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.labelService),
 			this.instantiationService.createInstance(InstructionBreakpointsRenderer),
 		], {
@@ -447,6 +447,7 @@ interface IFunctionBreakpointTemplateData extends IBaseBreakpointWithIconTemplat
 
 interface IDataBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
 	accessType: HTMLElement;
+	condition: HTMLElement;
 }
 
 interface IInstructionBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
@@ -673,7 +674,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 		data.checkbox.checked = functionBreakpoint.enabled;
 		data.breakpoint.title = message ? message : '';
 		if (functionBreakpoint.condition && functionBreakpoint.hitCondition) {
-			data.condition.textContent = localize('expressionAndHitCount', "Expression: {0} | Hit Count: {1}", functionBreakpoint.condition, functionBreakpoint.hitCondition);
+			data.condition.textContent = localize('expressionAndHitCount', "Condition: {0} | Hit Count: {1}", functionBreakpoint.condition, functionBreakpoint.hitCondition);
 		} else {
 			data.condition.textContent = functionBreakpoint.condition || functionBreakpoint.hitCondition || '';
 		}
@@ -702,6 +703,9 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBreakpointTemplateData> {
 
 	constructor(
+		private menu: IMenu,
+		private breakpointSupportsCondition: IContextKey<boolean>,
+		private breakpointItemType: IContextKey<string | undefined>,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService
 	) {
@@ -730,6 +734,10 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
 		data.accessType = dom.append(data.breakpoint, $('span.access-type'));
+		data.condition = dom.append(data.breakpoint, $('span.condition'));
+
+		data.actionBar = new ActionBar(data.breakpoint);
+		data.toDispose.push(data.actionBar);
 
 		return data;
 	}
@@ -743,7 +751,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		data.checkbox.checked = dataBreakpoint.enabled;
 		data.breakpoint.title = message ? message : '';
 
-		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
+		// Mark data breakpoints as disabled if deactivated or if debug type does not support them
 		const session = this.debugService.getViewModel().focusedSession;
 		data.breakpoint.classList.toggle('disabled', (session && !session.capabilities.supportsDataBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (session && !session.capabilities.supportsDataBreakpoints) {
@@ -755,6 +763,19 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 		} else {
 			data.accessType.textContent = '';
 		}
+		if (dataBreakpoint.condition && dataBreakpoint.hitCondition) {
+			data.condition.textContent = localize('expressionAndHitCount', "Condition: {0} | Hit Count: {1}", dataBreakpoint.condition, dataBreakpoint.hitCondition);
+		} else {
+			data.condition.textContent = dataBreakpoint.condition || dataBreakpoint.hitCondition || '';
+		}
+
+		const primary: IAction[] = [];
+		this.breakpointSupportsCondition.set(!session || !!session.capabilities.supportsConditionalBreakpoints);
+		this.breakpointItemType.set('dataBreakpoint');
+		createAndFillInActionBarActions(this.menu, { arg: dataBreakpoint, shouldForwardArgs: true }, { primary, secondary: [] }, 'inline');
+		data.actionBar.clear();
+		data.actionBar.push(primary, { icon: true, label: false });
+		breakpointIdToActionBarDomeNode.set(dataBreakpoint.getId(), data.actionBar.domNode);
 	}
 
 	disposeTemplate(templateData: IBaseBreakpointWithIconTemplateData): void {
@@ -1232,7 +1253,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		const messages: string[] = [];
 		messages.push(breakpoint.message || localize('functionBreakpoint', "Function Breakpoint"));
 		if (breakpoint.condition) {
-			messages.push(localize('expression', "Expression condition: {0}", breakpoint.condition));
+			messages.push(localize('expression', "Condition: {0}", breakpoint.condition));
 		}
 		if (breakpoint.hitCondition) {
 			messages.push(localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
@@ -1284,7 +1305,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 			messages.push(localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
 		}
 		if (breakpoint.condition) {
-			messages.push(localize('expression', "Expression condition: {0}", breakpoint.condition));
+			messages.push(localize('expression', "Condition: {0}", breakpoint.condition));
 		}
 		if (breakpoint.hitCondition) {
 			messages.push(localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
