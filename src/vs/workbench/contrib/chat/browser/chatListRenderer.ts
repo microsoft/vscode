@@ -55,9 +55,9 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentInlineReference, IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -68,11 +68,12 @@ const $ = dom.$;
 
 interface IChatListItemTemplate {
 	readonly rowContainer: HTMLElement;
-	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
 	readonly agentAvatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
+	readonly progressSteps: HTMLElement;
 	readonly value: HTMLElement;
 	readonly referencesListContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
@@ -93,6 +94,8 @@ export interface IChatRendererDelegate {
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'default' | 'compact';
+	readonly noHeader?: boolean;
+	readonly noPadding?: boolean;
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
@@ -210,7 +213,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		this._currentLayoutWidth = width - 40; // TODO Padding
+		this._currentLayoutWidth = width - (this.rendererOptions.noPadding ? 0 : 40); // padding
 		this._editorPool.inUse.forEach(editor => {
 			editor.layout(this._currentLayoutWidth);
 		});
@@ -222,6 +225,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.rendererOptions.renderStyle === 'compact') {
 			rowContainer.classList.add('interactive-item-compact');
 		}
+		if (this.rendererOptions.noPadding) {
+			rowContainer.classList.add('no-padding');
+		}
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
@@ -230,32 +236,39 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const detailContainer = dom.append(user, $('span.detail-container'));
 		const detail = dom.append(detailContainer, $('span.detail'));
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
+		const progressSteps = dom.append(rowContainer, $('.progress-steps'));
 		const referencesListContainer = dom.append(rowContainer, $('.referencesListContainer'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
-		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatMessageTitle, {
-			menuOptions: {
-				shouldForwardArgs: true
-			},
-			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
-					return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
+		let titleToolbar: MenuWorkbenchToolBar | undefined;
+		if (this.rendererOptions.noHeader) {
+			header.classList.add('hidden');
+		} else {
+			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatMessageTitle, {
+				menuOptions: {
+					shouldForwardArgs: true
+				},
+				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+					if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
+						return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
+					}
+
+					return undefined;
 				}
-
-				return undefined;
-			}
-		}));
-
-
-		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+			}));
+		}
+		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, progressSteps, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
-		const { element } = node;
+		this.renderChatTreeItem(node.element, index, templateData);
+	}
+
+	renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -270,7 +283,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set('');
 		}
 
-		templateData.titleToolbar.context = element;
+		if (templateData.titleToolbar) {
+			templateData.titleToolbar.context = element;
+		}
 
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		CONTEXT_RESPONSE_FILTERED.bindTo(templateData.contextKeyService).set(isFiltered);
@@ -281,11 +296,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.rowContainer.classList.toggle('show-progress', isResponseVM(element) && !element.isComplete);
 		templateData.username.textContent = element.username;
-		this.renderAvatar(element, templateData);
+		if (!this.rendererOptions.noHeader) {
+			this.renderAvatar(element, templateData);
+		}
 
 		dom.clearNode(templateData.detail);
 		if (isResponseVM(element)) {
-			this.renderProgressMessage(element, templateData);
+			this.renderDetail(element, templateData);
+			this.renderProgressSteps(element, templateData);
 		}
 
 		// Do a progressive render if
@@ -319,13 +337,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const markdown = 'kind' in element.message ?
 				element.message.message :
 				convertParsedRequestToMarkdown(element.message);
-			this.basicRenderElement([new MarkdownString(markdown)], element, index, templateData);
+			this.basicRenderElement([{ content: new MarkdownString(markdown), kind: 'markdownContent' }], element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
 		}
 	}
 
-	private renderProgressMessage(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		let progressMsg: string = '';
 		if (element.agent && !element.agent.metadata.isDefault) {
 			let usingMsg = chatAgentLeader + element.agent.id;
@@ -348,6 +366,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			templateData.detail.title = '';
 		}
+	}
+
+	private renderProgressSteps(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		dom.clearNode(templateData.progressSteps);
+		if (element.response.value.length) {
+			return;
+		}
+
+		element.progressMessages.forEach((msg, index) => {
+			const last = index === element.progressMessages.length - 1;
+			const icon = last ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.check;
+			const step = dom.$('.progress-step', undefined, renderIcon(icon), dom.$('span.progress-step-message', undefined, msg.content));
+			templateData.progressSteps.appendChild(step);
+		});
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -400,23 +432,25 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private basicRenderElement(value: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
+	private basicRenderElement(value: ReadonlyArray<Exclude<IChatProgressResponseContent, IChatContentInlineReference>>, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 
 		if (isResponseVM(element)) {
-			this.renderProgressMessage(element, templateData);
+			this.renderDetail(element, templateData);
 		}
 
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
 		let fileTreeIndex = 0;
 		for (const data of value) {
-			const result = 'value' in data
-				? this.renderMarkdown(data, element, templateData, fillInIncompleteTokens)
-				: this.renderTreeData(data, element, templateData, fileTreeIndex++);
+			const result = data.kind === 'treeData'
+				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
+				: data.kind === 'markdownContent'
+					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
+					: this.renderPlaceholder(new MarkdownString(data.content), templateData);
 			templateData.value.appendChild(result.element);
 			templateData.elementDisposables.add(result);
 		}
@@ -519,10 +553,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const renderedPart = renderedParts[index];
 				// Is this part completely new?
 				if (!renderedPart) {
-					if (isInteractiveProgressTreeData(part)) {
-						partsToRender[index] = part;
+					if (part.kind === 'treeData') {
+						partsToRender[index] = part.treeData;
 					} else {
-						const wordCountResult = this.getDataForProgressiveRender(element, part, { renderedWordCount: 0, lastRenderTime: 0 });
+						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
 							partsToRender[index] = {
 								renderedWordCount: wordCountResult.actualWordCount,
@@ -535,13 +569,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				// Did this part go from being a placeholder string to resolved tree data?
-				else if (isInteractiveProgressTreeData(part) && !isInteractiveProgressTreeData(renderedPart)) {
-					partsToRender[index] = part;
+				else if (part.kind === 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
+					partsToRender[index] = part.treeData;
 				}
 
 				// Did this part's content change?
-				else if (!isInteractiveProgressTreeData(part) && !isInteractiveProgressTreeData(renderedPart)) {
-					const wordCountResult = this.getDataForProgressiveRender(element, part, renderedPart);
+				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
+					const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), renderedPart);
 					// Check if there are any new words to render
 					if (wordCountResult !== undefined && renderedPart.renderedWordCount !== wordCountResult?.actualWordCount) {
 						partsToRender[index] = {
@@ -578,8 +612,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
 					else if (!hasRenderedOneMarkdownBlock) {
 						const { value } = wordCountResults[index];
-						const isPlaceholder = isPlaceholderMarkdown(renderableResponse[index]);
-						result = isPlaceholder
+						result = renderableResponse[index].kind === 'asyncContent'
 							? this.renderPlaceholder(new MarkdownString(value), templateData)
 							: this.renderMarkdown(new MarkdownString(value), element, templateData, true);
 						hasRenderedOneMarkdownBlock = true;
@@ -1278,6 +1311,6 @@ function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData |
 	return 'label' in item;
 }
 
-function isPlaceholderMarkdown(item: IPlaceholderMarkdownString | IMarkdownString | IChatResponseProgressFileTreeData): item is IPlaceholderMarkdownString {
-	return 'isPlaceholder' in item;
+function contentToMarkdown(str: string | IMarkdownString): IMarkdownString {
+	return typeof str === 'string' ? { value: str } : str;
 }

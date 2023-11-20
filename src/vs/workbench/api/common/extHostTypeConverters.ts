@@ -2157,7 +2157,7 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function from(followup: vscode.InteractiveSessionReplyFollowup): IChatReplyFollowup {
+	export function from(followup: vscode.InteractiveSessionReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
@@ -2297,17 +2297,17 @@ export namespace InteractiveEditorResponseFeedbackKind {
 export namespace ChatResponseProgress {
 	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { placeholder: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
+			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.markdownContent), kind: 'content' };
+			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
 			if (typeof progress.content === 'string') {
 				return { content: progress.content, kind: 'content' };
 			}
 
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.content), kind: 'content' };
+			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({
@@ -2339,8 +2339,12 @@ export namespace ChatResponseProgress {
 		} else if ('agentName' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
-		} else {
+		} else if ('treeData' in progress) {
 			return { treeData: progress.treeData, kind: 'treeData' };
+		} else if ('message' in progress) {
+			return { content: progress.message, kind: 'progressMessage' };
+		} else {
+			throw new Error('Invalid progress type: ' + JSON.stringify(progress));
 		}
 	}
 }

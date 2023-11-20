@@ -119,6 +119,8 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariables';
+
 /*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -718,6 +720,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSel
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
 
 registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
@@ -1047,6 +1050,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.scrolling.anchorToFocusedCell.off.description', "The focused cell may shift around as cells resize.")
 			],
 			default: 'auto'
+		},
+		[NotebookSetting.cellChat]: {
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			type: 'boolean',
+			default: false
 		}
 	}
 });

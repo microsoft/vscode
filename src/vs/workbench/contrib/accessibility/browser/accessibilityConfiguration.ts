@@ -24,7 +24,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
 export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
-	HideAccessibleView = 'accessibility.hideAccessibleView'
+	HideAccessibleView = 'accessibility.hideAccessibleView',
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -159,7 +160,12 @@ const configuration: IConfigurationNode = {
 			'default': SpeechTimeoutDefault,
 			'minimum': 0,
 			'tags': ['accessibility']
-		}
+		},
+		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
+			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the accessible view and focus the element from which it was invoked."),
+			type: 'boolean',
+			default: true
+		},
 	}
 };
 

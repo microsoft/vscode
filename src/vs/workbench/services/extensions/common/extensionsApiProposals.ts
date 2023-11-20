@@ -69,6 +69,7 @@ export const allApiProposals = Object.freeze({
 	notebookLiveShare: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookLiveShare.d.ts',
 	notebookMessaging: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookMessaging.d.ts',
 	notebookMime: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookMime.d.ts',
+	notebookVariableProvider: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.notebookVariableProvider.d.ts',
 	portsAttributes: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.portsAttributes.d.ts',
 	profileContentHandlers: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.profileContentHandlers.d.ts',
 	quickDiffProvider: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.quickDiffProvider.d.ts',
