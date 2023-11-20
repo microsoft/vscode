@@ -282,6 +282,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			line-height: 1.357em;
 			white-space: pre-wrap;
 		}
+
+		li p {
+			margin-bottom: 0.7em;
+		}
+
+		ul,
+		ol {
+			margin-bottom: 0.7em;
+		}
 	`;
 	const template = document.createElement('template');
 	template.classList.add('markdown-style');
