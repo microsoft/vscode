@@ -45,8 +45,7 @@ class CodeActionOracle extends Disposable {
 	}
 
 	public trigger(trigger: CodeActionTrigger): void {
-		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-		console.log('selection : ', selection);
+		const selection = this._editor.getSelection();
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
@@ -61,16 +60,6 @@ class CodeActionOracle extends Disposable {
 		this._autoTriggerTimer.cancelAndSet(() => {
 			this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		}, this._delay);
-	}
-
-	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
-		if (!this._editor.hasModel()) {
-			return undefined;
-		}
-
-		const selection = this._editor.getSelection();
-
-		return selection;
 	}
 }
 
