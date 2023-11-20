@@ -28,9 +28,13 @@ declare module 'vscode' {
 	}
 
 	export interface ChatAgentVulnerability {
+		/**
+		 * One vulnerability annotation is considered to span the portion of the stream from the first ocurrence of the vulnerability with this id, to the last.
+		 */
+		id: string;
+
 		title: string;
 		description: string;
-		// id: string; // Later we will need to be able to link these across multiple content chunks.
 	}
 
 	export interface ChatAgentContent {
