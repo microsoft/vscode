@@ -18,7 +18,7 @@ suite('createEditAddingLinksForUriList', () => {
 			getText: function () { return 'hello world!'; },
 		};
 
-		const result = await createEditAddingLinksForUriList(skinnyDocument, [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/', true, true, new vscode.CancellationTokenSource().token);
+		const result = createEditAddingLinksForUriList(skinnyDocument, [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/', true, true);
 		// need to check the actual result -> snippet value
 		assert.strictEqual(result?.label, 'Insert Markdown Link');
 	});
@@ -95,31 +95,36 @@ suite('createEditAddingLinksForUriList', () => {
 
 		test('Should create snippet with < > when pasted link has an mismatched parentheses', () => {
 			const uriString = 'https://www.mic(rosoft.com';
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), 'abc', uriString, 0, true);
+			const snippet = new vscode.SnippetString('');
+			appendToLinkSnippet(snippet, 'abc', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:abc}](<https://www.mic(rosoft.com>)');
 		});
 
 		test('Should create Markdown link snippet when pasteAsMarkdownLink is true', () => {
 			const uriString = 'https://www.microsoft.com';
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', uriString, 0, true);
+			const snippet = new vscode.SnippetString('');
+			appendToLinkSnippet(snippet, '', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
 		});
 
 		test('Should use an unencoded URI string in Markdown link when passing in an external browser link', () => {
 			const uriString = 'https://www.microsoft.com';
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', uriString, 0, true);
+			const snippet = new vscode.SnippetString('');
+			appendToLinkSnippet(snippet, '', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
 		});
 
 		test('Should not decode an encoded URI string when passing in an external browser link', () => {
 			const uriString = 'https://www.microsoft.com/%20';
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', uriString, 0, true);
+			const snippet = new vscode.SnippetString('');
+			appendToLinkSnippet(snippet, '', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/%20)');
 		});
 
 		test('Should not encode an unencoded URI string when passing in an external browser link', () => {
 			const uriString = 'https://www.example.com/path?query=value&another=value#fragment';
-			const snippet = appendToLinkSnippet(new vscode.SnippetString(''), '', uriString, 0, true);
+			const snippet = new vscode.SnippetString('');
+			appendToLinkSnippet(snippet, '', uriString, 0, true);
 			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.example.com/path?query=value&another=value#fragment)');
 		});
 	});
