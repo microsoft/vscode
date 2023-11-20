@@ -12,6 +12,9 @@
 	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-panel-background)));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 }
+.editor-instance .terminal-sticky-scroll {
+	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-editor-background)));
+}
 
 .terminal-sticky-scroll.visible {
 	display:block;
@@ -38,24 +41,4 @@
 
 .terminal-sticky-scroll .hover-overlay:hover {
 	background-color: var(--vscode-terminalStickyScrollHover-background, transparent);
-}
-
-.terminal-sticky-scroll .hover-overlay .keybinding-hint {
-	display: none;
-	position: absolute;
-	right: 10px;
-	top: 50%;
-	transform: translateY(-50%);
-	z-index: 100;
-	opacity: 0.5;
-	pointer-events: none;
-	display: flex;
-}
-.terminal-sticky-scroll .hover-overlay .keybinding-hint > div {
-	/* Preventing wrapping of keybinding and its localized string */
-	display: inline-block;
-}
-.terminal-sticky-scroll .hover-overlay:hover .keybinding-hint {
-	display: flex;
-	align-items: center;
 }

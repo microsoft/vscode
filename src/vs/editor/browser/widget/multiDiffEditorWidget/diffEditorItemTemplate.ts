@@ -6,30 +6,33 @@ import { h } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { autorun, derived } from 'vs/base/common/observable';
-import { globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
+import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
-import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class TemplateData implements IObjectData {
 	constructor(
-		public readonly viewModel: IDiffEditorViewModel,
-		public readonly entry: IDocumentDiffItem,
+		public readonly viewModel: DocumentDiffItemViewModel,
 	) { }
 
 
 	getId(): unknown {
-		return this.entry;
+		return this.viewModel;
 	}
 }
 
 export class DiffEditorItemTemplate extends Disposable implements IPooledObject<TemplateData> {
+	private readonly _viewModel = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
+
+	private readonly _collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
+
 	private readonly _contentHeight = observableValue<number>(this, 500);
 	public readonly height = derived(this, reader => {
 		const h = this._collapsed.read(reader) ? 0 : this._contentHeight.read(reader);
@@ -51,29 +54,21 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	});
 
-	private readonly _collapsed = observableValue<boolean>(this, false);
-
-	private readonly _elements = h('div', {
-		style: {
-			display: 'flex',
-			flexDirection: 'column',
-		}
-	}, [
-		h('div', {
+	private readonly _elements = h('div.multiDiffEntry', [
+		h('div.content', {
 			style: {
 				display: 'flex',
 				flexDirection: 'column',
-
 				flex: '1',
 				overflow: 'hidden',
 			}
 		}, [
-			h('div@header', { style: { display: 'flex', alignItems: 'center', padding: '8px 5px', color: 'var(--vscode-foreground)', background: 'var(--vscode-editor-background)', zIndex: '10000' } }, [
-				h('div.expand-button@collapseButton', { style: { margin: '0 5px' } }),
-				h('div.show-file-icons@title', { style: { fontSize: '14px', lineHeight: '22px' } }, [] as any),
+			h('div.header@header', [
+				h('div.collapse-button@collapseButton'),
+				h('div.title.show-file-icons@title', [] as any),
 			]),
 
-			h('div', {
+			h('div.editorParent', {
 				style: {
 					flex: '1',
 					display: 'flex',
@@ -85,9 +80,13 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		])
 	]);
 
-	private readonly _editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
+	public readonly editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
 		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 	}, {}));
+
+	private readonly isModifedFocused = isFocused(this.editor.getModifiedEditor());
+	private readonly isOriginalFocused = isFocused(this.editor.getOriginalEditor());
+	public readonly isFocused = derived(this, reader => this.isModifedFocused.read(reader) || this.isOriginalFocused.read(reader));
 
 	private readonly _resourceLabel = this._workbenchUIElementFactory.createResourceLabel
 		? this._register(this._workbenchUIElementFactory.createResourceLabel(this._elements.title))
@@ -110,25 +109,28 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			btn.icon = this._collapsed.read(reader) ? Codicon.chevronRight : Codicon.chevronDown;
 		}));
 		this._register(btn.onDidClick(() => {
-			this._collapsed.set(!this._collapsed.get(), undefined);
-			this._elements.editor.style.display = this._collapsed.get() ? 'none' : 'block';
+			this._viewModel.get()?.collapsed.set(!this._collapsed.get(), undefined);
 		}));
 
-		this._editor.getModifiedEditor().onDidLayoutChange(e => {
-			const width = this._editor.getModifiedEditor().getLayoutInfo().contentWidth;
+		this._register(autorun(reader => {
+			this._elements.editor.style.display = this._collapsed.read(reader) ? 'none' : 'block';
+		}));
+
+		this.editor.getModifiedEditor().onDidLayoutChange(e => {
+			const width = this.editor.getModifiedEditor().getLayoutInfo().contentWidth;
 			this._modifiedWidth.set(width, undefined);
 		});
 
-		this._editor.getOriginalEditor().onDidLayoutChange(e => {
-			const width = this._editor.getOriginalEditor().getLayoutInfo().contentWidth;
+		this.editor.getOriginalEditor().onDidLayoutChange(e => {
+			const width = this.editor.getOriginalEditor().getLayoutInfo().contentWidth;
 			this._originalWidth.set(width, undefined);
 		});
 
-		this._register(this._editor.onDidContentSizeChange(e => {
+		this._register(this.editor.onDidContentSizeChange(e => {
 			globalTransaction(tx => {
 				this._contentHeight.set(e.contentHeight, tx);
-				this._modifiedContentWidth.set(this._editor.getModifiedEditor().getContentWidth(), tx);
-				this._originalContentWidth.set(this._editor.getOriginalEditor().getContentWidth(), tx);
+				this._modifiedContentWidth.set(this.editor.getModifiedEditor().getContentWidth(), tx);
+				this._originalContentWidth.set(this.editor.getOriginalEditor().getContentWidth(), tx);
 			});
 		}));
 
@@ -138,18 +140,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	public setScrollLeft(left: number): void {
 		if (this._modifiedContentWidth.get() - this._modifiedWidth.get() > this._originalContentWidth.get() - this._originalWidth.get()) {
-			this._editor.getModifiedEditor().setScrollLeft(left);
+			this.editor.getModifiedEditor().setScrollLeft(left);
 		} else {
-			this._editor.getOriginalEditor().setScrollLeft(left);
+			this.editor.getOriginalEditor().setScrollLeft(left);
 		}
 	}
 
 	private readonly _dataStore = new DisposableStore();
 
 	public setData(data: TemplateData): void {
-		this._resourceLabel?.setUri(data.viewModel.model.modified.uri);
-		this._dataStore.clear();
-
 		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
 			return {
 				...options,
@@ -161,20 +160,26 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 					vertical: 'hidden',
 					horizontal: 'hidden',
 					handleMouseWheel: false,
+					useShadows: false,
 				},
 				renderOverviewRuler: false,
 				fixedOverflowWidgets: true,
 			};
 		}
 
-		if (data.entry.onOptionsDidChange) {
-			this._dataStore.add(data.entry.onOptionsDidChange(() => {
-				this._editor.updateOptions(updateOptions(data.entry.options ?? {}));
+		const value = data.viewModel.entry.value!; // TODO
+
+		if (value.onOptionsDidChange) {
+			this._dataStore.add(value.onOptionsDidChange(() => {
+				this.editor.updateOptions(updateOptions(value.options ?? {}));
 			}));
 		}
 		globalTransaction(tx => {
-			this._editor.setModel(data.viewModel, tx);
-			this._editor.updateOptions(updateOptions(data.entry.options ?? {}));
+			this._resourceLabel?.setUri(data.viewModel.diffEditorViewModel.model.modified.uri);
+			this._dataStore.clear();
+			this._viewModel.set(data.viewModel, tx);
+			this.editor.setModel(data.viewModel.diffEditorViewModel, tx);
+			this.editor.updateOptions(updateOptions(value.options ?? {}));
 		});
 	}
 
@@ -186,19 +191,34 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.position = 'absolute';
 
 		// For sticky scroll
-		this._elements.header.style.transform = `translateY(${Math.max(0, Math.min(verticalRange.length - this._elements.header.clientHeight, viewPort.start - verticalRange.start))}px)`;
+		const delta = Math.max(0, Math.min(verticalRange.length - this._elements.header.clientHeight, viewPort.start - verticalRange.start));
+		this._elements.header.style.transform = `translateY(${delta}px)`;
 
 		globalTransaction(tx => {
-			this._editor.layout({
+			this.editor.layout({
 				width: width,
 				height: verticalRange.length - this._outerEditorHeight,
 			});
 		});
-		this._editor.getOriginalEditor().setScrollTop(editorScroll);
+		this.editor.getOriginalEditor().setScrollTop(editorScroll);
+
+		this._elements.header.classList.toggle('shadow', delta > 0 || editorScroll > 0);
 	}
 
 	public hide(): void {
 		this._elements.root.style.top = `-100000px`;
 		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
 	}
+}
+
+function isFocused(editor: ICodeEditor): IObservable<boolean> {
+	return observableFromEvent(
+		h => {
+			const store = new DisposableStore();
+			store.add(editor.onDidFocusEditorWidget(() => h(true)));
+			store.add(editor.onDidBlurEditorWidget(() => h(false)));
+			return store;
+		},
+		() => editor.hasWidgetFocus()
+	);
 }

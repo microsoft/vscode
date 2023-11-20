@@ -558,7 +558,7 @@ export class ChatService extends Disposable implements IChatService {
 					rawResponse = { session: model.session! };
 
 				} else {
-					throw new Error(`Can't handle request`);
+					throw new Error(`Cannot handle request`);
 				}
 
 				if (token.isCancellationRequested) {
