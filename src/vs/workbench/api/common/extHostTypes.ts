@@ -13,7 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
 import { isNumber, isObject, isString, isStringArray } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
@@ -1233,8 +1233,8 @@ export class MultiDocumentHighlight {
 	uri: URI;
 	highlights: DocumentHighlight[];
 
-	constructor(uri: UriComponents, highlights: DocumentHighlight[]) {
-		this.uri = URI.revive(uri);
+	constructor(uri: URI, highlights: DocumentHighlight[]) {
+		this.uri = uri;
 		this.highlights = highlights;
 	}
 

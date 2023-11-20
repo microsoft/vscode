@@ -28,19 +28,19 @@ class TextualDocumentHighlightProvider implements MultiDocumentHighlightProvider
 		}
 
 
-		for (const otherModel of otherModels) {
-			if (otherModel.isDisposed()) {
+		for (const model of [primaryModel, ...otherModels]) {
+			if (model.isDisposed()) {
 				continue;
 			}
 
-			const matches = otherModel.findMatches(word.word, true, false, true, USUAL_WORD_SEPARATORS, false);
+			const matches = model.findMatches(word.word, true, false, true, USUAL_WORD_SEPARATORS, false);
 			const highlights = matches.map(m => ({
 				range: m.range,
 				kind: DocumentHighlightKind.Text
 			}));
 
 			if (highlights) {
-				result.set(otherModel.uri, highlights);
+				result.set(model.uri, highlights);
 			}
 		}
 

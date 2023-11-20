@@ -961,7 +961,7 @@ export interface MultiDocumentHighlight {
 	/**
 	 * The URI of the document that the highlights belong to.
 	 */
-	uri: UriComponents;
+	uri: URI;
 
 	/**
 	 * The set of highlights for the document.

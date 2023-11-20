@@ -7155,7 +7155,7 @@ declare namespace monaco.languages {
 		/**
 		 * The Uri of the document that the highlights belong to.
 		 */
-		uri: UriComponents;
+		uri: Uri;
 		/**
 		 * The set of highlights for the document.
 		 */

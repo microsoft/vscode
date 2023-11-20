@@ -1032,7 +1032,7 @@ export namespace MultiDocumentHighlight {
 	}
 
 	export function to(multiDocumentHighlight: languages.MultiDocumentHighlight): types.MultiDocumentHighlight {
-		return new types.MultiDocumentHighlight(multiDocumentHighlight.uri, multiDocumentHighlight.highlights.map(DocumentHighlight.to));
+		return new types.MultiDocumentHighlight(URI.revive(multiDocumentHighlight.uri), multiDocumentHighlight.highlights.map(DocumentHighlight.to));
 	}
 }
 

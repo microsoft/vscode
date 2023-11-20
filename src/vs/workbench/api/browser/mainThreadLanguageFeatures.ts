@@ -305,13 +305,19 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	$registerMultiDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
 		this._registrations.set(handle, this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
 			provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]> | undefined> => {
-				return this._proxy.$provideMultiDocumentHighlights(handle, model.uri, position, otherModels.map(model => model.uri), token).then(dto => {
-					if (isFalsyOrEmpty(dto) || !dto) {
+				return this._proxy.$provideMultiDocumentHighlights(handle, model.uri, position, otherModels.map(model => model.uri), token).then(dto => { // @Yoyokrazy FILTER HERE
+					if (isFalsyOrEmpty(dto)) {
 						return undefined;
 					}
 					const result = new ResourceMap<languages.DocumentHighlight[]>();
-					dto.forEach(value => {
-						result.set(URI.revive(value.uri), value.highlights);
+					dto?.forEach(value => {
+						// check if the URI exists already, if so, combine the highlights, otherwise create a new entry
+						const uri = URI.revive(value.uri);
+						if (result.has(uri)) {
+							result.get(uri)!.push(...value.highlights);
+						} else {
+							result.set(uri, value.highlights);
+						}
 					});
 					return result;
 				});
