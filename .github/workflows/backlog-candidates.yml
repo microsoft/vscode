@@ -1,0 +1,20 @@
+name: Add comment to Backlog Candidate Tracker issue when an issue is milestoned
+on:
+  issues:
+    types:
+      - milestoned
+jobs:
+  add-comment:
+    if: github.event.milestone.title == 'Backlog Candidate'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Add comment
+        run: gh issue comment "$TRACKER_ISSUE" --repo "$REPO" --body "$BODY"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRACKER_ISSUE: 5
+          REPO: ${{ github.repository }}
+          BODY: >
+            Issue #${{ github.event.issue.number }} has been made a Backlog Candidate. If you want to support this issue, please add a thumbs up reaction to its description within 60 days.
