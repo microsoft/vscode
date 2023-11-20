@@ -142,8 +142,6 @@
 .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row{
 	position: absolute;
 	width: 100%;
-	height: 22px;
-	line-height: 22px;
 
 	background-color: var(--vscode-sideBar-background);
 	z-index: 5;
