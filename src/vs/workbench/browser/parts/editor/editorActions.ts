@@ -1087,7 +1087,6 @@ export class ToggleGroupSizesAction extends Action2 {
 	}
 }
 
-
 export class MaximizeGroupHideSidebarAction extends Action2 {
 
 	constructor() {

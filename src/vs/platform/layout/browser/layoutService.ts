@@ -35,7 +35,7 @@ export interface ILayoutService {
 	/**
 	 * An event that is emitted when any container is layed out.
 	 */
-	readonly onDidLayoutContainer: Event<{ container: HTMLElement; dimension: IDimension }>;
+	readonly onDidLayoutContainer: Event<{ readonly container: HTMLElement; readonly dimension: IDimension }>;
 
 	/**
 	 * An event that is emitted when the active container is layed out.
@@ -46,7 +46,7 @@ export interface ILayoutService {
 	 * An event that is emitted when a new container is added. This
 	 * can happen in multi-window environments.
 	 */
-	readonly onDidAddContainer: Event<{ container: HTMLElement; disposables: DisposableStore }>;
+	readonly onDidAddContainer: Event<{ readonly container: HTMLElement; readonly disposables: DisposableStore }>;
 
 	/**
 	 * An event that is emitted when the active container changes.
@@ -65,15 +65,6 @@ export interface ILayoutService {
 
 	/**
 	 * Main container of the application.
-	 *
-	 * **NOTE**: In the standalone editor case, multiple editors can be created on a page.
-	 * Therefore, in the standalone editor case, there are multiple containers, not just
-	 * a single one. If you ship code that needs a "container" for the standalone editor,
-	 * please use `activeContainer` to get the current focused code editor and use its
-	 * container if necessary. You can also instantiate `EditorScopedLayoutService`
-	 * which implements `ILayoutService` but is not a part of the service collection because
-	 * it is code editor instance specific.
-	 *
 	 */
 	readonly mainContainer: HTMLElement;
 

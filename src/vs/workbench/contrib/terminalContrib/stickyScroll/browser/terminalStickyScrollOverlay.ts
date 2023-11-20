@@ -12,10 +12,12 @@ import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
+import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -23,7 +25,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
@@ -62,6 +65,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -80,6 +84,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._maxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
 			}
 		}));
+
+		// React to terminal location changes
+		this._register(this._instance.onDidChangeTarget(() => this._syncOptions()));
 
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
@@ -296,7 +303,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				const termBox = xterm.element.getBoundingClientRect();
 				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
-				this._element.style.bottom = `${termBox.height - overlayHeight}px`;
+				this._element.style.bottom = `${termBox.height - overlayHeight + 1}px`;
 			}
 		} else {
 			this._setVisible(false);
@@ -317,11 +324,28 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		const overlay = this._stickyScrollOverlay;
 
-		this._element = $('.terminal-sticky-scroll');
 		const hoverOverlay = $('.hover-overlay');
-		this._element.append(hoverOverlay);
+		this._element = $('.terminal-sticky-scroll', undefined, hoverOverlay);
 		this._xterm.raw.element.parentElement.append(this._element);
 		this._register(toDisposable(() => this._element?.remove()));
+
+		// Fill tooltip
+		let hoverTitle = localize('stickyScrollHoverTitle', 'Navigate to Command');
+		const scrollToPreviousCommandKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ScrollToPreviousCommand);
+		if (scrollToPreviousCommandKeybinding) {
+			const label = scrollToPreviousCommandKeybinding.getLabel();
+			if (label) {
+				hoverTitle += '\n' + localize('labelWithKeybinding', "{0} ({1})", terminalStrings.scrollToPreviousCommand.value, label);
+			}
+		}
+		const scrollToNextCommandKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ScrollToNextCommand);
+		if (scrollToNextCommandKeybinding) {
+			const label = scrollToNextCommandKeybinding.getLabel();
+			if (label) {
+				hoverTitle += '\n' + localize('labelWithKeybinding', "{0} ({1})", terminalStrings.scrollToNextCommand.value, label);
+			}
+		}
+		hoverOverlay.title = hoverTitle;
 
 		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
