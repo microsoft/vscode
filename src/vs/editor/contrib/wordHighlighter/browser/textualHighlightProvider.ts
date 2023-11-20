@@ -11,9 +11,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { LanguageFilter } from 'vs/editor/common/languageSelector';
 
 
 class TextualDocumentHighlightProvider implements MultiDocumentHighlightProvider {
+
+	selector: LanguageFilter = { language: '*' };
 
 	provideMultiDocumentHighlights(primaryModel: ITextModel, position: Position, otherModels: ITextModel[], token: CancellationToken): ProviderResult<ResourceMap<DocumentHighlight[]>> {
 

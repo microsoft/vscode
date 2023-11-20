@@ -24,6 +24,7 @@ import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMul
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { LanguageFilter } from 'vs/editor/common/languageSelector';
 
 /**
  * @internal
@@ -985,6 +986,8 @@ export interface DocumentHighlightProvider {
  * A provider that can provide document highlights across multiple documents.
  */
 export interface MultiDocumentHighlightProvider {
+	selector: LanguageFilter;
+
 	/**
 	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or
 	 * all exit-points of a function.

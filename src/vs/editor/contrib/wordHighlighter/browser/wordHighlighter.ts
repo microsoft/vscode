@@ -32,6 +32,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
+import { score } from 'vs/editor/common/languageSelector';
 // import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
 // import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
@@ -63,7 +64,11 @@ export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegi
 	// until someone response with a good result
 	// (good = none empty array)
 	return first<ResourceMap<DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, otherModels, token))
+		const filteredModels = otherModels.filter(otherModel => {
+			return score(provider.selector, otherModel.uri, otherModel.getLanguageId(), true, undefined, undefined) > 0;
+		});
+
+		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, filteredModels, token))
 			.then(undefined, onUnexpectedExternalError);
 	}), (t: ResourceMap<DocumentHighlight[]> | null | undefined): t is ResourceMap<DocumentHighlight[]> => t instanceof ResourceMap && t.size > 0);
 }
@@ -588,10 +593,7 @@ class WordHighlighter {
 		for (const editor of currentEditors) {
 			const tempModel = editor.getModel();
 
-			const isValidModel =
-				tempModel && tempModel !== model && (
-					tempModel?.uri.scheme === Schemas.file ||
-					tempModel?.uri.scheme === Schemas.untitled);
+			const isValidModel = tempModel && tempModel !== model;
 
 			if (isValidModel) {
 				currentModels.push(tempModel);
