@@ -198,6 +198,7 @@ class ESRPClient {
 		const releaseId = submitReleaseResult.submissionResponse.operationId;
 		this.log(`Successfully submitted release ${releaseId}. Polling for completion...`);
 
+		const start = Date.now();
 		let details!: ReleaseDetailsResult;
 
 		// Poll every 5 seconds, wait 60 minutes max -> poll 60/5*60=720 times
@@ -218,7 +219,7 @@ class ESRPClient {
 		}
 
 		const fileId = details.releaseDetails[0].fileDetails[0].publisherKey;
-		this.log('Release completed successfully with fileId: ', fileId);
+		this.log(`Release completed successfully after ${Math.floor((Date.now() - start) / 1000)} seconds with fileId: `, fileId);
 
 		return { releaseId, fileId };
 	}
@@ -811,7 +812,7 @@ async function main() {
 				const archiveSize = fs.statSync(artifactZipPath).size;
 				const downloadDurationS = (Date.now() - start) / 1000;
 				const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
-				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
+				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds (${downloadSpeedKBS} KB/s).`);
 			});
 
 			const artifactFilePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
