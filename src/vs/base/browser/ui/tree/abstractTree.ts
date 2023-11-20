@@ -2228,6 +2228,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			content.push(`.monaco-list${suffix} .monaco-tl-indent > .indent-guide.active { border-color: ${styles.treeIndentGuidesStroke}; }`);
 		}
 
+		if (styles.listBackground) {
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row { background-color: ${styles.listBackground}; }`);
+		}
+
 		this.styleElement.textContent = content.join('\n');
 
 		this.view.style(styles);

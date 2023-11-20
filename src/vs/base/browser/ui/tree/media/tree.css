@@ -144,15 +144,15 @@
 	width: 100%;
 
 	background-color: var(--vscode-sideBar-background);
-	z-index: 5;
+	z-index: 13;
 }
 
 .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.last-sticky{
-	z-index: 4;
+	z-index: 12;
 }
 
 .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row:hover{
-	background-color: var(--vscode-list-hoverBackground);
+	background-color: var(--vscode-list-hoverBackground) !important;
 	cursor: pointer;
 }
 
