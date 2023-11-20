@@ -449,7 +449,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		this._onDidChangeContainer.fire({ views, from, to });
 
-		// If all views have been moved from a container, clean up the container
 		if (fromContainerWillBeEmpty) {
 			this._onDidChangeViewContainers.fire({ removed: [{ container: from, location: this.getViewContainerLocation(from) }], added: [] });
 		}
