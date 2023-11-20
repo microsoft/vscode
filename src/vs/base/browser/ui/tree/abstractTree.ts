@@ -26,7 +26,7 @@ import { SetMap } from 'vs/base/common/map';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
@@ -1430,6 +1430,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	private readonly _rootDomNode: HTMLElement;
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
+	private _mouseUpTimerDisposable = new MutableDisposable();
 
 	constructor(
 		container: HTMLElement,
@@ -1548,7 +1549,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			}
 
 			// Timeout 0 ensures that the tree handles the click event first
-			setTimeout(() => {
+			this._mouseUpTimerDisposable.value = disposableTimeout(() => {
 				const elementTop = this.view.getElementTop(stickyNode.startIndex);
 				// We can't rely on the current sticky node's position
 				// because the node might be partially scrolled under the widget
@@ -1565,6 +1566,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	}
 
 	dispose(): void {
+		this._mouseUpTimerDisposable.dispose();
 		this._previousState?.dispose();
 		this._rootDomNode.remove();
 	}
