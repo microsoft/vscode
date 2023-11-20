@@ -1,20 +1,25 @@
-name: Add comment to Backlog Candidate Tracker issue when an issue is milestoned
+name: Add comment to Backlog Candidate Tracker issue when any issue is milestoned to Backlog Candidates
 on:
   issues:
     types:
       - milestoned
 jobs:
   add-comment:
-    if: github.event.milestone.title == 'Backlog Candidate'
+    if: github.event.milestone.title == 'Backlog Candidates'
     runs-on: ubuntu-latest
     permissions:
       issues: write
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      TRACKER_ISSUE: 198675
     steps:
+      - name: unlock issue
+        run: gh issue unlock "$TRACKER_ISSUE" --repo "$REPO"
       - name: Add comment
         run: gh issue comment "$TRACKER_ISSUE" --repo "$REPO" --body "$BODY"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TRACKER_ISSUE: 5
-          REPO: ${{ github.repository }}
           BODY: >
-            Issue #${{ github.event.issue.number }} has been made a Backlog Candidate. If you want to support this issue, please add a thumbs up reaction to its description within 60 days.
+            Issue #${{ github.event.issue.number }} (${{ github.event.issue.title }}) has been made a Backlog Candidate. If you want to support this issue, add a thumbs up reaction (:+1:) to its description within 60 days. Read more about this process [here](https://github.com/microsoft/vscode/wiki/Issues-Triaging#managing-feature-requests).
+      - name: lock issue
+        run: gh issue lock "$TRACKER_ISSUE" --repo "$REPO"
