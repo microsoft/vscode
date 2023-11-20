@@ -5,20 +5,32 @@
 
 declare module 'vscode' {
 
-	export interface InteractiveRequest {
-		variables: Record<string, ChatVariableValue[]>;
-	}
-
 	export enum ChatVariableLevel {
 		Short = 1,
 		Medium = 2,
 		Full = 3
 	}
 
+	export enum ChatVariableKind {
+		String = 1,
+		Uri = 2
+	}
+
 	export interface ChatVariableValue {
 		level: ChatVariableLevel;
-		value: string;
+		kind: ChatVariableKind | string;
+		value: any; // Should this be stricter? This needs to serialize/deserialize, travel between extensions, and we won't guarantee returning the same instance.
 		description?: string;
+	}
+
+	export interface ChatVariableStringValue extends ChatVariableValue {
+		kind: ChatVariableKind.String;
+		value: string;
+	}
+
+	export interface ChatVariableUriValue extends ChatVariableValue {
+		kind: ChatVariableKind.Uri;
+		value: Uri;
 	}
 
 	export interface ChatVariableContext {
