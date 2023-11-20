@@ -474,6 +474,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeLocation.fire({ views, from, to });
 		}
 	}
+
 	private cleanUpGeneratedViewContainer(viewContainerId: string): void {
 		// Skip if container is not generated
 		if (!this.isGeneratedContainerId(viewContainerId)) {
