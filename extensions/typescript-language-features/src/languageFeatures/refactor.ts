@@ -557,7 +557,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = (await this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(async action => {
+		const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+		const actions = (await this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
@@ -566,7 +567,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 			}
 			if (action.kind?.value === Move_NewFile.kind.value) {
-				const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
 				return MoveToFileCodeAction.shouldIncludeCodeAction(documentSymbols, rangeOrSelection);
 			}
 			return true;
