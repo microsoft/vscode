@@ -22,7 +22,7 @@
 	padding: 8px 5px;
 	color: var(--vscode-foreground);
 	background: var(--vscode-editor-background);
-	z-index: 10000;
+	z-index: 1000;
 }
 
 .monaco-component .multiDiffEntry .header.shadow {
