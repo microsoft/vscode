@@ -544,10 +544,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
-		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
-			return 'invoked';
-		}
-		return undefined;
+		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke ? 'invoked' : 'implicit';
 	}
 
 	private *convertApplicableRefactors(

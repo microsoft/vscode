@@ -62,3 +62,7 @@
 	height: 16px;
 	margin: 2px 0;
 }
+
+.monaco-diff-editor .revertButton {
+	cursor: pointer;
+}

@@ -136,29 +136,33 @@ export class ContextView extends Disposable {
 
 	private container: HTMLElement | null = null;
 	private view: HTMLElement;
-	private useFixedPosition: boolean;
-	private useShadowDOM: boolean;
+	private useFixedPosition = false;
+	private useShadowDOM = false;
 	private delegate: IDelegate | null = null;
 	private toDisposeOnClean: IDisposable = Disposable.None;
 	private toDisposeOnSetContainer: IDisposable = Disposable.None;
 	private shadowRoot: ShadowRoot | null = null;
 	private shadowRootHostElement: HTMLElement | null = null;
 
-	constructor(container: HTMLElement | null, domPosition: ContextViewDOMPosition) {
+	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition) {
 		super();
 
 		this.view = DOM.$('.context-view');
-		this.useFixedPosition = false;
-		this.useShadowDOM = false;
-
 		DOM.hide(this.view);
 
 		this.setContainer(container, domPosition);
-
 		this._register(toDisposable(() => this.setContainer(null, ContextViewDOMPosition.ABSOLUTE)));
 	}
 
 	setContainer(container: HTMLElement | null, domPosition: ContextViewDOMPosition): void {
+		this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
+		const usedShadowDOM = this.useShadowDOM;
+		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
+
+		if (container === this.container && usedShadowDOM !== this.useShadowDOM) {
+			return; // container is the same and now shadow DOM usage has changed
+		}
+
 		if (this.container) {
 			this.toDisposeOnSetContainer.dispose();
 
@@ -173,11 +177,9 @@ export class ContextView extends Disposable {
 
 			this.container = null;
 		}
+
 		if (container) {
 			this.container = container;
-
-			this.useFixedPosition = domPosition !== ContextViewDOMPosition.ABSOLUTE;
-			this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
 
 			if (this.useShadowDOM) {
 				this.shadowRootHostElement = DOM.$('.shadow-root-host');

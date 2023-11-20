@@ -510,7 +510,7 @@ impl<'a> ServerBuilder<'a> {
 		let (mut origin, listen_rx) =
 			monitor_server::<SocketMatcher, PathBuf>(child, Some(log_file), plog, false);
 
-		let socket = match timeout(Duration::from_secs(8), listen_rx).await {
+		let socket = match timeout(Duration::from_secs(30), listen_rx).await {
 			Err(e) => {
 				origin.kill().await;
 				Err(wrap(e, "timed out looking for socket"))

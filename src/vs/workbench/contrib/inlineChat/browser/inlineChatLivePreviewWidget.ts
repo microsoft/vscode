@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, h } from 'vs/base/browser/dom';
+import { Dimension, getWindow, h, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
@@ -18,54 +18,66 @@ import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INLINE_CHAT_ID, inlineChatDiffInserted, inlineChatDiffRemoved, inlineChatRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { URI } from 'vs/base/common/uri';
-import { TextEdit } from 'vs/editor/common/languages';
 import { FileKind } from 'vs/platform/files/common/files';
-import { IModelService } from 'vs/editor/common/services/model';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { generateUuid } from 'vs/base/common/uuid';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IAction, toAction } from 'vs/base/common/actions';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Codicon } from 'vs/base/common/codicons';
+import { TAB_ACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
+import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
-	private static readonly _hideId = 'overlayDiff';
+	private readonly _hideId = `overlayDiff:${generateUuid()}`;
 
 	private readonly _elements = h('div.inline-chat-diff-widget@domNode');
 
-	private readonly _sessionStore = this._disposables.add(new DisposableStore());
-	private readonly _diffEditor: IDiffEditor;
+	private readonly _decorationCollection: IEditorDecorationsCollection;
+	private readonly _diffEditor: DiffEditorWidget;
+
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
-	private _isDiffLocked: boolean = false;
 
 	constructor(
 		editor: ICodeEditor,
 		private readonly _session: Session,
+		onDidChangeDiff: (() => void) | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
-		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
+		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, keepEditorSelection: true, ordinal: 10000 + 1 });
 		super.create();
 		assertType(editor.hasModel());
+
+		this._decorationCollection = editor.createDecorationsCollection();
 
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
 			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
-			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 			scrollBeyondLastLine: false,
 			renderMarginRevertIcon: true,
 			renderOverviewRuler: false,
@@ -80,6 +92,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
 			isInEmbeddedEditor: true,
+			useInlineViewWhenSpaceIsLimited: false,
 			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode(),
 			onlyShowAccessibleDiffViewer: this.accessibilityService.isScreenReaderOptimized(),
 		}, {
@@ -93,10 +106,23 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			lineDecorationsWidth: editor.getLayoutInfo().decorationsWidth
 		});
 
-		const highlighter = WordHighlighterContribution.get(editor);
-		if (highlighter) {
-			this._disposables.add(highlighter.linkWordHighlighters(this._diffEditor.getModifiedEditor()));
+		if (onDidChangeDiff) {
+			this._disposables.add(this._diffEditor.onDidUpdateDiff(() => { onDidChangeDiff(); }));
+
+			const render = this._disposables.add(new MutableDisposable());
+			this._disposables.add(this._diffEditor.onDidContentSizeChange(e => {
+				if (!this._isVisible || !e.contentHeightChanged) {
+					return;
+				}
+				render.value = runAtThisOrScheduleAtNextAnimationFrame(getWindow(this._diffEditor.getContainerDomNode()), () => {
+					const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+					const heightInLines = e.contentHeight / lineHeight;
+					this._logService.debug(`[IE] relaying with ${heightInLines} lines height`);
+					this._relayout(heightInLines);
+				});
+			}));
 		}
+
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
@@ -132,90 +158,93 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
+		this._decorationCollection.clear();
 		this._cleanupFullDiff();
-		this._sessionStore.clear();
 		super.hide();
 		this._isVisible = false;
 	}
 
 	override show(): void {
-		assertType(this.editor.hasModel());
-		this._sessionStore.clear();
-		this._isDiffLocked = false;
+		throw new Error('use showForChanges');
+	}
+
+	showForChanges(changes: readonly LineRangeMapping[]): void {
+		const hasFocus = this._diffEditor.hasTextFocus();
 		this._isVisible = true;
 
-		this._sessionStore.add(this._diffEditor.onDidUpdateDiff(() => {
-			const result = this._diffEditor.getDiffComputationResult();
-			const hasFocus = this._diffEditor.hasTextFocus();
-			this._updateFromChanges(this._session.wholeRange.value, result?.changes2 ?? []);
-			// TODO@jrieken find a better fix for this. this is the challenge:
-			// the _doShowForChanges method invokes show of the zone widget which removes and adds the
-			// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
-			// focus
-			if (hasFocus) {
-				this._diffEditor.focus();
-			}
-		}));
-		this._updateFromChanges(this._session.wholeRange.value, this._session.lastTextModelChanges);
-	}
+		const onlyInserts = changes.every(change => change.original.isEmpty);
 
-	lockToDiff(): void {
-		this._isDiffLocked = true;
-	}
-
-	private _updateFromChanges(range: Range, changes: readonly DetailedLineRangeMapping[]): void {
-		assertType(this.editor.hasModel());
-
-		if (this._isDiffLocked) {
-			return;
-		}
-
-		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
+		if (onlyInserts || changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
 			// no change or changes to an empty file
 			this._logService.debug('[IE] livePreview-mode: no diff');
 			this._cleanupFullDiff();
+			this._renderInsertWithHighlight(changes);
 		} else {
 			// complex changes
 			this._logService.debug('[IE] livePreview-mode: full diff');
-			this._renderChangesWithFullDiff(changes, range);
+			this._decorationCollection.clear();
+			this._renderChangesWithFullDiff(changes);
 		}
+
+		// TODO@jrieken find a better fix for this. this is the challenge:
+		// the `_updateFromChanges` method invokes show of the zone widget which removes and adds the
+		// zone and overlay parts. this dettaches and reattaches the dom nodes which means they lose
+		// focus
+		if (hasFocus) {
+			this._diffEditor.focus();
+		}
+	}
+
+	private _renderInsertWithHighlight(changes: readonly LineRangeMapping[]) {
+		assertType(this.editor.hasModel());
+
+		const options: IModelDecorationOptions = {
+			description: 'inline-chat-insert',
+			showIfCollapsed: false,
+			isWholeLine: true,
+			className: 'inline-chat-lines-inserted-range',
+		};
+
+		this._decorationCollection.set(changes.map(change => {
+			return {
+				range: lineRangeAsRange(change.modified),
+				options,
+			};
+		}));
 	}
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: readonly DetailedLineRangeMapping[], range: Range) {
+	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[]) {
+		assertType(this.editor.hasModel());
 
-		const modified = this.editor.getModel()!;
-		const ranges = this._computeHiddenRanges(modified, range, changes);
+		const modified = this.editor.getModel();
+		const ranges = this._computeHiddenRanges(modified, changes);
 
 		this._hideEditorRanges(this.editor, [ranges.modifiedHidden]);
 		this._hideEditorRanges(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
 		this._hideEditorRanges(this._diffEditor.getModifiedEditor(), ranges.modifiedDiffHidden);
 
-		this._diffEditor.revealLine(ranges.modifiedHidden.startLineNumber, ScrollType.Immediate);
+		// this._diffEditor.revealLine(ranges.modifiedHidden.startLineNumber, ScrollType.Immediate);
 
 		const lineCountModified = ranges.modifiedHidden.length;
 		const lineCountOriginal = ranges.originalHidden.length;
 
-		const lineHeightDiff = Math.max(lineCountModified, lineCountOriginal);
-		const lineHeightPadding = (this.editor.getOption(EditorOption.lineHeight) / 12) /* padding-top/bottom*/;
-		const heightInLines = lineHeightDiff + lineHeightPadding;
+		const heightInLines = Math.max(lineCountModified, lineCountOriginal);
 
 		super.show(ranges.anchor, heightInLines);
-		this._logService.debug(`[IE] diff SHOWING at ${ranges.anchor} with ${heightInLines} lines height`);
+		this._logService.debug(`[IE] diff SHOWING at ${ranges.anchor} with ${heightInLines} (approx) lines height`);
 	}
 
 	private _cleanupFullDiff() {
-		this.editor.setHiddenAreas([], InlineChatLivePreviewWidget._hideId);
-		this._diffEditor.getOriginalEditor().setHiddenAreas([], InlineChatLivePreviewWidget._hideId);
-		this._diffEditor.getModifiedEditor().setHiddenAreas([], InlineChatLivePreviewWidget._hideId);
+		this.editor.setHiddenAreas([], this._hideId);
+		this._diffEditor.getOriginalEditor().setHiddenAreas([], this._hideId);
+		this._diffEditor.getModifiedEditor().setHiddenAreas([], this._hideId);
 		super.hide();
+		this._isVisible = false;
 	}
 
-	private _computeHiddenRanges(model: ITextModel, range: Range, changes: readonly DetailedLineRangeMapping[]) {
-		if (changes.length === 0) {
-			changes = [new DetailedLineRangeMapping(LineRange.fromRange(range), LineRange.fromRange(range), undefined)];
-		}
+	private _computeHiddenRanges(model: ITextModel, changes: readonly LineRangeMapping[]) {
 
 		let originalLineRange = changes[0].original;
 		let modifiedLineRange = changes[0].modified;
@@ -224,16 +253,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
 		}
 
-		const startDelta = modifiedLineRange.startLineNumber - range.startLineNumber;
-		if (startDelta > 0) {
-			modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber - startDelta, modifiedLineRange.endLineNumberExclusive);
-			originalLineRange = new LineRange(originalLineRange.startLineNumber - startDelta, originalLineRange.endLineNumberExclusive);
-		}
-
-		const endDelta = range.endLineNumber - (modifiedLineRange.endLineNumberExclusive - 1);
-		if (endDelta > 0) {
-			modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, modifiedLineRange.endLineNumberExclusive + endDelta);
-			originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + endDelta);
+		if (originalLineRange.isEmpty) {
+			originalLineRange = new LineRange(originalLineRange.startLineNumber, originalLineRange.endLineNumberExclusive + 1);
 		}
 
 		const originalDiffHidden = invertLineRange(originalLineRange, this._session.textModel0);
@@ -266,7 +287,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		} else {
 			hiddenRanges = lineRanges.map(lineRangeAsRange);
 		}
-		editor.setHiddenAreas(hiddenRanges, InlineChatLivePreviewWidget._hideId);
+		editor.setHiddenAreas(hiddenRanges, this._hideId);
 		this._logService.debug(`[IE] diff HIDING ${hiddenRanges} for ${editor.getId()} with ${String(editor.getModel()?.uri)}`);
 	}
 
@@ -286,7 +307,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		const newDim = new Dimension(widthInPixel, heightInPixel);
 		if (!Dimension.equals(this._dim, newDim)) {
 			this._dim = newDim;
-			this._diffEditor.layout(this._dim.with(undefined, this._dim.height - 12 /* padding */));
+			this._diffEditor.layout(this._dim.with(undefined, this._dim.height));
 			this._logService.debug('[IE] diff LAYOUT', this._dim);
 		}
 	}
@@ -294,6 +315,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 
 export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
+
+	private static TitleHeight = 35;
 
 	private readonly _elements = h('div.inline-chat-newfile-widget@domNode', [
 		h('div.title@title', [
@@ -305,21 +328,31 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
 	private readonly _name: ResourceLabel;
 	private readonly _previewEditor: ICodeEditor;
-	private readonly _previewModel = new MutableDisposable();
+	private readonly _previewStore = new MutableDisposable();
+	private readonly _buttonBar: ButtonBarWidget;
 	private _dim: Dimension | undefined;
 
 	constructor(
 		parentEditor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IModelService private readonly _modelService: IModelService,
 		@IThemeService themeService: IThemeService,
-
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
-		super(parentEditor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, showInHiddenAreas: true, ordinal: 10000 + 2 });
+		super(parentEditor, {
+			showArrow: false,
+			showFrame: true,
+			frameColor: colorRegistry.asCssVariable(TAB_ACTIVE_MODIFIED_BORDER),
+			frameWidth: 1,
+			isResizeable: true,
+			isAccessible: true,
+			showInHiddenAreas: true,
+			ordinal: 10000 + 2
+		});
 		super.create();
 
 		this._name = instaService.createInstance(ResourceLabel, this._elements.name, { supportIcons: true });
+		this._elements.detail.appendChild(renderIcon(Codicon.circleFilled));
 
 		const contributions = EditorExtensionsRegistry
 			.getEditorContributions()
@@ -328,9 +361,8 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 		this._previewEditor = instaService.createInstance(EmbeddedCodeEditorWidget, this._elements.editor, {
 			scrollBeyondLastLine: false,
 			stickyScroll: { enabled: false },
-			readOnly: true,
 			minimap: { enabled: false },
-			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true },
+			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true, ignoreHorizontalScrollbarInContentHeight: true, },
 		}, { isSimpleWidget: true, contributions }, parentEditor);
 
 		const doStyle = () => {
@@ -349,12 +381,16 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 		};
 		doStyle();
 		this._disposables.add(themeService.onDidColorThemeChange(doStyle));
+
+		this._buttonBar = instaService.createInstance(ButtonBarWidget);
+		this._elements.title.appendChild(this._buttonBar.domNode);
 	}
 
 	override dispose(): void {
 		this._name.dispose();
+		this._buttonBar.dispose();
 		this._previewEditor.dispose();
-		this._previewModel.dispose();
+		this._previewStore.dispose();
 		super.dispose();
 	}
 
@@ -366,25 +402,64 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 		throw new Error('Use showFileCreation');
 	}
 
-	showCreation(where: Range, uri: URI, edits: TextEdit[]): void {
+	async showCreation(where: Position, untitledTextModel: IUntitledTextEditorModel): Promise<void> {
 
-		this._name.element.setFile(uri, { fileKind: FileKind.FILE });
+		const store = new DisposableStore();
+		this._previewStore.value = store;
 
-		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
-		const model = this._modelService.createModel('', langSelection, undefined, true);
-		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-		this._previewModel.value = model;
+		this._name.element.setFile(untitledTextModel.resource, {
+			fileKind: FileKind.FILE,
+			fileDecorations: { badges: true, colors: true }
+		});
+
+		const actionSave = toAction({
+			id: '1',
+			label: localize('save', "Create"),
+			run: () => untitledTextModel.save({ reason: SaveReason.EXPLICIT })
+		});
+		const actionSaveAs = toAction({
+			id: '2',
+			label: localize('saveAs', "Create As"),
+			run: async () => {
+				const ids = this._editorService.findEditors(untitledTextModel.resource, { supportSideBySide: SideBySideEditor.ANY });
+				await this._editorService.save(ids.slice(), { saveAs: true, reason: SaveReason.EXPLICIT });
+			}
+		});
+
+		this._buttonBar.update([
+			[actionSave, actionSaveAs],
+			[(toAction({ id: '3', label: localize('discard', "Discard"), run: () => untitledTextModel.revert() }))]
+		]);
+
+		store.add(Event.any(
+			untitledTextModel.onDidRevert,
+			untitledTextModel.onDidSave,
+			untitledTextModel.onDidChangeDirty,
+			untitledTextModel.onWillDispose
+		)(() => this.hide()));
+
+		await untitledTextModel.resolve();
+
+		const ref = await this._textModelResolverService.createModelReference(untitledTextModel.resource);
+		store.add(ref);
+
+		const model = ref.object.textEditorModel;
 		this._previewEditor.setModel(model);
 
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-		this._elements.title.style.height = `${lineHeight}px`;
-		const maxLines = Math.max(4, Math.floor((this.editor.getLayoutInfo().height / lineHeight) / .33));
 
+		this._elements.title.style.height = `${InlineChatFileCreatePreviewWidget.TitleHeight}px`;
+		const titleHightInLines = InlineChatFileCreatePreviewWidget.TitleHeight / lineHeight;
+
+		const maxLines = Math.max(4, Math.floor((this.editor.getLayoutInfo().height / lineHeight) * .33));
 		const lines = Math.min(maxLines, model.getLineCount());
-		const lineHeightPadding = (lineHeight / 12) /* padding-top/bottom*/;
 
+		super.show(where, titleHightInLines + lines);
+	}
 
-		super.show(where, lines + 1 + lineHeightPadding);
+	override hide(): void {
+		this._previewStore.clear();
+		super.hide();
 	}
 
 	// --- layout
@@ -407,8 +482,56 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 		const newDim = new Dimension(widthInPixel, heightInPixel);
 		if (!Dimension.equals(this._dim, newDim)) {
 			this._dim = newDim;
-			const oneLineHeightInPx = this.editor.getOption(EditorOption.lineHeight);
-			this._previewEditor.layout(this._dim.with(undefined, this._dim.height - oneLineHeightInPx /* title */));
+			this._previewEditor.layout(this._dim.with(undefined, this._dim.height - InlineChatFileCreatePreviewWidget.TitleHeight));
 		}
+	}
+}
+
+
+class ButtonBarWidget {
+
+	private readonly _domNode = h('div.buttonbar-widget');
+	private readonly _buttonBar: ButtonBar;
+	private readonly _store = new DisposableStore();
+
+	constructor(
+		@IContextMenuService private _contextMenuService: IContextMenuService,
+	) {
+		this._buttonBar = new ButtonBar(this.domNode);
+
+	}
+
+	update(allActions: IAction[][]): void {
+		this._buttonBar.clear();
+		let secondary = false;
+		for (const actions of allActions) {
+			let btn: IButton;
+			const [first, ...rest] = actions;
+			if (!first) {
+				continue;
+			} else if (rest.length === 0) {
+				// single action
+				btn = this._buttonBar.addButton({ ...defaultButtonStyles, secondary });
+			} else {
+				btn = this._buttonBar.addButtonWithDropdown({
+					...defaultButtonStyles,
+					addPrimaryActionToDropdown: false,
+					actions: rest,
+					contextMenuProvider: this._contextMenuService
+				});
+			}
+			btn.label = first.label;
+			this._store.add(btn.onDidClick(() => first.run()));
+			secondary = true;
+		}
+	}
+
+	dispose(): void {
+		this._buttonBar.dispose();
+		this._store.dispose();
+	}
+
+	get domNode() {
+		return this._domNode.root;
 	}
 }

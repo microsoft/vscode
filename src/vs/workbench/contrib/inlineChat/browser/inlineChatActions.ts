@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_EDIT_MODE, EditMode, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, InlineChatResponseType, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChateResponseTypes, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_USER_DID_EDIT, MENU_INLINE_CHAT_WIDGET_TOGGLE, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_EDIT_MODE, EditMode, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, InlineChatResponseType, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChateResponseTypes, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_USER_DID_EDIT, MENU_INLINE_CHAT_WIDGET_TOGGLE, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -29,23 +29,33 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
+export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
+const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
 
 export class StartSessionAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
+			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE.toNegated(), EditorContextKeys.focus),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
-			}
+			},
+			icon: START_INLINE_CHAT,
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE.toNegated(), EditorContextKeys.focus),
+				group: 'navigation',
+				order: -1000000, // at the very front
+			}],
 		});
 	}
 
@@ -64,7 +74,7 @@ export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.unstash',
-			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
+			title: { value: localize('unstash', 'Resume Last Dismissed Inline Chat'), original: 'Resume Last Dismissed Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
 			keybinding: {
@@ -331,7 +341,7 @@ export class DiscardAction extends AbstractInlineChatAction {
 	}
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 	}
 }
 
@@ -357,7 +367,7 @@ export class DiscardToClipboardAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			clipboardService.writeText(changedText);
 		}
@@ -381,7 +391,7 @@ export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: changedText, languageId: editor.getModel()?.getLanguageId() };
 			editorService.openEditor(input, SIDE_GROUP);
@@ -407,7 +417,7 @@ export class FeebackHelpfulCommand extends AbstractInlineChatAction {
 	}
 
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
-		ctrl.feedbackLast(true);
+		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Helpful);
 	}
 }
 
@@ -429,7 +439,28 @@ export class FeebackUnhelpfulCommand extends AbstractInlineChatAction {
 	}
 
 	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
-		ctrl.feedbackLast(false);
+		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Unhelpful);
+	}
+}
+
+export class ReportIssueForBugCommand extends AbstractInlineChatAction {
+	constructor() {
+		super({
+			id: 'inlineChat.reportIssueForBug',
+			title: localize('feedback.reportIssueForBug', 'Report Issue'),
+			icon: Codicon.report,
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined)),
+				group: '2_feedback',
+				order: 3
+			}
+		});
+	}
+
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController): void {
+		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Bug);
 	}
 }
 

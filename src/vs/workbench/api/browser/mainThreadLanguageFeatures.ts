@@ -33,6 +33,8 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -293,11 +295,52 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
-			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> => {
-				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
-			}
-		}));
+		this._registrations.set(handle, combinedDisposable(
+			this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
+				provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> => {
+					return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
+				}
+			}),
+			this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
+				provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]>> => {
+					const word = model.getWordAtPosition({
+						lineNumber: position.lineNumber,
+						column: position.column
+					});
+
+					const res = this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
+					return res.then(data => {
+						const result = new Map<URI, languages.DocumentHighlight[]>();
+						if (isFalsyOrEmpty(data) || !data) {
+							return result;
+						}
+						result.set(model.uri, data);
+
+						if (!word) {
+							return result;
+						}
+
+						for (const otherModel of otherModels) {
+							if (otherModel.isDisposed()) {
+								continue;
+							}
+
+							const matches = otherModel.findMatches(word.word, true, false, true, USUAL_WORD_SEPARATORS, false);
+							const highlights = matches.map(m => ({
+								range: m.range,
+								kind: languages.DocumentHighlightKind.Text
+							}));
+
+							if (highlights) {
+								result.set(otherModel.uri, highlights);
+							}
+						}
+
+						return result;
+					});
+				}
+			})
+		));
 	}
 
 	// --- linked editing

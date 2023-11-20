@@ -10,7 +10,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { convertLinkRangeToBuffer, getXtermLineContent, getXtermRangesByAttr, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { IBufferLine, IBufferRange, Terminal } from 'xterm';
+import type { IBufferLine, IBufferRange, Terminal } from '@xterm/xterm';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { detectLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { ITerminalBackend, ITerminalLogService } from 'vs/platform/terminal/common/terminal';

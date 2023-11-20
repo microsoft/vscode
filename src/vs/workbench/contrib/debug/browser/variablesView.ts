@@ -191,6 +191,7 @@ export class VariablesView extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 	}
 

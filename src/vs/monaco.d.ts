@@ -974,6 +974,8 @@ declare namespace monaco.editor {
 	 */
 	export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
+	export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices): any;
+
 	/**
 	 * Description of a command contribution
 	 */
@@ -1315,7 +1317,7 @@ declare namespace monaco.editor {
 		 * Controls whether completions should be computed based on words in the document.
 		 * Defaults to true.
 		 */
-		wordBasedSuggestions?: boolean;
+		wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		/**
 		 * Controls whether word based completions should be included from opened documents of the same language or any language.
 		 */
@@ -1433,6 +1435,13 @@ declare namespace monaco.editor {
 	}
 	export interface ICommandHandler {
 		(...args: any[]): void;
+	}
+	export interface ILocalizedString {
+		original: string;
+		value: string;
+	}
+	export interface ICommandMetadata {
+		readonly description: ILocalizedString | string;
 	}
 
 	export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
@@ -2434,7 +2443,7 @@ declare namespace monaco.editor {
 		modified: ITextModel;
 	}
 
-	export interface IDiffEditorViewModel {
+	export interface IDiffEditorViewModel extends IDisposable {
 		readonly model: IDiffEditorModel;
 		waitForDiff(): Promise<void>;
 	}
@@ -2469,6 +2478,7 @@ declare namespace monaco.editor {
 		readonly id: string;
 		readonly label: string;
 		readonly alias: string;
+		readonly metadata: ICommandMetadata | undefined;
 		isSupported(): boolean;
 		run(args?: unknown): Promise<void>;
 	}
@@ -3528,9 +3538,12 @@ declare namespace monaco.editor {
 		selectionHighlight?: boolean;
 		/**
 		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
+		 * Defaults to 'singleFile'.
+		 * 'off' disables occurrence highlighting
+		 * 'singleFile' triggers occurrence highlighting in the current document
+		 * 'multiFile'  triggers occurrence highlighting across valid open documents
 		 */
-		occurrencesHighlight?: boolean;
+		occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 		/**
 		 * Show code lens
 		 * Defaults to true.
@@ -4353,6 +4366,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		scrollByPage?: boolean;
+		/**
+		 * When set, the horizontal scrollbar will not increase content height.
+		 * Defaults to false.
+		 */
+		ignoreHorizontalScrollbarInContentHeight?: boolean;
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -4369,6 +4387,7 @@ declare namespace monaco.editor {
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
 		readonly scrollByPage: boolean;
+		readonly ignoreHorizontalScrollbarInContentHeight: boolean;
 	}
 
 	export type InUntrustedWorkspace = 'inUntrustedWorkspace';
@@ -4420,7 +4439,7 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
-		showToolbar?: 'always' | 'onHover';
+		showToolbar?: 'always' | 'onHover' | 'never';
 		suppressSuggestions?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
@@ -4933,7 +4952,7 @@ declare namespace monaco.editor {
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
-		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
+		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
@@ -5978,6 +5997,7 @@ declare namespace monaco.editor {
 		updateOptions(newOptions: IDiffEditorOptions): void;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
+		handleInitialized(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -7140,6 +7160,17 @@ declare namespace monaco.languages {
 		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
 	}
 
+	export interface MultiDocumentHighlightProvider {
+		/**
+		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
+		 * all exit-points of a function.
+		 *
+		 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
+		 * with shared symbols.
+		 */
+		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, otherModels: editor.ITextModel[], token: CancellationToken): ProviderResult<Map<Uri, DocumentHighlight[]>>;
+	}
+
 	/**
 	 * The linked editing range provider interface defines the contract between extensions and
 	 * the linked editing feature.
@@ -7625,7 +7656,7 @@ declare namespace monaco.languages {
 
 	export interface PendingCommentThread {
 		body: string;
-		range: IRange;
+		range: IRange | undefined;
 		uri: Uri;
 		owner: string;
 		isReply: boolean;

@@ -22,6 +22,7 @@ export interface IActionViewItem extends IDisposable {
 	isEnabled(): boolean;
 	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
+	showHover?(): void;
 }
 
 export interface IActionViewItemProvider {
@@ -282,6 +283,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const elem = this.actionsList.children[i];
 			if (DOM.isAncestor(DOM.getActiveElement(), elem)) {
 				this.focusedItem = i;
+				this.viewItems[this.focusedItem]?.showHover?.();
 				break;
 			}
 		}
@@ -544,8 +546,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (this.previouslyFocusedItem !== undefined && this.previouslyFocusedItem !== this.focusedItem) {
 			this.viewItems[this.previouslyFocusedItem]?.blur();
 		}
-
-		const actionViewItem = this.focusedItem !== undefined && this.viewItems[this.focusedItem];
+		const actionViewItem = this.focusedItem !== undefined ? this.viewItems[this.focusedItem] : undefined;
 		if (actionViewItem) {
 			let focusItem = true;
 
@@ -560,7 +561,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (actionViewItem.action.id === Separator.ID) {
 				focusItem = false;
 			}
-
+			if (focusItem) {
+				actionViewItem.showHover?.();
+			}
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;

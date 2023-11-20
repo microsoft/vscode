@@ -29,6 +29,7 @@ import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -36,14 +37,18 @@ interface ControllerInfo {
 	profiles: Map<number, vscode.TestRunProfile>;
 	collection: ExtHostTestItemCollection;
 	extension: Readonly<IRelaxedExtensionDescription>;
+	activeProfiles: Set<number>;
 }
 
-export class ExtHostTesting implements ExtHostTestingShape {
-	private readonly resultsChangedEmitter = new Emitter<void>();
-	private readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
+type ActiveProfileChangeEvent = Map</* controllerId */ string, Map< /* profileId */number, boolean>>;
+
+export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
+	private readonly resultsChangedEmitter = this._register(new Emitter<void>());
+	protected readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly runTracker: TestRunCoordinator;
 	private readonly observer: TestObservers;
+	private readonly activeProfilesChangedEmitter = this._register(new Emitter<ActiveProfileChangeEvent>());
 
 	public onResultsChanged = this.resultsChangedEmitter.event;
 	public results: ReadonlyArray<vscode.TestRunResult> = [];
@@ -53,6 +58,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		commands: ExtHostCommands,
 		private readonly editors: ExtHostDocumentsAndEditors,
 	) {
+		super();
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 		this.observer = new TestObservers(this.proxy);
 		this.runTracker = new TestRunCoordinator(this.proxy);
@@ -110,6 +116,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		collection.root.label = label;
 
 		const profiles = new Map<number, vscode.TestRunProfile>();
+		const activeProfiles = new Set<number>();
 		const proxy = this.proxy;
 
 		const controller: vscode.TestController = {
@@ -140,7 +147,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				return new TestRunProfileImpl(this.proxy, profiles, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
+				return new TestRunProfileImpl(this.proxy, profiles, extension, activeProfiles, this.activeProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -170,7 +177,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		proxy.$registerTestController(controllerId, label, !!refreshHandler);
 		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
 
-		const info: ControllerInfo = { controller, collection, profiles: profiles, extension };
+		const info: ControllerInfo = { controller, collection, profiles, extension, activeProfiles };
 		this.controllers.set(controllerId, info);
 		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
 
@@ -243,6 +250,33 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/** @inheritdoc */
 	$configureRunProfile(controllerId: string, profileId: number) {
 		this.controllers.get(controllerId)?.profiles.get(profileId)?.configureHandler?.();
+	}
+
+	/** @inheritdoc */
+	$setActiveRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void {
+		const evt: ActiveProfileChangeEvent = new Map();
+		for (const [controllerId, profileIds] of Object.entries(profiles)) {
+			const ctrl = this.controllers.get(controllerId);
+			if (!ctrl) {
+				continue;
+			}
+			const changes = new Map<number, boolean>();
+			const added = profileIds.filter(id => !ctrl.activeProfiles.has(id));
+			const removed = [...ctrl.activeProfiles].filter(id => !profileIds.includes(id));
+			for (const id of added) {
+				changes.set(id, true);
+				ctrl.activeProfiles.add(id);
+			}
+			for (const id of removed) {
+				changes.set(id, false);
+				ctrl.activeProfiles.delete(id);
+			}
+			if (changes.size) {
+				evt.set(controllerId, changes);
+			}
+		}
+
+		this.activeProfilesChangedEmitter.fire(evt);
 	}
 
 	/** @inheritdoc */
@@ -1005,6 +1039,9 @@ class TestObservers {
 
 export class TestRunProfileImpl implements vscode.TestRunProfile {
 	readonly #proxy: MainThreadTestingShape;
+	readonly #extension: IRelaxedExtensionDescription;
+	readonly #activeProfiles: ReadonlySet<number>;
+	readonly #onDidChangeActiveProfiles: Event<ActiveProfileChangeEvent>;
 	#profiles?: Map<number, vscode.TestRunProfile>;
 	private _configureHandler?: (() => void);
 
@@ -1065,9 +1102,25 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		}
 	}
 
+	public get isSelected() {
+		checkProposedApiEnabled(this.#extension, 'testingActiveProfile');
+		return this.#activeProfiles.has(this.profileId);
+	}
+
+	public get onDidChangeSelected() {
+		checkProposedApiEnabled(this.#extension, 'testingActiveProfile');
+		return Event.chain(this.#onDidChangeActiveProfiles, $ => $
+			.map(ev => ev.get(this.controllerId)?.get(this.profileId))
+			.filter(isDefined)
+		);
+	}
+
 	constructor(
 		proxy: MainThreadTestingShape,
 		profiles: Map<number, vscode.TestRunProfile>,
+		extension: IRelaxedExtensionDescription,
+		activeProfiles: ReadonlySet<number>,
+		onDidChangeActiveProfiles: Event<ActiveProfileChangeEvent>,
 		public readonly controllerId: string,
 		public readonly profileId: number,
 		private _label: string,
@@ -1079,6 +1132,9 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	) {
 		this.#proxy = proxy;
 		this.#profiles = profiles;
+		this.#extension = extension;
+		this.#activeProfiles = activeProfiles;
+		this.#onDidChangeActiveProfiles = onDidChangeActiveProfiles;
 		profiles.set(profileId, this);
 
 		const groupBitset = profileGroupToBitset[kind];

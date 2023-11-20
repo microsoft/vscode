@@ -42,6 +42,7 @@ export interface INotebookCommentInfo {
 
 export interface IWorkspaceCommentThreadsEvent {
 	ownerId: string;
+	ownerLabel: string;
 	commentThreads: CommentThread[];
 }
 
@@ -51,6 +52,7 @@ export interface INotebookCommentThreadChangedEvent extends CommentThreadChanged
 
 export interface ICommentController {
 	id: string;
+	label: string;
 	features: {
 		reactionGroup?: CommentReaction[];
 		reactionHandler?: boolean;
@@ -105,7 +107,7 @@ export interface ICommentService {
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
-	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
+	removeContinueOnComment(pendingComment: { range: IRange | undefined; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
 }
 
 const CONTINUE_ON_COMMENTS = 'comments.continueOnComments';
@@ -186,8 +188,13 @@ export class CommentService extends Disposable implements ICommentService {
 			this.logService.debug(`Comments: URIs of continue on comments from storage ${commentsToRestore.map(thread => thread.uri.toString()).join(', ')}.`);
 			const changedOwners = this._addContinueOnComments(commentsToRestore, this._continueOnComments);
 			for (const owner of changedOwners) {
+				const control = this._commentControls.get(owner);
+				if (!control) {
+					continue;
+				}
 				const evt: ICommentThreadChangedEvent = {
 					owner,
+					ownerLabel: control.label,
 					pending: this._continueOnComments.get(owner) || [],
 					added: [],
 					removed: [],
@@ -269,11 +276,17 @@ export class CommentService extends Disposable implements ICommentService {
 		if (commentsByResource.length) {
 			this._workspaceHasCommenting.set(true);
 		}
-		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: commentsByResource });
+		const control = this._commentControls.get(owner);
+		if (control) {
+			this._onDidSetAllCommentThreads.fire({ ownerId: owner, ownerLabel: control.label, commentThreads: commentsByResource });
+		}
 	}
 
 	removeWorkspaceComments(owner: string): void {
-		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
+		const control = this._commentControls.get(owner);
+		if (control) {
+			this._onDidSetAllCommentThreads.fire({ ownerId: owner, ownerLabel: control.label, commentThreads: [] });
+		}
 	}
 
 	registerCommentController(owner: string, commentControl: ICommentController): void {
@@ -330,8 +343,11 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>): void {
-		const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId });
-		this._onDidUpdateCommentThreads.fire(evt);
+		const control = this._commentControls.get(ownerId);
+		if (control) {
+			const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId, ownerLabel: control.label });
+			this._onDidUpdateCommentThreads.fire(evt);
+		}
 	}
 
 	updateNotebookComments(ownerId: string, event: CommentThreadChangedEvent<ICellRange>): void {
