@@ -27,6 +27,16 @@ declare module 'vscode' {
 		command?: ChatAgentSlashCommand;
 	}
 
+	export interface ChatAgentVulnerability {
+		title: string;
+		description: string;
+		// id: string; // Later we will need to be able to link these across multiple content chunks.
+	}
+
+	export interface ChatAgentContent {
+		vulnerability?: ChatAgentVulnerability;
+	}
+
 	export type ChatAgentExtendedProgress = ChatAgentProgress
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;

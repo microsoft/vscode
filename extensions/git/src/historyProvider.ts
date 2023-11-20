@@ -67,7 +67,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this._HEAD?.commit === HEAD.commit &&
 			this._HEAD?.upstream?.name === HEAD.upstream?.name &&
 			this._HEAD?.upstream?.remote === HEAD.upstream?.remote &&
-			this._HEAD?.commit === HEAD.commit) {
+			this._HEAD?.upstream?.commit === HEAD.upstream?.commit) {
 			return;
 		}
 

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.85.0",
-  "distro": "26f09fe67388d300c05862230816e49a107e9a1b",
+  "distro": "c9c6c35cb41a0105a02be5ad66d9f124191bb7f2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -99,7 +99,6 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta5",
     "tas-client-umd": "0.1.8",
-    "util": "^0.12.4",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
@@ -140,6 +139,7 @@
     "@vscode/test-cli": "^0.0.3",
     "@vscode/test-electron": "^2.3.5",
     "@vscode/test-web": "^0.0.42",
+    "@vscode/v8-heap-parser": "^0.1.0",
     "@vscode/vscode-perf": "^0.0.14",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",
@@ -208,8 +208,9 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.3.0-dev.20231030",
+    "typescript": "^5.4.0-dev.20231116",
     "typescript-formatter": "7.1.0",
+    "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.77.0",
     "webpack-cli": "^5.0.1",

@@ -5,16 +5,29 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
+  - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
+    displayName: "Use EsrpClient"
+
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode-build-secrets
-      SecretsFilter: "github-distro-mixin-password"
+      SecretsFilter: "github-distro-mixin-password,esrp-aad-username,esrp-aad-password"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-packages
+      SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
 
   # allow-any-unicode-next-line
   - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
     displayName: Add build tag
+
+  - pwsh: node build/npm/setupBuildYarnrc
+    displayName: Prepare build dependencies
 
   - pwsh: yarn
     workingDirectory: build
@@ -36,18 +49,6 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-  - task: AzureCLI@2
-    displayName: Fetch Mooncake secrets
-    inputs:
-      azureSubscription: "vscode-builds-mooncake-subscription"
-      scriptType: pscore
-      scriptLocation: inlineScript
-      addSpnToEnvironment: true
-      inlineScript: |
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_TENANT_ID]$env:tenantId"
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
-
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
 
@@ -65,17 +66,40 @@ steps:
       AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
     displayName: Create build if it hasn't been created before
 
-  - pwsh: build/azure-pipelines/product-publish.ps1
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
+      $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+      $RequestSigningCertIndex = $CertCollection.Count
+      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
+      $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+      $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
+      $CertStore.Open("ReadWrite")
+      $CertStore.AddRange($CertCollection)
+      $CertStore.Close()
+      $AuthCertSubjectName = $CertCollection[0].Subject
+      $RequestSigningCertSubjectName = $CertCollection[$RequestSigningCertIndex].Subject
+      Write-Host "##vso[task.setvariable variable=RELEASE_AUTH_CERT_SUBJECT_NAME]$AuthCertSubjectName"
+      Write-Host "##vso[task.setvariable variable=RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME]$RequestSigningCertSubjectName"
+    displayName: Import certificates
+
+  - pwsh: node build/azure-pipelines/common/publish.js
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
       AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
-      AZURE_MOONCAKE_TENANT_ID: "$(AZURE_MOONCAKE_TENANT_ID)"
-      AZURE_MOONCAKE_CLIENT_ID: "$(AZURE_MOONCAKE_CLIENT_ID)"
-      AZURE_MOONCAKE_CLIENT_SECRET: "$(AZURE_MOONCAKE_CLIENT_SECRET)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      RELEASE_TENANT_ID: "$(PRSS_RELEASE_TENANT_ID)"
+      RELEASE_CLIENT_ID: "$(PRSS_RELEASE_CLIENT_ID)"
+      RELEASE_AUTH_CERT_SUBJECT_NAME: "$(RELEASE_AUTH_CERT_SUBJECT_NAME)"
+      RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME: "$(RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME)"
+      PROVISION_TENANT_ID: "$(PRSS_PROVISION_TENANT_ID)"
+      PROVISION_AAD_USERNAME: "$(esrp-aad-username)"
+      PROVISION_AAD_PASSWORD: "$(esrp-aad-password)"
     displayName: Process artifacts
+    retryCountOnTaskFailure: 3
 
   - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
     artifact: artifacts_processed_$(System.StageAttempt)
@@ -108,6 +132,8 @@ steps:
 
         if($didStageFail) {
           $failedStages += $stage
+          Write-Host "'$stage' failed!"
+          Write-Host $didStageFail
         } else {
           Write-Host "'$stage' did not fail."
         }

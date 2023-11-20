@@ -10,6 +10,7 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider"
+    "mappedEditsProvider",
   ],
   "capabilities": {
     "virtualWorkspaces": {
@@ -258,6 +259,12 @@
           "type": "boolean",
           "default": false,
           "description": "%typescript.implementationsCodeLens.enabled%",
+          "scope": "window"
+        },
+        "typescript.implementationsCodeLens.showOnInterfaceMethods": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.implementationsCodeLens.showOnInterfaceMethods%",
           "scope": "window"
         },
         "typescript.tsserver.enableTracing": {

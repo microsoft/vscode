@@ -3817,6 +3817,11 @@ export class NotebookKernelSourceAction {
 	) { }
 }
 
+export enum NotebookVariablesRequestKind {
+	Named = 1,
+	Indexed = 2
+}
+
 //#endregion
 
 //#region Timeline

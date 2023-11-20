@@ -1203,7 +1203,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 };
 
 async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> {
-	if (fileList) {
+	if (fileList && fileList.length > 0) {
 		// with a `fileList` we support natively pasting files from clipboard
 		return [...fileList].filter(file => !!file.path && isAbsolute(file.path)).map(file => URI.file(file.path));
 	} else {
