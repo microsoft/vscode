@@ -6,7 +6,7 @@
 .monaco-workbench .notebookOverlay .cell-chat-part {
 	display: none;
 	color: inherit;
-	padding: 6px;
+	padding: 0 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	background: var(--vscode-inlineChat-background);

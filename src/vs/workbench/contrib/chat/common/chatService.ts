@@ -125,6 +125,11 @@ export interface IChatAsyncContent {
 	kind: 'asyncContent';
 }
 
+export interface IChatProgressMessage {
+	content: string;
+	kind: 'progressMessage';
+}
+
 export type IChatProgress =
 	| IChatContent
 	| IChatMarkdownContent
@@ -133,7 +138,8 @@ export type IChatProgress =
 	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
-	| IChatAgentDetection;
+	| IChatAgentDetection
+	| IChatProgressMessage;
 
 export interface IChatProvider {
 	readonly id: string;
