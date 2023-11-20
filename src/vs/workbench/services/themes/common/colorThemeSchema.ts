@@ -248,6 +248,29 @@ const colorThemeSchema: IJSONSchema = {
 			type: 'object',
 			description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
 			$ref: tokenStylingSchemaId
+		},
+		colorPalette: {
+			type: 'object',
+			description: nls.localize('schema.colorPalette', 'Color palette for the theme. Property names must start with a $ sign and followed by one or more letters.'),
+			additionalProperties: false,
+			patternProperties: {
+				'^\\$[a-zA-Z]+': {
+					type: 'string',
+					description: nls.localize('schema.colorPalette.color', 'Color in the palette'),
+					format: 'color-hex',
+				}
+			},
+			defaultSnippets: [
+				{
+					label: 'Color palette',
+					body: {
+						'\$${1:accentName1}': '#ffffff',
+						'\$${2:accentName2}': '#ffffff',
+						'\$${3:accentName3}': '#ffffff',
+						'\$${4:accentName4}': '#ffffff',
+					}
+				}
+			]
 		}
 	}
 };

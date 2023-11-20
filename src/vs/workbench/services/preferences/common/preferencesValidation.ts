@@ -112,7 +112,7 @@ function valueValidatesAsType(value: any, type: string): boolean {
 	return true;
 }
 
-function getStringValidators(prop: IConfigurationPropertySchema) {
+function getStringValidators(prop: IConfigurationPropertySchema): Validator<string>[] {
 	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	let patternRegex: RegExp | undefined;
 	if (typeof prop.pattern === 'string') {
@@ -137,7 +137,7 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 		},
 		{
 			enabled: prop.format === 'color-hex',
-			isValid: ((value: string) => Color.Format.CSS.parseHex(value)),
+			isValid: ((value: string) => !!Color.Format.CSS.parseHex(value)),
 			message: nls.localize('validations.colorFormat', "Invalid color format. Use #RGB, #RGBA, #RRGGBB or #RRGGBBAA.")
 		},
 		{
