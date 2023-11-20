@@ -430,13 +430,8 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
-		const smallestNodeContaining = this._findSmallestScopeContaining(documentSymbols, range);
-
-		if (
-			smallestNodeContaining
-			&& smallestNodeContaining.range.start.line === range.start.line
-			&& smallestNodeContaining.range.end.line === range.end.line
-		) {
+		const shouldIncludeCodeAction = MoveToFileCodeAction.shouldIncludeCodeAction(documentSymbols, range);
+		if (shouldIncludeCodeAction) {
 			this.command = {
 				title: action.description,
 				command: MoveToFileRefactorCommand.ID,
@@ -447,7 +442,7 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		}
 	}
 
-	private readonly _scopesOfInterest = [
+	private static readonly _scopesOfInterest = [
 		vscode.SymbolKind.File,
 		vscode.SymbolKind.Module,
 		vscode.SymbolKind.Namespace,
@@ -458,13 +453,28 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		vscode.SymbolKind.Function
 	];
 
-	private _findSmallestScopeContaining(documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]), range: vscode.Range, smallestNodeThusFar?: vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined): vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined {
+	private static _findSmallestScopeContaining(
+		documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]),
+		range: vscode.Range,
+		smallestNodeThusFar?: vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined
+	): vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined {
+
 		for (const symbol of documentSymbols) {
-			if (symbol.range.contains(range) && this._scopesOfInterest.includes(symbol.kind)) {
+			if (symbol.range.contains(range) && MoveToFileCodeAction._scopesOfInterest.includes(symbol.kind)) {
 				return this._findSmallestScopeContaining(symbol.children, range, symbol);
 			}
 		}
 		return smallestNodeThusFar;
+	}
+
+	public static shouldIncludeCodeAction(
+		documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]),
+		range: vscode.Range
+	): boolean {
+		const smallestScopeContaining = MoveToFileCodeAction._findSmallestScopeContaining(documentSymbols, range);
+		return !!(smallestScopeContaining
+			&& smallestScopeContaining.range.start.line === range.start.line
+			&& smallestScopeContaining.range.end.line === range.end.line);
 	}
 }
 
@@ -547,13 +557,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = (await this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
+		const actions = (await this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(async action => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
 				if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
 					return false;
 				}
+			}
+			if (action.kind?.value === Move_NewFile.kind.value) {
+				const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+				return MoveToFileCodeAction.shouldIncludeCodeAction(documentSymbols, rangeOrSelection);
 			}
 			return true;
 		});
