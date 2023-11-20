@@ -25,7 +25,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReplyResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { EditModeStrategy, LivePreviewStrategy, LiveStrategy2, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, LiveStrategy2, LiveStrategy3, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -353,7 +353,13 @@ export class InlineChatController implements IEditorContribution {
 
 		switch (session.editMode) {
 			case EditMode.Live:
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value.widget);
+				break;
+			case EditMode.Live2:
 				this._strategy = this._instaService.createInstance(LiveStrategy2, session, this._editor, this._zone.value.widget);
+				break;
+			case EditMode.Live3:
+				this._strategy = this._instaService.createInstance(LiveStrategy3, session, this._editor, this._zone.value.widget);
 				break;
 			case EditMode.Preview:
 				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value.widget);

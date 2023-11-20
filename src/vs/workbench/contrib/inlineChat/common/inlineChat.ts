@@ -188,6 +188,8 @@ export const inlineChatDiffRemoved = registerColor('inlineChatDiff.removed', { d
 
 export const enum EditMode {
 	Live = 'live',
+	Live2 = 'live2',
+	Live3 = 'live3',
 	LivePreview = 'livePreview',
 	Preview = 'preview'
 }

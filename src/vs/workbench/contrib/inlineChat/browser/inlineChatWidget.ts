@@ -46,7 +46,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -65,7 +65,8 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer'; import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -384,7 +385,7 @@ export class InlineChatWidget {
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
-		const workbenchMenubarOptions: IMenuWorkbenchButtonBarOptions = {
+		const workbenchMenubarOptions: IWorkbenchButtonBarOptions = {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			buttonConfigProvider: action => {
 				if (action.id === ACTION_REGENERATE_RESPONSE) {
@@ -396,7 +397,7 @@ export class InlineChatWidget {
 			}
 		};
 		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, _options.statusMenuId, workbenchMenubarOptions);
-		this._store.add(statusButtonBar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
 

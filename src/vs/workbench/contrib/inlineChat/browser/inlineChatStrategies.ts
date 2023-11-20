@@ -5,7 +5,7 @@
 
 import { disposableWindowInterval } from 'vs/base/browser/dom';
 import { $window } from 'vs/base/browser/window';
-import { toAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { equals, tail } from 'vs/base/common/arrays';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -13,7 +13,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Mutable } from 'vs/base/common/types';
 import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
@@ -29,6 +29,7 @@ import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, InjectedTextCursorStops, InjectedTextOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
+import { WorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -801,7 +802,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 		// create enough zones
 		while (groups.length > this._diffZonePool.length) {
-			this._diffZonePool.push(this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, this._diffZonePool.length === 0 ? handleDiff : undefined));
+			this._diffZonePool.push(this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, {}, this._diffZonePool.length === 0 ? handleDiff : undefined));
 		}
 		for (let i = 0; i < groups.length; i++) {
 			this._diffZonePool[i].showForChanges(groups[i]);
@@ -923,4 +924,245 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 		range: edit.range,
 		newText: stream.asyncIterable
 	};
+}
+
+
+// ---
+
+export class LiveStrategy3 extends EditModeStrategy {
+
+	private readonly _inlineDiffDecorations: IEditorDecorationsCollection;
+	private readonly _store: DisposableStore = new DisposableStore();
+	private readonly _sessionStore: DisposableStore = new DisposableStore();
+
+	private _editCount: number = 0;
+
+	constructor(
+		protected readonly _session: Session,
+		protected readonly _editor: ICodeEditor,
+		protected readonly _widget: InlineChatWidget,
+		@IConfigurationService configService: IConfigurationService,
+		@IStorageService protected _storageService: IStorageService,
+		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
+		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
+		@IInstantiationService protected readonly _instaService: IInstantiationService,
+	) {
+		super();
+
+		this._inlineDiffDecorations = this._editor.createDecorationsCollection();
+	}
+
+	override dispose(): void {
+		this._inlineDiffDecorations.clear();
+		this._store.dispose();
+	}
+
+
+	async apply() {
+		this._sessionStore.clear();
+		if (this._editCount > 0) {
+			this._editor.pushUndoStop();
+		}
+		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
+			return;
+		}
+		const { untitledTextModel } = this._session.lastExchange.response;
+		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
+			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
+		}
+	}
+
+	async cancel() {
+		this._sessionStore.clear();
+		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
+		if (modelN.isDisposed()) {
+			return;
+		}
+		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
+		LiveStrategy3._undoModelUntil(modelN, targetAltVersion);
+	}
+
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
+		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
+			let last: Position | null = null;
+			for (const edit of undoEdits) {
+				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
+			}
+			return last && [Selection.fromPositions(last)];
+		};
+
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
+		}
+		this._editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
+	}
+
+	override async undoChanges(altVersionId: number): Promise<void> {
+		const { textModelN } = this._session;
+		LiveStrategy3._undoModelUntil(textModelN, altVersionId);
+	}
+
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
+		}
+
+		const durationInSec = opts.duration / 1000;
+		for (const edit of edits) {
+			const wordCount = countWords(edit.text ?? '');
+			const speed = wordCount / durationInSec;
+			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed, opts.token));
+		}
+	}
+
+	override async renderChanges(response: ReplyResponse) {
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		this._updateSummaryMessage(diff?.changes ?? []);
+
+		if (response.untitledTextModel) {
+			this._widget.showCreatePreview(response.untitledTextModel);
+		} else {
+			this._widget.hideCreatePreview();
+		}
+
+		const newDecorations: IModelDeltaDecoration[] = [];
+
+		if (diff?.changes) {
+
+			for (const { innerChanges } of diff.changes) {
+
+				if (innerChanges) {
+					for (const { modifiedRange } of innerChanges) {
+						newDecorations.push({
+							range: modifiedRange,
+							options: {
+								description: 'inline-modified',
+								className: 'inline-chat-inserted-range',
+							}
+						});
+						newDecorations.push({
+							range: modifiedRange,
+							options: {
+								description: 'inline-modified',
+								className: 'inline-chat-inserted-range-linehighlight',
+								isWholeLine: true
+							}
+						});
+					}
+				}
+			}
+		}
+		this._inlineDiffDecorations.set(newDecorations);
+
+		let widget: InlineChatLivePreviewWidget | undefined;
+		this._sessionStore.add(toDisposable(() => widget?.dispose()));
+
+
+		const actions = [
+			toAction({
+				id: 'diff',
+				label: 'Compare',
+				checked: false,
+				class: ThemeIcon.asClassName(Codicon.diff),
+				run: () => {
+					if (!widget || !widget.isVisible) {
+						widget = widget ?? this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, {
+							renderSideBySide: diff!.changes.length > 1,
+							splitViewDefaultRatio: 0.5,
+							renderIndicators: false
+
+						}, () => { });
+						widget.showForChanges(diff!.changes);
+					} else {
+						widget.hide();
+					}
+				}
+			}),
+			toAction({
+				id: 'discard',
+				label: 'Discard',
+				class: ThemeIcon.asClassName(Codicon.discard),
+				run: () => {
+
+				}
+			})
+		];
+
+		const toolbar = this._instaService.createInstance(FloatingToolbar, this._editor, this._session.wholeRange.value.startLineNumber, actions);
+		this._sessionStore.add(toolbar);
+	}
+
+	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
+		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+			model.undo();
+		}
+	}
+
+	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[]) {
+		let linesChanged = 0;
+		for (const change of mappings) {
+			linesChanged += change.changedLineCount;
+		}
+		let message: string;
+		if (linesChanged === 0) {
+			message = localize('lines.0', "Nothing changed");
+		} else if (linesChanged === 1) {
+			message = localize('lines.1', "Changed 1 line");
+		} else {
+			message = localize('lines.N', "Changed {0} lines", linesChanged);
+		}
+		this._widget.updateStatus(message);
+	}
+
+	override needsMargin(): boolean {
+		return true;
+	}
+
+	hasFocus(): boolean {
+		return this._widget.hasFocus();
+	}
+}
+
+class FloatingToolbar implements IDisposable {
+
+	dispose: () => void;
+
+	constructor(
+		editor: ICodeEditor,
+		line: number,
+		actions: IAction[],
+		@IInstantiationService instaService: IInstantiationService,
+	) {
+
+		const store = new DisposableStore();
+		this.dispose = store.dispose.bind(store);
+
+		const overlayWidget = document.createElement('div');
+		overlayWidget.classList.add('inline-chat-toolbar');
+		const widget: IOverlayWidget = {
+			getId: () => `inline-chat-toolbar}`,
+			getDomNode: () => overlayWidget,
+			getPosition: () => null
+		};
+
+		store.add(toDisposable(() => editor.removeOverlayWidget(widget)));
+		editor.addOverlayWidget(widget);
+
+		const layoutOverlay = () => {
+			overlayWidget.style.top = `${editor.getTopForLineNumber(line) - editor.getScrollTop() + 4}px`;
+			overlayWidget.style.right = `${editor.getLayoutInfo().minimap.minimapWidth + editor.getLayoutInfo().verticalScrollbarWidth + 4}px`;
+		};
+		store.add(editor.onDidScrollChange(layoutOverlay));
+		layoutOverlay();
+
+		const buttons = store.add(instaService.createInstance(WorkbenchButtonBar, overlayWidget, { telemetrySource: 'inline-diff-toolbar' }));
+		buttons.update(actions);
+
+		// const toolbar = store.add(instaService.createInstance(WorkbenchToolBar, overlayWidget, { telemetrySource: 'inline-diff-toolbar' }));
+		// toolbar.setActions(actions);
+	}
 }
