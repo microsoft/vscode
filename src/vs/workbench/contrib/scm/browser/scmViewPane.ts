@@ -726,6 +726,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 }
 
 interface HistoryItemGroupTemplate {
+	readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
 	readonly count: CountBadge;
 	readonly disposables: IDisposable;
@@ -741,15 +742,24 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.history-item-group'));
+
 		const label = new IconLabel(element, { supportIcons: true });
+		const iconContainer = prepend(label.element, $('.icon-container'));
+
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 
-		return { label, count, disposables: new DisposableStore() };
+		return { iconContainer, label, count, disposables: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemGroupTreeElement>, index: number, templateData: HistoryItemGroupTemplate, height: number | undefined): void {
 		const historyItemGroup = node.element;
+
+		templateData.iconContainer.className = 'icon-container';
+		if (historyItemGroup.icon && ThemeIcon.isThemeIcon(historyItemGroup.icon)) {
+			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItemGroup.icon));
+		}
+
 		templateData.label.setLabel(historyItemGroup.label, historyItemGroup.description);
 		templateData.count.setCount(historyItemGroup.count ?? 0);
 	}

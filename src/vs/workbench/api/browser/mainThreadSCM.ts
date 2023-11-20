@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, DisposableMap } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, ISCMInputValueProvider, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMActionButtonDto, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -18,6 +18,7 @@ import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/c
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryItemGroupDetails, ISCMHistoryItemGroupEntry, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { Codicon } from 'vs/base/common/codicons';
 
 function getSCMInputBoxActionButtonIcon(actionButton: SCMInputActionButtonDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!actionButton.icon) {
@@ -28,19 +29,6 @@ function getSCMInputBoxActionButtonIcon(actionButton: SCMInputActionButtonDto): 
 		return actionButton.icon;
 	} else {
 		const icon = actionButton.icon as { light: UriComponents; dark: UriComponents };
-		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
-	}
-}
-
-function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
-	if (!historyItem.icon) {
-		return undefined;
-	} else if (URI.isUri(historyItem.icon)) {
-		return URI.revive(historyItem.icon);
-	} else if (ThemeIcon.isThemeIcon(historyItem.icon)) {
-		return historyItem.icon;
-	} else {
-		const icon = historyItem.icon as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 	}
 }
@@ -184,8 +172,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		if (historyItemGroupBase) {
 			incoming = {
 				id: historyItemGroupBase.id,
-				label: `$(cloud-download) ${historyItemGroupBase.label}`,
-				// description: localize('incoming', "Incoming Changes"),
+				label: historyItemGroupBase.label,
+				icon: Codicon.cloudDownload,
 				ancestor: ancestor?.id,
 				count: ancestor?.behind ?? 0,
 			};
@@ -194,8 +182,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		// Outgoing
 		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
-			label: `$(cloud-upload) ${historyItemGroup.label}`,
-			// description: localize('outgoing', "Outgoing Changes"),
+			label: historyItemGroup.label,
+			icon: Codicon.cloudUpload,
 			ancestor: ancestor?.id,
 			count: ancestor?.ahead ?? 0,
 		};
@@ -213,7 +201,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
-		return historyItems?.map(historyItem => ({ ...historyItem, icon: getSCMHistoryItemIcon(historyItem), }));
+		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
 	}
 
 	async provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined> {
