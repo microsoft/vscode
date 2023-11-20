@@ -430,29 +430,41 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
-		console.log('MoveToFileCodeAction');
-		console.log('range : ', range);
-		console.log('documentSymbols : : ', documentSymbols);
+		const smallestNodeContaining = this._findSmallestScopeContaining(documentSymbols, range);
 
-		const smallestNodeContaining = this._findSmallestNodeContaining(documentSymbols, range);
-		console.log('smallestNodeContaining : ', smallestNodeContaining);
-
-		// check if the node is a scope in which case we move it
-
-		this.command = {
-			title: action.description,
-			command: MoveToFileRefactorCommand.ID,
-			arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
-		};
+		if (
+			smallestNodeContaining
+			&& smallestNodeContaining.range.start.line === range.start.line
+			&& smallestNodeContaining.range.end.line === range.end.line
+		) {
+			this.command = {
+				title: action.description,
+				command: MoveToFileRefactorCommand.ID,
+				arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
+			};
+		} else {
+			this.command = undefined;
+		}
 	}
 
-	private _findSmallestNodeContaining(documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]), range: vscode.Range, smallestNodeSoFar?: vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined): vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined {
+	private readonly _scopesOfInterest = [
+		vscode.SymbolKind.File,
+		vscode.SymbolKind.Module,
+		vscode.SymbolKind.Namespace,
+		vscode.SymbolKind.Package,
+		vscode.SymbolKind.Class,
+		vscode.SymbolKind.Method,
+		vscode.SymbolKind.Interface,
+		vscode.SymbolKind.Function
+	];
+
+	private _findSmallestScopeContaining(documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]), range: vscode.Range, smallestNodeThusFar?: vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined): vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined {
 		for (const symbol of documentSymbols) {
-			if (symbol.range.contains(range)) {
-				return this._findSmallestNodeContaining(symbol.children, range, symbol);
+			if (symbol.range.contains(range) && this._scopesOfInterest.includes(symbol.kind)) {
+				return this._findSmallestScopeContaining(symbol.children, range, symbol);
 			}
 		}
-		return smallestNodeSoFar;
+		return smallestNodeThusFar;
 	}
 }
 
@@ -577,7 +589,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				actions.push(new SelectCodeAction(refactor, document, rangeOrSelection));
 			} else {
 				for (const action of refactor.actions) {
-					actions.push(await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions));
+					const refactorAction = (await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions));
+					if (refactorAction) {
+						actions.push(refactorAction);
+					}
 				}
 			}
 		}
@@ -590,11 +605,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): Promise<TsCodeAction> {
+	): Promise<TsCodeAction | undefined> {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
 			const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
-			codeAction = new MoveToFileCodeAction(document, documentSymbols, action, rangeOrSelection);
+			const moveToFileCodeAction = new MoveToFileCodeAction(document, documentSymbols, action, rangeOrSelection);
+			if (!moveToFileCodeAction.command) {
+				return;
+			}
+			codeAction = moveToFileCodeAction;
 		} else {
 			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {
