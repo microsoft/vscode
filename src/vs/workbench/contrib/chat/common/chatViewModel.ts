@@ -79,6 +79,7 @@ export interface IChatLiveUpdateData {
 	loadingStartTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
+	lastWordCount: number;
 }
 
 export interface IChatResponseViewModel {
@@ -372,7 +373,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				impliedWordLoadRate: 0
+				impliedWordLoadRate: 0,
+				lastWordCount: 0
 			};
 		}
 
@@ -382,18 +384,14 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				const now = Date.now();
 				const wordCount = countWords(_model.response.asString());
 				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
-				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
-				const renderedWordCount = this.renderData?.renderedParts.reduce((acc, part) => acc += ('label' in part ? 0 : part.renderedWordCount), 0);
-				if (!this.isComplete) {
-					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-					this._contentUpdateTimings = {
-						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
-						lastUpdateTime: now,
-						impliedWordLoadRate
-					};
-				} else {
-					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-				}
+				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (timeDiff / 1000);
+				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+				this._contentUpdateTimings = {
+					loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
+					lastUpdateTime: now,
+					impliedWordLoadRate,
+					lastWordCount: wordCount
+				};
 			} else {
 				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}
