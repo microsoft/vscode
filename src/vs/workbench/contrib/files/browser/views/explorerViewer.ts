@@ -456,8 +456,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			templateData.elementDisposables.add(compressedNavigationController);
 
-			const itemControllers = this.compressedNavigationControllers.get(stat) ?? [];
-			this.compressedNavigationControllers.set(stat, [...itemControllers, compressedNavigationController]);
+			const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+			this.compressedNavigationControllers.set(stat, [...nodeControllers, compressedNavigationController]);
 
 			// accessibility
 			templateData.elementDisposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
@@ -471,17 +471,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}));
 
 			templateData.elementDisposables.add(toDisposable(() => {
-				const itemControllers = this.compressedNavigationControllers.get(stat) ?? [];
-				const renderedIndex = itemControllers.findIndex(controller => controller === compressedNavigationController);
+				const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+				const renderedIndex = nodeControllers.findIndex(controller => controller === compressedNavigationController);
 
 				if (renderedIndex < 0) {
 					throw new Error('Disposing unknown navigation controller');
 				}
 
-				if (itemControllers.length === 1) {
+				if (nodeControllers.length === 1) {
 					this.compressedNavigationControllers.delete(stat);
 				} else {
-					itemControllers.splice(renderedIndex, 1);
+					nodeControllers.splice(renderedIndex, 1);
 				}
 			}));
 		}
