@@ -115,6 +115,11 @@ export class Response implements IResponse {
 		return this._responseRepr;
 	}
 
+	clear(): void {
+		this._responseParts = [];
+		this._updateRepr(true);
+	}
+
 	updateContent(progress: IChatProgressResponseContent | IChatContent, quiet?: boolean): void {
 		if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
@@ -310,7 +315,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire();
 	}
 
-	complete(): void {
+	complete(errorDetails?: IChatResponseErrorDetails): void {
+		if (errorDetails?.responseIsRedacted) {
+			this._response.clear();
+		}
+
 		this._isComplete = true;
 		this._onDidChange.fire();
 	}
@@ -689,12 +698,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response.setErrorDetails(rawResponse.errorDetails);
 	}
 
-	completeResponse(request: ChatRequestModel): void {
+	completeResponse(request: ChatRequestModel, errorDetails: IChatResponseErrorDetails | undefined): void {
 		if (!request.response) {
 			throw new Error('Call setResponse before completeResponse');
 		}
 
-		request.response.complete();
+		request.response.complete(errorDetails);
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {
