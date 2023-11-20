@@ -450,7 +450,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._onDidChangeContainer.fire({ views, from, to });
 
 		if (fromContainerWillBeEmpty) {
-			this._onDidChangeViewContainers.fire({ removed: [{ container: from, location: this.getViewContainerLocation(from) }], added: [] });
+			this._onDidChangeViewContainers.fire({ removed: [{ container: from, location: oldLocation }], added: [] });
 		}
 	}
 
