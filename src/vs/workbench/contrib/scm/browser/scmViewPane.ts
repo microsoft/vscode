@@ -2588,7 +2588,6 @@ export class SCMViewPane extends ViewPane {
 				for (const widget of widgets) {
 					widget.focus();
 				}
-
 				this.tree.setFocus([], e.browserEvent);
 
 				const selection = this.tree.getSelection();
