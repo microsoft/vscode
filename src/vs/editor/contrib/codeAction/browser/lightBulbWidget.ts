@@ -17,6 +17,7 @@ import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 namespace LightBulbState {
@@ -60,7 +61,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -78,11 +80,17 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
-		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, e => {
+		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, async e => {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
-
+			if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+				const action = this.state.actions.validActions[0].action;
+				if (action.command?.id) {
+					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+				}
+				return;
+			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
 			e.preventDefault();
