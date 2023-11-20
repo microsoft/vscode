@@ -75,7 +75,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 			this.initiaizeCachedConfigurationDefaultsOverridesPromise = (async () => {
 				try {
 					// Read only when the cache exists
-					if (window.localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
+					if (localStorage.getItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY)) {
 						const content = await this.configurationCache.read(this.cacheKey);
 						if (content) {
 							this.cachedConfigurationDefaultsOverrides = JSON.parse(content);
@@ -108,10 +108,10 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 		}
 		try {
 			if (Object.keys(cachedConfigurationDefaultsOverrides).length) {
-				window.localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
+				localStorage.setItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY, 'yes');
 				await this.configurationCache.write(this.cacheKey, JSON.stringify(cachedConfigurationDefaultsOverrides));
 			} else {
-				window.localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
+				localStorage.removeItem(DefaultConfiguration.DEFAULT_OVERRIDES_CACHE_EXISTS_KEY);
 				await this.configurationCache.remove(this.cacheKey);
 			}
 		} catch (error) {/* Ignore error */ }

@@ -20,6 +20,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -64,6 +65,7 @@ export interface IInlineChatEditResponse {
 	id: number;
 	type: InlineChatResponseType.EditorEdit;
 	edits: TextEdit[];
+	message?: IMarkdownString;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -72,6 +74,7 @@ export interface IInlineChatBulkEditResponse {
 	id: number;
 	type: InlineChatResponseType.BulkEdit;
 	edits: WorkspaceEdit;
+	message?: IMarkdownString;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -96,17 +99,21 @@ export const enum InlineChatResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 	Undone = 2,
-	Accepted = 3
+	Accepted = 3,
+	Bug = 4
 }
 
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
 	label: string;
+	supportIssueReporting?: boolean;
 
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
+
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatReplyFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
@@ -143,6 +150,7 @@ export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChateRespo
 export const CTX_INLINE_CHAT_DID_EDIT = new RawContextKey<boolean>('inlineChatDidEdit', undefined, localize('inlineChatDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineChatUserDidEdit', undefined, localize('inlineChatUserDidEdit', "Whether the user did changes ontop of the inline chat"));
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
+export const CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING = new RawContextKey<boolean>('inlineChatSupportIssueReporting', false, localize('inlineChatSupportIssueReporting', "Whether the interactive editor supports issue reporting"));
 export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inlineChatDocumentChanged', false, localize('inlineChatDocumentChanged', "Whether the document has changed concurrently"));
 export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.editMode', EditMode.Live);
 
@@ -184,6 +192,12 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
+export const enum ShowGutterIcon {
+	Always = 'always',
+	MouseOver = 'mouseover',
+	Never = 'never'
+}
+
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{
 		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
@@ -212,9 +226,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean'
 		},
 		'inlineChat.showGutterIcon': {
-			description: localize('showGutterIcon', "Show/hide a gutter icon for spawning inline chat on empty lines."),
-			default: false,
-			type: 'boolean'
+			description: localize('showGutterIcon', "Controls when the gutter icon for spawning inline chat is shown."),
+			default: ShowGutterIcon.Never,
+			type: 'string',
+			enum: [ShowGutterIcon.Always, ShowGutterIcon.MouseOver, ShowGutterIcon.Never],
+			markdownEnumDescriptions: [
+				localize('showGutterIcon.always', "Always show the gutter icon."),
+				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
+				localize('showGutterIcon.never', "Never show the gutter icon."),
+			]
 		}
 	}
 });

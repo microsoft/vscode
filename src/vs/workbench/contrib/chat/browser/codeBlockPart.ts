@@ -167,7 +167,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			WordHighlighterContribution.get(this.editor)?.restoreViewState(true);
 		}));
 
-		this.textModel = this._register(this.modelService.createModel('', null, undefined));
+		this.textModel = this._register(this.modelService.createModel('', null, undefined, true));
 		this.editor.setModel(this.textModel);
 	}
 

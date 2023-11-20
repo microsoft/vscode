@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { IBrowserTerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -30,7 +30,7 @@ const enum FontConstants {
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
-export class TerminalConfigHelper extends Disposable implements IBrowserTerminalConfigHelper {
+export class TerminalConfigHelper extends Disposable implements ITerminalConfigHelper {
 	panelContainer: HTMLElement | undefined;
 
 	private _charMeasureElement: HTMLElement | undefined;
@@ -118,7 +118,7 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 		return rect;
 	}
 
-	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
+	private _measureFont(w: Window, fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
 		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
@@ -142,10 +142,10 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
-				const deviceCharWidth = Math.floor(rect.width * window.devicePixelRatio);
+				const deviceCharWidth = Math.floor(rect.width * w.devicePixelRatio);
 				const deviceCellWidth = deviceCharWidth + Math.round(letterSpacing);
-				const cssCellWidth = deviceCellWidth / window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+				const cssCellWidth = deviceCellWidth / w.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / w.devicePixelRatio;
 			}
 		}
 
@@ -156,7 +156,7 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	getFont(xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
+	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
@@ -200,13 +200,13 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 					letterSpacing,
 					lineHeight,
 					charHeight: cellDims.height / lineHeight,
-					charWidth: cellDims.width - Math.round(letterSpacing) / window.devicePixelRatio
+					charWidth: cellDims.width - Math.round(letterSpacing) / w.devicePixelRatio
 				};
 			}
 		}
 
 		// Fall back to measuring the font ourselves
-		return this._measureFont(fontFamily, fontSize, letterSpacing, lineHeight);
+		return this._measureFont(w, fontFamily, fontSize, letterSpacing, lineHeight);
 	}
 
 	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {

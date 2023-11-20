@@ -31,6 +31,7 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { mainWindow } from 'vs/base/browser/window';
 
 class LanguageStatusViewModel {
 
@@ -202,8 +203,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
-			const container = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
+			const node = mainWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = mainWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
 			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';
@@ -223,10 +224,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// track when the hover shows (this is automagic and DOM mutation spying is needed...)
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
-				const hoverTarget = document.querySelector('.monaco-workbench .context-view');
+				const hoverTarget = mainWindow.document.querySelector('.monaco-workbench .context-view');
 				if (hoverTarget instanceof HTMLElement) {
 					const observer = new MutationObserver(() => {
-						if (document.contains(element)) {
+						if (mainWindow.document.contains(element)) {
 							this._interactionCounter.increment();
 							observer.disconnect();
 						}

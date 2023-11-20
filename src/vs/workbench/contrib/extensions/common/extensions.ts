@@ -18,6 +18,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -199,3 +200,5 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
 export const INSTALL_ACTIONS_GROUP = '0_install';
+
+export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');

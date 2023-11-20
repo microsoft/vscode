@@ -201,7 +201,7 @@ export class TerminalTabbedView extends Disposable {
 		offscreenCanvas.height = 1;
 		const ctx = offscreenCanvas.getContext('2d');
 		if (ctx) {
-			const style = window.getComputedStyle(this._tabListElement);
+			const style = dom.getWindow(this._tabListElement).getComputedStyle(this._tabListElement);
 			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
 			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title + (c.description || '')).width + this._getAdditionalWidth(c));
@@ -285,16 +285,15 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _addSashListener() {
-		let interval: number;
+		let interval: IDisposable;
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
-				interval = window.setInterval(() => {
+				interval = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => {
 					this.rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {
-				window.clearInterval(interval);
-				interval = 0;
+				interval.dispose();
 			})
 		];
 	}
@@ -354,7 +353,7 @@ export class TerminalTabbedView extends Disposable {
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, terminal, this._instanceMenu, this._contextMenuService);
+						openContextMenu(dom.getWindow(terminalContainer), event, terminal, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -388,7 +387,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 			terminalContainer.focus();
 			if (!this._cancelContextMenu) {
-				openContextMenu(event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
+				openContextMenu(dom.getWindow(terminalContainer), event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -413,7 +412,7 @@ export class TerminalTabbedView extends Disposable {
 					selectedInstances.unshift(focusedInstance);
 				}
 
-				openContextMenu(event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
+				openContextMenu(dom.getWindow(this._tabContainer), event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();

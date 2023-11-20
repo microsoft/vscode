@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -618,7 +618,7 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
-		const style = window.getComputedStyle(tabIndexElement);
+		const style = getWindow(tabIndexElement).getComputedStyle(tabIndexElement);
 		if (style.visibility === 'hidden' || style.display === 'none') {
 			return;
 		}
@@ -1390,7 +1390,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = Event.chain(this.view.onContextMenu, $ =>
 			$.filter(_ => !didJustPressContextMenuKey)
-				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
+				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(getWindow(this.view.domNode), browserEvent), browserEvent }))
 		);
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);

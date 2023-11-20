@@ -195,6 +195,14 @@ export class Code {
 		}), 'Code#exit()', this.logger);
 	}
 
+	async getElement(selector: string): Promise<IElement | undefined> {
+		return (await this.driver.getElements(selector))?.[0];
+	}
+
+	async getElements(selector: string, recursive: boolean): Promise<IElement[] | undefined> {
+		return this.driver.getElements(selector, recursive);
+	}
+
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean, retryCount?: number): Promise<string> {
 		accept = accept || (result => textContent !== undefined ? textContent === result : !!result);
 

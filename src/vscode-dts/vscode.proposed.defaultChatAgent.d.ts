@@ -16,5 +16,15 @@ declare module 'vscode' {
 		 * TODO@API name
 		 */
 		isSecondary?: boolean;
+
+		/**
+		 * A string that will be added before the listing of chat agents in `/help`.
+		 */
+		helpTextPrefix?: string | MarkdownString;
+
+		/**
+		 * A string that will be appended after the listing of chat agents in `/help`.
+		 */
+		helpTextPostfix?: string | MarkdownString;
 	}
 }

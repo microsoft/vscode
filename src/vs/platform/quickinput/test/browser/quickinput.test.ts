@@ -17,6 +17,7 @@ import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputC
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { mainWindow } from 'vs/base/browser/window';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -39,8 +40,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 	setup(() => {
 		const fixture = document.createElement('div');
-		document.body.appendChild(fixture);
-		store.add(toDisposable(() => document.body.removeChild(fixture)));
+		mainWindow.document.body.appendChild(fixture);
+		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
 
 		controller = store.add(new QuickInputController({
 			container: fixture,

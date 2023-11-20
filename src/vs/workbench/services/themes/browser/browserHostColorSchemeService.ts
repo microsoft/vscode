@@ -8,6 +8,7 @@ import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
@@ -37,16 +38,16 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 	}
 
 	get dark(): boolean {
-		if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
+		if (mainWindow.matchMedia(`(prefers-color-scheme: light)`).matches) {
 			return false;
-		} else if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
+		} else if (mainWindow.matchMedia(`(prefers-color-scheme: dark)`).matches) {
 			return true;
 		}
 		return false;
 	}
 
 	get highContrast(): boolean {
-		if (window.matchMedia(`(forced-colors: active)`).matches) {
+		if (mainWindow.matchMedia(`(forced-colors: active)`).matches) {
 			return true;
 		}
 		return false;
