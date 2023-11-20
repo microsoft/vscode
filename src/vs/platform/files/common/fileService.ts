@@ -750,8 +750,10 @@ export class FileService extends Disposable implements IFileService {
 		const mode = await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'move', !!overwrite);
 
 		// resolve and send events
+		const fileSourceStat = await this.resolve(source, { resolveMetadata: true });	// resolve source file/folder as well
 		const fileStat = await this.resolve(target, { resolveMetadata: true });
 		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileStat));
+		this._onDidRunOperation.fire(new FileOperationEvent(source, mode === 'move' ? FileOperation.MOVE : FileOperation.COPY, fileSourceStat));
 
 		return fileStat;
 	}
