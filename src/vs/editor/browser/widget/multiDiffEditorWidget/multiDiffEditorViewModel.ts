@@ -20,7 +20,7 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 	constructor(
 		private readonly _model: IMultiDiffEditorModel,
-		private readonly _diffEditorViewModelFactory: DiffEditorWidget
+		private readonly _diffEditorViewModelFactory: DiffEditorWidget,
 	) {
 		super();
 	}
@@ -28,6 +28,8 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 export class DocumentDiffItemViewModel extends Disposable {
 	public readonly diffEditorViewModel: IDiffEditorViewModel;
+
+	public readonly collapsed = observableValue<boolean>(this, false);
 
 	constructor(
 		public readonly entry: LazyPromise<IDocumentDiffItem>,
