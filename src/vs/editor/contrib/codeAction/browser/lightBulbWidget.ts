@@ -42,12 +42,6 @@ namespace LightBulbState {
 	export type State = typeof Hidden | Showing;
 }
 
-export enum LightBulbMenuIconMode {
-	Standard,
-	StandardAI,
-	AI
-}
-
 export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	public static readonly ID = 'editor.contrib.lightbulbWidget';
@@ -130,7 +124,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this._preferredKbLabel = keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
 			this._quickFixKbLabel = keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
 
-			this.updateLightBulbTitleAndIcon();
+			this._updateLightBulbTitleAndIcon();
 		}));
 	}
 
@@ -210,44 +204,37 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private set state(value) {
 		this._state = value;
-		this.updateLightBulbTitleAndIcon();
+		this._updateLightBulbTitleAndIcon();
 	}
 
-	// make private once again, because we can find the actions directly from this file, do not need to trigger this method from someplace else
-	public updateLightBulbTitleAndIcon(iconMode: LightBulbMenuIconMode = LightBulbMenuIconMode.Standard): void {
+	private _updateLightBulbTitleAndIcon(): void {
 
-		if (iconMode !== LightBulbMenuIconMode.Standard) {
-			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
-			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.sparkle));
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.alert));
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
 
-			if (iconMode === LightBulbMenuIconMode.StandardAI) {
-				this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.alert));
-			}
-			if (iconMode === LightBulbMenuIconMode.AI) {
-				this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
-			}
+		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
 
-		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
-			// update icon
-			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+		if (this.state.actions.allAIFixes) {
+			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
+		} else if (this.state.actions.hasAIFix) {
+			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.alert));
+		} else if (this.state.actions.hasAutoFix) {
 			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
-
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
 				return;
 			}
-		}
-
-		// update icon
-		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
-		this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
-
-		if (this._quickFixKbLabel) {
-			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
 		} else {
-			this.title = nls.localize('codeAction', "Show Code Actions");
+			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+			if (this._quickFixKbLabel) {
+				this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
+			} else {
+				this.title = nls.localize('codeAction', "Show Code Actions");
+			}
 		}
 	}
 

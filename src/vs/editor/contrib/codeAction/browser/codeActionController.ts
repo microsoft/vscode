@@ -22,7 +22,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
-import { LightBulbMenuIconMode, LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
+import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
 import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
@@ -257,27 +257,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const actionsToShow = options.includeDisabledActions && (this._showDisabled || actions.validActions.length === 0) ? actions.allActions : actions.validActions;
 		if (!actionsToShow.length) {
-			return;
-		}
-
-		// place into the lightBulbWidget file, will need to define the icon there
-		console.log('actionsToShow : ', actionsToShow);
-		let lightbulbMode = LightBulbMenuIconMode.Standard;
-		actionsToShow.forEach(action => {
-			if (action.action.isAI && lightbulbMode === LightBulbMenuIconMode.Standard) {
-				lightbulbMode = LightBulbMenuIconMode.AI;
-			}
-			if (action.action.isAI && lightbulbMode === LightBulbMenuIconMode.AI) {
-				lightbulbMode = LightBulbMenuIconMode.StandardAI;
-			}
-		});
-		console.log('lightbulbMode : ', lightbulbMode);
-		this._lightBulbWidget.rawValue?.updateLightBulbTitleAndIcon(lightbulbMode);
-		//
-
-		if (actionsToShow.length === 1 && actionsToShow[0].action.isAI) {
-			// There is exactly one code action and it is an AI code action, then automatically trigger it
-			actionsToShow[0].resolve(CancellationToken.None);
 			return;
 		}
 
