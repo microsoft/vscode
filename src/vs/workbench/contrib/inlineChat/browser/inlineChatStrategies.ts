@@ -39,10 +39,12 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
+import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export abstract class EditModeStrategy {
+
+	constructor(protected readonly _zone: InlineChatZoneWidget) { }
 
 	abstract dispose(): void;
 
@@ -70,10 +72,10 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	constructor(
 		private readonly _session: Session,
-		private readonly _widget: InlineChatWidget,
+		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super();
+		super(zone);
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
@@ -129,20 +131,20 @@ export class PreviewStrategy extends EditModeStrategy {
 	override async renderChanges(response: ReplyResponse): Promise<void> {
 		if (response.allLocalEdits.length > 0) {
 			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
-			await this._widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
+			await this._zone.widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
 		} else {
-			this._widget.hideEditsPreview();
+			this._zone.widget.hideEditsPreview();
 		}
 
 		if (response.untitledTextModel) {
-			this._widget.showCreatePreview(response.untitledTextModel);
+			this._zone.widget.showCreatePreview(response.untitledTextModel);
 		} else {
-			this._widget.hideCreatePreview();
+			this._zone.widget.hideCreatePreview();
 		}
 	}
 
 	hasFocus(): boolean {
-		return this._widget.hasFocus();
+		return this._zone.widget.hasFocus();
 	}
 
 	needsMargin(): boolean {
@@ -235,14 +237,14 @@ export class LiveStrategy extends EditModeStrategy {
 	constructor(
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
-		protected readonly _widget: InlineChatWidget,
+		zone: InlineChatZoneWidget,
 		@IConfigurationService configService: IConfigurationService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
-		super();
+		super(zone);
 		this._diffEnabled = configService.getValue<boolean>('inlineChat.showDiff');
 
 		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
@@ -331,9 +333,9 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffDecorations.update();
 
 		if (response.untitledTextModel) {
-			this._widget.showCreatePreview(response.untitledTextModel);
+			this._zone.widget.showCreatePreview(response.untitledTextModel);
 		} else {
-			this._widget.hideCreatePreview();
+			this._zone.widget.hideCreatePreview();
 		}
 	}
 
@@ -356,7 +358,7 @@ export class LiveStrategy extends EditModeStrategy {
 		} else {
 			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
-		this._widget.updateStatus(message);
+		this._zone.widget.updateStatus(message);
 	}
 
 	override needsMargin(): boolean {
@@ -364,7 +366,7 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	hasFocus(): boolean {
-		return this._widget.hasFocus();
+		return this._zone.widget.hasFocus();
 	}
 }
 
@@ -377,14 +379,14 @@ export class LivePreviewStrategy extends LiveStrategy {
 	constructor(
 		session: Session,
 		editor: ICodeEditor,
-		widget: InlineChatWidget,
+		zone: InlineChatZoneWidget,
 		@IConfigurationService configService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(session, editor, widget, configService, storageService, bulkEditService, editorWorkerService, instaService);
+		super(session, editor, zone, configService, storageService, bulkEditService, editorWorkerService, instaService);
 
 		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
@@ -601,13 +603,13 @@ export class LiveStrategy3 extends EditModeStrategy {
 	constructor(
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
-		protected readonly _widget: InlineChatWidget,
+		zone: InlineChatZoneWidget,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
-		super();
+		super(zone);
 
 		this._modifiedRangesDecorations = this._editor.createDecorationsCollection();
 	}
@@ -874,12 +876,14 @@ export class LiveStrategy3 extends EditModeStrategy {
 	override async renderChanges(response: ReplyResponse) {
 
 		if (response.untitledTextModel) {
-			this._widget.showCreatePreview(response.untitledTextModel);
+			this._zone.widget.showCreatePreview(response.untitledTextModel);
 		} else {
-			this._widget.hideCreatePreview();
+			this._zone.widget.hideCreatePreview();
 		}
 
 		await this._showDiff(true);
+
+		this._zone.widget.updateToolbar(false);
 	}
 
 	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
@@ -901,7 +905,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		} else {
 			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
-		this._widget.updateStatus(message);
+		this._zone.widget.updateStatus(message);
 	}
 
 	override needsMargin(): boolean {
@@ -909,7 +913,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	hasFocus(): boolean {
-		return this._widget.hasFocus();
+		return this._zone.widget.hasFocus();
 	}
 }
 
