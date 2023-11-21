@@ -1097,7 +1097,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focusPart(part: Parts): void {
-		const container = this.getContainer(getActiveWindow(), part);
+		let targetWindow: Window;
+		switch (part) {
+			case Parts.EDITOR_PART:
+			case Parts.STATUSBAR_PART:
+				targetWindow = getActiveWindow();
+				break;
+			default:
+				targetWindow = mainWindow;
+		}
+
+		const container = this.getContainer(targetWindow, part);
 		if (container) {
 			focusWindow(container);
 		}
@@ -1142,9 +1152,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Only some parts are supported for auxiliary windows
 		let partCandidate: unknown;
 		if (part === Parts.EDITOR_PART) {
-			partCandidate = this.editorGroupService.getPart(this.getContainer(targetWindow));
+			partCandidate = this.editorGroupService.getPart(this.getContainerFromDocument(targetWindow.document));
 		} else if (part === Parts.STATUSBAR_PART) {
-			partCandidate = this.statusBarService.getPart(this.getContainer(targetWindow));
+			partCandidate = this.statusBarService.getPart(this.getContainerFromDocument(targetWindow.document));
 		}
 
 		if (partCandidate instanceof Part) {
