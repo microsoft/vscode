@@ -276,6 +276,7 @@
 
 .interactive-item-container.interactive-item-compact.no-padding {
 	padding: unset;
+	gap: unset;
 }
 
 .interactive-item-container.interactive-item-compact .header {
