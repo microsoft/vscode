@@ -33,7 +33,7 @@ export const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	return vscode.SymbolKind.Variable;
 };
 
-export class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
