@@ -452,7 +452,6 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		range: vscode.Range,
 		smallestScopeSoFar?: vscode.DocumentSymbol,
 	): vscode.DocumentSymbol | undefined {
-
 		for (const symbol of documentSymbols) {
 			if (symbol.range.contains(range) && MoveToFileCodeAction._scopesOfInterest.includes(symbol.kind)) {
 				return this._findSmallestScopeContaining(symbol.children, range, symbol);

@@ -55,7 +55,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	public readonly onClick = this._onClick.event;
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
-	private _classNamesMenuIcon: string[] = [];
+	private _iconClasses: string[] = [];
 
 	private _preferredKbLabel?: string;
 	private _quickFixKbLabel?: string;
@@ -85,17 +85,21 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
+			const focusEditor = () => {
+				this._editor.focus();
+				e.preventDefault();
+			};
+
 			if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
 				const action = this.state.actions.validActions[0].action;
 				if (action.command?.id) {
 					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
 				}
-				e.preventDefault();
+				focusEditor();
 				return;
 			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
-			this._editor.focus();
-			e.preventDefault();
+			focusEditor();
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
@@ -218,31 +222,31 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateLightBulbTitleAndIcon(): void {
-		this._domNode.classList.remove(...this._classNamesMenuIcon);
+		this._domNode.classList.remove(...this._iconClasses);
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
-		let codicon: ThemeIcon;
+		let icon: ThemeIcon;
 		if (this.state.actions.allAIFixes) {
-			codicon = Codicon.sparkle;
+			icon = Codicon.sparkle;
 		} else if (this.state.actions.hasAIFix) {
-			codicon = Codicon.lightbulbSparkle;
+			icon = Codicon.lightbulbSparkle;
 		} else if (this.state.actions.hasAutoFix) {
-			codicon = Codicon.lightbulbAutofix;
+			icon = Codicon.lightbulbAutofix;
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
 				return;
 			}
 		} else {
-			codicon = Codicon.lightBulb;
+			icon = Codicon.lightBulb;
 			if (this._quickFixKbLabel) {
 				this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
 			} else {
 				this.title = nls.localize('codeAction', "Show Code Actions");
 			}
 		}
-		this._classNamesMenuIcon = ThemeIcon.asClassNameArray(codicon);
-		this._domNode.classList.add(...this._classNamesMenuIcon);
+		this._iconClasses = ThemeIcon.asClassNameArray(icon);
+		this._domNode.classList.add(...this._iconClasses);
 	}
 
 	private set title(value: string) {
