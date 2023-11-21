@@ -16,8 +16,10 @@ import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Mutable } from 'vs/base/common/types';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
+import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -28,8 +30,9 @@ import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, InjectedTextCursorStops, InjectedTextOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
-import { WorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { IWorkbenchButtonBarOptions, WorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -954,6 +957,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	override dispose(): void {
 		this._inlineDiffDecorations.clear();
+		this._sessionStore.dispose();
 		this._store.dispose();
 	}
 
@@ -1030,10 +1034,16 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 
 		const newDecorations: IModelDeltaDecoration[] = [];
+		const newViewZones: IViewZone[] = [];
+		let viewZoneIds: string[] = [];
+
+		const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
+		const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
+		const renderOptions = RenderOptions.fromEditor(this._editor);
 
 		if (diff?.changes) {
 
-			for (const { innerChanges } of diff.changes) {
+			for (const { modified, original, innerChanges } of diff.changes) {
 
 				if (innerChanges) {
 					for (const { modifiedRange } of innerChanges) {
@@ -1054,32 +1064,61 @@ export class LiveStrategy3 extends EditModeStrategy {
 						});
 					}
 				}
+
+				// original view zone
+				const source = new LineSource(
+					original.mapToLineArray(l => this._session.textModel0.tokenization.getLineTokens(l)),
+					[],
+					mightContainNonBasicASCII,
+					mightContainRTL,
+				);
+
+				const domNode = document.createElement('div');
+				domNode.className = 'inline-chat-original-zone2';
+				const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(original.startLineNumber, 1, original.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
+
+				newViewZones.push({
+					afterLineNumber: modified.startLineNumber - 1,
+					heightInLines: result.heightInLines,
+					domNode,
+				});
 			}
 		}
 		this._inlineDiffDecorations.set(newDecorations);
+
+		this._sessionStore.add(toDisposable(() => {
+			this._inlineDiffDecorations.clear();
+			this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
+			viewZoneIds.length = 0;
+		}));
 
 		let widget: InlineChatLivePreviewWidget | undefined;
 		this._sessionStore.add(toDisposable(() => widget?.dispose()));
 
 
+		const compareAction = toAction({
+			id: 'diff',
+			label: 'Compare',
+			checked: false,
+			class: ThemeIcon.asClassName(Codicon.diff),
+			run: () => {
+				const scrollState = StableEditorScrollState.capture(this._editor);
+				if (viewZoneIds.length === 0) {
+					this._editor.changeViewZones(accessor => viewZoneIds = newViewZones.map(accessor.addZone, accessor));
+				} else {
+					this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
+					viewZoneIds.length = 0;
+				}
+				scrollState.restore(this._editor);
+			}
+		});
 		const actions = [
 			toAction({
-				id: 'diff',
-				label: 'Compare',
-				checked: false,
-				class: ThemeIcon.asClassName(Codicon.diff),
+				id: 'accept',
+				label: 'Accept',
+				class: ThemeIcon.asClassName(Codicon.check),
 				run: () => {
-					if (!widget || !widget.isVisible) {
-						widget = widget ?? this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, {
-							renderSideBySide: diff!.changes.length > 1,
-							splitViewDefaultRatio: 0.5,
-							renderIndicators: false
 
-						}, () => { });
-						widget.showForChanges(diff!.changes);
-					} else {
-						widget.hide();
-					}
 				}
 			}),
 			toAction({
@@ -1089,10 +1128,17 @@ export class LiveStrategy3 extends EditModeStrategy {
 				run: () => {
 
 				}
-			})
+			}),
+			compareAction,
 		];
 
-		const toolbar = this._instaService.createInstance(FloatingToolbar, this._editor, this._session.wholeRange.value.startLineNumber, actions);
+		const toolbar = this._instaService.createInstance(FloatingEditorButtonBar, this._editor, this._session.wholeRange.value.startLineNumber, actions, {
+			telemetrySource: 'inline-diff-toolbar',
+			// buttonConfigProvider: action => {
+			// 	const isCompare = action.id === compareAction.id;
+			// 	return { showLabel: !isCompare, showIcon: isCompare };
+			// }
+		});
 		this._sessionStore.add(toolbar);
 	}
 
@@ -1127,7 +1173,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 }
 
-class FloatingToolbar implements IDisposable {
+class FloatingEditorButtonBar implements IDisposable {
 
 	dispose: () => void;
 
@@ -1135,6 +1181,7 @@ class FloatingToolbar implements IDisposable {
 		editor: ICodeEditor,
 		line: number,
 		actions: IAction[],
+		buttonConfig: IWorkbenchButtonBarOptions,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 
@@ -1157,12 +1204,12 @@ class FloatingToolbar implements IDisposable {
 			overlayWidget.style.right = `${editor.getLayoutInfo().minimap.minimapWidth + editor.getLayoutInfo().verticalScrollbarWidth + 4}px`;
 		};
 		store.add(editor.onDidScrollChange(layoutOverlay));
+		store.add(editor.onDidLayoutChange(layoutOverlay));
 		layoutOverlay();
 
-		const buttons = store.add(instaService.createInstance(WorkbenchButtonBar, overlayWidget, { telemetrySource: 'inline-diff-toolbar' }));
+		const buttons = store.add(instaService.createInstance(WorkbenchButtonBar, overlayWidget, {
+			...buttonConfig,
+		}));
 		buttons.update(actions);
-
-		// const toolbar = store.add(instaService.createInstance(WorkbenchToolBar, overlayWidget, { telemetrySource: 'inline-diff-toolbar' }));
-		// toolbar.setActions(actions);
 	}
 }

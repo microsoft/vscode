@@ -97,8 +97,12 @@ export class WorkbenchButtonBar extends ButtonBar {
 			} else {
 				btn.element.classList.add('monaco-text-button');
 			}
-			if (conifgProvider(action)?.showIcon && action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
-				btn.icon = action.item.icon;
+			if (conifgProvider(action)?.showIcon) {
+				if (action instanceof MenuItemAction && ThemeIcon.isThemeIcon(action.item.icon)) {
+					btn.icon = action.item.icon;
+				} else if (action.class) {
+					btn.element.classList.add(...action.class.split(' '));
+				}
 			}
 			const kb = this._keybindingService.lookupKeybinding(action.id);
 			if (kb) {
