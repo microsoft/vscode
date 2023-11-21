@@ -33,7 +33,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService
 	) {
 		super();
 
@@ -62,20 +63,22 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 			if (e.affectsConfiguration(statusBarConfiguration)) {
 				statusBarVisible = this.configurationService.getValue<boolean>(statusBarConfiguration) !== false;
 
-				updateStatusBarVisibility();
+				updateStatusBarVisibility(true);
 			}
 		}));
 
-		function updateStatusBarVisibility(): void {
+		function updateStatusBarVisibility(fromEvent: boolean): void {
 			if (statusBarVisible) {
 				editorPartContainer.style.height = `calc(100% - ${AuxiliaryStatusbarPart.HEIGHT}px)`;
-				statusPartContainer.style.display = 'block';
+				statusbarPart.container.style.display = 'block';
 			} else {
 				editorPartContainer.style.height = '100%';
-				statusPartContainer.style.display = 'none';
+				statusbarPart.container.style.display = 'none';
 			}
 
-			auxiliaryWindow.layout();
+			if (fromEvent) {
+				auxiliaryWindow.layout();
+			}
 		}
 
 		// Editor Part
@@ -92,21 +95,15 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 
 		// Status Bar
-		const statusPartContainer = document.createElement('footer');
-		statusPartContainer.classList.add('part', 'statusbar');
-		statusPartContainer.setAttribute('role', 'status');
-		statusPartContainer.setAttribute('tabindex', '0');
-		auxiliaryWindow.container.appendChild(statusPartContainer);
+		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
 
-		const statusPart = disposables.add(this.instantiationService.createInstance(AuxiliaryStatusbarPart));
-		statusPart.create(statusPartContainer);
-
+		// Editor status scoped to auxiliary window
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IStatusbarService, statusPart]
+			[IStatusbarService, statusbarPart]
 		));
 		disposables.add(scopedInstantiationService.createInstance(EditorStatus, editorPart));
 
-		updateStatusBarVisibility();
+		updateStatusBarVisibility(false);
 
 		// Lifecycle
 		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
