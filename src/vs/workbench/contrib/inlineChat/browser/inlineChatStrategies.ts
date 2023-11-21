@@ -599,7 +599,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		protected readonly _widget: InlineChatWidget,
-		@IConfigurationService configService: IConfigurationService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
@@ -688,6 +687,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	private async _showDiff(showControls: boolean) {
+
+		this._sessionStore.clear();
+
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		this._updateSummaryMessage(diff?.changes ?? []);
 
@@ -699,49 +701,105 @@ export class LiveStrategy3 extends EditModeStrategy {
 		const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
 		const renderOptions = RenderOptions.fromEditor(this._editor);
 
-		if (diff?.changes) {
 
-			for (const { modified, original, innerChanges } of diff.changes) {
+		if (!diff || diff.identical) {
+			return;
+		}
 
-				if (innerChanges) {
-					for (const { modifiedRange } of innerChanges) {
-						newDecorations.push({
-							range: modifiedRange,
-							options: {
-								description: 'inline-modified',
-								className: 'inline-chat-inserted-range',
-							}
-						});
-						newDecorations.push({
-							range: modifiedRange,
-							options: {
-								description: 'inline-modified',
-								className: 'inline-chat-inserted-range-linehighlight',
-								isWholeLine: true
-							}
-						});
-					}
+
+		// TODO@jrieken merge changes
+
+		for (const { modified, original, innerChanges } of diff.changes) {
+
+			if (innerChanges) {
+				for (const { modifiedRange } of innerChanges) {
+					newDecorations.push({
+						range: modifiedRange,
+						options: {
+							description: 'inline-modified',
+							className: 'inline-chat-inserted-range',
+						}
+					});
+					newDecorations.push({
+						range: modifiedRange,
+						options: {
+							description: 'inline-modified',
+							className: 'inline-chat-inserted-range-linehighlight',
+							isWholeLine: true
+						}
+					});
 				}
+			}
 
-				// original view zone
-				const source = new LineSource(
-					original.mapToLineArray(l => this._session.textModel0.tokenization.getLineTokens(l)),
-					[],
-					mightContainNonBasicASCII,
-					mightContainRTL,
-				);
+			// original view zone
+			const source = new LineSource(
+				original.mapToLineArray(l => this._session.textModel0.tokenization.getLineTokens(l)),
+				[],
+				mightContainNonBasicASCII,
+				mightContainRTL,
+			);
 
-				const domNode = document.createElement('div');
-				domNode.className = 'inline-chat-original-zone2';
-				const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(original.startLineNumber, 1, original.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
+			const domNode = document.createElement('div');
+			domNode.className = 'inline-chat-original-zone2';
+			const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(original.startLineNumber, 1, original.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
 
-				newViewZones.push({
-					afterLineNumber: modified.startLineNumber - 1,
-					heightInLines: result.heightInLines,
-					domNode,
+			newViewZones.push({
+				afterLineNumber: modified.startLineNumber - 1,
+				heightInLines: result.heightInLines,
+				domNode,
+			});
+
+
+			if (showControls) {
+				const actions = [
+					toAction({
+						id: 'accept',
+						label: 'Accept',
+						class: ThemeIcon.asClassName(Codicon.check),
+						run: () => {
+
+						}
+					}),
+					toAction({
+						id: 'discard',
+						label: 'Discard',
+						class: ThemeIcon.asClassName(Codicon.discard),
+						run: () => {
+							const originalValue = this._session.textModel0.getValueInRange(new Range(original.startLineNumber, 1, original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER));
+							const edit = EditOperation.replace(new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive, 1), originalValue + '\n');
+							this._session.textModelN.pushEditOperations(null, [edit], () => null);
+							this._showDiff(showControls);
+						}
+					}),
+					toAction({
+						id: 'diff',
+						label: 'Compare',
+						checked: false,
+						class: ThemeIcon.asClassName(Codicon.diff),
+						run: () => {
+							const scrollState = StableEditorScrollState.capture(this._editor);
+							if (viewZoneIds.length === 0) {
+								this._editor.changeViewZones(accessor => viewZoneIds = newViewZones.map(accessor.addZone, accessor));
+							} else {
+								this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
+								viewZoneIds.length = 0;
+							}
+							scrollState.restore(this._editor);
+						}
+					}),
+				];
+
+				const toolbar = this._instaService.createInstance(FloatingEditorButtonBar, this._editor, this._session.wholeRange.value.startLineNumber, actions, {
+					telemetrySource: 'inline-diff-toolbar',
+					// buttonConfigProvider: action => {
+					// 	const isCompare = action.id === compareAction.id;
+					// 	return { showLabel: !isCompare, showIcon: isCompare };
+					// }
 				});
+				this._sessionStore.add(toolbar);
 			}
 		}
+
 		this._inlineDiffDecorations.set(newDecorations);
 
 		this._sessionStore.add(toDisposable(() => {
@@ -749,59 +807,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
 			viewZoneIds.length = 0;
 		}));
-
-		let widget: InlineChatLivePreviewWidget | undefined;
-		this._sessionStore.add(toDisposable(() => widget?.dispose()));
-
-
-		const compareAction = toAction({
-			id: 'diff',
-			label: 'Compare',
-			checked: false,
-			class: ThemeIcon.asClassName(Codicon.diff),
-			run: () => {
-				const scrollState = StableEditorScrollState.capture(this._editor);
-				if (viewZoneIds.length === 0) {
-					this._editor.changeViewZones(accessor => viewZoneIds = newViewZones.map(accessor.addZone, accessor));
-				} else {
-					this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
-					viewZoneIds.length = 0;
-				}
-				scrollState.restore(this._editor);
-			}
-		});
-
-		if (showControls) {
-
-			const actions = [
-				toAction({
-					id: 'accept',
-					label: 'Accept',
-					class: ThemeIcon.asClassName(Codicon.check),
-					run: () => {
-
-					}
-				}),
-				toAction({
-					id: 'discard',
-					label: 'Discard',
-					class: ThemeIcon.asClassName(Codicon.discard),
-					run: () => {
-
-					}
-				}),
-				compareAction,
-			];
-
-			const toolbar = this._instaService.createInstance(FloatingEditorButtonBar, this._editor, this._session.wholeRange.value.startLineNumber, actions, {
-				telemetrySource: 'inline-diff-toolbar',
-				// buttonConfigProvider: action => {
-				// 	const isCompare = action.id === compareAction.id;
-				// 	return { showLabel: !isCompare, showIcon: isCompare };
-				// }
-			});
-			this._sessionStore.add(toolbar);
-		}
 	}
 
 	override async renderChanges(response: ReplyResponse) {
