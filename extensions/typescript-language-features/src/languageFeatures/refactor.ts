@@ -21,6 +21,7 @@ import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
+import { getSymbolKind } from './documentSymbol';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -435,6 +436,48 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 			arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
 		};
 	}
+
+	private static readonly _scopesOfInterest = [
+		vscode.SymbolKind.File,
+		vscode.SymbolKind.Module,
+		vscode.SymbolKind.Namespace,
+		vscode.SymbolKind.Package,
+		vscode.SymbolKind.Class,
+		vscode.SymbolKind.Interface,
+	];
+
+	private static _findSmallestNavTreeContaining(
+		navigationTree: Proto.NavigationTree,
+		range: vscode.Range
+	): Proto.NavigationTree {
+		const childTrees = navigationTree.childItems;
+		if (!childTrees) {
+			return navigationTree;
+		}
+		for (const childTree of childTrees) {
+			if (MoveToFileCodeAction._navTreeContainsRange(childTree, range) && MoveToFileCodeAction._scopesOfInterest.includes(getSymbolKind(childTree.kind))) {
+				return this._findSmallestNavTreeContaining(childTree, range);
+			}
+		}
+		return navigationTree;
+	}
+
+	private static _navTreeContainsRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
+		return navigationTree.spans.some(span => typeConverters.Range.fromTextSpan(span).contains(range));
+	}
+
+	public static shouldIncludeMoveToAction(
+		navigationTree: Proto.NavigationTree | undefined,
+		range: vscode.Range
+	): boolean {
+		if (!navigationTree || !MoveToFileCodeAction._navTreeContainsRange(navigationTree, range)) {
+			return false;
+		}
+		const smallestScopeContaining = MoveToFileCodeAction._findSmallestNavTreeContaining(navigationTree, range);
+		return !!(smallestScopeContaining
+			&& smallestScopeContaining.spans[0].start.line - 1 === range.start.line
+			&& smallestScopeContaining.spans[smallestScopeContaining.spans.length - 1].end.line - 1 === range.end.line);
+	}
 }
 
 class SelectCodeAction extends vscode.CodeAction {
@@ -516,7 +559,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = Array.from(this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
+		const applicableRefactors = await this.convertApplicableRefactors(document, response.body, rangeOrSelection);
+		const actions = await Promise.all(applicableRefactors.map(async (action) => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
@@ -524,8 +568,15 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 					return false;
 				}
 			}
+			if (action.kind?.value === Move_NewFile.kind.value) {
+				const navigationTree = await this.client.execute('navtree', { file: document.uri.path }, nulToken);
+				if (navigationTree.type !== 'response') {
+					return;
+				}
+				return MoveToFileCodeAction.shouldIncludeMoveToAction(navigationTree.body, rangeOrSelection);
+			}
 			return true;
-		});
+		})).then((mappedRefactors) => applicableRefactors.filter((_, index) => mappedRefactors[index]));
 
 		if (!context.only) {
 			return actions;
@@ -547,31 +598,44 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke ? 'invoked' : 'implicit';
 	}
 
-	private *convertApplicableRefactors(
+	private async convertApplicableRefactors(
 		document: vscode.TextDocument,
 		refactors: readonly Proto.ApplicableRefactorInfo[],
 		rangeOrSelection: vscode.Range | vscode.Selection
-	): Iterable<TsCodeAction> {
+	): Promise<Array<TsCodeAction>> {
+		const actions: Array<TsCodeAction> = [];
 		for (const refactor of refactors) {
 			if (refactor.inlineable === false) {
-				yield new SelectCodeAction(refactor, document, rangeOrSelection);
+				actions.push(new SelectCodeAction(refactor, document, rangeOrSelection));
 			} else {
 				for (const action of refactor.actions) {
-					yield this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
+					const refactorAction = await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
+					if (refactorAction) {
+						actions.push(refactorAction);
+					}
 				}
 			}
 		}
+		return actions;
 	}
 
-	private refactorActionToCodeAction(
+	private async refactorActionToCodeAction(
 		document: vscode.TextDocument,
 		refactor: Proto.ApplicableRefactorInfo,
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): TsCodeAction {
+	): Promise<TsCodeAction | undefined> {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
+			const navigationTree = await this.client.execute('navtree', { file: document.uri.path }, nulToken);
+			if (navigationTree.type !== 'response') {
+				return;
+			}
+			const shouldIncludeMoveToAction = MoveToFileCodeAction.shouldIncludeMoveToAction(navigationTree.body, rangeOrSelection);
+			if (!shouldIncludeMoveToAction) {
+				return;
+			}
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
 			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
