@@ -63,6 +63,7 @@ suite('CommandDetectionCapability', () => {
 	async function printCommandStart(prompt: string) {
 		capability.handlePromptStart();
 		await writeP(xterm, `\r${prompt}`);
+		capability.handleCommandStart();
 	}
 
 

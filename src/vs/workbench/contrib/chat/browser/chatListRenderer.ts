@@ -50,14 +50,14 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { convertParsedRequestToMarkdown, reduceInlineContentReferences, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { annotateSpecialMarkdownContent, convertParsedRequestToMarkdown, extractVulnerabilitiesFromText, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentInlineReference, IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -68,7 +68,7 @@ const $ = dom.$;
 
 interface IChatListItemTemplate {
 	readonly rowContainer: HTMLElement;
-	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
 	readonly agentAvatarContainer: HTMLElement;
 	readonly username: HTMLElement;
@@ -94,6 +94,8 @@ export interface IChatRendererDelegate {
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'default' | 'compact';
+	readonly noHeader?: boolean;
+	readonly noPadding?: boolean;
 }
 
 export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
@@ -211,7 +213,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	layout(width: number): void {
-		this._currentLayoutWidth = width - 40; // TODO Padding
+		this._currentLayoutWidth = width - (this.rendererOptions.noPadding ? 0 : 40); // padding
 		this._editorPool.inUse.forEach(editor => {
 			editor.layout(this._currentLayoutWidth);
 		});
@@ -222,6 +224,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const rowContainer = dom.append(container, $('.interactive-item-container'));
 		if (this.rendererOptions.renderStyle === 'compact') {
 			rowContainer.classList.add('interactive-item-compact');
+		}
+		if (this.rendererOptions.noPadding) {
+			rowContainer.classList.add('no-padding');
 		}
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
@@ -238,26 +243,32 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
-		const titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatMessageTitle, {
-			menuOptions: {
-				shouldForwardArgs: true
-			},
-			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
-					return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
+		let titleToolbar: MenuWorkbenchToolBar | undefined;
+		if (this.rendererOptions.noHeader) {
+			header.classList.add('hidden');
+		} else {
+			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatMessageTitle, {
+				menuOptions: {
+					shouldForwardArgs: true
+				},
+				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+					if (action instanceof MenuItemAction && (action.item.id === 'workbench.action.chat.voteDown' || action.item.id === 'workbench.action.chat.voteUp')) {
+						return scopedInstantiationService.createInstance(ChatVoteButton, action, options as IMenuEntryActionViewItemOptions);
+					}
+
+					return undefined;
 				}
-
-				return undefined;
-			}
-		}));
-
-
+			}));
+		}
 		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, progressSteps, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
 	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
-		const { element } = node;
+		this.renderChatTreeItem(node.element, index, templateData);
+	}
+
+	renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
 				'welcome';
@@ -272,7 +283,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set('');
 		}
 
-		templateData.titleToolbar.context = element;
+		if (templateData.titleToolbar) {
+			templateData.titleToolbar.context = element;
+		}
 
 		const isFiltered = !!(isResponseVM(element) && element.errorDetails?.responseIsFiltered);
 		CONTEXT_RESPONSE_FILTERED.bindTo(templateData.contextKeyService).set(isFiltered);
@@ -283,7 +296,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.rowContainer.classList.toggle('show-progress', isResponseVM(element) && !element.isComplete);
 		templateData.username.textContent = element.username;
-		this.renderAvatar(element, templateData);
+		if (!this.rendererOptions.noHeader) {
+			this.renderAvatar(element, templateData);
+		}
 
 		dom.clearNode(templateData.detail);
 		if (isResponseVM(element)) {
@@ -316,7 +331,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
 			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
-			const renderableResponse = reduceInlineContentReferences(element.response.value);
+			const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 			this.basicRenderElement(renderableResponse, element, index, templateData);
 		} else if (isRequestVM(element)) {
 			const markdown = 'kind' in element.message ?
@@ -417,7 +432,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private basicRenderElement(value: ReadonlyArray<Exclude<IChatProgressResponseContent, IChatContentInlineReference>>, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
+	private basicRenderElement(value: ReadonlyArray<IChatProgressRenderableResponseContent>, element: ChatTreeItem, index: number, templateData: IChatListItemTemplate) {
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 
 		dom.clearNode(templateData.value);
@@ -520,7 +535,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		disposables.clear();
 
-		const renderableResponse = reduceInlineContentReferences(element.response.value);
+		const annotatedResult = annotateSpecialMarkdownContent(element.response.value);
+		const renderableResponse = annotatedResult;
 		let isFullyRendered = false;
 		if (element.isCanceled) {
 			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
@@ -801,8 +817,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
+				const vulns = extractVulnerabilitiesFromText(text);
+
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element, hideToolbar, parentContextKeyService: templateData.contextKeyService };
+				const data = { languageId, text: vulns.newText, codeBlockIndex: codeBlockIndex++, element, hideToolbar, parentContextKeyService: templateData.contextKeyService, vulns: vulns.vulnerabilities };
 				const ref = this.renderCodeBlock(data, disposables);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)

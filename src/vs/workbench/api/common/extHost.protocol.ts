@@ -80,6 +80,7 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { VariablesResult } from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1075,6 +1076,7 @@ export interface INotebookKernelDto2 {
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: readonly string[] }[];
+	hasVariableProvider?: boolean;
 }
 
 export interface INotebookProxyKernelDto {
@@ -1131,6 +1133,8 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$addKernelSourceActionProvider(handle: number, eventHandle: number, notebookType: string): Promise<void>;
 	$removeKernelSourceActionProvider(handle: number, eventHandle: number): void;
 	$emitNotebookKernelSourceActionsChangeEvent(eventHandle: number): void;
+	$receiveVariable(requestId: string, variable: VariablesResult): void;
+	$variablesUpdated(notebookUri: UriComponents): void;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -2538,6 +2542,7 @@ export interface ExtHostNotebookKernelsShape {
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
 	$provideKernelSourceActions(handle: number, token: CancellationToken): Promise<notebookCommon.INotebookKernelSourceAction[]>;
+	$provideVariables(handle: number, requestId: string, notebookUri: UriComponents, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void>;
 }
 
 export interface ExtHostInteractiveShape {

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
@@ -21,6 +21,8 @@ import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/brow
 import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageService, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { AsyncIterableObject } from 'vs/base/common/async';
 
 suite('NotebookKernelHistoryService', () => {
 
@@ -183,6 +185,9 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
+	}
+	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+		return AsyncIterableObject.EMPTY;
 	}
 
 	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {
