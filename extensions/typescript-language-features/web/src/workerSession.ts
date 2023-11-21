@@ -22,7 +22,7 @@ export interface StartSessionOptions {
 	readonly disableAutomaticTypingAcquisition: boolean;
 }
 
-export function createWorkerSession(
+export function startWorkerSession(
 	ts: typeof import('typescript/lib/tsserverlibrary'),
 	host: ts.server.ServerHost,
 	fs: FileSystem | undefined,
@@ -30,10 +30,10 @@ export function createWorkerSession(
 	port: MessagePort,
 	pathMapper: PathMapper,
 	logger: Logger,
-) {
+): void {
 	const indent: (str: string) => string = (ts as any).server.indent;
 
-	return new class WorkerSession extends ts.server.Session<{}> {
+	const worker = new class WorkerSession extends ts.server.Session<{}> {
 
 		private readonly wasmCancellationToken: WasmCancellationToken;
 		private readonly listener: (message: any) => void;
@@ -121,4 +121,6 @@ export function createWorkerSession(
 			port.onmessage = this.listener;
 		}
 	}();
+
+	worker.listen();
 }

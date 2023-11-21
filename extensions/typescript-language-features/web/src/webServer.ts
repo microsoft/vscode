@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/// <reference lib='webworker.importscripts' />
 /// <reference lib='webworker' />
 
 import ts from 'typescript/lib/tsserverlibrary';
@@ -12,13 +11,9 @@ import { Logger, parseLogLevel } from './logging';
 import { PathMapper } from './pathMapper';
 import { createSys } from './serverHost';
 import { findArgument, findArgumentStringArray, hasArgument, parseServerMode } from './util/args';
-import { StartSessionOptions, createWorkerSession } from './workerSession';
+import { StartSessionOptions, startWorkerSession } from './workerSession';
 
 const setSys: (s: ts.System) => void = (ts as any).setSys;
-
-// GLOBALS
-let session: WorkerSession | undefined;
-// END GLOBALS
 
 async function initializeSession(
 	args: readonly string[],
@@ -46,8 +41,7 @@ async function initializeSession(
 		removeEventListener('message', listener);
 	});
 	setSys(sys);
-	session = createWorkerSession(ts, sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
-	session.listen();
+	startWorkerSession(ts, sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
 }
 
 function parseSessionOptions(args: readonly string[], serverMode: ts.LanguageServiceMode | undefined): StartSessionOptions {
