@@ -223,6 +223,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private _updateLightBulbTitleAndIcon(): void {
 		this._domNode.classList.remove(...this._iconClasses);
+		this._iconClasses = [];
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
@@ -237,7 +238,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
-				return;
 			}
 		} else if (this.state.actions.hasAIFix) {
 			icon = Codicon.lightbulbSparkle;
