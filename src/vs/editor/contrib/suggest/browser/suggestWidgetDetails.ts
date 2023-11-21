@@ -345,7 +345,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	show(): void {
 		if (!this._added) {
 			this._editor.addOverlayWidget(this);
-			this.getDomNode().style.position = 'fixed';
+			this.getDomNode().style.position = 'absolute';
 			this._added = true;
 		}
 	}
@@ -460,7 +460,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 
 		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });
-		this.getDomNode().style.position = 'fixed';
+		this.getDomNode().style.position = 'absolute';
 
 		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
 
