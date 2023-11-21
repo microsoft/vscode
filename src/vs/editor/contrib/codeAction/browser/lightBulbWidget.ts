@@ -229,14 +229,18 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		let icon: ThemeIcon;
 		if (this.state.actions.allAIFixes) {
 			icon = Codicon.sparkle;
-		} else if (this.state.actions.hasAIFix) {
-			icon = Codicon.lightbulbSparkle;
 		} else if (this.state.actions.hasAutoFix) {
-			icon = Codicon.lightbulbAutofix;
+			if (this.state.actions.hasAIFix) {
+				icon = Codicon.lightbulbSparkleAutofix;
+			} else {
+				icon = Codicon.lightbulbAutofix;
+			}
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
 				return;
 			}
+		} else if (this.state.actions.hasAIFix) {
+			icon = Codicon.lightbulbSparkle;
 		} else {
 			icon = Codicon.lightBulb;
 			if (this._quickFixKbLabel) {
