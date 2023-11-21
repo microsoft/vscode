@@ -25,6 +25,7 @@ export default class Messages {
 	public static MARKERS_PANEL_TITLE_PROBLEMS: ILocalizedString = nls.localize2('markers.panel.title.problems', "Problems");
 
 	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace.");
+	public static MARKERS_PANEL_NO_PROBLEMS_TURNED_OFF: string = nls.localize('markers.panel.no.problems.off', "The current file has no problems, because 'workbench.editor.showProblems' is turned off.");
 	public static MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT: string = nls.localize('markers.panel.no.problems.activeFile.build', "No problems have been detected in the current file.");
 	public static MARKERS_PANEL_NO_PROBLEMS_FILTERS: string = nls.localize('markers.panel.no.problems.filters', "No results found with provided filter criteria.");
 

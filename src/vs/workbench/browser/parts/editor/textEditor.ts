@@ -102,7 +102,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
-		return e.affectsConfiguration(resource, 'editor');
+		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'workbench.editor.showProblems');
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
@@ -156,12 +156,13 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
+		const problem = this.textResourceConfigurationService.getValue(this.getActiveResource(), 'workbench.editor.showProblems');
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: 'on' // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
+			renderValidationDecorations: problem ? 'on' : 'off' // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
 		};
 	}
 

@@ -33,6 +33,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -555,11 +556,17 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.showProblems')) {
+				this.markersStatusItem.update(this.getMarkersItem());
+			}
+		});
 	}
 
 	private getMarkersItem(): IStatusbarEntry {
@@ -575,6 +582,11 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersTooltip(stats: MarkerStatistics): string {
+		const config = this.configurationService.getValue('workbench.editor.showProblems');
+		if (!config) {
+			return localize('problemsOff', "Problems have been turned off.");
+		}
+
 		const errorTitle = (n: number) => localize('totalErrors', "Errors: {0}", n);
 		const warningTitle = (n: number) => localize('totalWarnings', "Warnings: {0}", n);
 		const infoTitle = (n: number) => localize('totalInfos', "Infos: {0}", n);
@@ -618,6 +630,10 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private packNumber(n: number): string {
+		const config = this.configurationService.getValue('workbench.editor.showProblems');
+		if (!config) {
+			return '-';
+		}
 		const manyProblems = localize('manyProblems', "10K+");
 		return n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 	}
@@ -631,16 +647,26 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
-		@IMarkerService private readonly markerService: IMarkerService
+		@IMarkerService private readonly markerService: IMarkerService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this._register(this.markerService.onMarkerChanged(() => this.updateBadge()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.showProblems')) {
+				this.updateBadge();
+			}
+		}));
 		this.updateBadge();
 	}
 
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
-		const total = errors + warnings + infos;
+		let total = errors + warnings + infos;
+		const config = this.configurationService.getValue('workbench.editor.showProblems');
+		if (!config) {
+			total = 0;
+		}
 		const message = localize('totalProblems', 'Total {0} Problems', total);
 		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
 	}

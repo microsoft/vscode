@@ -67,7 +67,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		//
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('problems')) {
+				if (e.affectsConfiguration('problems') || e.affectsConfiguration('workbench.editor.showProblems')) {
 					this._updateEnablement();
 				}
 			}),
@@ -81,16 +81,26 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
-		if (value.decorations.enabled === this._enabled) {
+		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		if (problem === undefined) {
 			return;
 		}
-		this._enabled = value.decorations.enabled;
+		const value = this._configurationService.getValue<{ decorations: { enabled: string } }>('problems');
+		const autoProblems = problem && value.decorations.enabled !== 'off';
+		const shouldEnable = (autoProblems || value.decorations.enabled === 'on');
+
+		if (shouldEnable === this._enabled) {
+			if (!autoProblems && value.decorations.enabled === 'off') {
+				this._provider?.dispose();
+				this._provider = undefined;
+			}
+			return;
+		}
+		this._enabled = shouldEnable;
 		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
 			this._provider = this._decorationsService.registerDecorationsProvider(provider);
 		} else if (this._provider) {
-			this._enabled = value.decorations.enabled;
 			this._provider.dispose();
 		}
 	}
@@ -99,12 +109,17 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'problems',
 	'order': 101,
-	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'description': localize('markers.showOnFile', "Show Errors & Warnings on files and folder."),
-			'type': 'boolean',
-			'default': true
+			'description': localize('markers.showOnFile', "Show Errors & Warnings in VS Code files and folders."),
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'markdownEnumDescriptions': [
+				localize('markers.showOnFile.auto.description', "Show Errors & Warnings in the editor depending on the {0} setting.", '`editor.showProblems`'),
+				localize('markers.showOnFile.on.description', "Always show Errors & Warnings in the editor."),
+				localize('markers.showOnFile.off.description', "Never show Errors & Warnings in the editor."),
+			],
+			'default': 'auto',
 		}
 	}
 });

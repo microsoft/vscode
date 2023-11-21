@@ -380,6 +380,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.editor.showProblems': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('showProblems', "Enable to show problems throughout the workbench.")
+			},
 			'workbench.localHistory.enabled': {
 				'type': 'boolean',
 				'default': true,

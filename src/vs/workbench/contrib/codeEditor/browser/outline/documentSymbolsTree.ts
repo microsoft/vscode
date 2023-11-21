@@ -169,16 +169,25 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+		const autoProblems = problem && configProblems !== 'off';
+
+		if (autoProblems || configProblems === 'on') {
 			template.container.style.setProperty('--outline-element-color', cssColor);
 		} else {
 			template.container.style.removeProperty('--outline-element-color');
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
-			dom.hide(template.decoration);
+		if (problem === undefined) {
+			return;
+		}
 
+		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
+		const autoProblemBadges = problem && configBadges !== 'off';
+		if (configBadges === 'off' || (!autoProblemBadges && configBadges !== 'on')) {
+			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);
 			template.decoration.classList.remove('bubble');
@@ -194,8 +203,6 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
 	}
-
-
 
 	disposeTemplate(_template: DocumentSymbolTemplate): void {
 		_template.iconLabel.dispose();

@@ -66,18 +66,33 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show errors and warnings on Outline elements."),
-			'type': 'boolean',
-			'default': true
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'markdownEnumDescriptions': [
+				localize('outline.showProblem.auto', "Show Errors & Warnings in the Outline depending on the {0} setting.", '`editor.showProblems`'),
+				localize('outline.showProblem.on', "Show errors and warnings on Outline elements."),
+				localize('outline.showProblem.off', "Do not show errors and warnings on Outline elements.")],
+			'default': 'auto'
 		},
 		[OutlineConfigKeys.problemsColors]: {
 			'description': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements."),
-			'type': 'boolean',
-			'default': true
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'markdownEnumDescriptions': [
+				localize('outline.problem.colors.auto', "Use colors for errors and warnings in the Outline depending on the {0} setting.", '`editor.showProblems`'),
+				localize('outline.problem.colors.on', "Use colors for errors and warnings on Outline elements."),
+				localize('outline.problem.colors.off', "Do not use colors for errors and warnings on Outline elements.")],
+			'default': 'auto'
 		},
 		[OutlineConfigKeys.problemsBadges]: {
 			'description': localize('outline.problems.badges', "Use badges for errors and warnings on Outline elements."),
-			'type': 'boolean',
-			'default': true
+			'type': 'string',
+			'enum': ['auto', 'on', 'off'],
+			'markdownEnumDescriptions': [
+				localize('outline.problem.badges.auto', "Use badges for errors and warnings in the Outline depending on the {0} setting.", '`editor.problem]s`'),
+				localize('outline.problem.badges.on', "Use badges for errors and warnings on Outline elements."),
+				localize('outline.problem.badges.off', "Do not use badges for errors and warnings on Outline elements.")],
+			'default': 'auto'
 		},
 		'outline.showFiles': {
 			type: 'boolean',
