@@ -1865,8 +1865,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (isNumber(relativeTop)) {
 			// y = mx + b
-			const m = elementHeight - this.view.renderHeight;
-			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
+			const m = elementHeight - this.view.renderHeight + paddingTop;
+			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const scrollBottom = scrollTop + this.view.renderHeight;
@@ -1899,8 +1899,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 
 		// y = mx + b
-		const m = elementHeight - this.view.renderHeight;
-		return Math.abs((scrollTop - elementTop) / m);
+		const m = elementHeight - this.view.renderHeight + paddingTop;
+		return Math.abs((scrollTop + paddingTop - elementTop) / m);
 	}
 
 	isDOMFocused(): boolean {

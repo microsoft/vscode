@@ -1250,6 +1250,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this._widget.height;
 	}
 
+	get count(): number {
+		return this._widget.count;
+	}
+
 	getNode(node: ITreeNode<T, TFilterData>): StickyScrollNode<T, TFilterData> | undefined {
 		return this._widget.getNode(node);
 	}
@@ -1417,6 +1421,21 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return { startIndex, endIndex };
 	}
 
+	nodePositionTopBelowWidget(node: ITreeNode<T, TFilterData>): number {
+		const ancestors = [];
+		let currentAncestor = this.getParentNode(node);
+		while (currentAncestor) {
+			ancestors.push(currentAncestor);
+			currentAncestor = this.getParentNode(currentAncestor);
+		}
+
+		let widgetHeight = 0;
+		for (let i = 0; i < ancestors.length && i < this.stickyScrollMaxItemCount; i++) {
+			widgetHeight += this.treeDelegate.getHeight(ancestors[i]);
+		}
+		return widgetHeight;
+	}
+
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
 		const validatedOptions = this.validateStickySettings(optionsUpdate);
 		if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
@@ -1459,6 +1478,10 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		}
 		const lastElement = this._previousState.stickyNodes[this._previousState.count - 1];
 		return lastElement.position + lastElement.height;
+	}
+
+	get count(): number {
+		return this._previousState?.count ?? 0;
 	}
 
 	getNode(node: ITreeNode<T, TFilterData>): StickyScrollNode<T, TFilterData> | undefined {
@@ -2194,7 +2217,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	get firstVisibleElement(): T | undefined {
-		const index = this.view.firstVisibleIndex;
+		let index = this.view.firstVisibleIndex;
+
+		if (this.stickyScrollController) {
+			index += this.stickyScrollController.count;
+		}
 
 		if (index < 0 || index >= this.view.length) {
 			return undefined;
@@ -2411,15 +2438,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (!this.stickyScrollController) {
 			this.view.reveal(index, relativeTop);
 		} else {
-			for (let i = 0; i < 2; i++) {
-				const scrollTop = this.view.scrollTop;
-				const stickyScrollNode = this.stickyScrollController.getNode(this.getNode(location));
-				this.view.reveal(index, relativeTop, stickyScrollNode?.position ?? this.stickyScrollController.height);
-
-				if (scrollTop === this.view.scrollTop) {
-					break;
-				}
-			}
+			const paddingTop = this.stickyScrollController.nodePositionTopBelowWidget(this.getNode(location));
+			this.view.reveal(index, relativeTop, paddingTop);
 		}
 	}
 
