@@ -134,6 +134,11 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			});
 		}));
 
+		this._register(autorun(reader => {
+			const isFocused = this.isFocused.read(reader);
+			this._elements.root.classList.toggle('focused', isFocused);
+		}));
+
 		this._container.appendChild(this._elements.root);
 		this._outerEditorHeight = 38;
 	}
