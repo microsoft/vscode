@@ -12,7 +12,7 @@ import * as PConst from '../tsServer/protocol/protocol.const';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
 
-export const getSymbolKind = (kind: string): vscode.SymbolKind => {
+const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
 		case PConst.Kind.module: return vscode.SymbolKind.Module;
 		case PConst.Kind.class: return vscode.SymbolKind.Class;
@@ -33,7 +33,7 @@ export const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	return vscode.SymbolKind.Variable;
 };
 
-export class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
