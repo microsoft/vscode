@@ -443,7 +443,11 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		PConst.Kind.interface
 	]);
 
-	private static _navTreeContainsRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
+	private static _navTreeNameSpanContainsRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
+		return !!navigationTree.nameSpan && typeConverters.Range.fromTextSpan(navigationTree.nameSpan).contains(range) && MoveToFileCodeAction._scopesOfInterest.has(navigationTree.kind);
+	}
+
+	private static _navTreeSpansContainRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
 		return navigationTree.spans.some(span => typeConverters.Range.fromTextSpan(span).contains(range));
 	}
 
@@ -451,7 +455,7 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		navigationTree: Proto.NavigationTree | undefined,
 		range: vscode.Range
 	): boolean {
-		if (!navigationTree || !MoveToFileCodeAction._navTreeContainsRange(navigationTree, range)) {
+		if (!navigationTree || !MoveToFileCodeAction._navTreeSpansContainRange(navigationTree, range)) {
 			return false;
 		}
 		return MoveToFileCodeAction._shouldIncludeMoveToAction(navigationTree, range);
@@ -461,15 +465,18 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		navigationTree: Proto.NavigationTree,
 		range: vscode.Range
 	): boolean {
+		if (MoveToFileCodeAction._navTreeNameSpanContainsRange(navigationTree, range)) {
+			return true;
+		}
 		const childTrees = navigationTree.childItems;
 		if (childTrees) {
 			for (const childTree of childTrees) {
-				if (MoveToFileCodeAction._navTreeContainsRange(childTree, range) && MoveToFileCodeAction._scopesOfInterest.has(childTree.kind)) {
+				if (MoveToFileCodeAction._navTreeSpansContainRange(childTree, range)) {
 					return this._shouldIncludeMoveToAction(childTree, range);
 				}
 			}
 		}
-		return !!navigationTree.nameSpan && typeConverters.Range.fromTextSpan(navigationTree.nameSpan).contains(range);
+		return MoveToFileCodeAction._navTreeNameSpanContainsRange(navigationTree, range);
 	}
 }
 
