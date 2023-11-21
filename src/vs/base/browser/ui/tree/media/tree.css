@@ -137,10 +137,11 @@
 	height: 0;
 }
 
-.monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row{
+.monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row{
 	position: absolute;
 	width: 100%;
-	z-index: 13;
+	z-index: 13; /* Settings editor uses z-index: 11 */
+	opacity: 1 !important; /* Settings editor uses opacity < 1 */
 }
 
 .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.last-sticky{

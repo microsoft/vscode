@@ -1209,7 +1209,7 @@ class StickyScrollState<T, TFilterData, TRef> extends Disposable {
 
 class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
-	private maxNumberOfStickyElements: number;
+	private stickyScrollMaxItemCount: number;
 	private readonly maxWidgetViewRatio = 0.4;
 
 	private readonly _widget: StickyScrollWidget<T, TFilterData, TRef>;
@@ -1235,7 +1235,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		super();
 
 		const stickyScrollOptions = this.validateStickySettings(options);
-		this.maxNumberOfStickyElements = stickyScrollOptions.stickyScrollMaxItemCount;
+		this.stickyScrollMaxItemCount = stickyScrollOptions.stickyScrollMaxItemCount;
 
 		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, model, renderers, treeDelegate));
 
@@ -1271,7 +1271,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 			stickyNodes.push(nextStickyNode);
 			stickyNodesHeight += nextStickyNode.height;
 
-			if (stickyNodes.length >= this.maxNumberOfStickyElements) {
+			if (stickyNodes.length >= this.stickyScrollMaxItemCount) {
 				break;
 			}
 
@@ -1411,8 +1411,8 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
 		const validatedOptions = this.validateStickySettings(optionsUpdate);
-		if (this.maxNumberOfStickyElements !== validatedOptions.stickyScrollMaxItemCount) {
-			this.maxNumberOfStickyElements = validatedOptions.stickyScrollMaxItemCount;
+		if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
+			this.stickyScrollMaxItemCount = validatedOptions.stickyScrollMaxItemCount;
 			this.update();
 		}
 	}
