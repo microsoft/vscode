@@ -55,6 +55,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	public readonly onClick = this._onClick.event;
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
+	private _classNamesMenuIcon: string[] = [];
 
 	private _preferredKbLabel?: string;
 	private _quickFixKbLabel?: string;
@@ -217,34 +218,33 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateLightBulbTitleAndIcon(): void {
-
-		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.sparkle));
-		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbSparkle));
-		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
-		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
-
+		this._domNode.classList.remove(...this._classNamesMenuIcon);
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
 
+		let codicon: ThemeIcon;
 		if (this.state.actions.allAIFixes) {
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
+			codicon = Codicon.sparkle;
 		} else if (this.state.actions.hasAIFix) {
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbSparkle));
+			codicon = Codicon.lightbulbSparkle;
 		} else if (this.state.actions.hasAutoFix) {
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
+			codicon = Codicon.lightbulbAutofix;
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
 				return;
 			}
 		} else {
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+			codicon = Codicon.lightBulb;
 			if (this._quickFixKbLabel) {
 				this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
 			} else {
 				this.title = nls.localize('codeAction', "Show Code Actions");
 			}
 		}
+
+		this._classNamesMenuIcon = ThemeIcon.asClassNameArray(codicon);
+		this._domNode.classList.add(...this._classNamesMenuIcon);
 	}
 
 	private set title(value: string) {
