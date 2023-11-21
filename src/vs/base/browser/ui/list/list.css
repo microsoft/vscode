@@ -42,6 +42,11 @@
 	touch-action: none;
 }
 
+/* Make sure the scrollbar renders above overlays (sticky scroll) */
+.monaco-list .monaco-scrollable-element > .scrollbar {
+	z-index: 14;
+}
+
 /* for OS X ballistic scrolling */
 .monaco-list-row.scrolling {
 	display: none !important;
