@@ -1180,7 +1180,7 @@ interface StickyScrollNode<T, TFilterData> {
 	readonly position: number;
 }
 
-function stickyScrollNodeEquals<T, TFilterData, TRef>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
+function stickyScrollNodeEquals<T, TFilterData>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
 	return node1.position === node2.position &&
 		node1.node.element === node2.node.element &&
 		node1.startIndex === node2.startIndex &&
@@ -1244,6 +1244,14 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this._register(tree.onDidChangeCollapseState(() => this.update()));
 
 		this.update();
+	}
+
+	get height(): number {
+		return this._widget.height;
+	}
+
+	getNode(node: ITreeNode<T, TFilterData>): StickyScrollNode<T, TFilterData> | undefined {
+		return this._widget.getNode(node);
 	}
 
 	private update() {
@@ -1442,8 +1450,19 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.classList.add('monaco-tree-sticky-container');
-		this._rootDomNode.classList.add('monaco-list');
 		container.appendChild(this._rootDomNode);
+	}
+
+	get height(): number {
+		if (!this._previousState) {
+			return 0;
+		}
+		const lastElement = this._previousState.stickyNodes[this._previousState.count - 1];
+		return lastElement.position + lastElement.height;
+	}
+
+	getNode(node: ITreeNode<T, TFilterData>): StickyScrollNode<T, TFilterData> | undefined {
+		return this._previousState?.stickyNodes.find(stickyNode => stickyNode.node === node);
 	}
 
 	setState(state: StickyScrollState<T, TFilterData, TRef> | undefined): void {
@@ -2388,7 +2407,19 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			return;
 		}
 
-		this.view.reveal(index, relativeTop);
+		if (!this.stickyScrollController) {
+			this.view.reveal(index, relativeTop);
+		} else {
+			for (let i = 0; i < 2; i++) {
+				const scrollTop = this.view.scrollTop;
+				const stickyScrollNode = this.stickyScrollController.getNode(this.getNode(location));
+				this.view.reveal(index, relativeTop, stickyScrollNode?.position ?? this.stickyScrollController.height);
+
+				if (scrollTop === this.view.scrollTop) {
+					break;
+				}
+			}
+		}
 	}
 
 	/**
