@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 import { equals, tail } from 'vs/base/common/arrays';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -23,20 +25,18 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
-import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export abstract class EditModeStrategy {
 
 	abstract dispose(): void;
-
-	abstract checkChanges(response: EditResponse): boolean;
 
 	abstract apply(): Promise<void>;
 
@@ -48,7 +48,7 @@ export abstract class EditModeStrategy {
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
-	abstract renderChanges(response: EditResponse): Promise<void>;
+	abstract renderChanges(response: ReplyResponse): Promise<void>;
 
 	abstract hasFocus(): boolean;
 
@@ -64,8 +64,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		private readonly _session: Session,
 		private readonly _widget: InlineChatWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 
@@ -82,37 +80,25 @@ export class PreviewStrategy extends EditModeStrategy {
 		this._ctxDocumentChanged.reset();
 	}
 
-	checkChanges(response: EditResponse): boolean {
-		if (!response.workspaceEdits || response.singleCreateFileEdit) {
-			// preview stategy can handle simple workspace edit (single file create)
-			return true;
-		}
-		this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
-		return false;
-	}
-
 	async apply() {
 
-		if (!(this._session.lastExchange?.response instanceof EditResponse)) {
+		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
 			return;
 		}
 		const editResponse = this._session.lastExchange?.response;
-		if (editResponse.workspaceEdits) {
-			await this._bulkEditService.apply(editResponse.workspaceEdits);
-			this._instaService.invokeFunction(showSingleCreateFile, editResponse);
+		const { textModelN: modelN } = this._session;
 
-
-		} else if (!editResponse.workspaceEditsIncludeLocalEdits) {
-
-			const { textModelN: modelN } = this._session;
-
-			if (modelN.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
-				modelN.pushStackElement();
-				for (const edits of editResponse.allLocalEdits) {
-					modelN.pushEditOperations(null, edits.map(TextEdit.asEditOperation), () => null);
-				}
-				modelN.pushStackElement();
+		if (modelN.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
+			modelN.pushStackElement();
+			for (const edits of editResponse.allLocalEdits) {
+				modelN.pushEditOperations(null, edits.map(TextEdit.asEditOperation), () => null);
 			}
+			modelN.pushStackElement();
+		}
+
+		const { untitledTextModel } = this._session.lastExchange.response;
+		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
+			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
 		}
 	}
 
@@ -132,7 +118,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async renderChanges(response: EditResponse): Promise<void> {
+	override async renderChanges(response: ReplyResponse): Promise<void> {
 		if (response.allLocalEdits.length > 0) {
 			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
 			await this._widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
@@ -140,8 +126,8 @@ export class PreviewStrategy extends EditModeStrategy {
 			this._widget.hideEditsPreview();
 		}
 
-		if (response.singleCreateFileEdit) {
-			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+		if (response.untitledTextModel) {
+			this._widget.showCreatePreview(response.untitledTextModel);
 		} else {
 			this._widget.hideCreatePreview();
 		}
@@ -225,7 +211,6 @@ class InlineDiffDecorations {
 
 export interface ProgressingEditsOptions {
 	duration: number;
-	round: number;
 	token: CancellationToken;
 }
 
@@ -236,7 +221,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _store: DisposableStore = new DisposableStore();
 
-	private _lastResponse?: EditResponse;
 	private _editCount: number = 0;
 
 	constructor(
@@ -272,26 +256,16 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 	}
 
-	checkChanges(response: EditResponse): boolean {
-		this._lastResponse = response;
-		if (response.singleCreateFileEdit) {
-			// preview stategy can handle simple workspace edit (single file create)
-			return true;
-		}
-		if (response.workspaceEdits) {
-			this._bulkEditService.apply(response.workspaceEdits, { showPreview: true });
-			return false;
-		}
-		return true;
-	}
-
 	async apply() {
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
-		if (this._lastResponse?.workspaceEdits) {
-			await this._bulkEditService.apply(this._lastResponse.workspaceEdits);
-			this._instaService.invokeFunction(showSingleCreateFile, this._lastResponse);
+		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
+			return;
+		}
+		const { untitledTextModel } = this._session.lastExchange.response;
+		if (untitledTextModel && !untitledTextModel.isDisposed() && untitledTextModel.isDirty()) {
+			await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
 		}
 	}
 
@@ -328,8 +302,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
 
-		if (opts.round === 0) {
-			this._session.textModelN.pushStackElement();
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
 		}
 
 		const durationInSec = opts.duration / 1000;
@@ -341,13 +316,13 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async renderChanges(response: EditResponse) {
+	override async renderChanges(response: ReplyResponse) {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		this._updateSummaryMessage(diff?.changes ?? []);
 		this._inlineDiffDecorations.update();
 
-		if (response.singleCreateFileEdit) {
-			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+		if (response.untitledTextModel) {
+			this._widget.showCreatePreview(response.untitledTextModel);
 		} else {
 			this._widget.hideCreatePreview();
 		}
@@ -421,7 +396,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		if (!diff || diff.changes.length === 0) {
 			for (const zone of this._diffZonePool) {
 				zone.hide();
-				zone.dispose();
 			}
 			return;
 		}
@@ -509,12 +483,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async renderChanges(response: EditResponse) {
+	override async renderChanges(response: ReplyResponse) {
 
 		await this._updateDiffZones();
 
-		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToStart(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
+			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -522,13 +496,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override hasFocus(): boolean {
 		return super.hasFocus() || Boolean(this._previewZone.rawValue?.hasFocus()) || this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
-	}
-}
-
-function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
-	const editorService = accessor.get(IEditorService);
-	if (edit.singleCreateFileEdit) {
-		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
 	}
 }
 
@@ -583,22 +550,24 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 	let newText = edit.text ?? '';
 	// const wordCount = countWords(newText);
 
-	const handle = setInterval(() => {
+	const handle = disposableWindowInterval($window, () => {
 
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
-			clearInterval(handle);
+			handle.dispose();
 			stream.resolve();
+			d.dispose();
 		}
 
 	}, 1000 / wordsPerSec);
 
 	// cancel ASAP
-	token.onCancellationRequested(() => {
-		clearTimeout(handle);
+	const d = token.onCancellationRequested(() => {
+		handle.dispose();
 		stream.resolve();
+		d.dispose();
 	});
 
 	return {

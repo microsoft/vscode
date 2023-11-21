@@ -104,12 +104,10 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			const lastUnchangedRegions = this._unchangedRegions.get();
 			const lastUnchangedRegionsOrigRanges = lastUnchangedRegions.originalDecorationIds
 				.map(id => model.original.getDecorationRange(id))
-				.filter(r => !!r)
-				.map(r => LineRange.fromRange(r!));
+				.map(r => r ? LineRange.fromRange(r) : undefined);
 			const lastUnchangedRegionsModRanges = lastUnchangedRegions.modifiedDecorationIds
 				.map(id => model.modified.getDecorationRange(id))
-				.filter(r => !!r)
-				.map(r => LineRange.fromRange(r!));
+				.map(r => r ? LineRange.fromRange(r) : undefined);
 
 			const originalDecorationIds = model.original.deltaDecorations(
 				lastUnchangedRegions.originalDecorationIds,
@@ -123,8 +121,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 			for (const r of newUnchangedRegions) {
 				for (let i = 0; i < lastUnchangedRegions.regions.length; i++) {
-					if (r.originalUnchangedRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
-						&& r.modifiedUnchangedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
+					if (lastUnchangedRegionsOrigRanges[i] && r.originalUnchangedRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i]!)
+						&& lastUnchangedRegionsModRanges[i] && r.modifiedUnchangedRange.intersectsStrict(lastUnchangedRegionsModRanges[i]!)) {
 						r.setHiddenModifiedRange(lastUnchangedRegions.regions[i].getHiddenModifiedRange(undefined), tx);
 						break;
 					}
@@ -156,6 +154,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 			}
 
+			this._isDiffUpToDate.set(false, undefined);
 			debouncer.schedule();
 		}));
 		this._register(model.original.onDidChangeContent((e) => {
@@ -174,6 +173,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 			}
 
+			this._isDiffUpToDate.set(false, undefined);
 			debouncer.schedule();
 		}));
 
@@ -221,6 +221,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
 
 			transaction(tx => {
+				/** @description write diff result */
 				updateUnchangedRegions(result, tx);
 
 				this._lastDiff = result;

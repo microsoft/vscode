@@ -123,37 +123,38 @@ ${this.getInfos()}
 	private getInfos(): string {
 		let info = '';
 
-		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (!this._data.fileOnMarketplace && this._data.includeExtensionData && this._data.extensionData) {
-				info += this.getExtensionData();
-			}
+		if (this._data.fileOnMarketplace) {
+			return info;
 		}
 
-		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (!this._data.fileOnMarketplace && this._data.includeSystemInfo && this._data.systemInfo) {
+		const isBugOrPerformanceIssue = this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue;
+
+		if (isBugOrPerformanceIssue) {
+			if (this._data.includeExtensionData && this._data.extensionData) {
+				info += this.getExtensionData();
+			}
+
+			if (this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
 			}
 		}
 
 		if (this._data.issueType === IssueType.PerformanceIssue) {
-
-			if (!this._data.fileOnMarketplace && this._data.includeProcessInfo) {
+			if (this._data.includeProcessInfo) {
 				info += this.generateProcessInfoMd();
 			}
 
-			if (!this._data.fileOnMarketplace && this._data.includeWorkspaceInfo) {
+			if (this._data.includeWorkspaceInfo) {
 				info += this.generateWorkspaceInfoMd();
 			}
 		}
 
-		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (!this._data.fileOnMarketplace && !this._data.fileOnExtension && this._data.includeExtensions) {
+		if (isBugOrPerformanceIssue) {
+			if (!this._data.fileOnExtension && this._data.includeExtensions) {
 				info += this.generateExtensionsMd();
 			}
-		}
 
-		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
-			if (!this._data.fileOnMarketplace && this._data.includeExperiments && this._data.experimentInfo) {
+			if (this._data.includeExperiments && this._data.experimentInfo) {
 				info += this.generateExperimentsInfoMd();
 			}
 		}

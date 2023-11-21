@@ -13,8 +13,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionVoteAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'vote';
-		// sessionId: string;
-		responseId: string;
 		direction: InteractiveSessionVoteDirection;
 	}
 
@@ -27,8 +25,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionCopyAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'copy';
-		// sessionId: string;
-		responseId: string;
 		codeBlockIndex: number;
 		copyType: InteractiveSessionCopyKind;
 		copiedCharacters: number;
@@ -39,8 +35,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionInsertAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'insert';
-		// sessionId: string;
-		responseId: string;
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
@@ -49,8 +43,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionTerminalAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
-		// sessionId: string;
-		responseId: string;
 		codeBlockIndex: number;
 		languageId?: string;
 	}
@@ -67,7 +59,12 @@ declare module 'vscode' {
 		followup: InteractiveSessionReplyFollowup;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
+	export interface InteractiveSessionBugReportAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'bug';
+	}
+
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionBugReportAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;
