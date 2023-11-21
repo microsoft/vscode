@@ -235,10 +235,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	private refreshRole(): void {
-		if (this.length() >= 2) {
+		if (this.length() >= 1) {
 			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
-		} else if (this.length() === 1) {
-			this.actionsList.setAttribute('role', this.options.ariaRole || 'button');
 		} else {
 			this.actionsList.setAttribute('role', 'presentation');
 		}
