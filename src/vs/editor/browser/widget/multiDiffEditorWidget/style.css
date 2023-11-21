@@ -16,7 +16,7 @@
 	border-left: 2px var(--vscode-notebook-focusedCellBorder) solid;
 }
 
-.monaco-component .multiDiffEntry .editor {
+.monaco-component .multiDiffEntry .editorParent .editorContainer {
 	border-left: 17px var(--vscode-tab-inactiveBackground) solid;
 }
 

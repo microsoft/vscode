@@ -79,7 +79,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 					flexDirection: 'column',
 				}
 			}, [
-				h('div@editor', { style: { flex: '1' } }),
+				h('div.editorContainer@editor', { style: { flex: '1' } }),
 			])
 		])
 	]);
