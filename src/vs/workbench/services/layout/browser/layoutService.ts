@@ -169,10 +169,10 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	focusPart(part: Parts): void;
 
 	/**
-	 * Returns the parts HTML element, if there is one.
+	 * Returns the target window container or parts HTML element within, if there is one.
 	 */
-	getContainer(window: Window): HTMLElement;
-	getContainer(part: Parts): HTMLElement | undefined;
+	getContainer(targetWindow: Window): HTMLElement;
+	getContainer(targetWindow: Window, part: Parts): HTMLElement | undefined;
 
 	/**
 	 * Returns if the part is visible.
