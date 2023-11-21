@@ -235,7 +235,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
@@ -287,12 +287,6 @@ export class SettingsEditor2 extends EditorPane {
 		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
-
-		extensionManagementService.getInstalled().then(extensions => {
-			this.installedExtensionIds = extensions
-				.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
-				.map(ext => ext.identifier.id);
-		});
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -392,6 +386,15 @@ export class SettingsEditor2 extends EditorPane {
 			// Init TOC selection
 			this.updateTreeScrollSync();
 		});
+
+		await this.refreshInstalledExtensionsList();
+	}
+
+	private async refreshInstalledExtensionsList(): Promise<void> {
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		this.installedExtensionIds = installedExtensions
+			.filter(ext => ext.manifest && ext.manifest.contributes && ext.manifest.contributes.configuration)
+			.map(ext => ext.identifier.id);
 	}
 
 	private restoreCachedState(): ISettingsEditor2State | null {
@@ -1207,7 +1210,9 @@ export class SettingsEditor2 extends EditorPane {
 		});
 
 		const extensionId = setting.displayExtensionId!;
-		if (!matchingGroups.length) {
+		const extensionInstalled = this.installedExtensionIds.includes(extensionId);
+		if (!matchingGroups.length && !extensionInstalled) {
+			// Only show the recommendation when the extension hasn't been installed.
 			const newGroup: ISettingsGroup = {
 				sections: [{
 					settings: [setting],
@@ -1223,7 +1228,7 @@ export class SettingsEditor2 extends EditorPane {
 			};
 			groups.push(newGroup);
 			return newGroup;
-		} else if (matchingGroups.length >= 2) {
+		} else if (matchingGroups.length >= 2 || extensionInstalled) {
 			// Remove the group with the manage extension setting.
 			const matchingGroupIndex = matchingGroups.findIndex(group =>
 				group.sections.length === 1 && group.sections[0].settings.length === 1 && group.sections[0].settings[0].displayExtensionId);
