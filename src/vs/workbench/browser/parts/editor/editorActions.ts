@@ -2530,9 +2530,9 @@ export class MoveEditorToNewDetachedWindowAction extends BaseMoveCopyEditorToNew
 		super(
 			'workbench.action.moveEditorToNewDetachedWindow',
 			{
-				value: localize('moveEditorToNewDetachedWindow', "Move Editor into a New Detached Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into a New Detached Window"),
-				original: 'Move Editor into a New Detached Window'
+				value: localize('moveEditorToNewDetachedWindow', "Move Editor into New Detached Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Detached Window"),
+				original: 'Move Editor into New Detached Window'
 			},
 			true
 		);
@@ -2545,9 +2545,9 @@ export class CopyEditorToNewDetachedWindowAction extends BaseMoveCopyEditorToNew
 		super(
 			'workbench.action.copyEditorToNewDetachedWindow',
 			{
-				value: localize('copyEditorToNewDetachedWindow', "Copy Editor into a New Detached Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into a New Detached Window"),
-				original: 'Copy Editor into a New Detached Window'
+				value: localize('copyEditorToNewDetachedWindow', "Copy Editor into New Detached Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Detached Window"),
+				original: 'Copy Editor into New Detached Window'
 			},
 			false
 		);
@@ -2589,9 +2589,9 @@ export class MoveEditorGroupToNewDetachedWindowAction extends BaseMoveCopyEditor
 		super(
 			'workbench.action.moveEditorGroupToNewDetachedWindow',
 			{
-				value: localize('moveEditorGroupToNewDetachedWindow', "Move Editor Group into a New Detached Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into a New Detached Window"),
-				original: 'Move Editor Group into a New Detached Window'
+				value: localize('moveEditorGroupToNewDetachedWindow', "Move Editor Group into New Detached Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Detached Window"),
+				original: 'Move Editor Group into New Detached Window'
 			},
 			true
 		);
@@ -2604,9 +2604,9 @@ export class CopyEditorGroupToNewDetachedWindowAction extends BaseMoveCopyEditor
 		super(
 			'workbench.action.copyEditorGroupToNewDetachedWindow',
 			{
-				value: localize('copyEditorGroupToNewDetachedWindow', "Copy Editor Group into a New Detached Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into a New Detached Window"),
-				original: 'Copy Editor Group into a New Detached Window'
+				value: localize('copyEditorGroupToNewDetachedWindow', "Copy Editor Group into New Detached Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Detached Window"),
+				original: 'Copy Editor Group into New Detached Window'
 			},
 			false
 		);

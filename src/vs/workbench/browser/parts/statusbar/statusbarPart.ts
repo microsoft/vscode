@@ -44,16 +44,18 @@ interface IPendingStatusbarEntry {
 	accessor?: IStatusbarEntryAccessor;
 }
 
-export class StatusbarPart extends Part implements IStatusbarService {
+class StatusbarPart extends Part implements IStatusbarService {
 
 	declare readonly _serviceBrand: undefined;
+
+	static readonly HEIGHT = 22;
 
 	//#region IView
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = 22;
-	readonly maximumHeight: number = 22;
+	readonly minimumHeight: number = StatusbarPart.HEIGHT;
+	readonly maximumHeight: number = StatusbarPart.HEIGHT;
 
 	//#endregion
 
@@ -105,6 +107,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
 	constructor(
+		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -115,7 +118,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
 	}
@@ -579,4 +582,41 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	}
 }
 
-registerSingleton(IStatusbarService, StatusbarPart, InstantiationType.Eager);
+export class MainStatusbarPart extends StatusbarPart {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, hoverService, configurationService);
+	}
+}
+
+export class AuxiliaryStatusbarPart extends StatusbarPart {
+
+	private static COUNTER = 1;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		const id = AuxiliaryStatusbarPart.COUNTER++;
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, hoverService, configurationService);
+	}
+}
+
+registerSingleton(IStatusbarService, MainStatusbarPart, InstantiationType.Eager);
