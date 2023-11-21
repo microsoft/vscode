@@ -204,6 +204,7 @@ class VirtualizedViewItem extends Disposable {
 	public readonly maxScroll = derived(this, reader => this._templateRef.read(reader)?.object.maxScroll.read(reader) ?? this._lastTemplateData.read(reader).maxScroll);
 
 	public readonly template = derived(this, reader => this._templateRef.read(reader)?.object);
+	private _isHidden = observableValue(this, false);
 
 	constructor(
 		public readonly viewModel: DocumentDiffItemViewModel,
@@ -215,6 +216,26 @@ class VirtualizedViewItem extends Disposable {
 		this._register(autorun((reader) => {
 			const scrollLeft = this._scrollLeft.read(reader);
 			this._templateRef.read(reader)?.object.setScrollLeft(scrollLeft);
+		}));
+
+		this._register(autorun(reader => {
+			const ref = this._templateRef.read(reader);
+			if (!ref) { return; }
+			const isHidden = this._isHidden.read(reader);
+			if (!isHidden) { return; }
+
+			const isFocused = ref.object.isFocused.read(reader);
+			if (isFocused) { return; }
+
+			transaction(tx => {
+				this._lastTemplateData.set({
+					contentHeight: ref.object.height.get(),
+					maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
+				}, tx);
+				ref.object.hide();
+
+				this._templateRef.set(undefined, tx);
+			});
 		}));
 	}
 
@@ -228,20 +249,12 @@ class VirtualizedViewItem extends Disposable {
 	}
 
 	public hide(): void {
-		const ref = this._templateRef.get();
-		transaction(tx => {
-			if (ref) {
-				this._lastTemplateData.set({
-					contentHeight: ref.object.height.get(),
-					maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
-				}, tx);
-				ref.object.hide();
-			}
-			this._templateRef.set(undefined, tx);
-		});
+		this._isHidden.set(true, undefined);
 	}
 
 	public render(verticalSpace: OffsetRange, offset: number, width: number, viewPort: OffsetRange): void {
+		this._isHidden.set(false, undefined);
+
 		let ref = this._templateRef.get();
 		if (!ref) {
 			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel));
