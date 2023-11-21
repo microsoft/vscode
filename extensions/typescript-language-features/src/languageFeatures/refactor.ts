@@ -21,7 +21,7 @@ import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
-import { getSymbolKind } from './documentSymbol';
+import * as PConst from '../tsServer/protocol/protocol.const';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -437,30 +437,11 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		};
 	}
 
-	private static readonly _scopesOfInterest = [
-		vscode.SymbolKind.File,
-		vscode.SymbolKind.Module,
-		vscode.SymbolKind.Namespace,
-		vscode.SymbolKind.Package,
-		vscode.SymbolKind.Class,
-		vscode.SymbolKind.Interface,
-	];
-
-	private static _findSmallestNavTreeContaining(
-		navigationTree: Proto.NavigationTree,
-		range: vscode.Range
-	): Proto.NavigationTree {
-		const childTrees = navigationTree.childItems;
-		if (!childTrees) {
-			return navigationTree;
-		}
-		for (const childTree of childTrees) {
-			if (MoveToFileCodeAction._navTreeContainsRange(childTree, range) && MoveToFileCodeAction._scopesOfInterest.includes(getSymbolKind(childTree.kind))) {
-				return this._findSmallestNavTreeContaining(childTree, range);
-			}
-		}
-		return navigationTree;
-	}
+	private static readonly _scopesOfInterest = new Set([
+		PConst.Kind.module,
+		PConst.Kind.class,
+		PConst.Kind.interface
+	]);
 
 	private static _navTreeContainsRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
 		return navigationTree.spans.some(span => typeConverters.Range.fromTextSpan(span).contains(range));
@@ -473,10 +454,22 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		if (!navigationTree || !MoveToFileCodeAction._navTreeContainsRange(navigationTree, range)) {
 			return false;
 		}
-		const smallestScopeContaining = MoveToFileCodeAction._findSmallestNavTreeContaining(navigationTree, range);
-		return !!(smallestScopeContaining
-			&& smallestScopeContaining.spans[0].start.line - 1 === range.start.line
-			&& smallestScopeContaining.spans[smallestScopeContaining.spans.length - 1].end.line - 1 === range.end.line);
+		return MoveToFileCodeAction._shouldIncludeMoveToAction(navigationTree, range);
+	}
+
+	private static _shouldIncludeMoveToAction(
+		navigationTree: Proto.NavigationTree,
+		range: vscode.Range
+	): boolean {
+		const childTrees = navigationTree.childItems;
+		if (childTrees) {
+			for (const childTree of childTrees) {
+				if (MoveToFileCodeAction._navTreeContainsRange(childTree, range) && MoveToFileCodeAction._scopesOfInterest.has(childTree.kind)) {
+					return this._shouldIncludeMoveToAction(childTree, range);
+				}
+			}
+		}
+		return !!navigationTree.nameSpan && typeConverters.Range.fromTextSpan(navigationTree.nameSpan).contains(range);
 	}
 }
 
