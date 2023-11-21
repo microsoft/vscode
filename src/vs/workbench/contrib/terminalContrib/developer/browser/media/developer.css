@@ -43,3 +43,9 @@
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.bottom.right {
 	transform: scale(.5) translate(50%, 50%);
 }
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.color-0 {
+	color: #FF4444;
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.color-1 {
+	color: #44FFFF;
+}

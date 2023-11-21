@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptor, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Emitter } from 'vs/base/common/event';
-import { TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_SELECTION_FOREGROUND_COLOR, TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import type { WebglAddon } from '@xterm/addon-webgl';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -35,6 +35,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+
+registerColors();
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;

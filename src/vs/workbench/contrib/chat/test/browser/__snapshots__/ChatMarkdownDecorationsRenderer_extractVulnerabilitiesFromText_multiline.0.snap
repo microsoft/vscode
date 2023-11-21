@@ -1,0 +1,11 @@
+[
+  {
+    content: {
+      value: "some code\nover\nmultiple lines <vscode_annotation title=\"title\" description=\"vuln\">content with vuln\nand\nnewlines</vscode_annotation>more code\nwith newline",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  }
+]

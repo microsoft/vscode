@@ -70,7 +70,6 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
 import { HidDeviceData, SerialPortData, UsbDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice } from 'vs/base/browser/deviceAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -128,7 +127,6 @@ export class NativeWindow extends BaseWindow {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(mainWindow);
@@ -367,18 +365,15 @@ export class NativeWindow extends BaseWindow {
 
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(this.mainPartEditorService, undefined)));
 
-			this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
-				const auxiliaryWindowEditorPart = this.editorGroupService.getPart(window.container);
-				if (auxiliaryWindowEditorPart) {
-					const auxiliaryEditorService = this.editorService.createScoped(auxiliaryWindowEditorPart, disposables);
-					disposables.add(auxiliaryEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(auxiliaryEditorService, window.window.vscodeWindowId)));
-				}
+			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, disposables }) => {
+				const auxiliaryEditorService = this.editorService.createScoped(part, disposables);
+				disposables.add(auxiliaryEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(auxiliaryEditorService, part.windowId)));
 			}));
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
 		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
-			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
+			const titlePart = assertIsDefined(this.layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART));
 
 			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
 				EventHelper.stop(e);

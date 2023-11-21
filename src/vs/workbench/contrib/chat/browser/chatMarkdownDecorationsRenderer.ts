@@ -8,10 +8,11 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
-import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
@@ -58,10 +59,39 @@ function renderFileWidget(href: string, a: HTMLAnchorElement): void {
 	a.setAttribute('data-href', location.uri.with({ fragment }).toString());
 }
 
+export interface IMarkdownVulnerability {
+	title: string;
+	description: string;
+	range: IRange;
+}
+
+export function extractVulnerabilitiesFromText(text: string): { newText: string; vulnerabilities: IMarkdownVulnerability[] } {
+	const vulnerabilities: IMarkdownVulnerability[] = [];
+	let newText = text;
+	let match: RegExpExecArray | null;
+	while ((match = /<vscode_annotation title="(.*?)" description="(.*?)">(.*?)<\/vscode_annotation>/ms.exec(newText)) !== null) {
+		const [full, title, description, content] = match;
+		const start = match.index;
+		const textBefore = newText.substring(0, start);
+		const linesBefore = textBefore.split('\n').length - 1;
+		const linesInside = content.split('\n').length - 1;
+
+		const previousNewlineIdx = textBefore.lastIndexOf('\n');
+		const startColumn = start - (previousNewlineIdx + 1) + 1;
+		const endPreviousNewlineIdx = (textBefore + content).lastIndexOf('\n');
+		const endColumn = start + content.length - (endPreviousNewlineIdx + 1) + 1;
+
+		vulnerabilities.push({ title: decodeURIComponent(title), description: decodeURIComponent(description), range: { startLineNumber: linesBefore + 1, startColumn, endLineNumber: linesBefore + linesInside + 1, endColumn } });
+		newText = newText.substring(0, start) + content + newText.substring(start + full.length);
+	}
+
+	return { newText, vulnerabilities };
+}
+
 const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function reduceInlineContentReferences(response: ReadonlyArray<IChatProgressResponseContent>): ReadonlyArray<Exclude<IChatProgressResponseContent, IChatContentInlineReference>> {
-	const result: Exclude<IChatProgressResponseContent, IChatContentInlineReference>[] = [];
+export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): ReadonlyArray<IChatProgressRenderableResponseContent> {
+	const result: Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];
 		if (item.kind === 'inlineReference') {
@@ -75,6 +105,13 @@ export function reduceInlineContentReferences(response: ReadonlyArray<IChatProgr
 			}
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
 			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+		} else if (item.kind === 'markdownVuln') {
+			const markdownText = `<vscode_annotation title="${encodeURIComponent(item.title)}" description="${encodeURIComponent(item.description)}">${item.content.value}</vscode_annotation>`;
+			if (previousItem?.kind === 'markdownContent') {
+				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+			} else {
+				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
+			}
 		} else {
 			result.push(item);
 		}

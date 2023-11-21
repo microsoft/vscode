@@ -49,18 +49,6 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-  - task: AzureCLI@2
-    displayName: Fetch Mooncake secrets
-    inputs:
-      azureSubscription: "vscode-builds-mooncake-subscription"
-      scriptType: pscore
-      scriptLocation: inlineScript
-      addSpnToEnvironment: true
-      inlineScript: |
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_TENANT_ID]$env:tenantId"
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_ID]$env:servicePrincipalId"
-        Write-Host "##vso[task.setvariable variable=AZURE_MOONCAKE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
-
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
 
@@ -102,9 +90,6 @@ steps:
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
       AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
       AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
-      AZURE_MOONCAKE_TENANT_ID: "$(AZURE_MOONCAKE_TENANT_ID)"
-      AZURE_MOONCAKE_CLIENT_ID: "$(AZURE_MOONCAKE_CLIENT_ID)"
-      AZURE_MOONCAKE_CLIENT_SECRET: "$(AZURE_MOONCAKE_CLIENT_SECRET)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       RELEASE_TENANT_ID: "$(PRSS_RELEASE_TENANT_ID)"
       RELEASE_CLIENT_ID: "$(PRSS_RELEASE_CLIENT_ID)"

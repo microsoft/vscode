@@ -7,12 +7,10 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { OS } from 'vs/base/common/platform';
 import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -27,7 +25,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
@@ -85,6 +84,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._maxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
 			}
 		}));
+
+		// React to terminal location changes
+		this._register(this._instance.onDidChangeTarget(() => this._syncOptions()));
 
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
@@ -327,28 +329,23 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._xterm.raw.element.parentElement.append(this._element);
 		this._register(toDisposable(() => this._element?.remove()));
 
-		// Create command navigation keybinding hint if appropriate
-		const scrollToPreviousCommandKeybinding = this._keybindingService.lookupKeybinding('workbench.action.terminal.scrollToPreviousCommand');
+		// Fill tooltip
+		let hoverTitle = localize('stickyScrollHoverTitle', 'Navigate to Command');
+		const scrollToPreviousCommandKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ScrollToPreviousCommand);
 		if (scrollToPreviousCommandKeybinding) {
-			const keybindingHint = $('.keybinding-hint');
-			const localizedText = localize({
-				key: 'command-navigation-hint',
-				comment: ['{0} is the localized keybinding to navigate commands']
-			}, '{0} to navigate commands', '{0}');
-			const localizedTextPrefix = localizedText.substring(0, localizedText.indexOf('{0}'));
-			const localizedTextSuffix = localizedText.substring(localizedText.indexOf('{0}') + 3);
-			const label = new KeybindingLabel(keybindingHint, OS);
-			label.set(scrollToPreviousCommandKeybinding);
-			// Insert and use a non-breaking space for boundaries to space out naturally
-			if (localizedTextPrefix) {
-				label.element.insertAdjacentText('beforebegin', localizedTextPrefix.replace(/ $/, '\u00A0'));
+			const label = scrollToPreviousCommandKeybinding.getLabel();
+			if (label) {
+				hoverTitle += '\n' + localize('labelWithKeybinding', "{0} ({1})", terminalStrings.scrollToPreviousCommand.value, label);
 			}
-			if (localizedTextSuffix) {
-				label.element.insertAdjacentText('afterend', localizedTextSuffix.replace(/^ /, '\u00A0'));
-			}
-
-			hoverOverlay.append(keybindingHint);
 		}
+		const scrollToNextCommandKeybinding = this._keybindingService.lookupKeybinding(TerminalCommandId.ScrollToNextCommand);
+		if (scrollToNextCommandKeybinding) {
+			const label = scrollToNextCommandKeybinding.getLabel();
+			if (label) {
+				hoverTitle += '\n' + localize('labelWithKeybinding', "{0} ({1})", terminalStrings.scrollToNextCommand.value, label);
+			}
+		}
+		hoverOverlay.title = hoverTitle;
 
 		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {
