@@ -261,6 +261,21 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		return this.mainPart.getGroup(identifier);
 	}
 
+	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		let groupView: IEditorGroupView | undefined;
+		if (typeof group === 'number') {
+			groupView = this.getGroup(group);
+		} else {
+			groupView = group;
+		}
+
+		if (!groupView) {
+			throw new Error('Invalid editor group provided!');
+		}
+
+		return groupView;
+	}
+
 	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		return this.getPart(group).activateGroup(group);
 	}
@@ -305,18 +320,46 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		this.activePart.setGroupOrientation(orientation);
 	}
 
-	findGroup(scope: IFindGroupScope, source?: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
-		if (scope.location === GroupLocation.FIRST || scope.location === GroupLocation.LAST) {
-			// TODO implement support for all scopes with multiple editor parts
-			// https://github.com/microsoft/vscode/issues/198651
-			return scope.location === GroupLocation.FIRST ? this.groups[0] : this.groups[this.groups.length - 1];
+	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup, wrap?: boolean): IEditorGroupView | undefined {
+		const sourcePart = this.getPart(source);
+		if (this._parts.size > 1) {
+			const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+
+			// Ensure that FIRST/LAST dispatches globally over all parts
+			if (scope.location === GroupLocation.FIRST || scope.location === GroupLocation.LAST) {
+				return scope.location === GroupLocation.FIRST ? groups[0] : groups[groups.length - 1];
+			}
+
+			// Try to find in target part first without wrapping
+			const group = sourcePart.findGroup(scope, source, false);
+			if (group) {
+				return group;
+			}
+
+			// Ensure that NEXT/PREVIOUS dispatches globally over all parts
+			if (scope.location === GroupLocation.NEXT || scope.location === GroupLocation.PREVIOUS) {
+				const sourceGroup = this.assertGroupView(source);
+				const index = groups.indexOf(sourceGroup);
+
+				if (scope.location === GroupLocation.NEXT) {
+					let nextGroup: IEditorGroupView | undefined = groups[index + 1];
+					if (!nextGroup && wrap) {
+						nextGroup = groups[0];
+					}
+
+					return nextGroup;
+				} else {
+					let previousGroup: IEditorGroupView | undefined = groups[index - 1];
+					if (!previousGroup && wrap) {
+						previousGroup = groups[groups.length - 1];
+					}
+
+					return previousGroup;
+				}
+			}
 		}
 
-		if (source) {
-			return this.getPart(source).findGroup(scope, source, wrap);
-		}
-
-		return this.activePart.findGroup(scope, source, wrap);
+		return sourcePart.findGroup(scope, source, wrap);
 	}
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
