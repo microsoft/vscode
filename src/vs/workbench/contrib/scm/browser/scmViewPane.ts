@@ -8,10 +8,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, IReference, DisposableMap } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, EventHelper } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext, ISCMInputValueProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -102,8 +102,8 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
@@ -1760,41 +1760,75 @@ export const enum SCMInputCommandId {
 
 class SCMInputWidgetActionViewItem extends ActionViewItem {
 
-	private _isRunning: boolean = false;
+	// constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+	// 	super(context, action, options);
+	// }
 
+	protected override getClass(): string | undefined {
+		if (this.action instanceof SCMInputWidgetProviderAction) {
+			return this.action.isRunning ? ThemeIcon.asClassName(Codicon.debugStop) : super.getClass();
+		}
+
+		return super.getClass();
+	}
+
+	protected override getTooltip(): string | undefined {
+		if (this.action instanceof SCMInputWidgetProviderAction) {
+			return this.action.isRunning ? localize('cancel', "Cancel") : super.getTooltip();
+		}
+
+		return super.getTooltip();
+	}
+
+}
+
+class SCMInputWidgetProviderAction extends Action {
+
+	private _cts: CancellationTokenSource | undefined;
+
+	private _isRunning: boolean = false;
+	get isRunning(): boolean { return this._isRunning; }
 	set isRunning(value: boolean) {
-		if (this._isRunning === value) {
+		if (value === this._isRunning) {
 			return;
 		}
 
 		this._isRunning = value;
-
-		this.updateClass();
-		this.updateTooltip();
+		this._onDidChange.fire({ tooltip: '', class: '' });
 	}
 
 	constructor(
-		context: unknown,
-		action: IAction,
-		options: IActionViewItemOptions,
-		private readonly cancellationTokenSource: CancellationTokenSource,
+		private readonly input: ISCMInput,
+		private readonly provider: ISCMInputValueProvider,
 		@IProgressService private readonly progressService: IProgressService
 	) {
-		super(context, action, options);
+		super(SCMInputCommandId.ProvideValue, provider.label, ThemeIcon.asClassName(Codicon.sparkle));
 	}
 
-	override async onClick(event: MouseEvent): Promise<void> {
-		EventHelper.stop(event, true);
-
-		if (this._isRunning) {
-			this.cancellationTokenSource.cancel();
+	override async run(): Promise<void> {
+		if (this.isRunning) {
+			this._cts?.cancel();
 			return;
 		}
 
 		await this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
 			try {
 				this.isRunning = true;
-				await this.actionRunner.run(this._action, this._context);
+
+				const context: ISCMInputValueProviderContext[] = [];
+				for (const group of this.input.repository.provider.groups) {
+					context.push({
+						resourceGroupId: group.id,
+						resources: [...group.resources.map(r => r.sourceUri)]
+					});
+				}
+
+				this._cts = new CancellationTokenSource();
+				const value = await this.provider.provideValue(this.input.repository.id, context, this._cts.token);
+
+				if (value) {
+					this.input.setValue(value, false);
+				}
 			}
 			finally {
 				this.isRunning = false;
@@ -1802,15 +1836,15 @@ class SCMInputWidgetActionViewItem extends ActionViewItem {
 		});
 	}
 
-	protected override getClass(): string | undefined {
-		return this._isRunning ? ThemeIcon.asClassName(Codicon.debugStop) : super.getClass();
-	}
-
-	protected override getTooltip(): string | undefined {
-		return this._isRunning ? localize('cancel', "Cancel") : super.getTooltip();
-	}
-
 }
+
+// class SCMInputWidgetSelectProviderAction extends Action {
+
+// 	override async run(): Promise<void> {
+// 		console.log('select provider');
+// 	}
+
+// }
 
 class SCMInputWidget {
 
@@ -1829,7 +1863,6 @@ class SCMInputWidget {
 	private toolbarContainer: HTMLElement;
 	private actionBar: ActionBar;
 	private toolbar: WorkbenchToolBar;
-	private valueProviderCancellationTokenSource: CancellationTokenSource;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
@@ -2009,27 +2042,7 @@ class SCMInputWidget {
 			if (!defaultProvider) {
 				this.toolbar.setActions([]);
 			} else {
-				this.toolbar.setActions([
-					new Action(SCMInputCommandId.ProvideValue, defaultProvider.label, ThemeIcon.asClassName(Codicon.sparkle), true, async () => {
-						if (!this.input) {
-							return;
-						}
-
-						const context: ISCMInputValueProviderContext[] = [];
-						for (const group of this.input.repository.provider.groups) {
-							context.push({
-								resourceGroupId: group.id,
-								resources: [...group.resources.map(r => r.sourceUri)]
-							});
-						}
-
-						const value = await defaultProvider.provideValue(this.input.repository.id, context, this.valueProviderCancellationTokenSource.token);
-
-						if (value) {
-							this.input.setValue(value, false);
-						}
-					})
-				]);
+				this.toolbar.setActions([this.instantiationService.createInstance(SCMInputWidgetProviderAction, input, defaultProvider)]);
 			}
 
 			this.layout();
@@ -2220,11 +2233,10 @@ class SCMInputWidget {
 		this.disposables.add(this.actionBar);
 
 		// Toolbar (new)
-		this.valueProviderCancellationTokenSource = new CancellationTokenSource();
 		this.toolbar = instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
 			actionViewItemProvider: action => {
-				if (action.id === SCMInputCommandId.ProvideValue) {
-					return this.instantiationService.createInstance(SCMInputWidgetActionViewItem, undefined, action, { icon: true, label: false }, this.valueProviderCancellationTokenSource);
+				if (action.id === SCMInputCommandId.ProvideValue && action instanceof SCMInputWidgetProviderAction) {
+					return this.instantiationService.createInstance(SCMInputWidgetActionViewItem, undefined, action, { icon: true, label: false });
 				}
 
 				return createActionViewItem(this.instantiationService, action);
