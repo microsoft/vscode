@@ -1821,7 +1821,8 @@ export function asStatusBarItemIdentifier(extension: ExtensionIdentifier, id: st
 export enum TextEditorLineNumbersStyle {
 	Off = 0,
 	On = 1,
-	Relative = 2
+	Relative = 2,
+	Interval = 3
 }
 
 export enum TextDocumentSaveReason {
