@@ -3025,12 +3025,12 @@ declare module 'vscode' {
 	export type MarkedString = string | {
 		/**
 		 * The language of a markdown code block
-		 * @deprecated, please use {@linkcode MarkdownString} instead
+		 * @deprecated please use {@linkcode MarkdownString} instead
 		 */
 		language: string;
 		/**
 		 * The code snippet of a markdown code block.
-		 * @deprecated, please use {@linkcode MarkdownString} instead
+		 * @deprecated please use {@linkcode MarkdownString} instead
 		 */
 		value: string;
 	};
