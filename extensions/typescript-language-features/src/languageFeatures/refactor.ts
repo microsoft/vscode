@@ -475,8 +475,8 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		}
 		const smallestScopeContaining = MoveToFileCodeAction._findSmallestNavTreeContaining(navigationTree, range);
 		return !!(smallestScopeContaining
-			&& smallestScopeContaining.spans[0].start.line === range.start.line
-			&& smallestScopeContaining.spans[smallestScopeContaining.spans.length - 1].end.line === range.end.line);
+			&& smallestScopeContaining.spans[0].start.line - 1 === range.start.line
+			&& smallestScopeContaining.spans[smallestScopeContaining.spans.length - 1].end.line - 1 === range.end.line);
 	}
 }
 
