@@ -380,7 +380,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				left: suggest.left - monacoEditorBoundingBox.left,
 				width: suggest.width,
 				height: suggest.height,
-			}
+			};
 		} else {
 			// Editor Dom Node should be available
 			assert(false);
