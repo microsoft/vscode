@@ -8,7 +8,7 @@ import { findLast } from 'vs/base/common/arraysFind';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -111,7 +111,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
-		this._options = new DiffEditorOptions(options, this._rootSizeObserver.width);
+		this._options = new DiffEditorOptions(options);
+		this._register(autorun(reader => {
+			this._options.setWidth(this._rootSizeObserver.width.read(reader));
+		}));
 
 		this._contextKeyService.createKey(EditorContextKeys.isEmbeddedDiffEditor.key, false);
 		this._register(bindContextKey(EditorContextKeys.isEmbeddedDiffEditor, this._contextKeyService,
@@ -386,7 +389,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public createViewModel(model: IDiffEditorModel): IDiffEditorViewModel {
-		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options, this);
+		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options);
 	}
 
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
