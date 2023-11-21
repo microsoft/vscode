@@ -26,6 +26,7 @@ import { NullState, nullTokenize } from '../../common/languages/nullTokenize.js'
 import { FindMatch, ITextModel, TextModelResolvedOptions } from '../../common/model.js';
 import { IModelService } from '../../common/services/model.js';
 import * as standaloneEnums from '../../common/standalone/standaloneEnums.js';
+import { lineMetaFromDecorations } from '../../common/textModelEvents.js';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from './colorizer.js';
 import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from './standaloneCodeEditor.js';
 import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from './standaloneServices.js';
@@ -567,6 +568,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		registerLinkOpener: registerLinkOpener,
 		// eslint-disable-next-line local/code-no-any-casts
 		registerEditorOpener: <any>registerEditorOpener,
+
+		lineMetaFromDecorations: <any>lineMetaFromDecorations,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
