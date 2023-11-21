@@ -463,8 +463,8 @@ class MainThreadSCMInputBoxValueProvider implements ISCMInputValueProvider {
 		readonly label: string,
 		readonly icon?: URI | ThemeIcon | { light: URI; dark: URI }) { }
 
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined> {
-		return this.proxy.$provideInputBoxValue(this.handle, repositoryId, context);
+	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
+		return this.proxy.$provideInputBoxValue(this.handle, repositoryId, context, token);
 	}
 
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel, scm } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -25,6 +25,7 @@ import { createIPCServer, IPCServer } from './ipc/ipcServer';
 import { GitEditor } from './gitEditor';
 import { GitPostCommitCommandsProvider } from './postCommitCommands';
 import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
+import { TestCommitMessageProvider2 } from './commitMessageProvider';
 
 const deactivateTasks: { (): Promise<any> }[] = [];
 
@@ -117,6 +118,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
+	scm.registerSourceControlInputBoxValueProvider(new TestCommitMessageProvider2(model));
 
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);

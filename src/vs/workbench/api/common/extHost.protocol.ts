@@ -2205,7 +2205,7 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
-	$provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: any): Promise<string | undefined>;
+	$provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: any, token: CancellationToken): Promise<string | undefined>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;

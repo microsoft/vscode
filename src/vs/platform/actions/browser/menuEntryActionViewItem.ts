@@ -229,6 +229,8 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 
 	protected override updateClass(): void {
+		console.log('HELLO', this.action);
+
 		if (this.options.icon) {
 			if (this._commandAction !== this._menuItemAction) {
 				if (this._menuItemAction.alt) {

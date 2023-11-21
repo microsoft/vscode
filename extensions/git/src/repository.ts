@@ -24,7 +24,7 @@ import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './pos
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { GitHistoryProvider } from './historyProvider';
-import { GenerateCommitMessageActionButton, ICommitMessageProviderRegistry } from './commitMessageProvider';
+import { ICommitMessageProviderRegistry } from './commitMessageProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -690,6 +690,8 @@ export interface IRepositoryResolver {
 	getRepository(path: string): Repository | undefined;
 	getRepository(resource: Uri): Repository | undefined;
 	getRepository(hint: any): Repository | undefined;
+
+	getRepositoryById(id: string): Repository | undefined;
 }
 
 export class Repository implements Disposable {
@@ -901,10 +903,10 @@ export class Repository implements Disposable {
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 
-		const inputActionButton = new GenerateCommitMessageActionButton(this, commitMessageProviderRegistry);
-		this.disposables.push(inputActionButton);
-		inputActionButton.onDidChange(() => this._sourceControl.inputBox.actionButton = inputActionButton.button);
-		this._sourceControl.inputBox.actionButton = inputActionButton.button;
+		// const inputActionButton = new GenerateCommitMessageActionButton(this, commitMessageProviderRegistry);
+		// this.disposables.push(inputActionButton);
+		// inputActionButton.onDidChange(() => this._sourceControl.inputBox.actionButton = inputActionButton.button);
+		// this._sourceControl.inputBox.actionButton = inputActionButton.button;
 
 		this.disposables.push(this._sourceControl);
 
@@ -1669,6 +1671,21 @@ export class Repository implements Disposable {
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
+	}
+
+	async getDiff(): Promise<string[]> {
+		const diff: string[] = [];
+		if (this.indexGroup.resourceStates.length !== 0) {
+			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffIndexWithHEAD(file));
+			}
+		} else {
+			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffWithHEAD(file));
+			}
+		}
+
+		return diff;
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

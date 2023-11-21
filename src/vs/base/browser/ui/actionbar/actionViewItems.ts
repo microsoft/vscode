@@ -275,6 +275,9 @@ export class ActionViewItem extends BaseActionViewItem {
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, options);
 
+		console.log(action);
+		console.log(options);
+
 		this.options = options;
 		this.options.icon = options.icon !== undefined ? options.icon : false;
 		this.options.label = options.label !== undefined ? options.label : true;
@@ -284,6 +287,8 @@ export class ActionViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		types.assertType(this.element);
+
+		console.log('render', this.action);
 
 		const label = document.createElement('a');
 		label.classList.add('action-label');
@@ -369,8 +374,11 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
+		console.log('updateClass');
+		console.log(this.action);
 
 		if (this.options.icon) {
+			console.log(this.action.class);
 			this.cssClass = this.action.class;
 
 			if (this.label) {

@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/par
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -75,7 +75,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
@@ -101,6 +101,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1750,6 +1752,55 @@ class HistoryItemViewChangesAction extends Action2 {
 
 registerAction2(HistoryItemViewChangesAction);
 
+export const SCM_INPUT_MENU = MenuId.for('scmInputWidget');
+
+export const enum SCMInputCommandId {
+	ProvideValue = 'scm.input.provideValue',
+	ProvideValueCancel = 'scm.input.provideValueCancel'
+}
+
+class SCMInputWidgetProvideValueAction extends Action2 {
+
+	constructor() {
+		super({
+			id: SCMInputCommandId.ProvideValue,
+			title: '',
+			icon: Codicon.sparkle,
+			menu: {
+				id: SCM_INPUT_MENU,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('scmInputValueProviderIsRunning', false), ContextKeyExpr.notEquals('scmInputValueProviderCount', 0)),
+				group: 'main',
+				order: 1
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void { }
+}
+
+class SCMInputWidgetProvideValueCancelAction extends Action2 {
+
+	constructor() {
+		super({
+			id: SCMInputCommandId.ProvideValueCancel,
+			title: localize('provideValueCancel', "Cancel"),
+			icon: Codicon.debugStop,
+			menu: {
+				id: SCM_INPUT_MENU,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('scmInputValueProviderIsRunning', true), ContextKeyExpr.notEquals('scmInputValueProviderCount', 0)),
+				group: 'main',
+				order: 1
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void { }
+
+}
+
+registerAction2(SCMInputWidgetProvideValueAction);
+registerAction2(SCMInputWidgetProvideValueCancelAction);
+
 class SCMInputWidget {
 
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
@@ -1783,6 +1834,8 @@ class SCMInputWidget {
 	private shouldFocusAfterLayout = false;
 
 	readonly onDidChangeContentHeight: Event<void>;
+
+	private ctxValueProviderIsRunning: IContextKey<boolean>;
 
 	private get input(): ISCMInput | undefined {
 		return this.model?.input;
@@ -1977,6 +2030,7 @@ class SCMInputWidget {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -2119,6 +2173,55 @@ class SCMInputWidget {
 		// Toolbar
 		this.actionBar = new ActionBar(this.toolbarContainer);
 		this.disposables.add(this.actionBar);
+
+		// Toolbar (new)
+		const cts = new CancellationTokenSource();
+
+		const toolbar = instantiationService2.createInstance(MenuWorkbenchToolBar, this.toolbarContainer, SCM_INPUT_MENU, {
+			actionViewItemProvider: action => {
+				if (action.id === SCMInputCommandId.ProvideValue) {
+					const defaultProvider = this.scmService.getDefaultInputValueProvider();
+					if (defaultProvider) {
+						action.label = defaultProvider.label;
+
+						action.run = async () => {
+							try {
+								if (!this.input?.repository) {
+									return;
+								}
+
+								this.ctxValueProviderIsRunning.set(true);
+
+								const context: ISCMInputValueProviderContext[] = [];
+								for (const group of this.input.repository.provider.groups) {
+									context.push({
+										resourceGroupId: group.id,
+										resources: [...group.resources.map(r => r.sourceUri)]
+									});
+								}
+
+								const value = await defaultProvider.provideValue(this.input.repository.id, context, cts.token);
+								if (value) {
+									this.input.setValue(value, false);
+								}
+							}
+							finally {
+								this.ctxValueProviderIsRunning.set(false);
+								cts.dispose();
+							}
+						};
+					}
+				} else if (action.id === SCMInputCommandId.ProvideValueCancel) {
+					action.run = () => cts.cancel();
+				}
+
+				return createActionViewItem(this.instantiationService, action);
+			},
+			toolbarOptions: { primaryGroup: 'main' }
+		});
+		this.disposables.add(toolbar);
+
+		this.ctxValueProviderIsRunning = contextKeyService2.createKey('scmInputValueProviderIsRunning', false);
 	}
 
 	getContentHeight(): number {
@@ -2141,7 +2244,7 @@ class SCMInputWidget {
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
 		this.placeholderTextContainer.style.width = `${dimension.width}px`;
-		this.toolbarContainer.classList.toggle('hidden', this.input?.actionButton === undefined);
+		// this.toolbarContainer.classList.toggle('hidden', this.input?.actionButton === undefined);
 		this.renderValidation();
 
 		if (this.shouldFocusAfterLayout) {
