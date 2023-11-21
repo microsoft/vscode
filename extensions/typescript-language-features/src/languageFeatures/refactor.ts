@@ -21,6 +21,8 @@ import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
+import { TypeScriptDocumentSymbolProvider } from './documentSymbol';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -420,7 +422,6 @@ class InlinedCodeAction extends vscode.CodeAction {
 class MoveToFileCodeAction extends vscode.CodeAction {
 	constructor(
 		document: vscode.TextDocument,
-		documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[],
 		action: Proto.RefactorActionInfo,
 		range: vscode.Range,
 	) {
@@ -430,16 +431,11 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
-		const shouldIncludeCodeAction = MoveToFileCodeAction.shouldIncludeCodeAction(documentSymbols, range);
-		if (shouldIncludeCodeAction) {
-			this.command = {
-				title: action.description,
-				command: MoveToFileRefactorCommand.ID,
-				arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
-			};
-		} else {
-			this.command = undefined;
-		}
+		this.command = {
+			title: action.description,
+			command: MoveToFileRefactorCommand.ID,
+			arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
+		};
 	}
 
 	private static readonly _scopesOfInterest = [
@@ -448,29 +444,30 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		vscode.SymbolKind.Namespace,
 		vscode.SymbolKind.Package,
 		vscode.SymbolKind.Class,
-		vscode.SymbolKind.Method,
 		vscode.SymbolKind.Interface,
-		vscode.SymbolKind.Function
 	];
 
 	private static _findSmallestScopeContaining(
-		documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]),
+		documentSymbols: vscode.DocumentSymbol[],
 		range: vscode.Range,
-		smallestNodeThusFar?: vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined
-	): vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined {
+		smallestScopeSoFar?: vscode.DocumentSymbol,
+	): vscode.DocumentSymbol | undefined {
 
 		for (const symbol of documentSymbols) {
 			if (symbol.range.contains(range) && MoveToFileCodeAction._scopesOfInterest.includes(symbol.kind)) {
 				return this._findSmallestScopeContaining(symbol.children, range, symbol);
 			}
 		}
-		return smallestNodeThusFar;
+		return smallestScopeSoFar;
 	}
 
-	public static shouldIncludeCodeAction(
-		documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]),
+	public static shouldIncludeMoveToAction(
+		documentSymbols: vscode.DocumentSymbol[] | undefined,
 		range: vscode.Range
 	): boolean {
+		if (!documentSymbols) {
+			return false;
+		}
 		const smallestScopeContaining = MoveToFileCodeAction._findSmallestScopeContaining(documentSymbols, range);
 		return !!(smallestScopeContaining
 			&& smallestScopeContaining.range.start.line === range.start.line
@@ -557,8 +554,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
-		const actions = (await this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
+		const applicableRefactors = await this.convertApplicableRefactors(document, response.body, rangeOrSelection);
+		const actions = await Promise.all(applicableRefactors.map(async (action) => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
@@ -567,10 +564,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 			}
 			if (action.kind?.value === Move_NewFile.kind.value) {
-				return MoveToFileCodeAction.shouldIncludeCodeAction(documentSymbols, rangeOrSelection);
+				const typeScripProvider = new TypeScriptDocumentSymbolProvider(this.client, new CachedResponse());
+				const documentSymbols = await typeScripProvider.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token);
+				return MoveToFileCodeAction.shouldIncludeMoveToAction(documentSymbols, rangeOrSelection);
 			}
 			return true;
-		});
+		})).then((mappedRefactors) => applicableRefactors.filter((_, index) => mappedRefactors[index]));
 
 		if (!context.only) {
 			return actions;
@@ -603,7 +602,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				actions.push(new SelectCodeAction(refactor, document, rangeOrSelection));
 			} else {
 				for (const action of refactor.actions) {
-					const refactorAction = (await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions));
+					const refactorAction = await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
 					if (refactorAction) {
 						actions.push(refactorAction);
 					}
@@ -622,12 +621,13 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	): Promise<TsCodeAction | undefined> {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
-			const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
-			const moveToFileCodeAction = new MoveToFileCodeAction(document, documentSymbols, action, rangeOrSelection);
-			if (!moveToFileCodeAction.command) {
+			const typeScripProvider = new TypeScriptDocumentSymbolProvider(this.client, new CachedResponse());
+			const documentSymbols = await typeScripProvider.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token);
+			const shouldIncludeMoveToAction = MoveToFileCodeAction.shouldIncludeMoveToAction(documentSymbols, rangeOrSelection);
+			if (!shouldIncludeMoveToAction) {
 				return;
 			}
-			codeAction = moveToFileCodeAction;
+			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
 			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {

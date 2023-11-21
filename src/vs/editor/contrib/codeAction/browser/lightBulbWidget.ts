@@ -222,7 +222,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
-
 		let codicon: ThemeIcon;
 		if (this.state.actions.allAIFixes) {
 			codicon = Codicon.sparkle;
@@ -242,7 +241,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				this.title = nls.localize('codeAction', "Show Code Actions");
 			}
 		}
-
 		this._classNamesMenuIcon = ThemeIcon.asClassNameArray(codicon);
 		this._domNode.classList.add(...this._classNamesMenuIcon);
 	}
