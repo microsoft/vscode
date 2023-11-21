@@ -146,18 +146,11 @@ export async function getCodeActions(
 
 	try {
 		const actions = await Promise.all(promises);
-		let allActions = actions.map(x => x.actions).flat();
+		const allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = [
 			...coalesce(actions.map(x => x.documentation)),
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
-
-		if (allActions.length > 50) {
-			console.warn(`Code Actions Provided exceeded the maximum: ${allActions.length} actions initially provided.`);
-			const splicedAllActions = allActions.filter((action) => !action.action.isAI).slice(0, 50);
-			allActions = splicedAllActions.concat(allActions.filter((action) => action.action.isAI));
-		}
-
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	} finally {
 		listener.dispose();
