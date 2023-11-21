@@ -289,6 +289,11 @@ export class ViewZoneManager extends Disposable {
 						function createViewZoneMarginArrow(): HTMLElement {
 							const arrow = document.createElement('div');
 							arrow.className = 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight);
+							arrow.onmousedown = (e) => e.stopPropagation();
+							arrow.onclick = (e) => {
+								e.stopPropagation();
+								_diffEditorWidget.revert(a.diff!);
+							};
 							return $('div', {}, arrow);
 						}
 
