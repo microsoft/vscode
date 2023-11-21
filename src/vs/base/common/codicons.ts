@@ -580,6 +580,8 @@ export const Codicon = {
 	micFilled: register('mic-filled', 0xec1c),
 	gitFetch: register('git-fetch', 0xec1d),
 	copilot: register('copilot', 0xec1e),
+	lightbulbSparkle: register('lightbulb-sparkle', 0xec1f),
+	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
 
 	// derived icons, that could become separate icons
 

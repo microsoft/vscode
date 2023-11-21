@@ -66,7 +66,7 @@ export interface INotebookCellList {
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
 	scrollToBottom(): void;
-	revealCell(cell: ICellViewModel, revealType: CellRevealType): void;
+	revealCell(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
 	revealCells(range: ICellRange): void;
 	revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenter(element: ICellViewModel, offset: number): void;

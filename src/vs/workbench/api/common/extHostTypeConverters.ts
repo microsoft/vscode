@@ -2157,20 +2157,10 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function to(followup: IChatReplyFollowup): vscode.InteractiveSessionReplyFollowup {
-		return {
-			message: followup.message,
-			metadata: followup.metadata,
-			title: followup.title,
-			tooltip: followup.tooltip,
-		};
-	}
-
-	export function from(followup: vscode.InteractiveSessionReplyFollowup): IChatReplyFollowup {
+	export function from(followup: vscode.InteractiveSessionReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
-			metadata: followup.metadata,
 			title: followup.title,
 			tooltip: followup.tooltip,
 		};
@@ -2178,7 +2168,7 @@ export namespace ChatReplyFollowup {
 }
 
 export namespace ChatFollowup {
-	export function from(followup: string | vscode.InteractiveSessionFollowup): IChatFollowup {
+	export function from(followup: string | vscode.ChatAgentFollowup): IChatFollowup {
 		if (typeof followup === 'string') {
 			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
 		} else if ('commandId' in followup) {
@@ -2298,33 +2288,39 @@ export namespace InteractiveEditorResponseFeedbackKind {
 				return types.InteractiveEditorResponseFeedbackKind.Undone;
 			case InlineChatResponseFeedbackKind.Accepted:
 				return types.InteractiveEditorResponseFeedbackKind.Accepted;
+			case InlineChatResponseFeedbackKind.Bug:
+				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
 	}
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.InteractiveProgress | vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { placeholder: progress.placeholder };
-		} else if ('responseId' in progress) {
-			return { requestId: progress.responseId };
+			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.markdownContent) };
+			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
+			if ('vulnerability' in progress && progress.vulnerability) {
+				checkProposedApiEnabled(extension, 'chatAgents2Additions');
+				return { content: progress.content, title: progress.vulnerability.title, description: progress.vulnerability!.description, kind: 'vulnerability' };
+			}
+
 			if (typeof progress.content === 'string') {
-				return progress;
+				return { content: progress.content, kind: 'content' };
 			}
 
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.content) };
+			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({
 					uri: d.uri,
 					version: d.version,
 					ranges: d.ranges.map(r => Range.from(r))
-				}))
+				})),
+				kind: 'usedContext'
 			};
 		} else if ('reference' in progress) {
 			return {
@@ -2332,7 +2328,8 @@ export namespace ChatResponseProgress {
 					{
 						uri: progress.reference.uri,
 						range: Range.from(progress.reference.range)
-					} : progress.reference
+					} : progress.reference,
+				kind: 'reference'
 			};
 		} else if ('inlineReference' in progress) {
 			return {
@@ -2341,22 +2338,27 @@ export namespace ChatResponseProgress {
 						uri: progress.inlineReference.uri,
 						range: Range.from(progress.inlineReference.range)
 					} : progress.inlineReference,
-				title: progress.title,
+				name: progress.title,
+				kind: 'inlineReference'
 			};
 		} else if ('agentName' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return progress;
+			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
+		} else if ('treeData' in progress) {
+			return { treeData: progress.treeData, kind: 'treeData' };
+		} else if ('message' in progress) {
+			return { content: progress.message, kind: 'progressMessage' };
 		} else {
-			return progress;
+			return undefined;
 		}
 	}
 }
 
 
 export namespace TerminalQuickFix {
-	export function from(quickFix: vscode.TerminalQuickFixExecuteTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixExecuteTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {
+	export function from(quickFix: vscode.TerminalQuickFixTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {
 		if ('terminalCommand' in quickFix) {
-			return { terminalCommand: quickFix.terminalCommand };
+			return { terminalCommand: quickFix.terminalCommand, shouldExecute: quickFix.shouldExecute };
 		}
 		if ('uri' in quickFix) {
 			return { uri: quickFix.uri };

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
+import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ArrayQueue } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -126,7 +126,7 @@ export class ViewZoneManager extends Disposable {
 		}
 
 		const alignmentViewZonesDisposables = this._register(new DisposableStore());
-		this.viewZones = derived<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>(this, (reader) => {
+		this.viewZones = derivedWithStore<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>(this, (reader, store) => {
 			alignmentViewZonesDisposables.clear();
 
 			const alignmentsVal = alignments.read(reader) || [];
@@ -289,6 +289,11 @@ export class ViewZoneManager extends Disposable {
 						function createViewZoneMarginArrow(): HTMLElement {
 							const arrow = document.createElement('div');
 							arrow.className = 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight);
+							store.add(addDisposableListener(arrow, 'mousedown', e => e.stopPropagation()));
+							store.add(addDisposableListener(arrow, 'click', e => {
+								e.stopPropagation();
+								_diffEditorWidget.revert(a.diff!);
+							}));
 							return $('div', {}, arrow);
 						}
 

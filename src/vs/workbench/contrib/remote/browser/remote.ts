@@ -53,7 +53,7 @@ import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { Schemas } from 'vs/base/common/network';
-import { $window } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 interface IViewModel {
 	onDidChangeHelpInformation: Event<void>;
@@ -752,7 +752,7 @@ class ReconnectionTimer implements IDisposable {
 	constructor(parent: VisibleProgress, completionTime: number) {
 		this._parent = parent;
 		this._completionTime = completionTime;
-		this._renderInterval = dom.disposableWindowInterval($window, () => this._render(), 1000);
+		this._renderInterval = dom.disposableWindowInterval(mainWindow, () => this._render(), 1000);
 		this._render();
 	}
 

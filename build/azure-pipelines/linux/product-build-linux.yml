@@ -313,10 +313,10 @@ steps:
       continueOnError: true
       displayName: Download ESRPClient
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/deb '*.deb'
+    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/deb '*.deb'
       displayName: Codesign deb
 
-    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
+    - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-pgp $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) .build/linux/rpm '*.rpm'
       displayName: Codesign rpm
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"

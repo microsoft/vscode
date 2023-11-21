@@ -28,7 +28,7 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixExecuteTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixInternalOptions, ITerminalQuickFixResolvedExtensionOptions, ITerminalQuickFix, ITerminalQuickFixTerminalCommandAction, ITerminalQuickFixOpenerAction, ITerminalQuickFixOptions, ITerminalQuickFixProviderSelector, ITerminalQuickFixService, ITerminalQuickFixUnresolvedExtensionOptions, TerminalQuickFixType, ITerminalQuickFixCommandAction } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 import { ITerminalCommandSelector } from 'vs/platform/terminal/common/terminal';
 import { ActionListItemKind, IActionListItem } from 'vs/platform/actionWidget/browser/actionList';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -45,7 +45,7 @@ const quickFixClasses = [
 
 export interface ITerminalQuickFixAddon {
 	showMenu(): void;
-	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
+	onDidRequestRerunCommand: Event<{ command: string; shouldExecute?: boolean }>;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
@@ -54,7 +54,7 @@ export interface ITerminalQuickFixAddon {
 }
 
 export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixAddon {
-	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
+	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
 	private _terminal: Terminal | undefined;
@@ -122,6 +122,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			documentation,
 			allActions: actions,
 			hasAutoFix: false,
+			hasAIFix: false,
+			allAIFixes: false,
 			validActions: actions,
 			dispose: () => { }
 		} as ActionSet<TerminalQuickFixItem>;
@@ -311,6 +313,7 @@ export interface ITerminalAction extends IAction {
 	source: string;
 	uri?: URI;
 	command?: string;
+	shouldExecute?: boolean;
 }
 
 export async function getQuickFixesForCommand(
@@ -321,7 +324,7 @@ export async function getQuickFixesForCommand(
 	commandService: ICommandService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
-	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
+	onDidRequestRerunCommand?: Emitter<{ command: string; shouldExecute?: boolean }>,
 	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
 ): Promise<ITerminalAction[] | undefined> {
 	// Prevent duplicates by tracking added entries
@@ -366,7 +369,7 @@ export async function getQuickFixesForCommand(
 					if ('type' in quickFix) {
 						switch (quickFix.type) {
 							case TerminalQuickFixType.TerminalCommand: {
-								const fix = quickFix as ITerminalQuickFixExecuteTerminalCommandAction;
+								const fix = quickFix as ITerminalQuickFixTerminalCommandAction;
 								if (commandQuickFixSet.has(fix.terminalCommand)) {
 									continue;
 								}
@@ -383,11 +386,12 @@ export async function getQuickFixesForCommand(
 									run: () => {
 										onDidRequestRerunCommand?.fire({
 											command: fix.terminalCommand,
-											addNewLine: fix.addNewLine ?? true
+											shouldExecute: fix.shouldExecute ?? true
 										});
 									},
 									tooltip: label,
-									command: fix.terminalCommand
+									command: fix.terminalCommand,
+									shouldExecute: fix.shouldExecute
 								};
 								break;
 							}

@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setRecomputeInitiallyAndOnChange, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { derived } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -324,7 +324,7 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
  * This makes sure the observable is being observed and keeps its cache alive.
  */
 export function keepObserved<T>(observable: IObservable<T>): IDisposable {
-	const o = new KeepAliveObserver(false);
+	const o = new KeepAliveObserver(false, undefined);
 	observable.addObserver(o);
 	return toDisposable(() => {
 		observable.removeObserver(o);
@@ -334,29 +334,42 @@ export function keepObserved<T>(observable: IObservable<T>): IDisposable {
 /**
  * This converts the given observable into an autorun.
  */
-export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>): IDisposable {
-	const o = new KeepAliveObserver(true);
+export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, handleValue?: (value: T) => void): IDisposable {
+	const o = new KeepAliveObserver(true, handleValue);
 	observable.addObserver(o);
-	observable.reportChanges();
+	if (handleValue) {
+		handleValue(observable.get());
+	} else {
+		observable.reportChanges();
+	}
 
 	return toDisposable(() => {
 		observable.removeObserver(o);
 	});
 }
 
-class KeepAliveObserver implements IObserver {
-	private counter = 0;
+_setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange);
 
-	constructor(private readonly forceRecompute: boolean) { }
+class KeepAliveObserver implements IObserver {
+	private _counter = 0;
+
+	constructor(
+		private readonly _forceRecompute: boolean,
+		private readonly _handleValue: ((value: any) => void) | undefined,
+	) { }
 
 	beginUpdate<T>(observable: IObservable<T, void>): void {
-		this.counter++;
+		this._counter++;
 	}
 
 	endUpdate<T>(observable: IObservable<T, void>): void {
-		this.counter--;
-		if (this.counter === 0 && this.forceRecompute) {
-			observable.reportChanges();
+		this._counter--;
+		if (this._counter === 0 && this._forceRecompute) {
+			if (this._handleValue) {
+				this._handleValue(observable.get());
+			} else {
+				observable.reportChanges();
+			}
 		}
 	}
 

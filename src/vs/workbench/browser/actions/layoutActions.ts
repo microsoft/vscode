@@ -21,7 +21,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -81,6 +81,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
 				original: 'Toggle Centered Layout'
 			},
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
 			f1: true,
 			toggled: IsCenteredLayoutContext,
@@ -95,7 +96,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		layoutService.centerEditorLayout(!layoutService.isEditorLayoutCentered());
+		layoutService.centerMainEditorLayout(!layoutService.isMainEditorLayoutCentered());
 	}
 });
 
@@ -461,7 +462,7 @@ export class HideEditorTabsAction extends Action2 {
 				original: 'Hide Editor Tabs'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(), InEditorZenModeContext.negate()),
 			f1: true
 		});
 	}
@@ -487,7 +488,7 @@ export class ShowMultipleEditorTabsAction extends Action2 {
 				original: 'Show Multiple Editor Tabs'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple').negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple').negate(), InEditorZenModeContext.negate()),
 			f1: true
 		});
 	}
@@ -513,7 +514,7 @@ export class ShowSingleEditorTabAction extends Action2 {
 				original: 'Show Single Editor Tab'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single').negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single').negate(), InEditorZenModeContext.negate()),
 			f1: true
 		});
 	}
@@ -692,6 +693,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
 			f1: true,
 			keybinding: {

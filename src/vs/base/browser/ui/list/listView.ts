@@ -227,6 +227,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	readonly renderHeight: number;
 	readonly scrollHeight: number;
 	readonly firstVisibleIndex: number;
+	readonly firstMostlyVisibleIndex: number;
 	readonly lastVisibleIndex: number;
 	onDidScroll: Event<ScrollEvent>;
 	onWillScroll: Event<ScrollEvent>;
@@ -753,16 +754,21 @@ export class ListView<T> implements IListView<T> {
 
 	get firstVisibleIndex(): number {
 		const range = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-		const firstElTop = this.rangeMap.positionAt(range.start);
-		const nextElTop = this.rangeMap.positionAt(range.start + 1);
+		return range.start;
+	}
+
+	get firstMostlyVisibleIndex(): number {
+		const firstVisibleIndex = this.firstVisibleIndex;
+		const firstElTop = this.rangeMap.positionAt(firstVisibleIndex);
+		const nextElTop = this.rangeMap.positionAt(firstVisibleIndex + 1);
 		if (nextElTop !== -1) {
 			const firstElMidpoint = (nextElTop - firstElTop) / 2 + firstElTop;
 			if (firstElMidpoint < this.scrollTop) {
-				return range.start + 1;
+				return firstVisibleIndex + 1;
 			}
 		}
 
-		return range.start;
+		return firstVisibleIndex;
 	}
 
 	get lastVisibleIndex(): number {

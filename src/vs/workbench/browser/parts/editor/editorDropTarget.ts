@@ -144,7 +144,6 @@ class DropOverlay extends Themable {
 
 	private registerListeners(container: HTMLElement): void {
 		this._register(new DragAndDropObserver(container, {
-			onDragEnter: e => undefined,
 			onDragOver: e => {
 				if (this.enableDropIntoEditor && isDragIntoEditorEvent(e)) {
 					this.dispose();

@@ -71,12 +71,22 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			if (providerId === this.chatViewOptions.providerId && !this._widget?.viewModel) {
 				const sessionId = this.getSessionId();
 				const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
-				this.updateModel(model);
+
+				// The widget may be hidden at this point, because welcome views were allowed. Use setVisible to
+				// avoid doing a render while the widget is hidden. This is changing the condition in `shouldShowWelcome`
+				// so it should fire onDidChangeViewWelcomeState.
+				try {
+					this._widget.setVisible(false);
+					this.updateModel(model);
+					this._onDidChangeViewWelcomeState.fire();
+				} finally {
+					this.widget.setVisible(true);
+				}
 			}
 		}));
 	}
 
-	private updateModel(model?: IChatModel | undefined): void {
+	private updateModel(model?: IChatModel | undefined, viewState?: IViewPaneState): void {
 		this.modelDisposables.clear();
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId
@@ -86,7 +96,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			throw new Error('Could not start chat session');
 		}
 
-		this._widget.setModel(model, { ...this.viewState });
+		this._widget.setModel(model, { ...(viewState ?? this.viewState) });
 		this.viewState.sessionId = model.sessionId;
 	}
 
@@ -155,8 +165,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		if (this.widget.viewModel) {
 			this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
-		this.viewState.inputValue = '';
-		this.updateModel();
+		this.updateModel(undefined, { ...this.viewState, inputValue: undefined });
 	}
 
 	loadSession(sessionId: string): void {

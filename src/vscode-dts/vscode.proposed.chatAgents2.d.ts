@@ -92,6 +92,11 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
+		 * When the user clicks this slash command in `/help`, this text will be submitted to this slash command
+		 */
+		readonly sampleRequest?: string;
+
+		/**
 		 * Whether executing the command puts the
 		 * chat into a persistent mode, where the
 		 * slash command is prepended to the chat input.
@@ -205,6 +210,11 @@ declare module 'vscode' {
 		followupProvider?: FollowupProvider;
 
 		/**
+		 * When the user clicks this agent in `/help`, this text will be submitted to this slash command
+		 */
+		sampleRequest?: string;
+
+		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
 		 * a result.
 		 *
@@ -239,14 +249,21 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	// TODO@API should these each be prefixed ChatAgentProgress*?
 	export type ChatAgentProgress =
 		| ChatAgentContent
 		| ChatAgentTask
 		| ChatAgentFileTree
 		| ChatAgentUsedContext
 		| ChatAgentContentReference
-		| ChatAgentInlineContentReference;
+		| ChatAgentInlineContentReference
+		| ChatAgentProgressMessage;
+
+	/**
+	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
+	 */
+	export interface ChatAgentProgressMessage {
+		message: string;
+	}
 
 	/**
 	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.

@@ -19,11 +19,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -109,6 +109,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private readonly windowTitle: WindowTitle;
 
+	private readonly editorService: IEditorService;
+
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -121,12 +123,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IHostService private readonly hostService: IHostService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, mainWindow, 'main'));
+		this.editorService = editorService.createScoped('main', this._store);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -371,7 +374,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// --- Editor Actions
-		const activeEditorPane = this.editorGroupService.activeGroup?.activeEditorPane;
+		const activeEditorPane = this.editorGroupService.mainPart.activeGroup?.activeEditorPane;
 		if (activeEditorPane && activeEditorPane instanceof EditorPane) {
 			const result = activeEditorPane.getActionViewItem(action);
 
@@ -385,7 +388,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		const editorPaneAwareContextKeyService = this.editorGroupService.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const editorPaneAwareContextKeyService = this.editorGroupService.mainPart.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
 
@@ -410,7 +413,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.actionToolBarDisposable.add(this.actionToolBar);
 
 		if (this.editorActionsEnabled) {
-			this.actionToolBarDisposable.add(this.editorGroupService.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
+			this.actionToolBarDisposable.add(this.editorGroupService.mainPart.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
 		}
 	}
 
@@ -426,7 +429,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (this.editorActionsEnabled) {
 				this.editorActionsChangeDisposable.clear();
 
-				const activeGroup = this.editorGroupService.activeGroup;
+				const activeGroup = this.editorGroupService.mainPart.activeGroup;
 				if (activeGroup) { // Can be undefined on startup
 					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable);
 
@@ -464,7 +467,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			// The editor toolbar menu is handled by the editor group so we do not need to manage it here.
 			// However, depending on the active editor, we need to update the context and action runner of the toolbar menu.
 			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
-				const context: IEditorCommandsContext = { groupId: this.editorGroupService.activeGroup.id };
+				const context: IEditorCommandsContext = { groupId: this.editorGroupService.mainPart.activeGroup.id };
 
 				this.actionToolBar.actionRunner = new EditorCommandsContextActionRunner(context);
 				this.actionToolBar.context = context;
@@ -533,7 +536,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
 		// Find target anchor
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(getWindow(this.rootContainer), e);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -606,7 +609,7 @@ export class TitlebarPart extends Part implements ITitleService {
 }
 
 
-class ToogleConfigAction extends Action2 {
+class ToggleConfigAction extends Action2 {
 
 	constructor(private readonly section: string, title: string, order: number) {
 		super({
@@ -624,15 +627,40 @@ class ToogleConfigAction extends Action2 {
 	}
 }
 
-registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
+registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
 		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1);
 	}
 });
 
-registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
+registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
 		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2);
+	}
+});
+
+registerAction2(class ToggleEditorActions extends Action2 {
+	static readonly settingsID = `workbench.editor.editorActionsLocation`;
+	constructor() {
+		super({
+			id: `toggle.${ToggleEditorActions.settingsID}`,
+			title: localize('toggle.editorActions', 'Editor Actions'),
+			toggled: ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'hidden').negate(),
+			menu: { id: MenuId.TitleBarContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none') }
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		const storageService = accessor.get(IStorageService);
+		const value = configService.getValue<string>(ToggleEditorActions.settingsID);
+		if (value === 'hidden') {
+			const storedValue = storageService.get(ToggleEditorActions.settingsID, StorageScope.PROFILE);
+			configService.updateValue(ToggleEditorActions.settingsID, storedValue ?? 'default');
+		} else {
+			configService.updateValue(ToggleEditorActions.settingsID, 'hidden');
+			storageService.store(ToggleEditorActions.settingsID, value, StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 });
 
