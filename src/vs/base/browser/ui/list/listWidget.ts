@@ -1885,7 +1885,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 * Returns the relative position of an element rendered in the list.
 	 * Returns `null` if the element isn't *entirely* in the visible viewport.
 	 */
-	getRelativeTop(index: number): number | null {
+	getRelativeTop(index: number, paddingTop: number = 0): number | null {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1894,7 +1894,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
 
-		if (elementTop < scrollTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
+		if (elementTop < scrollTop + paddingTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
 			return null;
 		}
 

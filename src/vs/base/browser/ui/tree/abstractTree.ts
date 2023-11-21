@@ -2433,7 +2433,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			return null;
 		}
 
-		return this.view.getRelativeTop(index);
+		const stickyScrollNode = this.stickyScrollController?.getNode(this.getNode(location));
+		return this.view.getRelativeTop(index, stickyScrollNode?.position ?? this.stickyScrollController?.height);
 	}
 
 	getViewState(identityProvider = this.options.identityProvider): AbstractTreeViewState {
