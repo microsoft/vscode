@@ -24,7 +24,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
 export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
-	HideAccessibleView = 'accessibility.hideAccessibleView'
+	HideAccessibleView = 'accessibility.hideAccessibleView',
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -32,6 +33,11 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Minimum = 0.2,
 	Maximum = 1
 }
+
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+}
+export const SpeechTimeoutDefault = 1200;
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -49,7 +55,8 @@ export const enum AccessibilityVerbositySettingId {
 }
 
 export const enum AccessibilityAlertSettingId {
-	Save = 'accessibility.alert.save'
+	Save = 'accessibility.alert.save',
+	Format = 'accessibility.alert.format'
 }
 
 export const enum AccessibleViewProviderId {
@@ -124,16 +131,40 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
-			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Also see {0}", '`#audioCues.save#`'),
+			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Note that this will be ignored when {0} is enabled.", '`#audioCues.save#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
-			'default': 'never',
+			'default': 'always',
 			'enumDescriptions': [
 				localize('alert.save.userGesture', "Alerts when a file is saved via user gesture."),
 				localize('alert.save.always', "Alerts whenever is a file is saved, including auto save."),
 				localize('alert.save.never', "Never alerts.")
 			],
 			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Format]: {
+			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Note that this will be ignored when {0} is enabled.", '`#audioCues.format#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'always',
+			'enumDescriptions': [
+				localize('alert.format.userGesture', "Alerts when a file is formatted via user gesture."),
+				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
+				localize('alert.format.never', "Never alerts.")
+			],
+			tags: ['accessibility']
+		},
+		[AccessibilityVoiceSettingId.SpeechTimeout]: {
+			'markdownDescription': localize('voice.speechTimeout', "Define the duration for which the voice speech recognition remains active after you stop speaking. For example in a chat session the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+			'type': 'number',
+			'default': SpeechTimeoutDefault,
+			'minimum': 0,
+			'tags': ['accessibility']
+		},
+		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
+			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the accessible view and focus the element from which it was invoked."),
+			type: 'boolean',
+			default: true
 		},
 	}
 };
@@ -162,7 +193,7 @@ export function registerAccessibilityConfiguration() {
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[AccessibilityWorkbenchSettingId.HideAccessibleView]: {
-				description: localize('terminal.integrated.hideAccessibleView', "Controls whether the terminal's accessible view is hidden."),
+				description: localize('accessibility.hideAccessibleView', "Controls whether the accessible view is hidden."),
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']

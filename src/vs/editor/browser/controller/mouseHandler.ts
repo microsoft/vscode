@@ -226,7 +226,7 @@ export class MouseHandler extends ViewEventHandler {
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		const clientPos = new ClientCoordinates(clientX, clientY);
-		const pos = clientPos.toPageCoordinates();
+		const pos = clientPos.toPageCoordinates(dom.getWindow(this.viewHelper.viewDomNode));
 		const editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
 
 		if (pos.y < editorPos.y || pos.y > editorPos.y + editorPos.height || pos.x < editorPos.x || pos.x > editorPos.x + editorPos.width) {
@@ -682,7 +682,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		this._position = position;
 		this._mouseEvent = mouseEvent;
 		this._lastTime = Date.now();
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(dom.getWindow(mouseEvent.browserEvent), () => this._execute());
 	}
 
 	public override dispose(): void {
@@ -752,7 +752,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		}
 
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(dom.getWindow(mouseTarget.element), () => this._execute());
 	}
 }
 

@@ -32,6 +32,32 @@ export function getEditorTopPadding() {
 
 export const OutputInnerContainerTopPadding = 4;
 
+export interface NotebookDisplayOptions {
+	showCellStatusBar: ShowCellStatusBarType;
+	cellToolbarLocation: string | { [key: string]: string };
+	cellToolbarInteraction: string;
+	compactView: boolean;
+	focusIndicator: 'border' | 'gutter';
+	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
+	insertToolbarAlignment: 'left' | 'center';
+	globalToolbar: boolean;
+	stickyScroll: boolean;
+	consolidatedOutputButton: boolean;
+	consolidatedRunButton: boolean;
+	showFoldingControls: 'always' | 'never' | 'mouseover';
+	dragAndDropEnabled: boolean;
+	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
+	outputScrolling: boolean;
+	outputWordWrap: boolean;
+	outputLineLimit: number;
+	fontSize: number;
+	outputFontSize: number;
+	outputFontFamily: string;
+	outputLineHeight: number;
+	markupFontSize: number;
+	editorOptionsCustomizations: any | undefined;
+}
+
 export interface NotebookLayoutConfiguration {
 	cellRightMargin: number;
 	cellRunGutter: number;
@@ -45,39 +71,14 @@ export interface NotebookLayoutConfiguration {
 	markdownCellBottomMargin: number;
 	markdownPreviewPadding: number;
 	markdownFoldHintHeight: number;
-	// bottomToolbarGap: number;
-	// bottomToolbarHeight: number;
 	editorToolbarHeight: number;
 	editorTopPadding: number;
 	editorBottomPadding: number;
 	editorBottomPaddingWithoutStatusBar: number;
 	collapsedIndicatorHeight: number;
-	showCellStatusBar: ShowCellStatusBarType;
 	cellStatusBarHeight: number;
-	cellToolbarLocation: string | { [key: string]: string };
-	cellToolbarInteraction: string;
-	compactView: boolean;
-	focusIndicator: 'border' | 'gutter';
-	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
-	insertToolbarAlignment: 'left' | 'center';
-	globalToolbar: boolean;
-	stickyScroll: boolean;
-	consolidatedOutputButton: boolean;
-	consolidatedRunButton: boolean;
-	showFoldingControls: 'always' | 'never' | 'mouseover';
-	dragAndDropEnabled: boolean;
-	fontSize: number;
-	outputFontSize: number;
-	outputFontFamily: string;
-	outputLineHeight: number;
-	markupFontSize: number;
 	focusIndicatorLeftMargin: number;
-	editorOptionsCustomizations: any | undefined;
 	focusIndicatorGap: number;
-	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
-	outputScrolling: boolean;
-	outputWordWrap: boolean;
-	outputLineLimit: number;
 }
 
 export interface NotebookOptionsChangeEvent {
@@ -128,7 +129,7 @@ const compactConfigConstants = Object.freeze({
 });
 
 export class NotebookOptions extends Disposable {
-	private _layoutConfiguration: NotebookLayoutConfiguration;
+	private _layoutConfiguration: NotebookLayoutConfiguration & NotebookDisplayOptions;
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 
@@ -536,8 +537,20 @@ export class NotebookOptions extends Disposable {
 			};
 	}
 
-	getLayoutConfiguration(): NotebookLayoutConfiguration {
+	getLayoutConfiguration(): NotebookLayoutConfiguration & NotebookDisplayOptions {
 		return this._layoutConfiguration;
+	}
+
+	getDisplayOptions(): NotebookDisplayOptions {
+		return this._layoutConfiguration;
+	}
+
+	getCellEditorContainerLeftMargin() {
+		const {
+			codeCellLeftMargin,
+			cellRunGutter
+		} = this._layoutConfiguration;
+		return codeCellLeftMargin + cellRunGutter;
 	}
 
 	computeCollapsedMarkdownCellHeight(viewType: string): number {

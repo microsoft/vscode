@@ -84,13 +84,6 @@ export class NumberBadge extends BaseBadge {
 	}
 }
 
-export class TextBadge extends BaseBadge {
-
-	constructor(readonly text: string, descriptorFn: () => string) {
-		super(descriptorFn);
-	}
-}
-
 export class IconBadge extends BaseBadge {
 	constructor(readonly icon: ThemeIcon, descriptorFn: () => string) {
 		super(descriptorFn);

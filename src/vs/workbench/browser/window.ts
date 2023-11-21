@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { matchesScheme, Schemas } from 'vs/base/common/network';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -19,7 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -27,8 +27,84 @@ import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
+import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 
-export class BrowserWindow extends Disposable {
+export abstract class BaseWindow extends Disposable {
+
+	private static TIMEOUT_HANDLES = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
+	private static readonly TIMEOUT_DISPOSABLES = new Map<number, Set<IDisposable>>();
+
+	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
+		super();
+
+		this.enableMultiWindowAwareTimeout(targetWindow, dom);
+	}
+
+	//#region timeout handling in multi-window applications
+
+	/**
+	 * Override `setTimeout` and `clearTimeout` on the provided window to make
+	 * sure timeouts are dispatched to all opened windows. Some browsers may decide
+	 * to throttle timeouts in minimized windows, so with this we can ensure the
+	 * timeout is scheduled without being throttled (unless all windows are minimized).
+	 */
+	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+		const originalSetTimeout = targetWindow.setTimeout;
+		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', { get: () => originalSetTimeout });
+
+		const originalClearTimeout = targetWindow.clearTimeout;
+		Object.defineProperty(targetWindow, 'vscodeOriginalClearTimeout', { get: () => originalClearTimeout });
+
+		targetWindow.setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
+			if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
+				return originalSetTimeout.apply(this, [handler, timeout, ...args]);
+			}
+
+			const timeoutDisposables = new Set<IDisposable>();
+			const timeoutHandle = BaseWindow.TIMEOUT_HANDLES++;
+			BaseWindow.TIMEOUT_DISPOSABLES.set(timeoutHandle, timeoutDisposables);
+
+			const handlerFn = createSingleCallFunction(handler, () => {
+				dispose(timeoutDisposables);
+				BaseWindow.TIMEOUT_DISPOSABLES.delete(timeoutHandle);
+			});
+
+			for (const { window, disposables } of dom.getWindows()) {
+				if (isAuxiliaryWindow(window) && window.document.visibilityState === 'hidden') {
+					continue; // skip over hidden windows (but never over main window)
+				}
+
+				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
+
+				const timeoutDisposable = toDisposable(() => {
+					(window as any).vscodeOriginalClearTimeout(handle);
+					timeoutDisposables.delete(timeoutDisposable);
+				});
+
+				disposables.add(timeoutDisposable);
+				timeoutDisposables.add(timeoutDisposable);
+			}
+
+			return timeoutHandle;
+		};
+
+		targetWindow.clearTimeout = function (this: unknown, timeoutHandle: number | undefined): void {
+			const timeoutDisposables = typeof timeoutHandle === 'number' ? BaseWindow.TIMEOUT_DISPOSABLES.get(timeoutHandle) : undefined;
+			if (timeoutDisposables) {
+				dispose(timeoutDisposables);
+				BaseWindow.TIMEOUT_DISPOSABLES.delete(timeoutHandle!);
+			} else {
+				originalClearTimeout.apply(this, [timeoutHandle]);
+			}
+		};
+	}
+
+	//#endregion
+
+}
+
+export class BrowserWindow extends BaseWindow {
 
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -41,7 +117,7 @@ export class BrowserWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService private readonly hostService: IHostService
 	) {
-		super();
+		super(mainWindow);
 
 		this.registerListeners();
 		this.create();
@@ -53,33 +129,33 @@ export class BrowserWindow extends Disposable {
 		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Layout
-		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		const viewport = isIOS && mainWindow.visualViewport ? mainWindow.visualViewport /** Visual viewport */ : mainWindow /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
 			this.layoutService.layout();
 
 			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 			if (isIOS) {
-				window.scrollTo(0, 0);
+				mainWindow.scrollTo(0, 0);
 			}
 		}));
 
 		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
+		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
 
 		// Prevent native context menus in web
-		this._register(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
 
 		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
 		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
+			this._register(addDisposableListener(mainWindow.document, event, () => setFullscreen(!!detectFullscreen(mainWindow))));
 		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen());
+			setFullscreen(!!detectFullscreen(mainWindow));
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
@@ -89,8 +165,8 @@ export class BrowserWindow extends Disposable {
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
-			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted
@@ -108,7 +184,7 @@ export class BrowserWindow extends Disposable {
 				buttons: [
 					{
 						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
-						run: () => window.location.reload() // do not use any services at this point since they are likely not functional at this point
+						run: () => mainWindow.location.reload() // do not use any services at this point since they are likely not functional at this point
 					}
 				]
 			});
@@ -191,7 +267,7 @@ export class BrowserWindow extends Disposable {
 				// handling explicitly to prevent the workbench from going down.
 				else {
 					const invokeProtocolHandler = () => {
-						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.href = href);
 					};
 
 					invokeProtocolHandler();

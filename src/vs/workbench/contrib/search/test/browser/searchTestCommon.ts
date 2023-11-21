@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -43,19 +44,23 @@ export function getRootName(): string {
 	}
 }
 
-export function stubModelService(instantiationService: TestInstantiationService): IModelService {
+export function stubModelService(instantiationService: TestInstantiationService, addDisposable: (e: IDisposable) => void): IModelService {
 	instantiationService.stub(IThemeService, new TestThemeService());
 	const config = new TestConfigurationService();
 	config.setUserConfiguration('search', { searchOnType: true });
 	instantiationService.stub(IConfigurationService, config);
-	return instantiationService.createInstance(ModelService);
+	const modelService = instantiationService.createInstance(ModelService);
+	addDisposable(modelService);
+	return modelService;
 }
 
-export function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+export function stubNotebookEditorService(instantiationService: TestInstantiationService, addDisposable: (e: IDisposable) => void): INotebookEditorService {
 	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(IEditorService, new TestEditorService());
-	return instantiationService.createInstance(NotebookEditorWidgetService);
+	const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
+	addDisposable(notebookEditorWidgetService);
+	return notebookEditorWidgetService;
 }
 
 export function addToSearchResult(searchResult: SearchResult, allRaw: IFileMatch[], searchInstanceID = '') {

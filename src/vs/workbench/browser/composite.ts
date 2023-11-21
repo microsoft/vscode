@@ -169,13 +169,6 @@ export abstract class Composite extends Component implements IComposite {
 	abstract setBoundarySashes(sashes: IBoundarySashes): void;
 
 	/**
-	 * Update the styles of the contents of this composite.
-	 */
-	override updateStyles(): void {
-		super.updateStyles();
-	}
-
-	/**
 	 *
 	 * @returns the action runner for this composite
 	 */

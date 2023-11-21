@@ -56,4 +56,8 @@ module.exports = {
 	plugins: [
 		new WarningsToErrorsPlugin()
 	],
+	optimization: {
+		// Without it, CI fails, which indicates a webpack minification bug.
+		minimize: false,
+	},
 };

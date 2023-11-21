@@ -53,16 +53,6 @@
 	outline: 0 !important;
 }
 
-.xterm.dev-mode .xterm-helper-textarea {
-	z-index: 36 !important;
-	opacity: 1 !important;
-	left: 0 !important;
-	width: fit-content !important;
-}
-.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:focus {
-	opacity: 1 !important;
-}
-
 .monaco-workbench .xterm .xterm-helper-textarea:focus {
 	/* Override the general vscode style applies `opacity:1!important` to textareas */
 	opacity: 0 !important;
@@ -489,12 +479,37 @@
 	pointer-events: none;
 }
 
-.terminal-scroll-highlight-outline {
-	border: 1px solid #ffffff;
-	pointer-events: none;
+.terminal-command-guide {
+	left: 0;
+	border: 1.5px solid #ffffff;
+	width: 0px !important;
+	border-color: var(--vscode-notebook-inactiveFocusedCellBorder);
+	box-sizing: border-box;
+	transform: translateX(3px);
+}
+.terminal-command-guide.top {
+	border-top-left-radius: 1px;
+	border-top-right-radius: 1px;
+}
+.terminal-command-guide.bottom {
+	border-bottom-left-radius: 1px;
+	border-bottom-right-radius: 1px;
 }
 
-.terminal-scroll-highlight {
+.terminal-scroll-highlight-outline {
+	border-left: 1px solid #ffffff;
+	border-right: 1px solid #ffffff;
+	pointer-events: none;
+}
+.terminal-scroll-highlight-outline.top {
+	border-top: 1px solid #ffffff;
+}
+.terminal-scroll-highlight-outline.bottom {
+	border-bottom: 1px solid #ffffff;
+}
+
+.terminal-scroll-highlight,
+.terminal-scroll-highlight.terminal-scroll-highlight-outline {
 	border-color: var(--vscode-focusBorder);
 }
 .hc-black .xterm-find-result-decoration,

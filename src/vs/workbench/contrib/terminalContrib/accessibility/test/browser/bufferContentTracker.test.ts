@@ -15,6 +15,7 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILoggerService, NullLogService } from 'vs/platform/log/common/log';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
@@ -28,9 +29,9 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -68,12 +69,13 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 		instantiationService.stub(IAccessibleNotificationService, store.add(new TestAccessibleNotificationService()));
+		instantiationService.stub(ILayoutService, new TestLayoutService());
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
