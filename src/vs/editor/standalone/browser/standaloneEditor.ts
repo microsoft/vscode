@@ -40,6 +40,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
+import { lineMetaFromDecorations } from 'vs/editor/common/textModelEvents';
 
 /**
  * Create a new editor under `domElement`.
@@ -539,6 +540,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		registerLinkOpener: registerLinkOpener,
 		registerEditorOpener: <any>registerEditorOpener,
+
+		lineMetaFromDecorations: <any>lineMetaFromDecorations,
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
