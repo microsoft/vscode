@@ -36,7 +36,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	override getName(): string {
-		return this.label ?? localize('name', "Multi Diff Editor");
+		return (this.label ?? localize('name', "Multi Diff Editor")) + ` (${this.resources.length} files)`;
 	}
 
 	override get editorId(): string {
