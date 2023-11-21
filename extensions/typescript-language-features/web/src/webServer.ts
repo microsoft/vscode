@@ -12,7 +12,7 @@ import { Logger, parseLogLevel } from './logging';
 import { PathMapper } from './pathMapper';
 import { createSys } from './serverHost';
 import { findArgument, findArgumentStringArray, hasArgument, parseServerMode } from './util/args';
-import { StartSessionOptions, WorkerSession } from './workerSession';
+import { StartSessionOptions, createWorkerSession } from './workerSession';
 
 const setSys: (s: ts.System) => void = (ts as any).setSys;
 
@@ -42,11 +42,11 @@ async function initializeSession(
 	const pathMapper = new PathMapper(extensionUri);
 	const watchManager = new FileWatcherManager(ports.watcher, extensionUri, enabledExperimentalTypeAcquisition, pathMapper, logger);
 
-	const { sys, fs } = await createSys(args, ports.sync, logger, watchManager, pathMapper, () => {
+	const { sys, fs } = await createSys(ts, args, ports.sync, logger, watchManager, pathMapper, () => {
 		removeEventListener('message', listener);
 	});
 	setSys(sys);
-	session = new WorkerSession(sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
+	session = createWorkerSession(ts, sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
 	session.listen();
 }
 

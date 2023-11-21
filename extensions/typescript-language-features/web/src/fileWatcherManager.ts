@@ -3,10 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type * as ts from 'typescript/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
 import { Logger } from './logging';
 import { PathMapper, fromResource, looksLikeLibDtsPath, looksLikeNodeModules, mapUri } from './pathMapper';
+
+/**
+ * Copied from `ts.FileWatcherEventKind` to avoid direct dependency.
+ */
+enum FileWatcherEventKind {
+	Created = 0,
+	Changed = 1,
+	Deleted = 2,
+}
 
 export class FileWatcherManager {
 	private static readonly noopWatcher: ts.FileWatcher = { close() { } };
@@ -107,11 +116,11 @@ export class FileWatcherManager {
 
 	private toTsWatcherKind(event: 'create' | 'change' | 'delete') {
 		if (event === 'create') {
-			return ts.FileWatcherEventKind.Created;
+			return FileWatcherEventKind.Created;
 		} else if (event === 'change') {
-			return ts.FileWatcherEventKind.Changed;
+			return FileWatcherEventKind.Changed;
 		} else if (event === 'delete') {
-			return ts.FileWatcherEventKind.Deleted;
+			return FileWatcherEventKind.Deleted;
 		}
 		throw new Error(`Unknown event: ${event}`);
 	}
