@@ -21,8 +21,7 @@ import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
-import { TypeScriptDocumentSymbolProvider } from './documentSymbol';
-import { CachedResponse } from '../tsServer/cachedResponse';
+import { getSymbolKind } from './documentSymbol';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -447,30 +446,37 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		vscode.SymbolKind.Interface,
 	];
 
-	private static _findSmallestScopeContaining(
-		documentSymbols: vscode.DocumentSymbol[],
-		range: vscode.Range,
-		smallestScopeSoFar?: vscode.DocumentSymbol,
-	): vscode.DocumentSymbol | undefined {
-		for (const symbol of documentSymbols) {
-			if (symbol.range.contains(range) && MoveToFileCodeAction._scopesOfInterest.includes(symbol.kind)) {
-				return this._findSmallestScopeContaining(symbol.children, range, symbol);
+	private static _findSmallestNavTreeContaining(
+		navigationTree: Proto.NavigationTree,
+		range: vscode.Range
+	): Proto.NavigationTree {
+		const childTrees = navigationTree.childItems;
+		if (!childTrees) {
+			return navigationTree;
+		}
+		for (const childTree of childTrees) {
+			if (MoveToFileCodeAction._navTreeContainsRange(childTree, range) && MoveToFileCodeAction._scopesOfInterest.includes(getSymbolKind(childTree.kind))) {
+				return this._findSmallestNavTreeContaining(childTree, range);
 			}
 		}
-		return smallestScopeSoFar;
+		return navigationTree;
+	}
+
+	private static _navTreeContainsRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
+		return navigationTree.spans.some(span => typeConverters.Range.fromTextSpan(span).contains(range));
 	}
 
 	public static shouldIncludeMoveToAction(
-		documentSymbols: vscode.DocumentSymbol[] | undefined,
+		navigationTree: Proto.NavigationTree | undefined,
 		range: vscode.Range
 	): boolean {
-		if (!documentSymbols) {
+		if (!navigationTree || !MoveToFileCodeAction._navTreeContainsRange(navigationTree, range)) {
 			return false;
 		}
-		const smallestScopeContaining = MoveToFileCodeAction._findSmallestScopeContaining(documentSymbols, range);
+		const smallestScopeContaining = MoveToFileCodeAction._findSmallestNavTreeContaining(navigationTree, range);
 		return !!(smallestScopeContaining
-			&& smallestScopeContaining.range.start.line === range.start.line
-			&& smallestScopeContaining.range.end.line === range.end.line);
+			&& smallestScopeContaining.spans[0].start.line === range.start.line
+			&& smallestScopeContaining.spans[smallestScopeContaining.spans.length - 1].end.line === range.end.line);
 	}
 }
 
@@ -563,9 +569,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				}
 			}
 			if (action.kind?.value === Move_NewFile.kind.value) {
-				const typeScripProvider = new TypeScriptDocumentSymbolProvider(this.client, new CachedResponse());
-				const documentSymbols = await typeScripProvider.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token);
-				return MoveToFileCodeAction.shouldIncludeMoveToAction(documentSymbols, rangeOrSelection);
+				const navigationTree = await this.client.execute('navtree', { file: document.uri.path }, nulToken);
+				if (navigationTree.type !== 'response') {
+					return;
+				}
+				return MoveToFileCodeAction.shouldIncludeMoveToAction(navigationTree.body, rangeOrSelection);
 			}
 			return true;
 		})).then((mappedRefactors) => applicableRefactors.filter((_, index) => mappedRefactors[index]));
@@ -620,9 +628,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	): Promise<TsCodeAction | undefined> {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
-			const typeScripProvider = new TypeScriptDocumentSymbolProvider(this.client, new CachedResponse());
-			const documentSymbols = await typeScripProvider.provideDocumentSymbols(document, new vscode.CancellationTokenSource().token);
-			const shouldIncludeMoveToAction = MoveToFileCodeAction.shouldIncludeMoveToAction(documentSymbols, rangeOrSelection);
+			const navigationTree = await this.client.execute('navtree', { file: document.uri.path }, nulToken);
+			if (navigationTree.type !== 'response') {
+				return;
+			}
+			const shouldIncludeMoveToAction = MoveToFileCodeAction.shouldIncludeMoveToAction(navigationTree.body, rangeOrSelection);
 			if (!shouldIncludeMoveToAction) {
 				return;
 			}
