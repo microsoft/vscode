@@ -89,6 +89,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				if (action.command?.id) {
 					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
 				}
+				e.preventDefault();
 				return;
 			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
@@ -218,7 +219,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _updateLightBulbTitleAndIcon(): void {
 
 		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.sparkle));
-		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.alert));
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbSparkle));
 		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
 		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
 
@@ -229,7 +230,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (this.state.actions.allAIFixes) {
 			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
 		} else if (this.state.actions.hasAIFix) {
-			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.alert));
+			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbSparkle));
 		} else if (this.state.actions.hasAutoFix) {
 			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
 			if (this._preferredKbLabel) {
