@@ -669,24 +669,27 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._editor.pushUndoStop();
 		}
 
-		const durationInSec = opts.duration / 1000;
-		for (const edit of edits) {
-			const wordCount = countWords(edit.text ?? '');
-			const speed = wordCount / durationInSec;
-			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed, opts.token));
+		const listener = this._session.textModelN.onDidChangeContent(async () => {
+			await this._showDiff(false);
+		});
+
+		try {
+			const durationInSec = opts.duration / 1000;
+			for (const edit of edits) {
+				const wordCount = countWords(edit.text ?? '');
+				const speed = wordCount / durationInSec;
+				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed, opts.token));
+			}
+		} finally {
+			listener.dispose();
 		}
+
 	}
 
-	override async renderChanges(response: ReplyResponse) {
+	private async _showDiff(showControls: boolean) {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		this._updateSummaryMessage(diff?.changes ?? []);
-
-		if (response.untitledTextModel) {
-			this._widget.showCreatePreview(response.untitledTextModel);
-		} else {
-			this._widget.hideCreatePreview();
-		}
 
 		const newDecorations: IModelDeltaDecoration[] = [];
 		const newViewZones: IViewZone[] = [];
@@ -767,34 +770,51 @@ export class LiveStrategy3 extends EditModeStrategy {
 				scrollState.restore(this._editor);
 			}
 		});
-		const actions = [
-			toAction({
-				id: 'accept',
-				label: 'Accept',
-				class: ThemeIcon.asClassName(Codicon.check),
-				run: () => {
 
-				}
-			}),
-			toAction({
-				id: 'discard',
-				label: 'Discard',
-				class: ThemeIcon.asClassName(Codicon.discard),
-				run: () => {
+		if (showControls) {
 
-				}
-			}),
-			compareAction,
-		];
+			const actions = [
+				toAction({
+					id: 'accept',
+					label: 'Accept',
+					class: ThemeIcon.asClassName(Codicon.check),
+					run: () => {
 
-		const toolbar = this._instaService.createInstance(FloatingEditorButtonBar, this._editor, this._session.wholeRange.value.startLineNumber, actions, {
-			telemetrySource: 'inline-diff-toolbar',
-			// buttonConfigProvider: action => {
-			// 	const isCompare = action.id === compareAction.id;
-			// 	return { showLabel: !isCompare, showIcon: isCompare };
-			// }
-		});
-		this._sessionStore.add(toolbar);
+					}
+				}),
+				toAction({
+					id: 'discard',
+					label: 'Discard',
+					class: ThemeIcon.asClassName(Codicon.discard),
+					run: () => {
+
+					}
+				}),
+				compareAction,
+			];
+
+			const toolbar = this._instaService.createInstance(FloatingEditorButtonBar, this._editor, this._session.wholeRange.value.startLineNumber, actions, {
+				telemetrySource: 'inline-diff-toolbar',
+				// buttonConfigProvider: action => {
+				// 	const isCompare = action.id === compareAction.id;
+				// 	return { showLabel: !isCompare, showIcon: isCompare };
+				// }
+			});
+			this._sessionStore.add(toolbar);
+		}
+	}
+
+	override async renderChanges(response: ReplyResponse) {
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		this._updateSummaryMessage(diff?.changes ?? []);
+
+		if (response.untitledTextModel) {
+			this._widget.showCreatePreview(response.untitledTextModel);
+		} else {
+			this._widget.hideCreatePreview();
+		}
+
+		await this._showDiff(true);
 	}
 
 	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
