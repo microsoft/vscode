@@ -1488,7 +1488,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			return;
 		}
 
-		for (let stickyIndex = 0; stickyIndex < state.count; stickyIndex++) {
+		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
 			const stickyNode = state.stickyNodes[stickyIndex];
 			const previousStickyNode = stickyIndex ? state.stickyNodes[stickyIndex - 1] : undefined;
 			const currentWidgetHieght = previousStickyNode ? previousStickyNode.position + previousStickyNode.height : 0;
@@ -2248,6 +2248,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		if (styles.listBackground) {
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container { background-color: ${styles.listBackground}; }`);
 			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row { background-color: ${styles.listBackground}; }`);
 		}
 

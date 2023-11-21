@@ -129,31 +129,27 @@
 	padding: 2px;
 }
 
-.monaco-scrollable-element .monaco-tree-sticky-container{
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container{
 	position: absolute;
 	top: 0;
 	left: 0;
 	width: 100%;
 	height: 0;
+	z-index: 13; /* Settings editor uses z-index: 12 */
 }
 
-.monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row{
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.monaco-list-row{
 	position: absolute;
 	width: 100%;
-	z-index: 13; /* Settings editor uses z-index: 11 */
 	opacity: 1 !important; /* Settings editor uses opacity < 1 */
 }
 
-.monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row.last-sticky{
-	z-index: 12;
-}
-
-.monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row:hover{
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row:hover{
 	background-color: var(--vscode-list-hoverBackground) !important;
 	cursor: pointer;
 }
 
-.monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow{
+.monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-container-shadow{
 	position: absolute;
 	bottom: -3px;
 	left: 0px;
