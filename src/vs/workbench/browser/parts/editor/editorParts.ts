@@ -335,8 +335,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		return this.getPart(group).mergeGroup(group, target, options);
 	}
 
-	mergeAllGroups(): IEditorGroupView {
-		return this.activePart.mergeAllGroups();
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		return this.activePart.mergeAllGroups(target);
 	}
 
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
