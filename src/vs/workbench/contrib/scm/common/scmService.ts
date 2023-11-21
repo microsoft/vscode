@@ -363,7 +363,6 @@ export class SCMService implements ISCMService {
 	get repositoryCount(): number { return this._repositories.size; }
 
 	private inputHistory: SCMInputHistory;
-	private inputValueProviderCount: IContextKey<number>;
 	private providerCount: IContextKey<number>;
 
 	private readonly _inputValueProviders = new Set<ISCMInputValueProvider>();
@@ -385,7 +384,6 @@ export class SCMService implements ISCMService {
 		@IStorageService storageService: IStorageService
 	) {
 		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
-		this.inputValueProviderCount = contextKeyService.createKey('scmInputValueProviderCount', 0);
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
 	}
 
@@ -418,13 +416,9 @@ export class SCMService implements ISCMService {
 		this._inputValueProviders.add(provider);
 		this._onDidChangeInputValueProviders.fire();
 
-		this.inputValueProviderCount.set(this._inputValueProviders.size);
-
 		return toDisposable(() => {
 			this._inputValueProviders.delete(provider);
 			this._onDidChangeInputValueProviders.fire();
-
-			this.inputValueProviderCount.set(this._inputValueProviders.size);
 		});
 	}
 
@@ -433,7 +427,11 @@ export class SCMService implements ISCMService {
 			return undefined;
 		}
 
-		return Iterable.first(this._inputValueProviders);
+		if (this._inputValueProviders.size === 1) {
+			return Iterable.first(this._inputValueProviders);
+		}
+
+		return undefined;
 	}
 
 }
