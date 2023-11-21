@@ -50,6 +50,11 @@
 }
 
 .monaco-component .multiDiffEntry .header .title {
+	flex: 1;
 	font-size: 14px;
 	line-height: 22px;
+}
+
+.monaco-component .multiDiffEntry .header .actions {
+	padding: 0 8px;
 }

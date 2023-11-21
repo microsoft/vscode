@@ -18,6 +18,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div', {
@@ -79,14 +82,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	public readonly lastActiveDiffItem = derivedObservableWithCache<VirtualizedViewItem | undefined>((reader, lastValue) => this.activeDiffItem.read(reader) ?? lastValue);
 	public readonly activeControl = derived(this, reader => this.lastActiveDiffItem.read(reader)?.template.read(reader)?.editor);
 
+	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
+	private readonly _instantiationService = this._parentInstantiationService.createChild(
+		new ServiceCollection([IContextKeyService, this._contextKeyService])
+	);
+
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _dimension: IObservable<Dimension | undefined>,
 		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 	) {
 		super();
+
+		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
 
 		this._register(autorun((reader) => {
 			const lastActiveDiffItem = this.lastActiveDiffItem.read(reader);
