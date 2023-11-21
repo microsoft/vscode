@@ -16,7 +16,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { IInlineChatService, ShowGutterIcon } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED, IInlineChatService, ShowGutterIcon } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,29 +24,35 @@ import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/brows
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpoint, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { URI } from 'vs/base/common/uri';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
 const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
+	private _ctxToolbarIconEnabled: IContextKey<boolean>;
 	private _currentBreakpoints: readonly IBreakpoint[] = [];
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private _hasInlineChatSession: boolean = false;
+	private _hasActiveDebugSession: boolean = false;
+	private _debugSessions: Set<IDebugSession> = new Set();
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
 
+	public static readonly TOOLBAR_SETTING_ID = 'inlineChat.showToolbarIcon';
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	private static readonly GUTTER_ICON_OPAQUE_CLASSNAME = 'codicon-inline-chat-opaque';
 	private static readonly GUTTER_ICON_TRANSPARENT_CLASSNAME = 'codicon-inline-chat-transparent';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -56,7 +62,13 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		super();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
 		this._gutterDecorationOpaque = this._registerGutterDecoration(false);
+		this._ctxToolbarIconEnabled = CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED.bindTo(_contextKeyService);
+		this._setToolbarIconEnablementToSetting();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
+			if (e.affectsConfiguration(InlineChatDecorationsContribution.TOOLBAR_SETTING_ID)) {
+				this._setToolbarIconEnablementToSetting();
+				return;
+			}
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
 				return;
 			}
@@ -74,6 +86,20 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				this._onEnablementOrModelChanged();
 			}
 		}));
+		this._register(this._debugService.onWillNewSession((session) => {
+			this._debugSessions.add(session);
+			if (!this._hasActiveDebugSession) {
+				this._hasActiveDebugSession = true;
+				this._onEnablementOrModelChanged();
+			}
+		}));
+		this._register(this._debugService.onDidEndSession((session) => {
+			this._debugSessions.delete(session);
+			if (this._debugSessions.size === 0) {
+				this._hasActiveDebugSession = false;
+				this._onEnablementOrModelChanged();
+			}
+		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
@@ -82,6 +108,10 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
+	}
+
+	private _setToolbarIconEnablementToSetting(): void {
+		this._ctxToolbarIconEnabled.set(this._configurationService.getValue<boolean>(InlineChatDecorationsContribution.TOOLBAR_SETTING_ID));
 	}
 
 	private _registerGutterDecoration(isTransparent: boolean): ModelDecorationOptions {
@@ -111,7 +141,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (!this._editor.hasModel() || this._hasActiveDebugSession || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;

@@ -15,6 +15,13 @@ declare module 'vscode' {
 		supportIssueReporting?: boolean;
 	}
 
+	export interface ChatAgentErrorDetails {
+		/**
+		 * If set to true, the message content is completely hidden. Only ChatAgentErrorDetails#message will be shown.
+		 */
+		responseIsRedacted?: boolean;
+	}
+
 	/**
 	 * This is temporary until inline references are fully supported and adopted
 	 */
@@ -25,6 +32,16 @@ declare module 'vscode' {
 	export interface ChatAgentDetectedAgent {
 		agentName: string;
 		command?: ChatAgentSlashCommand;
+	}
+
+	export interface ChatAgentVulnerability {
+		title: string;
+		description: string;
+		// id: string; // Later we will need to be able to link these across multiple content chunks.
+	}
+
+	export interface ChatAgentContent {
+		vulnerability?: ChatAgentVulnerability;
 	}
 
 	export type ChatAgentExtendedProgress = ChatAgentProgress

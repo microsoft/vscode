@@ -7,6 +7,7 @@ import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextv
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IContextViewDelegate, IContextViewService } from './contextView';
+import { getWindow } from 'vs/base/browser/dom';
 
 export class ContextViewService extends Disposable implements IContextViewService {
 
@@ -29,7 +30,13 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
 		let domPosition: ContextViewDOMPosition;
 		if (container) {
-			domPosition = shadowRoot ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED;
+			if (container === this.layoutService.getContainer(getWindow(container))) {
+				domPosition = ContextViewDOMPosition.ABSOLUTE;
+			} else if (shadowRoot) {
+				domPosition = ContextViewDOMPosition.FIXED_SHADOW;
+			} else {
+				domPosition = ContextViewDOMPosition.FIXED;
+			}
 		} else {
 			domPosition = ContextViewDOMPosition.ABSOLUTE;
 		}

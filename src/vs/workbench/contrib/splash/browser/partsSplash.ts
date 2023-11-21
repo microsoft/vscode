@@ -80,10 +80,10 @@ export class PartsSplash {
 			layoutInfo: !this._shouldSaveLayoutInfo() ? undefined : {
 				sideBarSide: this._layoutService.getSideBarPosition() === Position.RIGHT ? 'right' : 'left',
 				editorPartMinWidth: DEFAULT_EDITOR_MIN_DIMENSIONS.width,
-				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.TITLEBAR_PART))) : 0,
-				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.ACTIVITYBAR_PART))) : 0,
-				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(Parts.SIDEBAR_PART))) : 0,
-				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(Parts.STATUSBAR_PART))) : 0,
+				titleBarHeight: this._layoutService.isVisible(Parts.TITLEBAR_PART) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART))) : 0,
+				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.ACTIVITYBAR_PART))) : 0,
+				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.SIDEBAR_PART))) : 0,
+				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART))) : 0,
 				windowBorder: this._layoutService.hasWindowBorder(),
 				windowBorderRadius: this._layoutService.getWindowBorderRadius()
 			}

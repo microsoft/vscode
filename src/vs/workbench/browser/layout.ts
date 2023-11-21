@@ -48,6 +48,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { mainWindow } from 'vs/base/browser/window';
 
 //#region Layout Implementation
 
@@ -1082,7 +1083,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	hasFocus(part: Parts): boolean {
-		const container = this.getContainer(part);
+		const container = this.getContainer(getActiveWindow(), part);
 		if (!container) {
 			return false;
 		}
@@ -1096,7 +1097,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focusPart(part: Parts): void {
-		const container = this.getContainer(part);
+		let targetWindow: Window;
+		switch (part) {
+			case Parts.EDITOR_PART:
+			case Parts.STATUSBAR_PART:
+				targetWindow = getActiveWindow();
+				break;
+			default:
+				targetWindow = mainWindow;
+		}
+
+		const container = this.getContainer(targetWindow, part);
 		if (container) {
 			focusWindow(container);
 		}
@@ -1120,25 +1131,37 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				break;
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
+				break;
 			default: {
 				container?.focus();
 			}
 		}
 	}
 
-	getContainer(window: Window): HTMLElement;
-	getContainer(part: Parts): HTMLElement | undefined;
-	getContainer(windowOrPart: Window | Parts): HTMLElement | undefined {
-		if (typeof windowOrPart === 'string') {
-			const part = windowOrPart;
-			if (!this.parts.get(part)) {
-				return undefined;
-			}
+	getContainer(targetWindow: Window): HTMLElement;
+	getContainer(targetWindow: Window, part: Parts): HTMLElement | undefined;
+	getContainer(targetWindow: Window, part?: Parts): HTMLElement | undefined {
+		if (typeof part === 'undefined') {
+			return this.getContainerFromDocument(targetWindow.document);
+		}
 
+		if (targetWindow === mainWindow) {
 			return this.getPart(part).getContainer();
 		}
 
-		return this.getContainerFromDocument(windowOrPart.document);
+		// Only some parts are supported for auxiliary windows
+		let partCandidate: unknown;
+		if (part === Parts.EDITOR_PART) {
+			partCandidate = this.editorGroupService.getPart(this.getContainerFromDocument(targetWindow.document));
+		} else if (part === Parts.STATUSBAR_PART) {
+			partCandidate = this.statusBarService.getPart(this.getContainerFromDocument(targetWindow.document));
+		}
+
+		if (partCandidate instanceof Part) {
+			return partCandidate.getContainer();
+		}
+
+		return undefined;
 	}
 
 	isVisible(part: Parts): boolean {
