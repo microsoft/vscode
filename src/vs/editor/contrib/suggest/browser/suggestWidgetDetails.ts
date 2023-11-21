@@ -17,6 +17,7 @@ import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CompletionItem } from './suggest';
+import { assert } from 'vs/base/common/assert';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -365,8 +366,28 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	placeAtAnchor(anchor: HTMLElement, preferAlignAtTop: boolean) {
-		const anchorBox = anchor.getBoundingClientRect();
-		this._anchorBox = anchorBox;
+		let relativeAnchorBox: dom.IDomNodePagePosition;
+
+		const editorAsHtmlElement = this._editor.getDomNode();
+		if (editorAsHtmlElement) {
+			// get the bounding rectangle of the editor and the suggest widget (relative to the viewport)
+			const monacoEditorBoundingBox = editorAsHtmlElement.getBoundingClientRect();
+			const suggest = anchor.getBoundingClientRect();
+
+			// get bounding rectangle of the suggest widget relative to the editor
+			relativeAnchorBox = {
+				top: suggest.top - monacoEditorBoundingBox.top,
+				left: suggest.left - monacoEditorBoundingBox.left,
+				width: suggest.width,
+				height: suggest.height,
+			}
+		} else {
+			// Editor Dom Node should be available
+			assert(false);
+			relativeAnchorBox = anchor.getBoundingClientRect();
+		}
+
+		this._anchorBox = relativeAnchorBox;
 		this._preferAlignAtTop = preferAlignAtTop;
 		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, preferAlignAtTop);
 	}

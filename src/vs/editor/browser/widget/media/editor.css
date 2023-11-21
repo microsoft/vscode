@@ -47,7 +47,6 @@
 /* -------------------- Misc -------------------- */
 
 .monaco-editor .overflow-guard {
-	position: relative;
 	overflow: hidden;
 }
 
