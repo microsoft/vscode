@@ -36,6 +36,7 @@ export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
+	responseIsRedacted?: boolean;
 }
 
 export interface IChatResponse {
