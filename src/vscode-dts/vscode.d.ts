@@ -7333,7 +7333,7 @@ declare module 'vscode' {
 		 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
 		 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 		 */
-		sendText(text: string, addNewLine?: boolean): void;
+		sendText(text: string, shouldExecute?: boolean): void;
 
 		/**
 		 * Show the terminal panel and reveal this terminal in the UI.
