@@ -47,11 +47,8 @@ export class MultiDiffEditor extends EditorPane {
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		if (!input.viewModel) {
-			const vm = await input.getModel();
-			input.viewModel = this._multiDiffEditorWidget!.createViewModel(vm);
-		}
-		this._multiDiffEditorWidget!.setViewModel(input.viewModel);
+		const vm = await input.getViewModel();
+		this._multiDiffEditorWidget!.setViewModel(vm);
 	}
 
 	override async clearInput(): Promise<void> {

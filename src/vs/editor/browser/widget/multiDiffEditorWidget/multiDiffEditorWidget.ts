@@ -42,7 +42,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {
-		return this._widgetImpl.get().createViewModel(model);
+		return new MultiDiffEditorViewModel(model, this._instantiationService);
 	}
 
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined): void {
