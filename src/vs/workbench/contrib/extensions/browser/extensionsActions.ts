@@ -828,10 +828,13 @@ export class UpdateAction extends AbstractUpdateAction {
 
 export class SkipUpdateAction extends AbstractUpdateAction {
 
+	static readonly ID = 'workbench.extensions.action.ignoreUpdates';
+	static readonly LABEL = localize('ignoreUpdates', "Ignore Updates");
+
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(`extensions.ignoreUpdates`, localize('ignoreUpdates', "Ignore Updates"), extensionsWorkbenchService);
+		super(SkipUpdateAction.ID, SkipUpdateAction.LABEL, extensionsWorkbenchService);
 	}
 
 	override update() {
@@ -1010,6 +1013,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionIsPreReleaseVersion', !!extension.gallery?.properties.isPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
+			cksOverlay.push(['isExtensionPinned', extension.pinned]);
 
 			const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes()]);
 			cksOverlay.push(['extensionHasColorThemes', colorThemes.some(theme => isThemeFromExtension(theme, extension))]);

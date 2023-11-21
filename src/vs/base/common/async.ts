@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
+import { BugIndicatingError, CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { MicrotaskDelay } from './symbols';
+import { Lazy } from 'vs/base/common/lazy';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -1621,6 +1622,67 @@ export namespace Promises {
 				reject(error);
 			}
 		});
+	}
+}
+
+export class StatefulPromise<T> {
+	private _value: T | undefined = undefined;
+	get value(): T | undefined { return this._value; }
+
+	private _error: unknown = undefined;
+	get error(): unknown { return this._error; }
+
+	private _isResolved = false;
+	get isResolved() { return this._isResolved; }
+
+	public readonly promise: Promise<T>;
+
+	constructor(promise: Promise<T>) {
+		this.promise = promise.then(
+			value => {
+				this._value = value;
+				this._isResolved = true;
+				return value;
+			},
+			error => {
+				this._error = error;
+				this._isResolved = true;
+				throw error;
+			}
+		);
+	}
+
+	public requireValue(): T {
+		if (!this._isResolved) {
+			throw new BugIndicatingError('Promise is not resolved yet');
+		}
+		if (this._error) {
+			throw this._error;
+		}
+		return this._value!;
+	}
+}
+
+export class LazyStatefulPromise<T> {
+	private _promise = new Lazy(() => new StatefulPromise(this._compute()));
+
+	constructor(
+		private readonly _compute: () => Promise<T>,
+	) { }
+
+	/**
+	 * Returns the resolved value.
+	 * Crashes if the promise is not resolved yet.
+	 */
+	public requireValue(): T {
+		return this._promise.value.requireValue();
+	}
+
+	/**
+	 * Returns the promise (and triggers a computation of the promise if not yet done so).
+	 */
+	public getPromise(): Promise<T> {
+		return this._promise.value.promise;
 	}
 }
 

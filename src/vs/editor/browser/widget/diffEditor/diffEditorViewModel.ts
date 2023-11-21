@@ -7,7 +7,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
@@ -68,7 +67,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	private readonly _cancellationTokenSource = new CancellationTokenSource();
 
 	private readonly _diffProvider = derived(this, reader => {
-		const diffProvider = this._diffProviderFactoryService.createDiffProvider(this._editor, {
+		const diffProvider = this._diffProviderFactoryService.createDiffProvider({
 			diffAlgorithm: this._options.diffAlgorithm.read(reader)
 		});
 		const onChangeSignal = observableSignalFromEvent('onDidChange', diffProvider.onDidChange);
@@ -81,7 +80,6 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	constructor(
 		public readonly model: IDiffEditorModel,
 		private readonly _options: DiffEditorOptions,
-		private readonly _editor: IDiffEditor,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 	) {
 		super();

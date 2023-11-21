@@ -697,7 +697,7 @@
       {
         "command": "git.timeline.openCommit",
         "title": "%command.timelineOpenCommit%",
-        "icon": "$(search)",
+        "icon": "$(tasklist)",
         "category": "Git"
       },
       {
@@ -763,13 +763,13 @@
       {
         "command": "git.viewChanges",
         "title": "View Changes",
-        "icon": "$(search)",
+        "icon": "$(tasklist)",
         "category": "Git"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "View Staged Changes",
-        "icon": "$(search)",
+        "icon": "$(tasklist)",
         "category": "Git"
       }
     ],
