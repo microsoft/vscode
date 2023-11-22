@@ -19,7 +19,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getActiveWindow } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -156,6 +156,28 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 	}
 }
 
+class TitlebarPartHoverDelegate implements IHoverDelegate {
+
+	readonly showHover = this.hoverService.showHover.bind(this.hoverService);
+	readonly placement = 'element';
+
+	private lastHoverHideTime: number = 0;
+	get delay(): number {
+		return Date.now() - this.lastHoverHideTime < 200
+			? 0  // show instantly when a hover was recently shown
+			: this.configurationService.getValue<number>('workbench.hover.delay');
+	}
+
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) { }
+
+	onDidHideHover() {
+		this.lastHoverHideTime = Date.now();
+	}
+}
+
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	declare readonly _serviceBrand: undefined;
@@ -164,8 +186,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+
 	get minimumHeight(): number {
 		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? 35 : 30;
+
 		return value / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
 
@@ -179,7 +203,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
 	private readonly _onDidChangeCommandCenterVisibility = this._register(new Emitter<void>());
-	readonly onDidChangeCommandCenterVisibility: Event<void> = this._onDidChangeCommandCenterVisibility.event;
+	readonly onDidChangeCommandCenterVisibility = this._onDidChangeCommandCenterVisibility.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -210,7 +234,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly editorToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly layoutToolbarMenuDisposables = this._register(new DisposableStore());
 
-	private hoverDelegate: IHoverDelegate;
+	private readonly hoverDelegate = new TitlebarPartHoverDelegate(this.hoverService, this.configurationService);
 
 	private readonly titleDisposables = this._register(new DisposableStore());
 	private titleBarStyle: 'native' | 'custom' = getTitleBarStyle(this.configurationService);
@@ -235,7 +259,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -248,29 +272,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow, editorGroupsContainer));
 
-		this.hoverDelegate = new class implements IHoverDelegate {
-
-			private _lastHoverHideTime: number = 0;
-
-			readonly showHover = hoverService.showHover.bind(hoverService);
-			readonly placement = 'element';
-
-			get delay(): number {
-				return Date.now() - this._lastHoverHideTime < 200
-					? 0  // show instantly when a hover was recently shown
-					: configurationService.getValue<number>('workbench.hover.delay');
-			}
-
-			onDidHideHover() {
-				this._lastHoverHideTime = Date.now();
-			}
-		};
-
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
+		this._register(this.hostService.onDidChangeActiveWindow(() => getActiveWindow() === getWindow(this.element) ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 	}
 
@@ -317,11 +324,26 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Command Center
 		if (event.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
-			this.updateTitle();
+			this.createTitle();
 
 			this._onDidChangeCommandCenterVisibility.fire();
 			this._onDidChange.fire(undefined);
 		}
+	}
+
+	protected installMenubar(): void {
+		if (this.menubar) {
+			return; // If the menubar is already installed, skip
+		}
+
+		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+
+		this.menubar = append(this.leftContent, $('div.menubar'));
+		this.menubar.setAttribute('role', 'menubar');
+
+		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+
+		this.customMenubar.create(this.menubar);
 	}
 
 	private uninstallMenubar(): void {
@@ -344,46 +366,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 	}
 
-	protected installMenubar(): void {
-		if (this.menubar) {
-			return; // If the menubar is already installed, skip
-		}
-
-		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-
-		this.menubar = append(this.leftContent, $('div.menubar'));
-		this.menubar.setAttribute('role', 'menubar');
-
-		this._register(this.customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
-
-		this.customMenubar.create(this.menubar);
-	}
-
 	updateProperties(properties: ITitleProperties): void {
 		this.windowTitle.updateProperties(properties);
 	}
 
 	get isCommandCenterVisible() {
 		return this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER);
-	}
-
-	private updateTitle(): void {
-		this.titleDisposables.clear();
-
-		// Text Title
-		if (!this.isCommandCenterVisible) {
-			this.title.innerText = this.windowTitle.value;
-			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
-				this.title.innerText = this.windowTitle.value;
-			}));
-		}
-
-		// Menu Title
-		else {
-			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
-			reset(this.title, commandCenter.element);
-			this.titleDisposables.add(commandCenter);
-		}
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -428,7 +416,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Title
 		this.title = append(this.centerContent, $('div.window-title'));
-		this.updateTitle();
+		this.createTitle();
 
 		// Create Toolbar Actions
 		if (this.titleBarStyle !== 'native') {
@@ -457,6 +445,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this._register(addDisposableListener(this.rootContainer, event, e => {
 				if (e.type === EventType.CONTEXT_MENU || (e.target === this.title && e.metaKey)) {
 					EventHelper.stop(e);
+
 					this.onContextMenu(e, e.target === this.title ? MenuId.TitleBarTitleContext : MenuId.TitleBarContext);
 				}
 			}));
@@ -487,6 +476,25 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.updateStyles();
 
 		return this.element;
+	}
+
+	private createTitle(): void {
+		this.titleDisposables.clear();
+
+		// Text Title
+		if (!this.isCommandCenterVisible) {
+			this.title.innerText = this.windowTitle.value;
+			this.titleDisposables.add(this.windowTitle.onDidChange(() => {
+				this.title.innerText = this.windowTitle.value;
+			}));
+		}
+
+		// Menu Title
+		else {
+			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
+			reset(this.title, commandCenter.element);
+			this.titleDisposables.add(commandCenter);
+		}
 	}
 
 	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
@@ -663,8 +671,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
-
-		// Find target anchor
 		const event = new StandardMouseEvent(getWindow(this.rootContainer), e);
 
 		// Show it
@@ -705,6 +711,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the title bar
+
 		const zoomFactor = getZoomFactor();
 
 		const noMenubar = this.currentMenubarVisibility === 'hidden' || (!isWeb && isMacintosh);
