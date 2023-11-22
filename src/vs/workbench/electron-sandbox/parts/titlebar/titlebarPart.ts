@@ -13,8 +13,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux, isNative, isBigSurOrNewer } from 'vs/base/common/platform';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { Part } from 'vs/workbench/browser/part';
-import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart, ITitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
@@ -326,11 +325,11 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 
 export class NativeTitleService extends BrowserTitleService {
 
-	protected override createMainTitlebarPart(): ITitlebarPart {
+	protected override createMainTitlebarPart(): MainNativeTitlebarPart {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
 		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer);
 	}
 }

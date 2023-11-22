@@ -12,7 +12,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/pl
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -92,21 +92,15 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService
 	) {
 		super();
+
+		this._register(this.registerTitlebarPart(this.mainPart));
 	}
 
-	protected createMainTitlebarPart(): ITitlebarPart {
+	protected createMainTitlebarPart(): BrowserTitlebarPart {
 		return this.instantiationService.createInstance(MainBrowserTitlebarPart);
 	}
 
-	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
-
-	get isCommandCenterVisible() { return this.mainPart.isCommandCenterVisible; }
-
-	readonly onDidChangeCommandCenterVisibility = this.mainPart.onDidChangeCommandCenterVisibility;
-
-	updateProperties(properties: ITitleProperties): void {
-		this.mainPart.updateProperties(properties);
-	}
+	//#region Auxiliary Titlebar Parts
 
 	createAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart {
 		const titlebarPartContainer = document.createElement('div');
@@ -116,15 +110,48 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		container.insertBefore(titlebarPartContainer, container.firstChild); // ensure we are first element
 
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer);
+		titlebarPartContainer.style.height = `${titlebarPart.height}px`;
+
+		const disposable = this.registerTitlebarPart(titlebarPart);
+
 		titlebarPart.create(titlebarPartContainer);
 
-		titlebarPartContainer.style.height = `${titlebarPart.height}px`;
+		Event.once(titlebarPart.onWillDispose)(() => disposable.dispose());
 
 		return titlebarPart;
 	}
 
-	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
+	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): BrowserTitlebarPart & IAuxiliaryTitlebarPart {
 		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, container, editorGroupsContainer);
+	}
+
+	//#endregion
+
+	//#region Registration
+
+	private readonly parts = new Set<BrowserTitlebarPart>();
+
+	private registerTitlebarPart(part: BrowserTitlebarPart): IDisposable {
+		this.parts.add(part);
+
+		const disposables = this._register(new DisposableStore());
+		disposables.add(toDisposable(() => this.parts.delete(part)));
+
+		return disposables;
+	}
+
+	//#endregion
+
+	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
+
+	get isCommandCenterVisible() { return this.mainPart.isCommandCenterVisible; }
+
+	readonly onDidChangeCommandCenterVisibility = this.mainPart.onDidChangeCommandCenterVisibility;
+
+	updateProperties(properties: ITitleProperties): void {
+		for (const part of this.parts) {
+			part.updateProperties(properties);
+		}
 	}
 }
 
@@ -150,6 +177,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly _onDidChangeCommandCenterVisibility = new Emitter<void>();
 	readonly onDidChangeCommandCenterVisibility: Event<void> = this._onDidChangeCommandCenterVisibility.event;
+
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	protected rootContainer!: HTMLElement;
 	protected primaryWindowControls: HTMLElement | undefined;
@@ -682,6 +712,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return {
 			type: Parts.TITLEBAR_PART
 		};
+	}
+
+	override dispose(): void {
+		this._onWillDispose.fire();
+
+		super.dispose();
 	}
 }
 
