@@ -27,6 +27,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
@@ -59,6 +60,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 	constructor(
 		id: string,
+		targetWindow: Window,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -76,7 +78,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 
 		this.bigSurOrNewer = isBigSurOrNewer(environmentService.os.release);
 	}
@@ -289,7 +291,7 @@ export class MainNativeTitlebarPart extends NativeTitlebarPart {
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(Parts.TITLEBAR_PART, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
 }
 
@@ -319,7 +321,7 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
 }
 

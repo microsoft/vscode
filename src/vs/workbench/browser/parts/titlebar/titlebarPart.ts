@@ -184,7 +184,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected rootContainer!: HTMLElement;
 	protected primaryWindowControls: HTMLElement | undefined;
 	protected dragRegion: HTMLElement | undefined;
-	protected title!: HTMLElement;
+	private title!: HTMLElement;
 
 	private leftContent!: HTMLElement;
 	private centerContent!: HTMLElement;
@@ -194,7 +194,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
-	protected lastLayoutDimensions: Dimension | undefined;
+	private lastLayoutDimensions: Dimension | undefined;
 
 	private actionToolBar!: WorkbenchToolBar;
 	private actionToolBarDisposable = this._register(new DisposableStore());
@@ -218,6 +218,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	constructor(
 		id: string,
+		targetWindow: Window,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -235,7 +236,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
-		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, mainWindow, editorGroupsContainer));
+		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow, editorGroupsContainer));
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
@@ -739,7 +740,7 @@ export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(Parts.TITLEBAR_PART, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(Parts.TITLEBAR_PART, mainWindow, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
 }
 
@@ -773,7 +774,7 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		const id = AuxiliaryBrowserTitlebarPart.COUNTER++;
-		super(`workbench.parts.auxiliaryTitle.${id}`, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
 }
 
