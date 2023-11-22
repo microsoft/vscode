@@ -38,6 +38,7 @@ class CodeActionOracle extends Disposable {
 		private readonly _markerService: IMarkerService,
 		private readonly _signalChange: (triggered: TriggeredCodeAction | undefined) => void,
 		private readonly _delay: number = 250,
+		private readonly _configurationService?: IConfigurationService,
 	) {
 		super();
 		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
@@ -45,7 +46,9 @@ class CodeActionOracle extends Disposable {
 	}
 
 	public trigger(trigger: CodeActionTrigger): void {
-		const selection = this._editor.getSelection();
+		const setting = !!this._configurationService?.getValue<boolean>('editor.codeActionsTriggerOnEmptyLines');
+		const currentSelection = this._editor.getSelection();
+		const selection = setting ? currentSelection : this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		// const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
@@ -63,7 +66,6 @@ class CodeActionOracle extends Disposable {
 		}, this._delay);
 	}
 
-	/*
 	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
 		if (!this._editor.hasModel()) {
 			return undefined;
@@ -96,7 +98,6 @@ class CodeActionOracle extends Disposable {
 		}
 		return selection;
 	}
-	*/
 }
 
 export namespace CodeActionsState {
@@ -300,7 +301,7 @@ export class CodeActionModel extends Disposable {
 					this._progressService?.showWhile(actions, 250);
 				}
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
-			}, undefined);
+			}, undefined, this._configurationService);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();

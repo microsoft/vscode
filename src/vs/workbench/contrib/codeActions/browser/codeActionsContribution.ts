@@ -61,10 +61,17 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 };
 
+const codeActionsTriggerOnEmptyLines: IConfigurationPropertySchema = {
+	markdownDescription: nls.localize('editor.codeActionsTriggerOnEmptyLines', 'Trigger code actions on empty lines. This will in particular affect the lightbulb menu.'),
+	type: 'boolean',
+	default: true
+};
+
 export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	...editorConfigurationBaseNode,
 	properties: {
-		'editor.codeActionsOnSave': codeActionsOnSaveSchema
+		'editor.codeActionsOnSave': codeActionsOnSaveSchema,
+		'editor.codeActionsTriggerOnEmptyLines': codeActionsTriggerOnEmptyLines,
 	}
 });
 
