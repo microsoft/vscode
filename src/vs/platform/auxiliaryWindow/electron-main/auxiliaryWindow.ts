@@ -5,9 +5,11 @@
 
 import { BrowserWindow, WebContents } from 'electron';
 import { Emitter } from 'vs/base/common/event';
+import { isMacintosh } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
@@ -77,6 +79,12 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 			// Listeners
 			this.registerWindowListeners(window);
+
+			// Config
+			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+			if (isMacintosh && useCustomTitleStyle) {
+				this._win.setSheetOffset(28); // offset dialogs by the height of the custom title bar if we have any
+			}
 		}
 	}
 

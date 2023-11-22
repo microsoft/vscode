@@ -361,7 +361,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (isMacintosh && useCustomTitleStyle) {
-				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+				this._win.setSheetOffset(28); // offset dialogs by the height of the custom title bar if we have any
 			}
 
 			// Update the window controls immediately based on cached values
