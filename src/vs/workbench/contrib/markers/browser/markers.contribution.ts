@@ -553,6 +553,7 @@ registerAction2(class extends Action2 {
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
 	private markersStatusItem: IStatusbarEntryAccessor;
+	private markersStatusItemOff: IStatusbarEntryAccessor;
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
@@ -561,10 +562,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
+		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problems', StatusbarAlignment.LEFT, 51));
 		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+		this.markerService.onMarkerChanged(() => this.markersStatusItemOff.update(this.getMarkersItemTurnedOff()));
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.editor.showProblems')) {
 				this.markersStatusItem.update(this.getMarkersItem());
+				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 			}
 		});
 	}
@@ -581,12 +585,40 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		};
 	}
 
-	private getMarkersTooltip(stats: MarkerStatistics): string {
+	private getMarkersItemTurnedOff(): IStatusbarEntry {
+		const config = this.configurationService.getValue('workbench.editor.showProblems');
+		if (config) {
+			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
+		}
+
+		const openSettingsCommand = 'workbench.action.openSettings';
+		const configureSettingsLabel = 'workbench.editor.showProblems';
+		const tooltip = this.getMarkersTurnedOffTooltip();
+		return {
+			name: localize('status.problems', "Problems"),
+			text: this.markersOffText(),
+			ariaLabel: tooltip,
+			tooltip,
+			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
+		};
+	}
+
+	private getMarkersTurnedOffTooltip(): string {
 		const config = this.configurationService.getValue('workbench.editor.showProblems');
 		if (!config) {
 			return localize('problemsOff', "Problems have been turned off.");
 		}
+		return '';
+	}
 
+	private markersOffText(): string {
+		const problemsText: string[] = [];
+		// Warning Symbol
+		problemsText.push('$(warning)');
+		return problemsText.join(' ');
+	}
+
+	private getMarkersTooltip(stats: MarkerStatistics): string {
 		const errorTitle = (n: number) => localize('totalErrors', "Errors: {0}", n);
 		const warningTitle = (n: number) => localize('totalWarnings', "Warnings: {0}", n);
 		const infoTitle = (n: number) => localize('totalInfos', "Infos: {0}", n);
@@ -630,10 +662,6 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private packNumber(n: number): string {
-		const config = this.configurationService.getValue('workbench.editor.showProblems');
-		if (!config) {
-			return '-';
-		}
 		const manyProblems = localize('manyProblems', "10K+");
 		return n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 	}
