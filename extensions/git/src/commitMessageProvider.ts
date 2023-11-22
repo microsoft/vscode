@@ -7,7 +7,7 @@ import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, Sou
 import { CommitMessageProvider, Status, Repository as ApiRepository } from './api/git';
 import { Repository } from './repository';
 import { dispose } from './util';
-import { Model } from './model';
+//import { Model } from './model';
 
 export interface ICommitMessageProviderRegistry {
 	readonly onDidChangeCommitMessageProvider: Event<void>;
@@ -190,12 +190,13 @@ export class GenerateCommitMessageActionButton {
 
 export class TestCommitMessageProvider2 implements SourceControlInputBoxValueProvider {
 
-	readonly label = 'Generate Commit Message (Test)';
-	readonly icon = new ThemeIcon('rocket');
+	// private readonly _changesMap = new Map<string, [string[], number]>();
 
-	private readonly _changesMap = new Map<string, [string[], number]>();
-
-	constructor(private readonly model: Model) { }
+	constructor(
+		// private readonly model: Model,
+		readonly label = 'Generate Commit Message (Test)',
+		readonly icon = new ThemeIcon('rocket')
+	) { }
 
 	async provideValue(sourceControlId: string, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
 		console.log(sourceControlId, context);
@@ -221,24 +222,24 @@ export class TestCommitMessageProvider2 implements SourceControlInputBoxValuePro
 				// const attemptCount = this.getAttemptCount(repository, diff);
 				// this._changesMap.set(repository.root, [diff, attemptCount]);
 
-				resolve(`Test commit message (Attempt No. ${attemptCount})`);
+				resolve(`Test commit message (Attempt No. ${attemptCount}) ${this.icon.toString()}}`);
 			}, 3000);
 		});
 	}
 
-	private getAttemptCount(repository: Repository, changes: string[]): number {
-		const [previousChanges, previousCount] = this._changesMap.get(repository.root) ?? [[], 1];
-		if (previousChanges.length !== changes.length) {
-			return 1;
-		}
+	// private getAttemptCount(repository: Repository, changes: string[]): number {
+	// 	const [previousChanges, previousCount] = this._changesMap.get(repository.root) ?? [[], 1];
+	// 	if (previousChanges.length !== changes.length) {
+	// 		return 1;
+	// 	}
 
-		for (let index = 0; index < changes.length; index++) {
-			if (previousChanges[index] !== changes[index]) {
-				return 1;
-			}
-		}
+	// 	for (let index = 0; index < changes.length; index++) {
+	// 		if (previousChanges[index] !== changes[index]) {
+	// 			return 1;
+	// 		}
+	// 	}
 
-		return previousCount + 1;
-	}
+	// 	return previousCount + 1;
+	// }
 
 }
