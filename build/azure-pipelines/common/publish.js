@@ -507,18 +507,10 @@ async function processArtifact(artifact, artifactFilePath) {
     const size = fs.statSync(artifactFilePath).size;
     const stream = fs.createReadStream(artifactFilePath);
     const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
-    const [cdnSettledResult, prssSettledResult] = await Promise.allSettled([
+    const [assetUrl, prssUrl] = await Promise.all([
         uploadAssetLegacy(log, quality, commit, artifactFilePath),
         releaseAndProvision(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), commit, quality, artifactFilePath)
     ]);
-    if (cdnSettledResult.status === 'rejected') {
-        throw cdnSettledResult.reason;
-    }
-    else if (prssSettledResult.status === 'rejected') { // TODO@joaomoreno, let's temporarily ignore these errors
-        console.error(prssSettledResult.reason);
-    }
-    const assetUrl = cdnSettledResult.value;
-    const prssUrl = prssSettledResult.status === 'fulfilled' ? prssSettledResult.value : undefined;
     const asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl: prssUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
     log('Creating asset...', JSON.stringify(asset));
     await (0, retry_1.retry)(async (attempt) => {
