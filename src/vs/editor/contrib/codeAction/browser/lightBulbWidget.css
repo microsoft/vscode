@@ -13,13 +13,11 @@
 	cursor: pointer;
 }
 
-.monaco-editor .lightBulbWidget.codicon-light-bulb,
-.monaco-editor .lightBulbWidget.codicon-lightbulb-sparkle {
+.monaco-editor .lightBulbWidget.codicon-light-bulb {
 	color: var(--vscode-editorLightBulb-foreground);
 }
 
-.monaco-editor .lightBulbWidget.codicon-lightbulb-autofix,
-.monaco-editor .lightBulbWidget.codicon-lightbulb-sparkle-autofix {
+.monaco-editor .lightBulbWidget.codicon-lightbulb-autofix {
 	color: var(--vscode-editorLightBulbAutoFix-foreground, var(--vscode-editorLightBulb-foreground));
 }
 
