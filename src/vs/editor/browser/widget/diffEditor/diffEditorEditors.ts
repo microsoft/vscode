@@ -121,6 +121,8 @@ export class DiffEditorEditors extends Disposable {
 			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
 		}
+		result.glyphMargin = this._options.renderSideBySide.get();
+
 		if (changedOptions.originalAriaLabel) {
 			result.ariaLabel = changedOptions.originalAriaLabel;
 		}

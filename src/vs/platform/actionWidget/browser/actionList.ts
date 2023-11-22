@@ -245,30 +245,35 @@ export class ActionList<T> extends Disposable {
 		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
 		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
 		this._list.layout(heightWithHeaders);
+		let maxWidth = minWidth;
 
-		// For finding width dynamically (not using resize observer)
-		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-			const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
-			if (element) {
-				element.style.width = 'auto';
-				const width = element.getBoundingClientRect().width;
-				element.style.width = '';
-				return width;
-			}
-			return 0;
-		});
+		if (this._allMenuItems.length >= 50) {
+			maxWidth = 380;
+		} else {
+			// For finding width dynamically (not using resize observer)
+			const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
+				const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
+				if (element) {
+					element.style.width = 'auto';
+					const width = element.getBoundingClientRect().width;
+					element.style.width = '';
+					return width;
+				}
+				return 0;
+			});
 
-		// resize observer - can be used in the future since list widget supports dynamic height but not width
-		const width = Math.max(...itemWidths, minWidth);
+			// resize observer - can be used in the future since list widget supports dynamic height but not width
+			maxWidth = Math.max(...itemWidths, minWidth);
+		}
 
 		const maxVhPrecentage = 0.7;
 		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
-		this._list.layout(height, width);
+		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;
 
 		this._list.domFocus();
-		return width;
+		return maxWidth;
 	}
 
 	focusPrevious() {

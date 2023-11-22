@@ -86,7 +86,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _editors: DiffEditorEditors;
 
 	private readonly _overviewRulerPart: IObservable<OverviewRulerPart | undefined>;
-	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>(this, undefined);
+	private readonly _movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>(this, undefined);
 
 	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
@@ -253,7 +253,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			)
 		).recomputeInitiallyAndOnChange(this._store, value => {
 			// This is to break the layout info <-> moved blocks lines part dependency cycle.
-			this.movedBlocksLinesPart.set(value, undefined);
+			this._movedBlocksLinesPart.set(value, undefined);
 		});
 
 		this._register(applyStyle(this.elements.overlay, {
@@ -313,7 +313,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
 		const modifiedWidth = width - originalWidth - (this._overviewRulerPart.read(reader)?.width ?? 0);
 
-		const movedBlocksLinesWidth = this.movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+		const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
 		const originalWidthWithoutMovedBlockLines = originalWidth - movedBlocksLinesWidth;
 		this.elements.original.style.width = originalWidthWithoutMovedBlockLines + 'px';
 		this.elements.original.style.left = '0px';
@@ -470,6 +470,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	revert(diff: DetailedLineRangeMapping): void {
 		if (diff.innerChanges) {
 			this.revertRangeMappings(diff.innerChanges);
+			return;
 		}
 
 		const model = this._diffModel.get()?.model;

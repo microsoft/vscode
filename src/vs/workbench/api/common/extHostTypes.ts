@@ -1227,6 +1227,25 @@ export class DocumentHighlight {
 	}
 }
 
+@es5ClassCompat
+export class MultiDocumentHighlight {
+
+	uri: URI;
+	highlights: DocumentHighlight[];
+
+	constructor(uri: URI, highlights: DocumentHighlight[]) {
+		this.uri = uri;
+		this.highlights = highlights;
+	}
+
+	toJSON(): any {
+		return {
+			uri: this.uri,
+			highlights: this.highlights.map(h => h.toJSON())
+		};
+	}
+}
+
 export enum SymbolKind {
 	File = 0,
 	Module = 1,
@@ -3928,12 +3947,10 @@ export class TestTag implements vscode.TestTag {
 //#endregion
 
 //#region Test Coverage
-@es5ClassCompat
 export class CoveredCount implements vscode.CoveredCount {
 	constructor(public covered: number, public total: number) { }
 }
 
-@es5ClassCompat
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
@@ -3977,7 +3994,6 @@ export class FileCoverage implements vscode.FileCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class StatementCoverage implements vscode.StatementCoverage {
 	constructor(
 		public executionCount: number,
@@ -3986,7 +4002,6 @@ export class StatementCoverage implements vscode.StatementCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class BranchCoverage implements vscode.BranchCoverage {
 	constructor(
 		public executionCount: number,
@@ -3994,9 +4009,9 @@ export class BranchCoverage implements vscode.BranchCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class FunctionCoverage implements vscode.FunctionCoverage {
 	constructor(
+		public readonly name: string,
 		public executionCount: number,
 		public location: Position | Range,
 	) { }
