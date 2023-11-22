@@ -5995,6 +5995,8 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
+		goToDiff(target: 'next' | 'previous'): void;
+		revealFirstDiff(): unknown;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
 		handleInitialized(): void;
