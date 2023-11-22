@@ -13,6 +13,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./documentSymbolsTree';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from 'vs/editor/common/languages';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -169,22 +170,22 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
 		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 
-		if (!problem || !configProblems) {
+		if (problem.renderValidationDecorations === 'off' || !configProblems) {
 			template.container.style.removeProperty('--outline-element-color');
 		} else {
 			template.container.style.setProperty('--outline-element-color', cssColor);
 		}
 
 		// badge with color/rollup
-		if (problem === undefined) {
+		if (problem.renderValidationDecorations === undefined) {
 			return;
 		}
 
 		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
-		if (!configBadges || !problem) {
+		if (!configBadges || problem.renderValidationDecorations === 'off') {
 			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);

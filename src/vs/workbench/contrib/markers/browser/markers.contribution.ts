@@ -34,6 +34,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -566,7 +567,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
 		this.markerService.onMarkerChanged(() => this.markersStatusItemOff.update(this.getMarkersItemTurnedOff()));
 		this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.showProblems')) {
+			if (e.affectsConfiguration('editor')) {
 				this.markersStatusItem.update(this.getMarkersItem());
 				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 			}
@@ -586,13 +587,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
-		const config = this.configurationService.getValue('workbench.editor.showProblems');
-		if (config) {
+		const config = this.configurationService.getValue<ICodeEditorOptions>('editor');
+		if (config.renderValidationDecorations === 'on' || config.renderValidationDecorations === 'editable') {
 			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
 		}
 
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = 'workbench.editor.showProblems';
+		const configureSettingsLabel = 'editor.renderValidationDecorations';
 		const tooltip = this.getMarkersTurnedOffTooltip();
 		return {
 			name: localize('status.problems.off', "Problems"),
@@ -604,8 +605,8 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersTurnedOffTooltip(): string {
-		const config = this.configurationService.getValue('workbench.editor.showProblems');
-		if (!config) {
+		const config = this.configurationService.getValue<ICodeEditorOptions>('editor');
+		if (config.renderValidationDecorations === 'off') {
 			return localize('problemsOff', "Problems have been turned off.");
 		}
 		return '';

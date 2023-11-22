@@ -33,6 +33,7 @@ import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecor
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { isEqual } from 'vs/base/common/resources';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -324,11 +325,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				}
 			}));
 			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('workbench.editor.showProblems')) {
-					const problem = this._configurationService.getValue('workbench.editor.showProblems');
+				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('editor')) {
+					const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
 					const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
 
-					if (!problem || !config) {
+					if (problem.renderValidationDecorations === 'off' || !config) {
 						model.updateMarker([]);
 					} else {
 						this._applyMarkersToOutline(model);
@@ -376,9 +377,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	private _applyMarkersToOutline(model: OutlineModel | undefined): void {
-		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
 		const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
-		if (!model || (!problem || !config)) {
+		if (!model || (problem.renderValidationDecorations === 'off' || !config)) {
 			return;
 		}
 		const markers: IOutlineMarker[] = [];

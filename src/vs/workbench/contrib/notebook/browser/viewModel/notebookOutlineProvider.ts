@@ -18,6 +18,7 @@ import { OutlineEntry } from './OutlineEntry';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class NotebookCellOutlineProvider {
 	private readonly _dispoables = new DisposableStore();
@@ -202,10 +203,10 @@ export class NotebookCellOutlineProvider {
 					}
 				}
 			};
-			const problem = this._configurationService.getValue('workbench.editor.showProblems');
+			const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
 			const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
 
-			if (problem && config) {
+			if ((problem.renderValidationDecorations === 'on' || problem.renderValidationDecorations === 'editable') && config) {
 				markerServiceListener.value = this._markerService.onMarkerChanged(e => {
 					if (notebookEditorWidget.isDisposed) {
 						console.error('notebook editor is disposed');
@@ -225,7 +226,8 @@ export class NotebookCellOutlineProvider {
 		};
 		updateMarkerUpdater();
 		this._entriesDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.showProblems') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
+				console.log('changing');
 				updateMarkerUpdater();
 				this._onDidChange.fire({});
 			}

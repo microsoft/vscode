@@ -15,6 +15,7 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -66,7 +67,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('problems') || e.affectsConfiguration('workbench.editor.showProblems')) {
+				if (e.affectsConfiguration('problems') || e.affectsConfiguration('editor')) {
 					this._updateEnablement();
 				}
 			}),
@@ -80,20 +81,21 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
 		if (problem === undefined) {
 			return;
 		}
 		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
-		const shouldEnable = (problem && value.decorations.enabled);
+		const shouldEnable = ((problem.renderValidationDecorations === 'on' || problem.renderValidationDecorations === 'editable') && value.decorations.enabled);
 
 		if (shouldEnable === this._enabled) {
-			if (!problem || !value.decorations.enabled) {
+			if (problem.renderValidationDecorations === 'off' || !value.decorations.enabled) {
 				this._provider?.dispose();
 				this._provider = undefined;
 			}
 			return;
 		}
+
 		this._enabled = shouldEnable as boolean;
 		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
@@ -110,7 +112,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#editor.renderValidationDecorations#` when `{0}` is off.", `editor.renderValidationDecorations`),
 			'type': 'boolean',
 			'default': true,
 		}
