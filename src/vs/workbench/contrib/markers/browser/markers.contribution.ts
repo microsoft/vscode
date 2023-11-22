@@ -647,7 +647,7 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
-		@IMarkerService private readonly markerService: IMarkerService,
+		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
 		this._register(this.markerService.onMarkerChanged(() => this.updateBadge()));

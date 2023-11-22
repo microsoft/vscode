@@ -679,7 +679,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 			return;
 		}
 		dom.clearNode(this.messageBoxContainer);
-
 		const { total, filtered } = this.getFilterStats();
 
 		if (filtered === 0) {
