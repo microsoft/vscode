@@ -129,8 +129,11 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
-			if (e.hasChanged(EditorOption.lightbulb) && !this._editor.getOption(EditorOption.lightbulb).enabled) {
-				this.hide();
+			if (e.hasChanged(EditorOption.lightbulb)) {
+				if (!this._editor.getOption(EditorOption.lightbulb).enabled) {
+					this.hide();
+				}
+				this._updateLightBulbTitleAndIcon();
 			}
 		}));
 
@@ -227,26 +230,43 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
-		let icon: ThemeIcon;
-		if (this.state.actions.allAIFixes) {
-			icon = Codicon.sparkle;
-		} else if (this.state.actions.hasAutoFix) {
-			if (this.state.actions.hasAIFix) {
-				icon = Codicon.lightbulbSparkleAutofix;
-			} else {
-				icon = Codicon.lightbulbAutofix;
-			}
+		const updateAutoFixLightbulbTitle = () => {
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
 			}
-		} else if (this.state.actions.hasAIFix) {
-			icon = Codicon.lightbulbSparkle;
-		} else {
-			icon = Codicon.lightBulb;
+		};
+		const updateLightbulbTitle = () => {
 			if (this._quickFixKbLabel) {
 				this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
 			} else {
 				this.title = nls.localize('codeAction', "Show Code Actions");
+			}
+		};
+		let icon: ThemeIcon;
+		const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).highlightAIActions;
+		if (highlightAIActions) {
+			if (this.state.actions.allAIFixes) {
+				icon = Codicon.sparkle;
+			} else if (this.state.actions.hasAutoFix) {
+				if (this.state.actions.hasAIFix) {
+					icon = Codicon.lightbulbSparkleAutofix;
+				} else {
+					icon = Codicon.lightbulbAutofix;
+				}
+				updateAutoFixLightbulbTitle();
+			} else if (this.state.actions.hasAIFix) {
+				icon = Codicon.lightbulbSparkle;
+			} else {
+				icon = Codicon.lightBulb;
+				updateLightbulbTitle();
+			}
+		} else {
+			if (this.state.actions.hasAutoFix) {
+				icon = Codicon.lightbulbAutofix;
+				updateAutoFixLightbulbTitle();
+			} else {
+				icon = Codicon.lightBulb;
+				updateLightbulbTitle();
 			}
 		}
 		this._iconClasses = ThemeIcon.asClassNameArray(icon);

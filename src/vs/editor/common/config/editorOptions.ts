@@ -2729,6 +2729,10 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+	/**
+	 * Highlight AI code actions with AI icon
+	 */
+	highlightAIActions?: boolean;
 }
 
 /**
@@ -2739,7 +2743,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, highlightAIActions: true };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2747,6 +2751,11 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
+				},
+				'editor.lightbulb.highlightAIActions': {
+					type: 'boolean',
+					default: defaults.highlightAIActions,
+					description: nls.localize('highlightAIActions', "Highlight when the menu contains AI Code Actions with an AI icon.")
 				},
 			}
 		);
@@ -2758,7 +2767,8 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			highlightAIActions: boolean(input.highlightAIActions, this.defaultValue.highlightAIActions)
 		};
 	}
 }
@@ -5105,6 +5115,7 @@ export const enum EditorOption {
 	inlineSuggest,
 	letterSpacing,
 	lightbulb,
+	lightbulbAIActions,
 	lineDecorationsWidth,
 	lineHeight,
 	lineNumbers,
