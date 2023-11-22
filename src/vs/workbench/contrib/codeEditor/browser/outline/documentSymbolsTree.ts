@@ -3,27 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./documentSymbolsTree';
-import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeNode, ITreeRenderer, ITreeFilter } from 'vs/base/browser/ui/tree/tree';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { ITreeFilter, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { mainWindow } from 'vs/base/browser/window';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { ThemeIcon } from 'vs/base/common/themables';
+import 'vs/css!./documentSymbolsTree';
 import { Range } from 'vs/editor/common/core/range';
 import { SymbolKind, SymbolKinds, SymbolTag, getAriaLabelForSymbol, symbolKindNames } from 'vs/editor/common/languages';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import { localize } from 'vs/nls';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { mainWindow } from 'vs/base/browser/window';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -171,12 +171,11 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		// color of the label
 		const problem = this._configurationService.getValue('workbench.editor.showProblems');
 		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-		const autoProblems = problem && configProblems !== 'off';
 
-		if (autoProblems || configProblems === 'on') {
-			template.container.style.setProperty('--outline-element-color', cssColor);
-		} else {
+		if (!problem || !configProblems) {
 			template.container.style.removeProperty('--outline-element-color');
+		} else {
+			template.container.style.setProperty('--outline-element-color', cssColor);
 		}
 
 		// badge with color/rollup
@@ -185,8 +184,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		}
 
 		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
-		const autoProblemBadges = problem && configBadges !== 'off';
-		if (configBadges === 'off' || (!autoProblemBadges && configBadges !== 'on')) {
+		if (!configBadges || !problem) {
 			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);

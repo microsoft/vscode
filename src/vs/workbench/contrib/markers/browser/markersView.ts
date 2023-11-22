@@ -178,10 +178,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 			if (this.filters.excludedFiles && e.affectsConfiguration('files.exclude')) {
 				this.updateFilter();
 			}
-			if (e.affectsConfiguration('workbench.editor.showProblems')) {
-				this.updateFilter();
-				this.refreshPanel();
-			}
 		}));
 	}
 
@@ -308,7 +304,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		if (this.isVisible()) {
 			const hasSelection = this.widget.getSelection().length > 0;
 
-			if (markerOrChange && this.configurationService.getValue('workbench.editor.showProblems')) {
+			if (markerOrChange) {
 				if (markerOrChange instanceof Marker) {
 					this.widget.updateMarker(markerOrChange);
 				} else {
@@ -667,9 +663,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	private hasNoProblems(): boolean {
-		if (!this.configurationService.getValue('workbench.editor.showProblems')) {
-			return false;
-		}
 		const { total, filtered } = this.getFilterStats();
 		return total === 0 || filtered === 0;
 	}
@@ -686,13 +679,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 			return;
 		}
 		dom.clearNode(this.messageBoxContainer);
-
-		if (!this.configurationService.getValue('workbench.editor.showProblems')) {
-			this.messageBoxContainer.style.display = 'block';
-			this.messageBoxContainer.setAttribute('tabIndex', '0');
-			this.rendeProblemsOffMessage(this.messageBoxContainer);
-			return;
-		}
 
 		const { total, filtered } = this.getFilterStats();
 
@@ -755,12 +741,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
-	}
-
-	private rendeProblemsOffMessage(container: HTMLElement) {
-		const span = dom.append(container, dom.$('span'));
-		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_TURNED_OFF;
-		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_TURNED_OFF);
 	}
 
 	private setAriaLabel(label: string): void {
@@ -889,11 +869,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	getFilterStats(): { total: number; filtered: number } {
-
-		if (!this.configurationService.getValue('workbench.editor.showProblems')) {
-			return { total: 0, filtered: 0 };
-		}
-
 		if (!this.cachedFilterStats) {
 			this.cachedFilterStats = {
 				total: this.markersModel.total,

@@ -7,7 +7,7 @@ import { IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,7 +37,6 @@ export class GutterActionsRegistryImpl {
 			}
 		};
 	}
-
 	public getGutterActionsGenerators(): IGutterActionsGenerator[] {
 		return Array.from(this._registeredGutterActionsGenerators.values());
 	}

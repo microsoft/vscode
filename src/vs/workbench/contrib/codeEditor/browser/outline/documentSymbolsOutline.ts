@@ -327,12 +327,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('workbench.editor.showProblems')) {
 					const problem = this._configurationService.getValue('workbench.editor.showProblems');
 					const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
-					const autoProblems = problem && config !== 'off';
 
-					if (autoProblems || config === 'on') {
-						this._applyMarkersToOutline(model);
-					} else {
+					if (!problem || !config) {
 						model.updateMarker([]);
+					} else {
+						this._applyMarkersToOutline(model);
 					}
 					this._onDidChange.fire({});
 				}
@@ -379,8 +378,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	private _applyMarkersToOutline(model: OutlineModel | undefined): void {
 		const problem = this._configurationService.getValue('workbench.editor.showProblems');
 		const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
-		const autoProblem = problem && config !== 'off';
-		if (!model || (!autoProblem && config === 'off')) {
+		if (!model || (!problem || !config)) {
 			return;
 		}
 		const markers: IOutlineMarker[] = [];

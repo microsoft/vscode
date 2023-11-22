@@ -64,7 +64,6 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		@IDecorationsService private readonly _decorationsService: IDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		//
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration('problems') || e.affectsConfiguration('workbench.editor.showProblems')) {
@@ -85,18 +84,17 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		if (problem === undefined) {
 			return;
 		}
-		const value = this._configurationService.getValue<{ decorations: { enabled: string } }>('problems');
-		const autoProblems = problem && value.decorations.enabled !== 'off';
-		const shouldEnable = (autoProblems || value.decorations.enabled === 'on');
+		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
+		const shouldEnable = (problem && value.decorations.enabled);
 
 		if (shouldEnable === this._enabled) {
-			if (!autoProblems && value.decorations.enabled === 'off') {
+			if (!problem || !value.decorations.enabled) {
 				this._provider?.dispose();
 				this._provider = undefined;
 			}
 			return;
 		}
-		this._enabled = shouldEnable;
+		this._enabled = shouldEnable as boolean;
 		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
 			this._provider = this._decorationsService.registerDecorationsProvider(provider);
@@ -109,17 +107,12 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'problems',
 	'order': 101,
+	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'description': localize('markers.showOnFile', "Show Errors & Warnings in VS Code files and folders."),
-			'type': 'string',
-			'enum': ['auto', 'on', 'off'],
-			'markdownEnumDescriptions': [
-				localize('markers.showOnFile.auto.description', "Show Errors & Warnings in the editor depending on the {0} setting.", '`editor.showProblems`'),
-				localize('markers.showOnFile.on.description', "Always show Errors & Warnings in the editor."),
-				localize('markers.showOnFile.off.description', "Never show Errors & Warnings in the editor."),
-			],
-			'default': 'auto',
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
+			'type': 'boolean',
+			'default': true,
 		}
 	}
 });

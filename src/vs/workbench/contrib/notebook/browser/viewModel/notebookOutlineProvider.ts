@@ -204,9 +204,8 @@ export class NotebookCellOutlineProvider {
 			};
 			const problem = this._configurationService.getValue('workbench.editor.showProblems');
 			const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
-			const autoProblems = problem && config !== 'off';
 
-			if (autoProblems || config === 'on') {
+			if (problem && config) {
 				markerServiceListener.value = this._markerService.onMarkerChanged(e => {
 					if (notebookEditorWidget.isDisposed) {
 						console.error('notebook editor is disposed');
