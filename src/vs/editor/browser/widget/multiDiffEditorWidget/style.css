@@ -26,6 +26,7 @@
 
 .monaco-component .multiDiffEntry .collapse-button a {
 	display: block;
+	cursor: pointer;
 }
 
 .monaco-component .multiDiffEntry .header {
