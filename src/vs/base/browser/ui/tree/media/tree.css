@@ -142,6 +142,7 @@
 	position: absolute;
 	width: 100%;
 	opacity: 1 !important; /* Settings editor uses opacity < 1 */
+	overflow: hidden;
 }
 
 .monaco-list .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row:hover{

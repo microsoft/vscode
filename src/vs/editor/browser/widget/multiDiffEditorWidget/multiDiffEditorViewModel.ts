@@ -8,6 +8,7 @@ import { derivedWithStore, observableFromEvent, observableValue } from 'vs/base/
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -44,10 +45,19 @@ export class DocumentDiffItemViewModel extends Disposable {
 	) {
 		super();
 
-		const options = new DiffEditorOptions(this.entry.value!.options || {});
+		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
+			return {
+				...options,
+				hideUnchangedRegions: {
+					enabled: true,
+				},
+			};
+		}
+
+		const options = new DiffEditorOptions(updateOptions(this.entry.value!.options || {}));
 		if (this.entry.value!.onOptionsDidChange) {
 			this._register(this.entry.value!.onOptionsDidChange(() => {
-				options.updateOptions(this.entry.value!.options || {});
+				options.updateOptions(updateOptions(this.entry.value!.options || {}));
 			}));
 		}
 

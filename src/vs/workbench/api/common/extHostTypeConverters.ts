@@ -1968,14 +1968,14 @@ export namespace TestResults {
 
 export namespace TestCoverage {
 	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
-		return { covered: count.covered, total: count.covered };
+		return { covered: count.covered, total: count.total };
 	}
 
 	function fromLocation(location: vscode.Range | vscode.Position) {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails {
+	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executionCount,
@@ -1988,13 +1988,14 @@ export namespace TestCoverage {
 		} else {
 			return {
 				type: DetailType.Function,
+				name: coverage.name,
 				count: coverage.executionCount,
 				location: fromLocation(coverage.location),
 			};
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage {
+	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		return {
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
@@ -2302,9 +2303,9 @@ export namespace ChatResponseProgress {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
-			if ('vulnerability' in progress && progress.vulnerability) {
+			if ('vulnerabilities' in progress && progress.vulnerabilities) {
 				checkProposedApiEnabled(extension, 'chatAgents2Additions');
-				return { content: progress.content, title: progress.vulnerability.title, description: progress.vulnerability!.description, kind: 'vulnerability' };
+				return { content: progress.content, vulnerabilities: progress.vulnerabilities, kind: 'vulnerability' };
 			}
 
 			if (typeof progress.content === 'string') {
