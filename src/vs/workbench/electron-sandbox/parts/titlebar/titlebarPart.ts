@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
 import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -183,9 +184,11 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 			// Resizer
 			this.resizer = append(this.rootContainer, $('div.resizer'));
-
-			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
-			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
+			this._register(Event.runAndSubscribe(this.layoutService.onDidChangeWindowMaximized, ({ windowId, maximized }) => {
+				if (windowId === targetWindowId) {
+					this.onDidChangeWindowMaximized(maximized);
+				}
+			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindowId) }));
 		}
 
 		// Window System Context Menu

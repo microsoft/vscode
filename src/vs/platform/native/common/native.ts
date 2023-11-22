@@ -47,8 +47,8 @@ export interface ICommonNativeHostService {
 	// Events
 	readonly onDidOpenMainWindow: Event<number>;
 
-	readonly onDidMaximizeMainWindow: Event<number>;
-	readonly onDidUnmaximizeMainWindow: Event<number>;
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
 	readonly onDidFocusMainWindow: Event<number>;
 	readonly onDidBlurMainWindow: Event<number>;

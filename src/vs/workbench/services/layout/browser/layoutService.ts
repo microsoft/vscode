@@ -108,9 +108,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeFullscreen: Event<boolean>;
 
 	/**
-	 * Emits when the window is maximized or unmaximized.
+	 * Emits when the target window is maximized or unmaximized.
 	 */
-	readonly onDidChangeWindowMaximized: Event<boolean>;
+	readonly onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }>;
 
 	/**
 	 * Emits when centered layout is enabled or disabled.
@@ -276,14 +276,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	registerPart(part: Part): void;
 
 	/**
-	 * Returns whether the window is maximized.
+	 * Returns whether the target window is maximized.
 	 */
-	isWindowMaximized(): boolean;
+	isWindowMaximized(targetWindowId: number): boolean;
 
 	/**
-	 * Updates the maximized state of the window.
+	 * Updates the maximized state of the target window.
 	 */
-	updateWindowMaximizedState(maximized: boolean): void;
+	updateWindowMaximizedState(targetWindowId: number, maximized: boolean): void;
 
 	/**
 	 * Returns the next visible view part in a given direction
