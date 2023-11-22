@@ -11,9 +11,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isBigSurOrNewer, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { release } from 'os';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -94,7 +95,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 		if (isMacintosh && useCustomTitleStyle) {
-			win.setSheetOffset(28); // offset dialogs by the height of the custom title bar if we have any
+			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
 		// Update the window controls immediately based on cached values
