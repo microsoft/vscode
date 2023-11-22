@@ -29,6 +29,8 @@ export interface IBaseWindow extends IDisposable {
 	setDocumentEdited(edited: boolean): void;
 	isDocumentEdited(): boolean;
 
+	handleTitleDoubleClick(): void;
+
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
 
@@ -72,8 +74,6 @@ export interface ICodeWindow extends IBaseWindow {
 
 	send(channel: string, ...args: any[]): void;
 	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void;
-
-	handleTitleDoubleClick(): void;
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 

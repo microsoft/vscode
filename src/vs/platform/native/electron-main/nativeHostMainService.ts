@@ -202,8 +202,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.toggleFullScreen();
 	}
 
-	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
+	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.handleTitleDoubleClick();
 	}
 

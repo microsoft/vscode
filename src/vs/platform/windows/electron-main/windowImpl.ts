@@ -168,6 +168,41 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win.focus();
 	}
 
+	handleTitleDoubleClick(): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					if (win.isMaximized()) {
+						win.unmaximize();
+					} else {
+						win.maximize();
+					}
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (win.isMaximized()) {
+				win.unmaximize();
+			} else {
+				win.maximize();
+			}
+		}
+	}
+
 	//#region WCO
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
@@ -1382,37 +1417,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.setMenuBarVisibility(false);
 				this._win.autoHideMenuBar = false;
 				break;
-		}
-	}
-
-	handleTitleDoubleClick(): void {
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					this._win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (this._win.isMaximized()) {
-						this._win.unmaximize();
-					} else {
-						this._win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (this._win.isMaximized()) {
-				this._win.unmaximize();
-			} else {
-				this._win.maximize();
-			}
 		}
 	}
 

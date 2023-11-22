@@ -1096,6 +1096,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		switch (part) {
 			case Parts.EDITOR_PART:
 			case Parts.STATUSBAR_PART:
+			case Parts.TITLEBAR_PART:
 				targetWindow = getActiveWindow();
 				break;
 			default:
@@ -1150,6 +1151,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			partCandidate = this.editorGroupService.getPart(this.getContainerFromDocument(targetWindow.document));
 		} else if (part === Parts.STATUSBAR_PART) {
 			partCandidate = this.statusBarService.getPart(this.getContainerFromDocument(targetWindow.document));
+		} else if (part === Parts.TITLEBAR_PART) {
+			partCandidate = this.titleService.getPart(this.getContainerFromDocument(targetWindow.document));
 		}
 
 		if (partCandidate instanceof Part) {

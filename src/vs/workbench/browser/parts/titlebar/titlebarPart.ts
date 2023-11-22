@@ -133,6 +133,28 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 
 	//#endregion
 
+	//#region Helpers
+
+	getPart(container: HTMLElement): ITitlebarPart {
+		return this.getPartByDocument(container.ownerDocument);
+	}
+
+	private getPartByDocument(document: Document): ITitlebarPart {
+		if (this.parts.size > 1) {
+			for (const part of this.parts) {
+				if (part.element?.ownerDocument === document) {
+					return part;
+				}
+			}
+		}
+
+		return this.mainPart;
+	}
+
+	//#endregion
+
+	//#region Service Implementation
+
 	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
 
 	updateProperties(properties: ITitleProperties): void {
@@ -140,6 +162,8 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 			part.updateProperties(properties);
 		}
 	}
+
+	//#endregion
 }
 
 class TitlebarPartHoverDelegate implements IHoverDelegate {

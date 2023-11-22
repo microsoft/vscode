@@ -77,7 +77,7 @@ export interface ICommonNativeHostService {
 
 	toggleFullScreen(options?: INativeOptions): Promise<void>;
 
-	handleTitleDoubleClick(): Promise<void>;
+	handleTitleDoubleClick(options?: INativeOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 

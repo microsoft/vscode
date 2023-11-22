@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, getActiveWindow, hasWindow } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, getActiveWindow, hasWindow, getWindow } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
@@ -370,13 +370,17 @@ export class NativeWindow extends BaseWindow {
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
 		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
-			const titlePart = assertIsDefined(this.layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART));
+			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+				const targetWindow = getWindow(container);
+				const targetWindowId = targetWindow.vscodeWindowId;
+				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
 
-			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-				EventHelper.stop(e);
+				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
+					EventHelper.stop(e);
 
-				this.nativeHostService.handleTitleDoubleClick();
-			}));
+					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
+				}));
+			}, { container: this.layoutService.mainContainer, disposables: this._store }));
 		}
 
 		// Document edited: indicate for dirty working copies
