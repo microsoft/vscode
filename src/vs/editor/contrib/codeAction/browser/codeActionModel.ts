@@ -46,6 +46,7 @@ class CodeActionOracle extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger): void {
 		const selection = this._editor.getSelection();
+		// const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
@@ -61,6 +62,41 @@ class CodeActionOracle extends Disposable {
 			this.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		}, this._delay);
 	}
+
+	/*
+	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
+		if (!this._editor.hasModel()) {
+			return undefined;
+		}
+
+		const model = this._editor.getModel();
+		const selection = this._editor.getSelection();
+		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
+			const { lineNumber, column } = selection.getPosition();
+			const line = model.getLineContent(lineNumber);
+			if (line.length === 0) {
+				// empty line
+				return undefined;
+			} else if (column === 1) {
+				// look only right
+				if (/\s/.test(line[0])) {
+					return undefined;
+				}
+			} else if (column === model.getLineMaxColumn(lineNumber)) {
+				// look only left
+				if (/\s/.test(line[line.length - 1])) {
+					return undefined;
+				}
+			} else {
+				// look left and right
+				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
+					return undefined;
+				}
+			}
+		}
+		return selection;
+	}
+	*/
 }
 
 export namespace CodeActionsState {

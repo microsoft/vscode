@@ -740,6 +740,7 @@ function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 for (const editorOption of editorOptionsRegistry) {
+	console.log('editorOption : ', editorOption);
 	const schema = editorOption.schema;
 	if (schema) {
 		if (isConfigurationPropertySchema(schema)) {

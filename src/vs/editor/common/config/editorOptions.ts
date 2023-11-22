@@ -5045,6 +5045,8 @@ export const EDITOR_FONT_DEFAULTS = {
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
 function register<K extends EditorOption, V>(option: IEditorOption<K, V>): IEditorOption<K, V> {
+	console.log('option : ', option);
+	console.log('option.id : ', option.id);
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
@@ -5115,7 +5117,6 @@ export const enum EditorOption {
 	inlineSuggest,
 	letterSpacing,
 	lightbulb,
-	lightbulbAIActions,
 	lineDecorationsWidth,
 	lineHeight,
 	lineNumbers,
