@@ -25,11 +25,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	parentId = -1;
 
 	override get win() {
-		if (!this._win) {
+		if (!super.win) {
 			this.tryClaimWindow();
 		}
 
-		return this._win;
+		return super.win;
 	}
 
 	private _lastFocusTime = Date.now(); // window is shown on creation so take current time
