@@ -15,7 +15,6 @@ import { IChatVariablesService, IDynamicReference } from 'vs/workbench/contrib/c
 const agentReg = /^@([\w_\-]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
-const variableWithArgReg = /\#([\w_\-]+):([\w_\-\.]+)(?=(\s|$|\b))/i; // A variable with a string : arg (#file:foo.ts)
 
 export class ChatRequestParser {
 	constructor(
@@ -36,13 +35,16 @@ export class ChatRequestParser {
 			let newPart: IParsedChatRequestPart | undefined;
 			if (previousChar.match(/\s/) || i === 0) {
 				if (char === chatVariableLeader) {
-					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts) ||
-						await this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
+					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts);
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts);
 				} else if (char === chatSubcommandLeader) {
 					// TODO try to make this sync
 					newPart = await this.tryToParseSlashCommand(sessionId, message.slice(i), message, i, new Position(lineNumber, column), parts);
+				}
+
+				if (!newPart) {
+					newPart = this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
 				}
 			}
 
@@ -185,26 +187,15 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private async tryToParseDynamicVariable(message: string, offset: number, position: IPosition, references: ReadonlyArray<IDynamicReference>): Promise<ChatRequestDynamicReferencePart | undefined> {
-		const nextVarMatch = message.match(variableWithArgReg);
-		if (!nextVarMatch) {
-			return;
-		}
-
-		const [full, name, arg] = nextVarMatch;
-		const range = new OffsetRange(offset, offset + full.length);
-		const editorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
-
-		if (name !== 'file') {
-			// I suppose we support other types later
-			return;
-		}
-
+	private tryToParseDynamicVariable(message: string, offset: number, position: IPosition, references: ReadonlyArray<IDynamicReference>): ChatRequestDynamicReferencePart | undefined {
 		const refAtThisPosition = references.find(r =>
 			r.range.startLineNumber === position.lineNumber &&
 			r.range.startColumn === position.column);
 		if (refAtThisPosition) {
-			return new ChatRequestDynamicReferencePart(range, editorRange, name, arg, refAtThisPosition.data);
+			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
+			const text = message.substring(0, length);
+			const range = new OffsetRange(offset, offset + length);
+			return new ChatRequestDynamicReferencePart(range, refAtThisPosition.range, text, refAtThisPosition.data);
 		}
 
 		return;

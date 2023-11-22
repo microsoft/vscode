@@ -26,7 +26,7 @@ class ChatHistoryVariables extends Disposable {
 				return undefined;
 			}
 
-			return [{ level: 'full', value: response.response.asString() }];
+			return [{ level: 'full', value: response.response.asString(), kind: 'string' }];
 		}));
 	}
 }

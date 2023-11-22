@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export const dynamicReferenceDecorationType = 'chat-dynamic-reference';
 
@@ -68,16 +68,24 @@ export class ChatDynamicReferenceModel extends Disposable implements IChatWidget
 	private updateReferences(): void {
 		this.widget.inputEditor.setDecorationsByType('chat', dynamicReferenceDecorationType, this._references.map(r => (<IDecorationOptions>{
 			range: r.range,
-			hoverMessage: new MarkdownString(this.labelService.getUriLabel(r.data, { relative: true }))
+			hoverMessage: this.getHoverForReference(r)
 		})));
+	}
+
+	private getHoverForReference(ref: IDynamicReference): string | IMarkdownString {
+		const value = ref.data[0];
+		if (URI.isUri(value.value)) {
+			return new MarkdownString(this.labelService.getUriLabel(value.value, { relative: true }));
+		} else {
+			return value.value.toString();
+		}
 	}
 }
 
 ChatWidget.CONTRIBS.push(ChatDynamicReferenceModel);
 
-
 interface SelectAndInsertFileActionContext {
-	widget: ChatWidget;
+	widget: IChatWidget;
 	range: IRange;
 }
 
@@ -137,8 +145,44 @@ export class SelectAndInsertFileAction extends Action2 {
 
 		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: resource
+			data: [{ level: 'full', value: resource.toString() }]
 		});
 	}
 }
 registerAction2(SelectAndInsertFileAction);
+
+export interface IAddDynamicVariableContext {
+	widget: IChatWidget;
+	range: IRange;
+	variableData: IChatRequestVariableValue[];
+}
+
+function isAddDynamicVariableContext(context: any): context is IAddDynamicVariableContext {
+	return 'widget' in context &&
+		'range' in context &&
+		'variableData' in context;
+}
+
+export class AddDynamicVariableAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.addDynamicVariable';
+
+	constructor() {
+		super({
+			id: AddDynamicVariableAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const context = args[0];
+		if (!isAddDynamicVariableContext(context)) {
+			return;
+		}
+
+		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
+			range: context.range,
+			data: context.variableData
+		});
+	}
+}
+registerAction2(AddDynamicVariableAction);

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { revive } from 'vs/base/common/marshalling';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChatAgent, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
 
@@ -114,14 +115,11 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
 	readonly kind = ChatRequestDynamicReferencePart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly name: string, readonly arg: string, readonly data: URI) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
 
 	get referenceText(): string {
-		return `${this.name}:${this.arg}`;
-	}
-
-	get text(): string {
-		return `${chatVariableLeader}${this.referenceText}`;
+		// This will need to be unique like for de-duping file names
+		return this.text;
 	}
 
 	get promptText(): string {
@@ -168,9 +166,8 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 				return new ChatRequestDynamicReferencePart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestDynamicReferencePart).name,
-					(part as ChatRequestDynamicReferencePart).arg,
-					URI.revive((part as ChatRequestDynamicReferencePart).data)
+					(part as ChatRequestDynamicReferencePart).text,
+					revive((part as ChatRequestDynamicReferencePart).data)
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

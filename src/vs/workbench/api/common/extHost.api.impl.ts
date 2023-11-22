@@ -1424,6 +1424,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatMessage: extHostTypes.ChatMessage,
 			ChatMessageRole: extHostTypes.ChatMessageRole,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
+			ChatVariableKind: extHostTypes.ChatVariableKind,
+			ChatAgentCompletionItem: extHostTypes.ChatAgentCompletionItem,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
