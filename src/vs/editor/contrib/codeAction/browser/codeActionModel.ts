@@ -37,7 +37,7 @@ class CodeActionOracle extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
 		private readonly _signalChange: (triggered: TriggeredCodeAction | undefined) => void,
-		private readonly _delay: number = 250,
+		private readonly _delay: number = 100,
 		private readonly _configurationService?: IConfigurationService,
 	) {
 		super();
@@ -49,7 +49,6 @@ class CodeActionOracle extends Disposable {
 		const setting = !!this._configurationService?.getValue<boolean>('editor.codeActionsTriggerOnEmptyLines');
 		const currentSelection = this._editor.getSelection();
 		const selection = setting ? currentSelection : this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-		// const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
