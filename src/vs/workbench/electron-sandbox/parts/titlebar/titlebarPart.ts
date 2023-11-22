@@ -284,6 +284,7 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 	readonly height = 28;
 
 	constructor(
+		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -312,7 +313,7 @@ export class NativeTitleService extends BrowserTitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
-		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, editorGroupsContainer);
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
+		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer);
 	}
 }

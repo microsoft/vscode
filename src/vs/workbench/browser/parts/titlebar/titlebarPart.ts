@@ -114,16 +114,16 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		titlebarPartContainer.setAttribute('role', 'none');
 		titlebarPartContainer.style.height = '28px';
 		titlebarPartContainer.style.position = 'relative';
-		container.appendChild(titlebarPartContainer);
+		container.insertBefore(titlebarPartContainer, container.firstChild); // ensure we are first element
 
-		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(editorGroupsContainer);
+		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer);
 		titlebarPart.create(titlebarPartContainer);
 
 		return titlebarPart;
 	}
 
-	protected doCreateAuxiliaryTitlebarPart(editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
-		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, editorGroupsContainer);
+	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
+		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, container, editorGroupsContainer);
 	}
 }
 
@@ -707,6 +707,7 @@ export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
 }
 
 export interface IAuxiliaryTitlebarPart extends ITitlebarPart {
+	readonly container: HTMLElement;
 	readonly height: number;
 }
 
@@ -717,6 +718,7 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 	readonly height = 28;
 
 	constructor(
+		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,

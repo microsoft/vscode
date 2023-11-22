@@ -73,26 +73,27 @@ export class AuxiliaryEditorPart {
 
 		const disposables = new DisposableStore();
 
-		// Auxiliary Window & Editor Group Container
+		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
-		const auxiliaryEditorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label));
-		disposables.add(this.editorPartsView.registerEditorPart(auxiliaryEditorPart));
-
-		// Titlebar
-		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
-		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
-		if (useCustomTitle) {
-			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, auxiliaryEditorPart));
-		} else {
-			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, auxiliaryEditorPart));
-		}
 
 		// Editor Part
 		const editorPartContainer = document.createElement('div');
 		editorPartContainer.classList.add('part', 'editor');
 		editorPartContainer.setAttribute('role', 'main');
 		auxiliaryWindow.container.appendChild(editorPartContainer);
-		auxiliaryEditorPart.create(editorPartContainer, { restorePreviousState: false });
+
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label));
+		disposables.add(this.editorPartsView.registerEditorPart(editorPart));
+		editorPart.create(editorPartContainer, { restorePreviousState: false });
+
+		// Titlebar
+		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
+		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
+		if (useCustomTitle) {
+			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+		} else {
+			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
+		}
 
 		// Statusbar
 		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
@@ -108,28 +109,28 @@ export class AuxiliaryEditorPart {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, statusbarPart] // Editor status scoped to auxiliary window
 		));
-		disposables.add(scopedInstantiationService.createInstance(EditorStatus, auxiliaryEditorPart));
+		disposables.add(scopedInstantiationService.createInstance(EditorStatus, editorPart));
 
 		updateStatusbarVisibility(false);
 
 		// Lifecycle
-		const editorCloseListener = disposables.add(Event.once(auxiliaryEditorPart.onWillClose)(() => auxiliaryWindow.window.close()));
+		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
 		disposables.add(Event.once(auxiliaryWindow.onWillClose)(() => {
 			if (disposables.isDisposed) {
 				return; // the close happened as part of an earlier dispose call
 			}
 
 			editorCloseListener.dispose();
-			auxiliaryEditorPart.close();
+			editorPart.close();
 			disposables.dispose();
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		// Layout
-		disposables.add(auxiliaryWindow.onDidLayout(dimension => auxiliaryEditorPart.layout(dimension.width, dimension.height - computeEditorPartHeightOffset(), 0, 0)));
+		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height - computeEditorPartHeightOffset(), 0, 0)));
 		auxiliaryWindow.layout();
 
-		return { part: auxiliaryEditorPart, disposables };
+		return { part: editorPart, disposables };
 	}
 }
 
