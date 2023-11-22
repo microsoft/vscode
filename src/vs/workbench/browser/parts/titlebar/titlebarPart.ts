@@ -112,12 +112,13 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		const titlebarPartContainer = document.createElement('div');
 		titlebarPartContainer.classList.add('part', 'titlebar');
 		titlebarPartContainer.setAttribute('role', 'none');
-		titlebarPartContainer.style.height = '28px';
 		titlebarPartContainer.style.position = 'relative';
 		container.insertBefore(titlebarPartContainer, container.firstChild); // ensure we are first element
 
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer);
 		titlebarPart.create(titlebarPartContainer);
+
+		titlebarPartContainer.style.height = `${titlebarPart.height}px`;
 
 		return titlebarPart;
 	}
