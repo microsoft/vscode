@@ -81,10 +81,10 @@ export interface ICommonNativeHostService {
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
+	isMaximized(options?: INativeOptions): Promise<boolean>;
+	maximizeWindow(options?: INativeOptions): Promise<void>;
+	unmaximizeWindow(options?: INativeOptions): Promise<void>;
+	minimizeWindow(options?: INativeOptions): Promise<void>;
 	moveWindowTop(options?: INativeOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeOptions): Promise<void>;
 
@@ -93,7 +93,7 @@ export interface ICommonNativeHostService {
 	 *
 	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
 	 */
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: INativeOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
@@ -167,8 +167,7 @@ export interface ICommonNativeHostService {
 	notifyReady(): Promise<void>;
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
-	closeWindow(): Promise<void>;
-	closeWindowById(windowId: number): Promise<void>;
+	closeWindow(options?: INativeOptions): Promise<void>;
 	quit(): Promise<void>;
 	exit(code: number): Promise<void>;
 

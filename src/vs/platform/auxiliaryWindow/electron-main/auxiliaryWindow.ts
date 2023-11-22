@@ -5,11 +5,10 @@
 
 import { BrowserWindow, WebContents } from 'electron';
 import { Emitter } from 'vs/base/common/event';
-import { isMacintosh } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
@@ -25,8 +24,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	readonly id = this.contents.id;
 	parentId = -1;
 
-	private _win: BrowserWindow | null = null;
-	get win() {
+	override get win() {
 		if (!this._win) {
 			this.tryClaimWindow();
 		}
@@ -41,9 +39,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		private readonly contents: WebContents,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStateService stateService: IStateService
 	) {
-		super(configurationService);
+		super(configurationService, stateService);
 
 		this.create();
 	}
@@ -72,19 +71,13 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		if (window) {
 			this.logService.trace('[aux window] Claimed browser window instance');
 
-			this._win = window;
+			this.setWindow(window);
 
 			// Disable Menu
 			window.setMenu(null);
 
 			// Listeners
 			this.registerWindowListeners(window);
-
-			// Config
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-			if (isMacintosh && useCustomTitleStyle) {
-				this._win.setSheetOffset(28); // offset dialogs by the height of the custom title bar if we have any
-			}
 		}
 	}
 

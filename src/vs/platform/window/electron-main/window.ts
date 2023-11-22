@@ -31,6 +31,8 @@ export interface IBaseWindow extends IDisposable {
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export interface ICodeWindow extends IBaseWindow {
@@ -76,8 +78,6 @@ export interface ICodeWindow extends IBaseWindow {
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
-
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export const enum LoadReason {

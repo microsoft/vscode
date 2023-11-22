@@ -86,11 +86,32 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	abstract readonly onDidClose: Event<void>;
 
 	abstract readonly id: number;
-	abstract readonly win: BrowserWindow | null;
+
+	protected _win: BrowserWindow | null = null;
+	get win(): BrowserWindow | null { return this._win; }
+	protected setWindow(win: BrowserWindow): void {
+		this._win = win;
+
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+		if (isMacintosh && useCustomTitleStyle) {
+			win.setSheetOffset(28); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		// Update the window controls immediately based on cached values
+		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
+			if (cachedWindowControlHeight) {
+				this.updateWindowControls({ height: cachedWindowControlHeight });
+			}
+		}
+	}
 
 	abstract readonly lastFocusTime: number;
 
-	constructor(protected readonly configurationService: IConfigurationService) {
+	constructor(
+		protected readonly configurationService: IConfigurationService,
+		protected readonly stateService: IStateService
+	) {
 		super();
 	}
 
@@ -146,6 +167,45 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		win.focus();
 	}
+
+	//#region WCO
+
+	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
+
+	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// Cache the height for speeds lookups on startup
+		if (options.height) {
+			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
+		}
+
+		// Windows: window control overlay (WCO)
+		if (isWindows && this.hasWindowControlOverlay) {
+			win.setTitleBarOverlay({
+				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
+				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
+				height: options.height ? options.height - 1 : undefined // account for window border
+			});
+		}
+
+		// macOS: traffic lights
+		else if (isMacintosh && options.height !== undefined) {
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			if (!verticalOffset) {
+				win.setWindowButtonPosition(null);
+			} else {
+				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+			}
+		}
+	}
+
+	//#endregion
 
 	//#region Fullscreen
 
@@ -227,8 +287,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 export class CodeWindow extends BaseWindow implements ICodeWindow {
 
-	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
-
 	//#region Events
 
 	private readonly _onWillLoad = this._register(new Emitter<ILoadEvent>());
@@ -254,8 +312,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private _id: number;
 	get id(): number { return this._id; }
 
-	private _win: BrowserWindow;
-	get win(): BrowserWindow | null { return this._win; }
+	protected override _win: BrowserWindow;
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
@@ -293,8 +350,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
-
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
@@ -326,10 +381,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(configurationService);
+		super(configurationService, stateService);
 
 		//#region create browser window
 		{
@@ -358,19 +413,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
-
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-			if (isMacintosh && useCustomTitleStyle) {
-				this._win.setSheetOffset(28); // offset dialogs by the height of the custom title bar if we have any
-			}
-
-			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
-				const cachedWindowControlHeight = this.stateService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
-				if (cachedWindowControlHeight) {
-					this.updateWindowControls({ height: cachedWindowControlHeight });
-				}
-			}
+			this.setWindow(this._win);
 
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
@@ -1099,33 +1142,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		return state;
-	}
-
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
-
-		// Cache the height for speeds lookups on startup
-		if (options.height) {
-			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
-		}
-
-		// Windows: window control overlay (WCO)
-		if (isWindows && this.hasWindowControlOverlay) {
-			this._win.setTitleBarOverlay({
-				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
-				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
-				height: options.height ? options.height - 1 : undefined // account for window border
-			});
-		}
-
-		// macOS: traffic lights
-		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
-				this._win.setWindowButtonPosition(null);
-			} else {
-				this._win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
-			}
-		}
 	}
 
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {

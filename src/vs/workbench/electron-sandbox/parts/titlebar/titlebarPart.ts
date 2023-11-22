@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventType, hide, show } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventType, getWindow, getWindowId, hide, show } from 'vs/base/browser/dom';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -138,7 +138,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
-		const ret = super.createContentArea(parent);
+		const result = super.createContentArea(parent);
+		const targetWindowId = getWindowId(getWindow(parent));
 
 		// Native menu controller
 		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
@@ -149,8 +150,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		if (this.appIcon) {
 			this.onUpdateAppIconDragBehavior();
 
-			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (e => {
-				this.nativeHostService.closeWindow();
+			this._register(addDisposableListener(this.appIcon, EventType.DBLCLICK, (() => {
+				this.nativeHostService.closeWindow({ targetWindowId });
 			})));
 		}
 
@@ -159,25 +160,25 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 			// Minimize
 			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
-			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
-				this.nativeHostService.minimizeWindow();
+			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, () => {
+				this.nativeHostService.minimizeWindow({ targetWindowId });
 			}));
 
 			// Restore
 			this.maxRestoreControl = append(this.primaryWindowControls, $('div.window-icon.window-max-restore'));
-			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async e => {
-				const maximized = await this.nativeHostService.isMaximized();
+			this._register(addDisposableListener(this.maxRestoreControl, EventType.CLICK, async () => {
+				const maximized = await this.nativeHostService.isMaximized({ targetWindowId });
 				if (maximized) {
-					return this.nativeHostService.unmaximizeWindow();
+					return this.nativeHostService.unmaximizeWindow({ targetWindowId });
 				}
 
-				return this.nativeHostService.maximizeWindow();
+				return this.nativeHostService.maximizeWindow({ targetWindowId });
 			}));
 
 			// Close
 			const closeIcon = append(this.primaryWindowControls, $('div.window-icon.window-close' + ThemeIcon.asCSSSelector(Codicon.chromeClose)));
-			this._register(addDisposableListener(closeIcon, EventType.CLICK, e => {
-				this.nativeHostService.closeWindow();
+			this._register(addDisposableListener(closeIcon, EventType.CLICK, () => {
+				this.nativeHostService.closeWindow({ targetWindowId });
 			}));
 
 			// Resizer
@@ -191,7 +192,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		// See https://github.com/electron/electron/issues/24893
 		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
 			this._register(this.nativeHostService.onDidTriggerMainWindowSystemContextMenu(({ windowId, x, y }) => {
-				if (this.nativeHostService.windowId !== windowId) {
+				if (targetWindowId !== windowId) {
 					return;
 				}
 
@@ -200,7 +201,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			}));
 		}
 
-		return ret;
+		return result;
 	}
 
 	private onDidChangeWindowMaximized(maximized: boolean): void {
@@ -228,10 +229,16 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		// WCO styles only supported on Windows currently
 		if (useWindowControlsOverlay(this.configurationService)) {
-			if (!this.cachedWindowControlStyles ||
+			if (
+				!this.cachedWindowControlStyles ||
 				this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
-				this.cachedWindowControlStyles.fgColor !== this.element.style.color) {
-				this.nativeHostService.updateWindowControls({ backgroundColor: this.element.style.backgroundColor, foregroundColor: this.element.style.color });
+				this.cachedWindowControlStyles.fgColor !== this.element.style.color
+			) {
+				this.nativeHostService.updateWindowControls({
+					targetWindowId: getWindowId(getWindow(this.element)),
+					backgroundColor: this.element.style.backgroundColor,
+					foregroundColor: this.element.style.color
+				});
 			}
 		}
 	}
@@ -239,17 +246,23 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	override layout(width: number, height: number): void {
 		super.layout(width, height);
 
-		if (useWindowControlsOverlay(this.configurationService) ||
-			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')) {
+		if (
+			useWindowControlsOverlay(this.configurationService) ||
+			(isMacintosh && isNative && getTitleBarStyle(this.configurationService) === 'custom')
+		) {
+
 			// When the user goes into full screen mode, the height of the title bar becomes 0.
 			// Instead, set it back to the default titlebar height for Catalina users
 			// so that they can have the traffic lights rendered at the proper offset.
 			// Ref https://github.com/microsoft/vscode/issues/159862
-			const newHeight = (height > 0 || this.bigSurOrNewer) ?
-				Math.round(height * getZoomFactor()) : this.macTitlebarSize;
+
+			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor()) : this.macTitlebarSize;
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
-				this.nativeHostService.updateWindowControls({ height: newHeight });
+				this.nativeHostService.updateWindowControls({
+					targetWindowId: getWindowId(getWindow(this.element)),
+					height: newHeight
+				});
 			}
 		}
 	}
