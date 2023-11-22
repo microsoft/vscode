@@ -71,7 +71,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		if (window) {
 			this.logService.trace('[aux window] Claimed browser window instance');
 
-			super.win = window;
+			// Remember
+			this.setWin(window);
 
 			// Disable Menu
 			window.setMenu(null);
