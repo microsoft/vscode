@@ -2487,7 +2487,7 @@ export class ReOpenInTextEditorAction extends Action2 {
 }
 
 
-abstract class BaseMoveCopyEditorToNewDetachedWindowAction extends Action2 {
+abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	constructor(
 		id: string,
@@ -2524,37 +2524,37 @@ abstract class BaseMoveCopyEditorToNewDetachedWindowAction extends Action2 {
 	}
 }
 
-export class MoveEditorToNewDetachedWindowAction extends BaseMoveCopyEditorToNewDetachedWindowAction {
+export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.moveEditorToNewDetachedWindow',
+			'workbench.action.moveEditorToNewWindow',
 			{
-				value: localize('moveEditorToNewDetachedWindow', "Move Editor into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Detached Window"),
-				original: 'Move Editor into New Detached Window'
+				value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
+				original: 'Move Editor into New Window'
 			},
 			true
 		);
 	}
 }
 
-export class CopyEditorToNewDetachedWindowAction extends BaseMoveCopyEditorToNewDetachedWindowAction {
+export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.copyEditorToNewDetachedWindow',
+			'workbench.action.copyEditorToNewWindow',
 			{
-				value: localize('copyEditorToNewDetachedWindow', "Copy Editor into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Detached Window"),
-				original: 'Copy Editor into New Detached Window'
+				value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
+				original: 'Copy Editor into New Window'
 			},
 			false
 		);
 	}
 }
 
-abstract class BaseMoveCopyEditorGroupToNewDetachedWindowAction extends Action2 {
+abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
 
 	constructor(
 		id: string,
@@ -2583,30 +2583,30 @@ abstract class BaseMoveCopyEditorGroupToNewDetachedWindowAction extends Action2 
 	}
 }
 
-export class MoveEditorGroupToNewDetachedWindowAction extends BaseMoveCopyEditorGroupToNewDetachedWindowAction {
+export class MoveEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.moveEditorGroupToNewDetachedWindow',
+			'workbench.action.moveEditorGroupToNewWindow',
 			{
-				value: localize('moveEditorGroupToNewDetachedWindow', "Move Editor Group into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Detached Window"),
-				original: 'Move Editor Group into New Detached Window'
+				value: localize('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Window"),
+				original: 'Move Editor Group into New Window'
 			},
 			true
 		);
 	}
 }
 
-export class CopyEditorGroupToNewDetachedWindowAction extends BaseMoveCopyEditorGroupToNewDetachedWindowAction {
+export class CopyEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.copyEditorGroupToNewDetachedWindow',
+			'workbench.action.copyEditorGroupToNewWindow',
 			{
-				value: localize('copyEditorGroupToNewDetachedWindow', "Copy Editor Group into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Detached Window"),
-				original: 'Copy Editor Group into New Detached Window'
+				value: localize('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Window"),
+				original: 'Copy Editor Group into New Window'
 			},
 			false
 		);
@@ -2617,11 +2617,11 @@ export class RestoreEditorsToMainWindowAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.restoreDetachedEditorsToMainWindow',
+			id: 'workbench.action.restoreEditorsToMainWindow',
 			title: {
-				value: localize('restoreDetachedEditorsToMainWindow', "Restore Detached Editors into Main Window"),
-				mnemonicTitle: localize({ key: 'miRestoreDetachedEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Detached Editors into Main Window"),
-				original: 'Restore Detached Editors into Main Window'
+				value: localize('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
+				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Editors into Main Window"),
+				original: 'Restore Editors into Main Window'
 			},
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext,
