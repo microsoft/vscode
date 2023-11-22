@@ -90,8 +90,11 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				e.preventDefault();
 			};
 
-			const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).showAiIcon;
-			if (highlightAIActions && this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+			if (
+				this._editor.getOption(EditorOption.lightbulb).showAiIcon
+				&& this.state.actions.allAIFixes
+				&& this.state.actions.validActions.length === 1
+			) {
 				const action = this.state.actions.validActions[0].action;
 				if (action.command?.id) {
 					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));

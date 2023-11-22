@@ -62,7 +62,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 };
 
 const codeActionsTriggerOnEmptyLines: IConfigurationPropertySchema = {
-	markdownDescription: nls.localize('editor.codeActionsTriggerOnEmptyLines', 'Trigger code actions on empty lines. This will in particular affect the lightbulb menu.'),
+	markdownDescription: nls.localize('editor.codeActionsTriggerOnEmptyLines', 'Trigger code actions on empty lines.'),
 	type: 'boolean',
 	default: true
 };
