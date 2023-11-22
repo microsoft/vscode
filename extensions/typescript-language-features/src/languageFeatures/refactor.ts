@@ -437,46 +437,28 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 		};
 	}
 
-	private static readonly _scopesOfInterest = new Set([
+	private static readonly _declarationKinds = new Set([
 		PConst.Kind.module,
 		PConst.Kind.class,
 		PConst.Kind.interface
 	]);
 
-	private static _navTreeNameSpanContainsRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
-		return !!navigationTree.nameSpan && typeConverters.Range.fromTextSpan(navigationTree.nameSpan).contains(range) && MoveToFileCodeAction._scopesOfInterest.has(navigationTree.kind);
-	}
-
-	private static _navTreeSpansContainRange(navigationTree: Proto.NavigationTree, range: vscode.Range): boolean {
-		return navigationTree.spans.some(span => typeConverters.Range.fromTextSpan(span).contains(range));
-	}
-
-	public static shouldIncludeMoveToAction(
-		navigationTree: Proto.NavigationTree | undefined,
-		range: vscode.Range
-	): boolean {
-		if (!navigationTree || !MoveToFileCodeAction._navTreeSpansContainRange(navigationTree, range)) {
+	static isOnDeclarationName(node: Proto.NavigationTree | undefined, range: vscode.Range) {
+		if (!node) {
 			return false;
 		}
-		return MoveToFileCodeAction._shouldIncludeMoveToAction(navigationTree, range);
-	}
-
-	private static _shouldIncludeMoveToAction(
-		navigationTree: Proto.NavigationTree,
-		range: vscode.Range
-	): boolean {
-		if (MoveToFileCodeAction._navTreeNameSpanContainsRange(navigationTree, range)) {
+		const isRangeInSpan = (span: Proto.TextSpan) => typeConverters.Range.fromTextSpan(span).contains(range);
+		if (MoveToFileCodeAction._declarationKinds.has(node.kind) && node.nameSpan && isRangeInSpan(node.nameSpan)) {
 			return true;
 		}
-		const childTrees = navigationTree.childItems;
-		if (childTrees) {
-			for (const childTree of childTrees) {
-				if (MoveToFileCodeAction._navTreeSpansContainRange(childTree, range)) {
-					return this._shouldIncludeMoveToAction(childTree, range);
+		if (node.childItems && node.spans.some(isRangeInSpan)) {
+			for (const child of node.childItems) {
+				if (MoveToFileCodeAction.isOnDeclarationName(child, range)) {
+					return true;
 				}
 			}
 		}
-		return MoveToFileCodeAction._navTreeNameSpanContainsRange(navigationTree, range);
+		return false;
 	}
 }
 
@@ -573,7 +555,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				if (navigationTree.type !== 'response') {
 					return;
 				}
-				return MoveToFileCodeAction.shouldIncludeMoveToAction(navigationTree.body, rangeOrSelection);
+				return MoveToFileCodeAction.isOnDeclarationName(navigationTree.body, rangeOrSelection);
 			}
 			return true;
 		})).then((mappedRefactors) => applicableRefactors.filter((_, index) => mappedRefactors[index]));
@@ -632,7 +614,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			if (navigationTree.type !== 'response') {
 				return;
 			}
-			const shouldIncludeMoveToAction = MoveToFileCodeAction.shouldIncludeMoveToAction(navigationTree.body, rangeOrSelection);
+			const shouldIncludeMoveToAction = MoveToFileCodeAction.isOnDeclarationName(navigationTree.body, rangeOrSelection);
 			if (!shouldIncludeMoveToAction) {
 				return;
 			}
