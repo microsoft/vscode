@@ -37,7 +37,7 @@ class CodeActionOracle extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
 		private readonly _signalChange: (triggered: TriggeredCodeAction | undefined) => void,
-		private readonly _delay: number = 100,
+		private readonly _delay: number = 250,
 		private readonly _configurationService?: IConfigurationService,
 	) {
 		super();
@@ -46,9 +46,7 @@ class CodeActionOracle extends Disposable {
 	}
 
 	public trigger(trigger: CodeActionTrigger): void {
-		const setting = !!this._configurationService?.getValue<boolean>('editor.codeActionsTriggerOnEmptyLines');
-		const currentSelection = this._editor.getSelection();
-		const selection = setting ? currentSelection : this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
+		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
@@ -77,7 +75,10 @@ class CodeActionOracle extends Disposable {
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				return undefined;
+				const triggerOnEmptyLines = !!this._configurationService?.getValue<boolean>('editor.codeActionsTriggerOnEmptyLines');
+				if (!triggerOnEmptyLines) {
+					return undefined;
+				}
 			} else if (column === 1) {
 				// look only right
 				if (/\s/.test(line[0])) {
