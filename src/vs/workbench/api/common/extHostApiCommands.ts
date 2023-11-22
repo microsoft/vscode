@@ -5,7 +5,7 @@
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -13,7 +13,6 @@ import * as languages from 'vs/editor/common/languages';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 import { validateWhenClauses } from 'vs/platform/contextkey/common/contextkey';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
 import { ICallHierarchyItemDto, IIncomingCallDto, IInlineValueContextDto, IOutgoingCallDto, IRawColorInfo, ITypeHierarchyItemDto, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';

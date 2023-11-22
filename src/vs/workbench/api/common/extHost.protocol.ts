@@ -503,7 +503,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
 	$dispose(id: ExtHostTerminalIdentifier): void;
 	$hide(id: ExtHostTerminalIdentifier): void;
-	$sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): void;
+	$sendText(id: ExtHostTerminalIdentifier, text: string, shouldExecute: boolean): void;
 	$show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): void;
 	$registerProcessSupport(isSupported: boolean): void;
 	$registerProfileProvider(id: string, extensionIdentifier: string): void;
@@ -2149,15 +2149,16 @@ export interface ITerminalDimensionsDto {
 
 type SingleOrMany<T> = T[] | T;
 
-export interface ITerminalQuickFixExecuteTerminalCommandDto {
+export interface ITerminalQuickFixTerminalCommandDto {
 	terminalCommand: string;
+	shouldExecute?: boolean;
 }
 
 export interface ITerminalQuickFixOpenerDto {
 	uri: UriComponents;
 }
 
-export type TerminalQuickFix = ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto;
+export type TerminalQuickFix = ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto;
 
 export interface TerminalCommandMatchResultDto {
 	commandLine: string;

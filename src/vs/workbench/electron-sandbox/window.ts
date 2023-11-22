@@ -370,7 +370,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
 		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
-			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
+			const titlePart = assertIsDefined(this.layoutService.getContainer(mainWindow, Parts.TITLEBAR_PART));
 
 			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
 				EventHelper.stop(e);

@@ -34,7 +34,7 @@ type InstallerResponse = ts.server.PackageInstalledResponse | ts.server.SetTypin
  * The "server" part of the "server/client" model. This is the part that
  * actually gets instantiated and passed to tsserver.
  */
-export default class WebTypingsInstallerClient implements ts.server.ITypingsInstaller {
+export class WebTypingsInstallerClient implements ts.server.ITypingsInstaller {
 
 	private projectService: ts.server.ProjectService | undefined;
 

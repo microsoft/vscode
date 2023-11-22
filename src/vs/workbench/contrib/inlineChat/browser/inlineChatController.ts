@@ -45,6 +45,7 @@ import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -105,8 +106,10 @@ export class InlineChatController implements IEditorContribution {
 		className: 'inline-chat-block-selection',
 	});
 
+	private static _storageKey = 'inline-chat-history';
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
+	private _historyUpdate: (prompt: string) => void;
 
 	private readonly _store = new DisposableStore();
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
@@ -146,6 +149,7 @@ export class InlineChatController implements IEditorContribution {
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -171,6 +175,17 @@ export class InlineChatController implements IEditorContribution {
 			this._log('session done or paused');
 		}));
 		this._log('NEW controller');
+
+		InlineChatController._promptHistory = JSON.parse(_storageService.get(InlineChatController._storageKey, StorageScope.PROFILE, '[]'));
+		this._historyUpdate = (prompt: string) => {
+			const idx = InlineChatController._promptHistory.indexOf(prompt);
+			if (idx >= 0) {
+				InlineChatController._promptHistory.splice(idx, 1);
+			}
+			InlineChatController._promptHistory.unshift(prompt);
+			this._historyOffset = -1;
+			this._storageService.store(InlineChatController._storageKey, JSON.stringify(InlineChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
+		};
 	}
 
 	dispose(): void {
@@ -542,9 +557,8 @@ export class InlineChatController implements IEditorContribution {
 
 		const input = this.getInput();
 
-		if (!InlineChatController._promptHistory.includes(input)) {
-			InlineChatController._promptHistory.unshift(input);
-		}
+
+		this._historyUpdate(input);
 
 		const refer = this._activeSession.session.slashCommands?.some(value => value.refer && input!.startsWith(`/${value.command}`));
 		if (refer) {

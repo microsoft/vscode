@@ -61,15 +61,13 @@ export interface ISCMHistoryItemGroupDetails {
 export interface ISCMHistoryItemGroupEntry {
 	readonly id: string;
 	readonly label: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly description?: string;
 	readonly ancestor?: string;
 	readonly count?: number;
 }
 
-export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
-	readonly description?: string;
-	readonly ancestor?: string;
-	readonly count?: number;
+export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroupEntry {
 	readonly repository: ISCMRepository;
 	readonly type: 'historyItemGroup';
 }

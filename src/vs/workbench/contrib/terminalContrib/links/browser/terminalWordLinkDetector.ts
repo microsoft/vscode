@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { matchesScheme } from 'vs/platform/opener/common/opener';
+import { matchesScheme } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
