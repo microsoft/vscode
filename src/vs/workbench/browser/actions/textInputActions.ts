@@ -64,6 +64,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 						element.value = `${element.value.substring(0, selectionStart)}${clipboardText}${element.value.substring(selectionEnd, element.value.length)}`;
 						element.selectionStart = selectionStart + clipboardText.length;
 						element.selectionEnd = element.selectionStart;
+						element.dispatchEvent(new Event('input'));
 					}
 				}
 			}),
