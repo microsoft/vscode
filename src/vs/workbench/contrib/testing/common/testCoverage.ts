@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { IFileCoverage, CoverageDetails, ICoveredCount } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ICoveredCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ICoverageAccessor {
 	provideFileCoverage: (token: CancellationToken) => Promise<IFileCoverage[]>;
@@ -16,43 +17,44 @@ export interface ICoverageAccessor {
  * Class that exposese coverage information for a run.
  */
 export class TestCoverage {
-	private fileCoverage?: Promise<IFileCoverage[]>;
+	public static async load(accessor: ICoverageAccessor, token: CancellationToken) {
+		const files = await accessor.provideFileCoverage(token);
+		const map = new ResourceMap<FileCoverage>();
+		for (const [i, file] of files.entries()) {
+			map.set(file.uri, new FileCoverage(file, i, accessor));
+		}
+		return new TestCoverage(map);
+	}
 
-	constructor(private readonly accessor: ICoverageAccessor) { }
+	constructor(
+		private readonly fileCoverage: ResourceMap<FileCoverage>,
+	) { }
 
 	/**
 	 * Gets coverage information for all files.
 	 */
-	public async getAllFiles(token = CancellationToken.None) {
-		if (!this.fileCoverage) {
-			this.fileCoverage = this.accessor.provideFileCoverage(token);
-		}
-
-		try {
-			return await this.fileCoverage;
-		} catch (e) {
-			this.fileCoverage = undefined;
-			throw e;
-		}
+	public getAllFiles() {
+		return this.fileCoverage;
 	}
 
 	/**
 	 * Gets coverage information for a specific file.
 	 */
-	public async getUri(uri: URI, token = CancellationToken.None) {
-		const files = await this.getAllFiles(token);
-		return files.find(f => f.uri.toString() === uri.toString());
+	public getUri(uri: URI) {
+		return this.fileCoverage.get(uri);
 	}
 }
 
-export class FileCoverage {
-	private _details?: CoverageDetails[] | Promise<CoverageDetails[]>;
+export abstract class AbstractFileCoverage {
 	public readonly uri: URI;
 	public readonly statement: ICoveredCount;
 	public readonly branch?: ICoveredCount;
 	public readonly function?: ICoveredCount;
 
-	/** Gets the total coverage percent based on information provided. */
+	/**
+	 * Gets the total coverage percent based on information provided.
+	 * This is based on the Clover total coverage formula
+	 */
 	public get tpc() {
 		let numerator = this.statement.covered;
 		let denominator = this.statement.total;
@@ -70,11 +72,25 @@ export class FileCoverage {
 		return denominator === 0 ? 1 : numerator / denominator;
 	}
 
-	constructor(coverage: IFileCoverage, private readonly index: number, private readonly accessor: ICoverageAccessor) {
+	constructor(coverage: IFileCoverage) {
 		this.uri = URI.revive(coverage.uri);
 		this.statement = coverage.statement;
 		this.branch = coverage.branch;
-		this.function = coverage.branch;
+		this.function = coverage.function;
+	}
+}
+
+/**
+ * File coverage info computed from children in the tree, not provided by the
+ * extension.
+ */
+export class ComputedFileCoverage extends AbstractFileCoverage { }
+
+export class FileCoverage extends AbstractFileCoverage {
+	private _details?: CoverageDetails[] | Promise<CoverageDetails[]>;
+
+	constructor(coverage: IFileCoverage, private readonly index: number, private readonly accessor: ICoverageAccessor) {
+		super(coverage);
 		this._details = coverage.details;
 	}
 
@@ -82,9 +98,7 @@ export class FileCoverage {
 	 * Gets per-line coverage details.
 	 */
 	public async details(token = CancellationToken.None) {
-		if (!this._details) {
-			this._details = this.accessor.resolveFileCoverage(this.index, token);
-		}
+		this._details ??= this.accessor.resolveFileCoverage(this.index, token);
 
 		try {
 			return await this._details;

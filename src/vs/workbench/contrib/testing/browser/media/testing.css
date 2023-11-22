@@ -42,7 +42,8 @@
 }
 
 .test-explorer .test-item .label,
-.test-output-peek-tree .test-peek-item .name {
+.test-output-peek-tree .test-peek-item .name,
+.test-coverage-list-item-label {
 	flex-grow: 1;
 	width: 0;
 	overflow: hidden;
@@ -337,4 +338,34 @@
 }
 .monaco-editor .testing-inline-message-severity-1 {
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+.test-coverage-list-item {
+	display: flex;
+}
+
+.test-coverage-bars {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	margin-right: 0.8em;
+}
+
+.test-coverage-bars .bar {
+	width: 16px;
+	height: 8px;
+	border: 1px solid currentColor;
+	border-radius: 2px;
+	position: relative;
+	overflow: hidden;
+}
+
+.test-coverage-bars .bar::before {
+	content: '';
+	background: currentColor;
+	width: var(--test-bar-width);
+	height: 100%;
+	position: absolute;
+	opacity: 0.7;
 }

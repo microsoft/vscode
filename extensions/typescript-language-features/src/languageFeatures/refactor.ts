@@ -465,7 +465,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new SelectRefactorCommand(this.client));
 		commandManager.register(new MoveToFileRefactorCommand(this.client, didApplyRefactoringCommand));
-		commandManager.register(new EditorChatFollowUp(this.client));
+		commandManager.register(new EditorChatFollowUp(this.client, telemetryReporter));
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
@@ -579,7 +579,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				if (Extract_Constant.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractConstant')
 					|| Extract_Function.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractFunction')
 					|| Extract_Type.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractType')
-					|| Extract_Interface.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractInterface')) {
+					|| Extract_Interface.matches(action) && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.extractInterface')
+				) {
 					const newName = Extract_Constant.matches(action) ? 'newLocal'
 						: Extract_Function.matches(action) ? 'newFunction'
 							: Extract_Type.matches(action) ? 'NewType'
@@ -597,6 +598,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 								kind: 'refactor-info',
 								refactor: info,
 							},
+							action: { type: 'refactor', refactor: action },
 							document,
 						}]
 					});

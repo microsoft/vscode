@@ -32,6 +32,16 @@ const extensions = [
 		mocha: { timeout: 60_000 }
 	},
 	{
+		label: 'vscode-colorize-tests',
+		workspaceFolder: `extensions/vscode-colorize-tests/test`,
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'configuration-editing',
+		workspaceFolder: path.join(os.tmpdir(), `confeditout-${Math.floor(Math.random() * 100000)}`),
+		mocha: { timeout: 60_000 }
+	},
+	{
 		label: 'github-authentication',
 		workspaceFolder: path.join(os.tmpdir(), `msft-auth-${Math.floor(Math.random() * 100000)}`),
 		mocha: { timeout: 60_000 }

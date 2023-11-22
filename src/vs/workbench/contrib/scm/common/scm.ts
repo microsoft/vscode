@@ -18,7 +18,6 @@ import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/cont
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -60,6 +59,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
 	readonly onDidChangeResourceGroups: Event<void>;

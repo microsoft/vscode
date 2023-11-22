@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -29,9 +29,12 @@ export interface IChatRequestModel {
 
 export type IChatProgressResponseContent =
 	| IChatMarkdownContent
+	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatAsyncContent
 	| IChatContentInlineReference;
+
+export type IChatProgressRenderableResponseContent = Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
@@ -49,6 +52,7 @@ export interface IChatResponseModel {
 	readonly agent?: IChatAgentData;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
@@ -99,7 +103,7 @@ export class Response implements IResponse {
 		return this._responseParts;
 	}
 
-	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>) {
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>) {
 		this._responseParts = asArray(value).map((v) => (isMarkdownString(v) ?
 			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
 			'kind' in v ? v : { kind: 'treeData', treeData: v }));
@@ -109,6 +113,11 @@ export class Response implements IResponse {
 
 	asString(): string {
 		return this._responseRepr;
+	}
+
+	clear(): void {
+		this._responseParts = [];
+		this._updateRepr(true);
 	}
 
 	updateContent(progress: IChatProgressResponseContent | IChatContent, quiet?: boolean): void {
@@ -154,7 +163,7 @@ export class Response implements IResponse {
 				}
 				this._updateRepr(quiet);
 			});
-		} else if (progress.kind === 'treeData' || progress.kind === 'inlineReference') {
+		} else if (progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln') {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
 		}
@@ -249,9 +258,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._contentReferences;
 	}
 
+	private readonly _progressMessages: IChatProgressMessage[] = [];
+	public get progressMessages(): ReadonlyArray<IChatProgressMessage> {
+		return this._progressMessages;
+	}
 
 	constructor(
-		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
+		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>,
 		public readonly session: ChatModel,
 		agent: IChatAgentData | undefined,
 		public readonly requestId: string,
@@ -269,15 +282,24 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
+	/**
+	 * Apply a progress update to the actual response content.
+	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
-	updateReferences(reference: IChatUsedContext | IChatContentReference) {
-		if (reference.kind === 'usedContext') {
-			this._usedContext = reference;
-		} else if (reference.kind === 'reference') {
-			this._contentReferences.push(reference);
+	/**
+	 * Apply one of the progress updates that are not part of the actual response content.
+	 */
+	applyProgress(progress: IChatUsedContext | IChatContentReference | IChatProgressMessage) {
+		if (progress.kind === 'usedContext') {
+			this._usedContext = progress;
+		} else if (progress.kind === 'reference') {
+			this._contentReferences.push(progress);
+			this._onDidChange.fire();
+		} else if (progress.kind === 'progressMessage') {
+			this._progressMessages.push(progress);
 			this._onDidChange.fire();
 		}
 	}
@@ -293,7 +315,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._onDidChange.fire();
 	}
 
-	complete(): void {
+	complete(errorDetails?: IChatResponseErrorDetails): void {
+		if (errorDetails?.responseIsRedacted) {
+			this._response.clear();
+		}
+
 		this._isComplete = true;
 		this._onDidChange.fire();
 	}
@@ -338,7 +364,7 @@ export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 
 export interface ISerializableChatRequestData {
 	message: string | IParsedChatRequest;
-	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference> | undefined;
+	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
 	agent?: ISerializableChatAgentData;
 	slashCommand?: IChatAgentCommand;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
@@ -528,11 +554,11 @@ export class ChatModel extends Disposable implements IChatModel {
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
-						request.response.updateReferences(raw.usedContext);
+						request.response.applyProgress(raw.usedContext);
 					}
 
 					if (raw.contentReferences) {
-						raw.contentReferences.forEach(r => request.response!.updateReferences(r));
+						raw.contentReferences.forEach(r => request.response!.applyProgress(r));
 					}
 				}
 				return request;
@@ -626,10 +652,13 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'asyncContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference') {
+		if (progress.kind === 'vulnerability') {
+			// TODO@roblourens ChatModel should just work with strings
+			request.response.updateContent({ kind: 'markdownVuln', content: { value: progress.content }, vulnerabilities: progress.vulnerabilities }, quiet);
+		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'asyncContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln') {
 			request.response.updateContent(progress, quiet);
-		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
-			request.response.updateReferences(progress);
+		} else if (progress.kind === 'usedContext' || progress.kind === 'reference' || progress.kind === 'progressMessage') {
+			request.response.applyProgress(progress);
 		} else if (progress.kind === 'agentDetection') {
 			const agent = this.chatAgentService.getAgent(progress.agentName);
 			if (agent) {
@@ -669,12 +698,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response.setErrorDetails(rawResponse.errorDetails);
 	}
 
-	completeResponse(request: ChatRequestModel): void {
+	completeResponse(request: ChatRequestModel, errorDetails: IChatResponseErrorDetails | undefined): void {
 		if (!request.response) {
 			throw new Error('Call setResponse before completeResponse');
 		}
 
-		request.response.complete();
+		request.response.complete(errorDetails);
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {

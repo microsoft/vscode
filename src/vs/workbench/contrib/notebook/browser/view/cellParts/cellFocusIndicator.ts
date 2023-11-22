@@ -80,7 +80,6 @@ export class CellFocusIndicator extends CellContentPart {
 			this.bottom.domNode.style.transform = `translateY(${indicatorPostion.bottomIndicatorTop}px)`;
 			this.left.setHeight(indicatorPostion.verticalIndicatorHeight);
 			this.right.setHeight(indicatorPostion.verticalIndicatorHeight);
-			this.codeFocusIndicator.setTop(element.layoutInfo.chatHeight);
 			this.codeFocusIndicator.setHeight(indicatorPostion.verticalIndicatorHeight - this.getIndicatorTopMargin() * 2 - element.layoutInfo.chatHeight);
 		} else {
 			const cell = element as CodeCellViewModel;
@@ -89,9 +88,7 @@ export class CellFocusIndicator extends CellContentPart {
 			const indicatorHeight = cell.layoutInfo.codeIndicatorHeight + cell.layoutInfo.outputIndicatorHeight + cell.layoutInfo.commentHeight;
 			this.left.setHeight(indicatorHeight);
 			this.right.setHeight(indicatorHeight);
-			this.codeFocusIndicator.setTop(cell.layoutInfo.chatHeight);
 			this.codeFocusIndicator.setHeight(cell.layoutInfo.codeIndicatorHeight);
-			this.outputFocusIndicator.setTop(cell.layoutInfo.chatHeight);
 			this.outputFocusIndicator.setHeight(Math.max(cell.layoutInfo.outputIndicatorHeight - cell.viewContext.notebookOptions.getLayoutConfiguration().focusIndicatorGap, 0));
 			this.bottom.domNode.style.transform = `translateY(${cell.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 		}
@@ -100,8 +97,9 @@ export class CellFocusIndicator extends CellContentPart {
 	}
 
 	private updateFocusIndicatorsForTitleMenu(): void {
-		this.left.domNode.style.transform = `translateY(${this.getIndicatorTopMargin()}px)`;
-		this.right.domNode.style.transform = `translateY(${this.getIndicatorTopMargin()}px)`;
+		const y = (this.currentCell?.layoutInfo.chatHeight ?? 0) + this.getIndicatorTopMargin();
+		this.left.domNode.style.transform = `translateY(${y}px)`;
+		this.right.domNode.style.transform = `translateY(${y}px)`;
 	}
 
 	private getIndicatorTopMargin() {

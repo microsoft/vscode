@@ -558,7 +558,7 @@ export class ChatService extends Disposable implements IChatService {
 					rawResponse = { session: model.session! };
 
 				} else {
-					throw new Error(`Can't handle request`);
+					throw new Error(`Cannot handle request`);
 				}
 
 				if (token.isCancellationRequested) {
@@ -590,10 +590,10 @@ export class ChatService extends Disposable implements IChatService {
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
-							model.completeResponse(request);
+							model.completeResponse(request, rawResponse?.errorDetails);
 						});
 					} else {
-						model.completeResponse(request);
+						model.completeResponse(request, rawResponse?.errorDetails);
 					}
 				}
 			} finally {
@@ -656,7 +656,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (response.followups !== undefined) {
 			model.setFollowups(request, response.followups);
 		}
-		model.completeResponse(request);
+		model.completeResponse(request, response.errorDetails);
 	}
 
 	cancelCurrentRequestForSession(sessionId: string): void {

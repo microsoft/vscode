@@ -20,6 +20,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -112,6 +113,8 @@ export interface IInlineChatSessionProvider {
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
 
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatReplyFollowup[]>;
+
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
 
@@ -150,6 +153,7 @@ export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'he
 export const CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING = new RawContextKey<boolean>('inlineChatSupportIssueReporting', false, localize('inlineChatSupportIssueReporting', "Whether the interactive editor supports issue reporting"));
 export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inlineChatDocumentChanged', false, localize('inlineChatDocumentChanged', "Whether the document has changed concurrently"));
 export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.editMode', EditMode.Live);
+export const CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED = new RawContextKey<boolean>('inlineChatToolbarIconEnabled', false, localize('inlineChatToolbarIconEnabled', "Whether the toolbar icon spawning inline chat is enabled."));
 
 // --- (select) action identifier
 
@@ -224,7 +228,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		'inlineChat.showGutterIcon': {
 			description: localize('showGutterIcon', "Controls when the gutter icon for spawning inline chat is shown."),
-			default: ShowGutterIcon.Always,
+			default: ShowGutterIcon.Never,
 			type: 'string',
 			enum: [ShowGutterIcon.Always, ShowGutterIcon.MouseOver, ShowGutterIcon.Never],
 			markdownEnumDescriptions: [
@@ -232,6 +236,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
 				localize('showGutterIcon.never', "Never show the gutter icon."),
 			]
+		},
+		'inlineChat.showToolbarIcon': {
+			description: localize('showToolbarIcon', "Controls whether the toolbar icon spawning the inline chat is enabled."),
+			default: true,
+			type: 'boolean'
 		}
 	}
 });

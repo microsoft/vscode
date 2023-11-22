@@ -18,7 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
+import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -125,6 +125,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		//
 		let _executeHandler = handler ?? _defaultExecutHandler;
 		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
+		let _variableProvider: vscode.NotebookVariableProvider | undefined;
 
 		this._proxy.$addKernel(handle, data).catch(err => {
 			// this can happen when a kernel with that ID is already registered
@@ -206,6 +207,16 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_interruptHandler = value;
 				data.supportsInterrupt = Boolean(value);
 				_update();
+			},
+			set variableProvider(value) {
+				checkProposedApiEnabled(extension, 'notebookVariableProvider');
+				_variableProvider = value;
+				data.hasVariableProvider = !!value;
+				value?.onDidChangeVariables(e => that._proxy.$variablesUpdated(e.uri));
+				_update();
+			},
+			get variableProvider() {
+				return _variableProvider;
 			},
 			createNotebookCellExecution(cell) {
 				if (isDisposed) {
@@ -401,6 +412,29 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			if (handles.length && Array.isArray(items) && items.length) {
 				items.forEach(d => d.dispose());
 			}
+		}
+	}
+
+	async $provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void> {
+		const obj = this._kernelData.get(handle);
+		if (!obj) {
+			return;
+		}
+
+		const document = this._extHostNotebook.getNotebookDocument(URI.revive(notebookUri));
+		const variableProvider = obj.controller.variableProvider;
+		if (!variableProvider) {
+			return;
+		}
+
+		const parent = parentName ? { name: parentName, value: '' } : undefined;
+		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
+		const variables = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
+		for await (const variable of variables) {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			this._proxy.$receiveVariable(requestId, variable);
 		}
 	}
 

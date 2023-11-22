@@ -302,16 +302,6 @@ export interface IEditorGroupsContainer {
 	getLayout(): EditorGroupLayout;
 
 	/**
-	 * Enable or disable centered editor layout.
-	 */
-	centerLayout(active: boolean): void;
-
-	/**
-	 * Find out if the editor layout is currently centered.
-	 */
-	isLayoutCentered(): boolean;
-
-	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
 	 */
 	setGroupOrientation(orientation: GroupOrientation): void;
@@ -371,9 +361,9 @@ export interface IEditorGroupsContainer {
 	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
 
 	/**
-	 * Merge all editor groups into the active one.
+	 * Merge all editor groups into the target one.
 	 */
-	mergeAllGroups(): IEditorGroup;
+	mergeAllGroups(target: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
 	 * Copy a group to a new group in the container.
@@ -393,11 +383,6 @@ export interface IEditorGroupsContainer {
 	 * An event that notifies when editor part options change.
 	 */
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
-
-	/**
-	 * Enforce editor part options temporarily.
-	 */
-	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 
 	/**
 	 * Allows to register a drag and drop target for editors
@@ -462,9 +447,29 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * from a previous session.
 	 */
 	readonly hasRestorableState: boolean;
+
+	/**
+	 * Enable or disable centered editor layout.
+	 */
+	centerLayout(active: boolean): void;
+
+	/**
+	 * Find out if the editor layout is currently centered.
+	 */
+	isLayoutCentered(): boolean;
+
+	/**
+	 * Enforce editor part options temporarily.
+	 */
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
+
+	/**
+	 * The identifier of the window the auxiliary editor part is contained in.
+	 */
+	readonly windowId: number;
 
 	/**
 	 * Close this auxiliary editor part after moving all
@@ -479,6 +484,11 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event for when a new auxiliary editor part is created.
+	 */
+	readonly onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }>;
 
 	/**
 	 * Provides access to the currently active editor part.
@@ -503,7 +513,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	/**
 	 * Get the editor part that is rooted in the provided container.
 	 */
-	getPart(container: unknown /* HTMLElement */): IEditorPart | undefined;
+	getPart(container: unknown /* HTMLElement */): IEditorPart;
 
 	/**
 	 * Opens a new window with a full editor part instantiated

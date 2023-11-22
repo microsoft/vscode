@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
-import { DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow } from 'vs/base/browser/dom';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow, getActiveDocument } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -34,6 +34,71 @@ import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from '
 import { IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
+import { Emitter, Event } from 'vs/base/common/event';
+
+export interface IStatusbarEntryContainer extends IDisposable {
+
+	/**
+	 * An event that is triggered when an entry's visibility is changed.
+	 */
+	readonly onDidChangeEntryVisibility: Event<{ id: string; visible: boolean }>;
+
+	/**
+	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
+	 * to update or remove the statusbar entry.
+	 *
+	 * @param id identifier of the entry is needed to allow users to hide entries via settings
+	 * @param alignment either LEFT or RIGHT side in the status bar
+	 * @param priority items get arranged from highest priority to lowest priority from left to right
+	 * in their respective alignment slot
+	 */
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number | IStatusbarEntryPriority): IStatusbarEntryAccessor;
+
+	/**
+	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
+	 * accessor to update or remove the statusbar entry.
+	 *
+	 * @param id identifier of the entry is needed to allow users to hide entries via settings
+	 * @param alignment either LEFT or RIGHT side in the status bar
+	 * @param location a reference to another entry to position relative to
+	 */
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, location?: IStatusbarEntryLocation): IStatusbarEntryAccessor;
+
+	/**
+	 * Return if an entry is visible or not.
+	 */
+	isEntryVisible(id: string): boolean;
+
+	/**
+	 * Allows to update an entry's visibility with the provided ID.
+	 */
+	updateEntryVisibility(id: string, visible: boolean): void;
+
+	/**
+	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
+	 */
+	focus(preserveEntryFocus?: boolean): void;
+
+	/**
+	 * Focuses the next status bar entry. If none focused, focuses the first.
+	 */
+	focusNextEntry(): void;
+
+	/**
+	 * Focuses the previous status bar entry. If none focused, focuses the last.
+	 */
+	focusPreviousEntry(): void;
+
+	/**
+	 *	Returns true if a status bar entry is focused.
+	 */
+	isEntryFocused(): boolean;
+
+	/**
+	 * Temporarily override statusbar style.
+	 */
+	overrideStyle(style: IStatusbarStyleOverride): IDisposable;
+}
 
 interface IPendingStatusbarEntry {
 	readonly id: string;
@@ -44,16 +109,16 @@ interface IPendingStatusbarEntry {
 	accessor?: IStatusbarEntryAccessor;
 }
 
-export class StatusbarPart extends Part implements IStatusbarService {
+class StatusbarPart extends Part implements IStatusbarEntryContainer {
 
-	declare readonly _serviceBrand: undefined;
+	static readonly HEIGHT = 22;
 
 	//#region IView
 
 	readonly minimumWidth: number = 0;
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
-	readonly minimumHeight: number = 22;
-	readonly maximumHeight: number = 22;
+	readonly minimumHeight: number = StatusbarPart.HEIGHT;
+	readonly maximumHeight: number = StatusbarPart.HEIGHT;
 
 	//#endregion
 
@@ -64,6 +129,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private readonly viewModel = this._register(new StatusbarViewModel(this.storageService));
 
 	readonly onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
+
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
 
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
@@ -105,6 +173,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private readonly styleOverrides = new Set<IStatusbarStyleOverride>();
 
 	constructor(
+		id: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -115,7 +184,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
 	}
@@ -577,6 +646,176 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			type: Parts.STATUSBAR_PART
 		};
 	}
+
+	override dispose(): void {
+		this._onWillDispose.fire();
+
+		super.dispose();
+	}
 }
 
-registerSingleton(IStatusbarService, StatusbarPart, InstantiationType.Eager);
+export class MainStatusbarPart extends StatusbarPart {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(Parts.STATUSBAR_PART, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, hoverService, configurationService);
+	}
+}
+
+export interface IAuxiliaryStatusbarPart extends IStatusbarEntryContainer {
+	readonly container: HTMLElement;
+}
+
+export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryStatusbarPart {
+
+	private static COUNTER = 1;
+
+	constructor(
+		readonly container: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		const id = AuxiliaryStatusbarPart.COUNTER++;
+		super(`workbench.parts.auxiliaryStatus.${id}`, instantiationService, themeService, contextService, storageService, layoutService, contextMenuService, contextKeyService, hoverService, configurationService);
+	}
+}
+
+export class StatusbarService extends Disposable implements IStatusbarService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly mainPart = this._register(this.instantiationService.createInstance(MainStatusbarPart));
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+
+		this._register(this.registerStatusbarPart(this.mainPart));
+	}
+
+	//#region Auxiliary Statusbar Parts
+
+	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart {
+		const statusbarPartContainer = document.createElement('footer');
+		statusbarPartContainer.classList.add('part', 'statusbar');
+		statusbarPartContainer.setAttribute('role', 'status');
+		statusbarPartContainer.setAttribute('aria-live', 'off');
+		statusbarPartContainer.setAttribute('tabindex', '0');
+		container.appendChild(statusbarPartContainer);
+
+		const statusbarPart = this.instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
+		const disposable = this.registerStatusbarPart(statusbarPart);
+
+		statusbarPart.create(statusbarPartContainer);
+
+		Event.once(statusbarPart.onWillDispose)(() => disposable.dispose());
+
+		return statusbarPart;
+	}
+
+	//#endregion
+
+	//#region Registration
+
+	private readonly parts = new Set<StatusbarPart>();
+
+	private registerStatusbarPart(part: StatusbarPart): IDisposable {
+		this.parts.add(part);
+
+		const disposables = this._register(new DisposableStore());
+		disposables.add(toDisposable(() => this.parts.delete(part)));
+
+		return disposables;
+	}
+
+	//#endregion
+
+	//#region Helpers
+
+	getPart(container: HTMLElement): IStatusbarEntryContainer {
+		return this.getPartByDocument(container.ownerDocument);
+	}
+
+	private get activePart(): StatusbarPart {
+		return this.getPartByDocument(getActiveDocument());
+	}
+
+	private getPartByDocument(document: Document): StatusbarPart {
+		if (this.parts.size > 1) {
+			for (const part of this.parts) {
+				if (part.element?.ownerDocument === document) {
+					return part;
+				}
+			}
+		}
+
+		return this.mainPart;
+	}
+
+	//#endregion
+
+	//#region Service Implementation
+
+	readonly onDidChangeEntryVisibility = this.mainPart.onDidChangeEntryVisibility;
+
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priorityOrLocation: number | IStatusbarEntryLocation | IStatusbarEntryPriority = 0): IStatusbarEntryAccessor {
+		return this.mainPart.addEntry(entry, id, alignment, priorityOrLocation);
+	}
+
+	isEntryVisible(id: string): boolean {
+		return this.mainPart.isEntryVisible(id);
+	}
+
+	updateEntryVisibility(id: string, visible: boolean): void {
+		for (const part of this.parts) {
+			part.updateEntryVisibility(id, visible);
+		}
+	}
+
+	focus(preserveEntryFocus?: boolean): void {
+		this.activePart.focus(preserveEntryFocus);
+	}
+
+	focusNextEntry(): void {
+		this.activePart.focusNextEntry();
+	}
+
+	focusPreviousEntry(): void {
+		this.activePart.focusPreviousEntry();
+	}
+
+	isEntryFocused(): boolean {
+		return this.activePart.isEntryFocused();
+	}
+
+	overrideStyle(style: IStatusbarStyleOverride): IDisposable {
+		const disposables = new DisposableStore();
+
+		for (const part of this.parts) {
+			disposables.add(part.overrideStyle(style));
+		}
+
+		return disposables;
+	}
+
+	//#endregion
+}
+
+registerSingleton(IStatusbarService, StatusbarService, InstantiationType.Eager);

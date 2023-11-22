@@ -140,7 +140,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 
 		this.overlay.style.borderColor = activeContrastBorderColor || '';
-		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderStyle = 'solid';
 		this.overlay.style.borderWidth = '0px';
 	}
 

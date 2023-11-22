@@ -37,6 +37,7 @@ export class TerminalCommand implements ITerminalCommand {
 	get promptStartMarker() { return this._properties.promptStartMarker; }
 	get marker() { return this._properties.marker; }
 	get endMarker() { return this._properties.endMarker; }
+	set endMarker(value: IXtermMarker | undefined) { this._properties.endMarker = value; }
 	get executedMarker() { return this._properties.executedMarker; }
 	get aliases() { return this._properties.aliases; }
 	get wasReplayed() { return this._properties.wasReplayed; }
@@ -199,8 +200,6 @@ export class TerminalCommand implements ITerminalCommand {
 }
 
 export interface ICurrentPartialCommand {
-	previousCommandMarker?: IMarker;
-
 	promptStartMarker?: IMarker;
 
 	commandStartMarker?: IMarker;
@@ -238,8 +237,6 @@ export interface ICurrentPartialCommand {
 }
 
 export class PartialTerminalCommand implements ICurrentPartialCommand {
-	previousCommandMarker?: IMarker;
-
 	promptStartMarker?: IMarker;
 
 	commandStartMarker?: IMarker;
