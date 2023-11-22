@@ -422,16 +422,16 @@ export class SCMService implements ISCMService {
 		});
 	}
 
-	getDefaultInputValueProvider(): ISCMInputValueProvider | undefined {
+	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined {
+		if (!repository.provider.rootUri) {
+			return undefined;
+		}
+
 		if (this._inputValueProviders.size === 0) {
 			return undefined;
 		}
 
-		if (this._inputValueProviders.size === 1) {
-			return Iterable.first(this._inputValueProviders);
-		}
-
-		return undefined;
+		return Iterable.first(this._inputValueProviders);
 	}
 
 }

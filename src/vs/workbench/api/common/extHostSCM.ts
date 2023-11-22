@@ -922,13 +922,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	async $provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: vscode.SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
+	async $provideInputBoxValue(inputBoxValueProviderHandle: number, rootUri: UriComponents, context: vscode.SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
 		const provider = this._inputBoxValueProviders.get(inputBoxValueProviderHandle);
 		if (!provider) {
 			return undefined;
 		}
 
-		return await provider.provideValue(sourceControlId, context, token) ?? undefined;
+		return await provider.provideValue(URI.revive(rootUri), context, token) ?? undefined;
 	}
 
 	// Deprecated

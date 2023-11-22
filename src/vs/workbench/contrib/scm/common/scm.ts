@@ -89,7 +89,7 @@ export interface ISCMInputValueProviderContext {
 export interface ISCMInputValueProvider {
 	readonly label: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined>;
+	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined>;
 }
 
 export const enum InputValidationType {
@@ -188,7 +188,7 @@ export interface ISCMService {
 	readonly onDidChangeInputValueProviders: Event<void>;
 	readonly inputValueProviders: ISCMInputValueProvider[];
 
-	getDefaultInputValueProvider(): ISCMInputValueProvider | undefined;
+	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined;
 	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
 }
 

@@ -19,7 +19,7 @@ declare module 'vscode' {
 		readonly label: string;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
-		provideValue(sourceControlId: string, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): ProviderResult<string | undefined>;
+		provideValue(rootUri: Uri, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): ProviderResult<string | undefined>;
 	}
 
 }

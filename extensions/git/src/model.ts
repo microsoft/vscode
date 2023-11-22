@@ -784,11 +784,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		return liveRepository && liveRepository.repository;
 	}
 
-	getRepositoryById(sourceControlId: string): Repository | undefined {
-		const liveRepository = this.openRepositories.find(r => r.repository.sourceControl.id === sourceControlId);
-		return liveRepository && liveRepository.repository;
-	}
-
 	private async getRepositoryExact(repoPath: string): Promise<Repository | undefined> {
 		// Use the repository path
 		const openRepository = this.openRepositories

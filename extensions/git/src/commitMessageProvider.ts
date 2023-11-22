@@ -7,6 +7,7 @@ import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, Sou
 import { CommitMessageProvider, Status, Repository as ApiRepository } from './api/git';
 import { Repository } from './repository';
 import { dispose } from './util';
+import { Model } from './model';
 //import { Model } from './model';
 
 export interface ICommitMessageProviderRegistry {
@@ -190,56 +191,55 @@ export class GenerateCommitMessageActionButton {
 
 export class TestCommitMessageProvider2 implements SourceControlInputBoxValueProvider {
 
-	// private readonly _changesMap = new Map<string, [string[], number]>();
+	private readonly _changesMap = new Map<string, [string[], number]>();
 
 	constructor(
-		// private readonly model: Model,
+		private readonly model: Model,
 		readonly label = 'Generate Commit Message (Test)',
 		readonly icon = new ThemeIcon('rocket')
 	) { }
 
-	async provideValue(sourceControlId: string, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
-		console.log(sourceControlId, context);
+	async provideValue(rootUri: Uri, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
+		console.log(rootUri, context);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		// const repository = this.model.getRepositoryById(sourceControlId);
-		// if (!repository) {
-		// 	return undefined;
-		// }
+		const repository = this.model.getRepository(rootUri);
+		if (!repository) {
+			return undefined;
+		}
 
-		// const diff = await repository.getDiff();
-		// if (diff.length === 0) {
-		// 	return undefined;
-		// }
+		const diff = await repository.getDiff();
+		if (diff.length === 0) {
+			return undefined;
+		}
 
 		return new Promise(resolve => {
 			token.onCancellationRequested(() => resolve(undefined));
 
 			setTimeout(() => {
-				const attemptCount = -1;
-				// const attemptCount = this.getAttemptCount(repository, diff);
-				// this._changesMap.set(repository.root, [diff, attemptCount]);
+				const attemptCount = this.getAttemptCount(repository, diff);
+				this._changesMap.set(repository.root, [diff, attemptCount]);
 
-				resolve(`Test commit message (Attempt No. ${attemptCount}) ${this.icon.toString()}}`);
-			}, 3000);
+				resolve(`Test commit message (Attempt No. ${attemptCount})`);
+			}, 5000);
 		});
 	}
 
-	// private getAttemptCount(repository: Repository, changes: string[]): number {
-	// 	const [previousChanges, previousCount] = this._changesMap.get(repository.root) ?? [[], 1];
-	// 	if (previousChanges.length !== changes.length) {
-	// 		return 1;
-	// 	}
+	private getAttemptCount(repository: Repository, changes: string[]): number {
+		const [previousChanges, previousCount] = this._changesMap.get(repository.root) ?? [[], 1];
+		if (previousChanges.length !== changes.length) {
+			return 1;
+		}
 
-	// 	for (let index = 0; index < changes.length; index++) {
-	// 		if (previousChanges[index] !== changes[index]) {
-	// 			return 1;
-	// 		}
-	// 	}
+		for (let index = 0; index < changes.length; index++) {
+			if (previousChanges[index] !== changes[index]) {
+				return 1;
+			}
+		}
 
-	// 	return previousCount + 1;
-	// }
+		return previousCount + 1;
+	}
 
 }

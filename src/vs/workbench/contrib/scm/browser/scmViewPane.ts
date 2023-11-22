@@ -105,8 +105,6 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1757,7 +1755,6 @@ class HistoryItemViewChangesAction extends Action2 {
 registerAction2(HistoryItemViewChangesAction);
 
 export const enum SCMInputCommandId {
-	SetDefaultProvider = 'scm.input.setDefaultProvider',
 	ProvideValue = 'scm.input.provideValue'
 }
 
@@ -1785,38 +1782,30 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			this._cts?.cancel();
 
 			// Cancel button was clicked
-			if (action instanceof SCMInputWidgetButtonAction ||
-				(action instanceof SCMInputWidgetDropdownAction && action.isPrimaryAction) ||
-				(action instanceof SCMInputWidgetSetDefaultProviderAction && action.isPrimaryAction)) {
+			if (action instanceof SCMInputWidgetButtonAction) {
 				return;
 			}
 		}
 
-		if (action.id !== SCMInputCommandId.SetDefaultProvider) {
-			this._isActionRunning = true;
-		}
+		this._isActionRunning = true;
 
 		super.run(action, context);
 	}
 
 	protected override async runAction(action: IAction): Promise<void> {
 		try {
-			if (action.id === SCMInputCommandId.SetDefaultProvider) {
-				await action.run();
-			} else {
-				await this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
-					const context: ISCMInputValueProviderContext[] = [];
-					for (const group of this.input.repository.provider.groups) {
-						context.push({
-							resourceGroupId: group.id,
-							resources: [...group.resources.map(r => r.sourceUri)]
-						});
-					}
+			await this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
+				const context: ISCMInputValueProviderContext[] = [];
+				for (const group of this.input.repository.provider.groups) {
+					context.push({
+						resourceGroupId: group.id,
+						resources: [...group.resources.map(r => r.sourceUri)]
+					});
+				}
 
-					this._cts = new CancellationTokenSource();
-					await action.run(context, this._cts.token);
-				});
-			}
+				this._cts = new CancellationTokenSource();
+				await action.run(context, this._cts.token);
+			});
 		} finally {
 			this._isActionRunning = false;
 		}
@@ -1834,7 +1823,7 @@ class SCMInputWidgetButtonAction extends Action {
 	}
 
 	override async run(context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<void> {
-		const value = await this.provider.provideValue(this.input.repository.id, context, token);
+		const value = await this.provider.provideValue(this.input.repository.provider.rootUri!, context, token);
 
 		if (value) {
 			this.input.setValue(value, false);
@@ -1879,92 +1868,6 @@ class SCMInputWidgetButtonActionViewItem extends ActionViewItem {
 
 }
 
-
-class SCMInputWidgetDropdownAction extends MenuItemAction {
-
-	get isPrimaryAction(): boolean {
-		return this.options.isPrimaryAction;
-	}
-
-	constructor(
-		private readonly input: ISCMInput,
-		private readonly provider: ISCMInputValueProvider,
-		readonly options: { isPrimaryAction: boolean },
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
-	) {
-		const icon = ThemeIcon.isThemeIcon(provider.icon) ? provider.icon : Codicon.sparkle;
-		super({ id: SCMInputCommandId.ProvideValue, title: provider.label, icon }, undefined, undefined, undefined, contextKeyService, commandService);
-	}
-
-	override async run(context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<void> {
-		const value = await this.provider.provideValue(this.input.repository.id, context, token);
-
-		if (value) {
-			this.input.setValue(value, false);
-		}
-	}
-
-}
-
-class SCMInputWidgetDropdownActionViewItem extends DropdownWithPrimaryActionViewItem {
-
-	constructor(
-		primaryAction: MenuItemAction,
-		dropdownAction: IAction,
-		dropdownMenuActions: IAction[],
-		actionRunner: SCMInputWidgetActionRunner,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IThemeService themeService: IThemeService
-	) {
-		super(primaryAction, dropdownAction, dropdownMenuActions, '', contextMenuService, { actionRunner }, keybindingService, notificationService, contextKeyService, themeService, accessibilityService);
-
-		this._register(Event.any(actionRunner.onWillRun, actionRunner.onDidRun)(() => {
-			this.updateTooltip();
-			this.updateClass();
-		}));
-	}
-
-	protected override getClass(): string | undefined {
-		if (this.actionRunner instanceof SCMInputWidgetActionRunner) {
-			return this.actionRunner.isActionRunning ? ThemeIcon.asClassName(Codicon.debugStop) : super.getClass();
-		}
-
-		return super.getClass();
-	}
-
-	protected override getTooltip(): string | undefined {
-		if (this.actionRunner instanceof SCMInputWidgetActionRunner) {
-			return this.actionRunner.isActionRunning ? localize('cancel', "Cancel") : super.getTooltip();
-		}
-
-		return super.getTooltip();
-	}
-}
-
-class SCMInputWidgetSetDefaultProviderAction extends MenuItemAction {
-
-	get isPrimaryAction(): boolean {
-		return this.options.isPrimaryAction;
-	}
-
-	constructor(
-		readonly options: { isPrimaryAction: boolean },
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
-	) {
-		super({ id: SCMInputCommandId.SetDefaultProvider, title: localize('scm.input.setDefaultProvider', "Set Default Provider"), icon: Codicon.gear }, undefined, undefined, undefined, contextKeyService, commandService);
-	}
-
-	override async run(): Promise<void> {
-		console.log('set default provider');
-	}
-
-}
 
 class SCMInputWidget {
 
@@ -2181,18 +2084,6 @@ class SCMInputWidget {
 				if (action instanceof SCMInputWidgetButtonAction) {
 					return this.instantiationService.createInstance(SCMInputWidgetButtonActionViewItem, action, actionRunner, input.repository);
 				}
-				// Dropdown (multiple providers)
-				if (action instanceof MenuItemAction) {
-					const dropdownAction = new Action('scm.input.providers', 'More Providers...', 'codicon-chevron-down', true);
-
-					const dropdownActions: IAction[] = [];
-					for (const provider of this.scmService.inputValueProviders) {
-						dropdownActions.push(this.instantiationService.createInstance(SCMInputWidgetDropdownAction, input, provider, { isPrimaryAction: false }));
-					}
-					dropdownActions.push(...[new Separator(), this.instantiationService.createInstance(SCMInputWidgetSetDefaultProviderAction, { isPrimaryAction: false })]);
-
-					return this.instantiationService.createInstance(SCMInputWidgetDropdownActionViewItem, action, dropdownAction, dropdownActions, actionRunner);
-				}
 
 				return createActionViewItem(this.instantiationService, action);
 			},
@@ -2200,25 +2091,14 @@ class SCMInputWidget {
 		});
 		this.repositoryDisposables.add(toolbar);
 
-		const onDidChangeInputValueProviders = () => {
-			if (this.scmService.inputValueProviders.length === 0) {
-				toolbar.setActions([]);
-			} else if (this.scmService.inputValueProviders.length === 1) {
-				const defaultProvider = this.scmService.getDefaultInputValueProvider()!;
-				toolbar.setActions([this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider)]);
-			} else {
-				const defaultProvider = this.scmService.getDefaultInputValueProvider();
-				if (defaultProvider) {
-					toolbar.setActions([this.instantiationService.createInstance(SCMInputWidgetDropdownAction, input, defaultProvider, { isPrimaryAction: true })]);
-				} else {
-					toolbar.setActions([this.instantiationService.createInstance(SCMInputWidgetSetDefaultProviderAction, { isPrimaryAction: true })]);
-				}
-			}
+		const updateToolbar = () => {
+			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
+			toolbar.setActions(defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider)] : []);
 
 			this.layout();
 		};
-		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeInputValueProviders, this));
-		onDidChangeInputValueProviders();
+		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(updateToolbar, this));
+		updateToolbar();
 	}
 
 	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
@@ -2413,7 +2293,10 @@ class SCMInputWidget {
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
 		this.placeholderTextContainer.style.width = `${dimension.width}px`;
-		// this.toolbarContainer.classList.toggle('hidden', this.toolbar.isEmpty());
+
+		const defaultProvider = this.input ? this.scmService.getDefaultInputValueProvider(this.input.repository) : undefined;
+		this.toolbarContainer.classList.toggle('hidden', defaultProvider === undefined);
+
 		this.renderValidation();
 
 		if (this.shouldFocusAfterLayout) {

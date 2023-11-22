@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel, scm, ThemeIcon } from 'vscode';
+import { env, ExtensionContext, workspace, window, Disposable, commands, Uri, version as vscodeVersion, WorkspaceFolder, LogOutputChannel, l10n, LogLevel, scm } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
@@ -119,9 +119,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const postCommitCommandsProvider = new GitPostCommitCommandsProvider();
 	model.registerPostCommitCommandsProvider(postCommitCommandsProvider);
 
-	scm.registerSourceControlInputBoxValueProvider(new TestCommitMessageProvider2());
-	scm.registerSourceControlInputBoxValueProvider(new TestCommitMessageProvider2('Generate Commit Message (Test2)', new ThemeIcon('squirrel')));
-	scm.registerSourceControlInputBoxValueProvider(new TestCommitMessageProvider2('Generate Commit Message (Test3)', new ThemeIcon('vr')));
+	scm.registerSourceControlInputBoxValueProvider(new TestCommitMessageProvider2(model));
 
 	checkGitVersion(info);
 	commands.executeCommand('setContext', 'gitVersion2.35', git.compareGitVersionTo('2.35') >= 0);

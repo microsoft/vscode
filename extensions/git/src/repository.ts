@@ -690,8 +690,6 @@ export interface IRepositoryResolver {
 	getRepository(path: string): Repository | undefined;
 	getRepository(resource: Uri): Repository | undefined;
 	getRepository(hint: any): Repository | undefined;
-
-	getRepositoryById(id: string): Repository | undefined;
 }
 
 export class Repository implements Disposable {
