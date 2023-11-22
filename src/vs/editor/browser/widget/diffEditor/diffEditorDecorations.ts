@@ -251,7 +251,7 @@ class RevertButton implements IGlyphMarginWidget {
 				endColumn: 1,
 				endLineNumber: this._lineNumber,
 			},
-			zIndex: 0,
+			zIndex: 10001,
 		};
 	}
 }
