@@ -47,7 +47,6 @@ class CodeActionOracle extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger): void {
 		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
-		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
