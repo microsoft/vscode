@@ -13,7 +13,8 @@ export const enum StatusBarElement {
 	INDENTATION_STATUS = 4,
 	ENCODING_STATUS = 5,
 	EOL_STATUS = 6,
-	LANGUAGE_STATUS = 7
+	LANGUAGE_STATUS = 7,
+	PROBLEMS_STATUS_OFF = 8,
 }
 
 export class StatusBar {
@@ -46,6 +47,8 @@ export class StatusBar {
 				return `.statusbar-item[id^="status.scm."] .codicon.codicon-sync`;
 			case StatusBarElement.PROBLEMS_STATUS:
 				return `.statusbar-item[id="status.problems"]`;
+			case StatusBarElement.PROBLEMS_STATUS_OFF:
+				return `.statusbar-item[id="status.problems.off"]`;
 			case StatusBarElement.SELECTION_STATUS:
 				return `.statusbar-item[id="status.editor.selection"]`;
 			case StatusBarElement.INDENTATION_STATUS:
