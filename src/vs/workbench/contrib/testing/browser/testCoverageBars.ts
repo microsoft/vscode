@@ -71,6 +71,11 @@ export class ManagedTestCoverageBars extends Disposable {
 	 */
 	public readonly onDidChange = this.changeEmitter.event;
 
+	/** Gets whether coverage is currently visible for the resource. */
+	public get visible() {
+		return !!this._coverage;
+	}
+
 	constructor(
 		private readonly options: TestCoverageBarsOptions,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -134,9 +139,9 @@ export class ManagedTestCoverageBars extends Disposable {
 	private doRender(coverage: AbstractFileCoverage) {
 		const el = this.el.value;
 
+		const precision = this.options.compact ? 0 : 2;
 		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
-		el.overall.textContent = displayPercent(overallStat);
-
+		el.overall.textContent = displayPercent(overallStat, precision);
 		if ('tpcBar' in el) { // compact mode
 			renderBar(el.tpcBar, overallStat);
 		} else {
@@ -150,7 +155,6 @@ export class ManagedTestCoverageBars extends Disposable {
 }
 
 const percent = (cc: ICoveredCount) => cc.total === 0 ? 1 : cc.covered / cc.total;
-const precision = 2;
 const epsilon = 10e-8;
 
 const renderBar = (bar: HTMLElement, pct: number | undefined) => {
@@ -181,12 +185,12 @@ const calculateDisplayedStat = (coverage: AbstractFileCoverage, method: TestingD
 
 };
 
-const displayPercent = (value: number) => {
+const displayPercent = (value: number, precision = 2) => {
 	const display = (value * 100).toFixed(precision);
 
 	// avoid showing 100% coverage if it just rounds up:
 	if (value < 1 - epsilon && display === '100') {
-		return '99.99%';
+		return `${100 - (10 ** -precision)}%`;
 	}
 
 	return `${display}%`;
@@ -223,7 +227,7 @@ export class TestCoverageBars extends ManagedTestCoverageBars {
 			if (coverage) {
 				const resource = this.resource.read(reader);
 				if (resource) {
-					info = coverage.getUri(resource);
+					info = coverage.getComputedForUri(resource);
 				}
 			}
 
@@ -235,7 +239,7 @@ export class TestCoverageBars extends ManagedTestCoverageBars {
 	 * Sets the resource for which coverage bars will be rendered. May immediately
 	 * cause the rendering of coverage bars.
 	 */
-	public setResource(resource: URI, transaction?: ITransaction) {
+	public setResource(resource: URI | undefined, transaction?: ITransaction) {
 		this.resource.set(resource, transaction);
 	}
 }
