@@ -286,6 +286,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
 		},
+		'scm.showInputActionButton': {
+			type: 'boolean',
+			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
+			default: true
+		},
 		'scm.showIncomingChanges': {
 			type: 'string',
 			enum: ['always', 'never', 'auto'],

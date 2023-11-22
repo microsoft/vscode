@@ -199,8 +199,7 @@ export class TestCommitMessageProvider2 implements SourceControlInputBoxValuePro
 		readonly icon = new ThemeIcon('rocket')
 	) { }
 
-	async provideValue(rootUri: Uri, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
-		console.log(rootUri, context);
+	async provideValue(rootUri: Uri, _: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}

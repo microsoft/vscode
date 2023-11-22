@@ -2092,12 +2092,15 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(toolbar);
 
 		const updateToolbar = () => {
+			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
 			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
-			toolbar.setActions(defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider)] : []);
+			toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider)] : []);
 
+			this.toolbarContainer.classList.toggle('hidden', !showInputActionButton || defaultProvider === undefined);
 			this.layout();
 		};
 		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(updateToolbar, this));
+		this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(updateToolbar, this));
 		updateToolbar();
 	}
 
@@ -2293,10 +2296,6 @@ class SCMInputWidget {
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
 		this.placeholderTextContainer.style.width = `${dimension.width}px`;
-
-		const defaultProvider = this.input ? this.scmService.getDefaultInputValueProvider(this.input.repository) : undefined;
-		this.toolbarContainer.classList.toggle('hidden', defaultProvider === undefined);
-
 		this.renderValidation();
 
 		if (this.shouldFocusAfterLayout) {
