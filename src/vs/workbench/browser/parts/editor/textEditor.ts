@@ -120,7 +120,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
-		// const editorOptionsOverrideRaw = this.textResourceConfigurationService.getValue(this.getActiveResource(), 'workbench.editor.showProblems') ?? undefined;
+
 		return editorConfiguration;
 	}
 
@@ -157,13 +157,12 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
 		const editorOptionsOverrideRaw = this.textResourceConfigurationService.getValue<ICodeEditorOptions>(this.getActiveResource(), 'editor');
-		// editorConfiguration.renderValidationDecorations = editorOptionsOverrideRaw ? 'on' : 'off';
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: editorOptionsOverrideRaw.renderValidationDecorations // render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
+			renderValidationDecorations: editorOptionsOverrideRaw.renderValidationDecorations // Originally defaulted 'on': render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
 		};
 	}
 

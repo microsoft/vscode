@@ -614,7 +614,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private markersOffText(): string {
 		const problemsText: string[] = [];
-		// Warning Symbol
+		// Highlighted Codicon to indicate `renderValidationDecorations` is off
 		problemsText.push('$(whole-word)');
 		return problemsText.join(' ');
 	}
