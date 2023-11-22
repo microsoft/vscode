@@ -281,7 +281,7 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 
 	private static COUNTER = 1;
 
-	readonly height = 28;
+	get height() { return this.minimumHeight; }
 
 	constructor(
 		readonly container: HTMLElement,
