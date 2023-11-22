@@ -1518,10 +1518,6 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 			const { element, disposable } = this.createElement(stickyNode, currentWidgetHieght);
 
-			if (stickyIndex === state.count - 1) {
-				element.classList.add('last-sticky');
-			}
-
 			this._rootDomNode.appendChild(element);
 			state.addDisposable(disposable);
 		}
@@ -1544,6 +1540,8 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		// Sticky element container
 		const stickyElement = document.createElement('div');
 		stickyElement.style.top = `${stickyNode.position}px`;
+		stickyElement.style.height = `${stickyNode.height}px`;
+		stickyElement.style.lineHeight = `${stickyNode.height}px`;
 
 		stickyElement.classList.add('monaco-tree-sticky-row');
 		stickyElement.classList.add('monaco-list-row');

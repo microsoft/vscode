@@ -470,6 +470,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	revert(diff: DetailedLineRangeMapping): void {
 		if (diff.innerChanges) {
 			this.revertRangeMappings(diff.innerChanges);
+			return;
 		}
 
 		const model = this._diffModel.get()?.model;

@@ -675,7 +675,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	const stream = fs.createReadStream(artifactFilePath);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
 
-	const [cdnSettledResult, prssSettledResult] = await Promise.allSettled([
+	const [assetUrl, prssUrl] = await Promise.all([
 		uploadAssetLegacy(log, quality, commit, artifactFilePath),
 		releaseAndProvision(
 			log,
@@ -691,15 +691,6 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 			artifactFilePath
 		)
 	]);
-
-	if (cdnSettledResult.status === 'rejected') {
-		throw cdnSettledResult.reason;
-	} else if (prssSettledResult.status === 'rejected') { // TODO@joaomoreno, let's temporarily ignore these errors
-		console.error(prssSettledResult.reason);
-	}
-
-	const assetUrl = cdnSettledResult.value;
-	const prssUrl = prssSettledResult.status === 'fulfilled' ? prssSettledResult.value : undefined;
 
 	const asset: Asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl: prssUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
 	log('Creating asset...', JSON.stringify(asset));

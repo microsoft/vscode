@@ -47,6 +47,7 @@ class CodeActionOracle extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger): void {
 		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
+		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
 
@@ -137,9 +138,7 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	validActions: [],
 	dispose: () => { },
 	documentation: [],
-	hasAutoFix: false,
-	hasAIFix: false,
-	allAIFixes: false,
+	hasAutoFix: false
 });
 
 
@@ -290,7 +289,7 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
 							}
 						}
 					}
