@@ -1732,7 +1732,7 @@ class HistoryItemViewChangesAction extends Action2 {
 		super({
 			id: `workbench.scm.action.historyItemViewChanges`,
 			title: localize('historyItemViewChanges', "View Changes"),
-			icon: Codicon.search,
+			icon: Codicon.tasklist,
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryItem,
