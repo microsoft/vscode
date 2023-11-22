@@ -2732,7 +2732,7 @@ export interface IEditorLightbulbOptions {
 	/**
 	 * Highlight AI code actions with AI icon
 	 */
-	highlightAiActions?: boolean;
+	showAiIcon?: boolean;
 }
 
 /**
@@ -2743,7 +2743,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true, highlightAiActions: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: true };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2752,10 +2752,10 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
-				'editor.lightbulb.highlightAiActions': {
+				'editor.lightbulb.showAiIcon': {
 					type: 'boolean',
-					default: defaults.highlightAiActions,
-					description: nls.localize('highlightAiActions', "Highlight when the menu contains AI Code Actions with an AI icon.")
+					default: defaults.showAiIcon,
+					description: nls.localize('showAiIcons', "Show AI icon instead of lightbulb icon when the menu contains AI code actions.")
 				},
 			}
 		);
@@ -2768,7 +2768,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		const input = _input as IEditorLightbulbOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			highlightAiActions: boolean(input.highlightAiActions, this.defaultValue.highlightAiActions)
+			showAiIcon: boolean(input.showAiIcon, this.defaultValue.showAiIcon)
 		};
 	}
 }
