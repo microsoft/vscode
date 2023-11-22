@@ -81,45 +81,6 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		this.bigSurOrNewer = isBigSurOrNewer(environmentService.os.release);
 	}
 
-	private onUpdateAppIconDragBehavior(): void {
-		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
-		if (setting && this.appIcon) {
-			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
-		} else if (this.appIcon) {
-			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
-		}
-	}
-
-	private onDidChangeWindowMaximized(maximized: boolean): void {
-		if (this.maxRestoreControl) {
-			if (maximized) {
-				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
-				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
-			} else {
-				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
-				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
-			}
-		}
-
-		if (this.resizer) {
-			if (maximized) {
-				hide(this.resizer);
-			} else {
-				show(this.resizer);
-			}
-		}
-	}
-
-	private onMenubarFocusChanged(focused: boolean): void {
-		if ((isWindows || isLinux) && this.currentMenubarVisibility !== 'compact' && this.dragRegion) {
-			if (focused) {
-				hide(this.dragRegion);
-			} else {
-				show(this.dragRegion);
-			}
-		}
-	}
-
 	protected override onMenubarVisibilityChanged(visible: boolean): void {
 
 		// Hide title when toggling menu bar
@@ -145,6 +106,15 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 	}
 
+	private onUpdateAppIconDragBehavior(): void {
+		const setting = this.configurationService.getValue('window.doubleClickIconToClose');
+		if (setting && this.appIcon) {
+			(this.appIcon.style as any)['-webkit-app-region'] = 'no-drag';
+		} else if (this.appIcon) {
+			(this.appIcon.style as any)['-webkit-app-region'] = 'drag';
+		}
+	}
+
 	protected override installMenubar(): void {
 		super.installMenubar();
 
@@ -154,6 +124,16 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		if (this.customMenubar) {
 			this._register(this.customMenubar.onFocusStateChange(e => this.onMenubarFocusChanged(e)));
+		}
+	}
+
+	private onMenubarFocusChanged(focused: boolean): void {
+		if ((isWindows || isLinux) && this.currentMenubarVisibility !== 'compact' && this.dragRegion) {
+			if (focused) {
+				hide(this.dragRegion);
+			} else {
+				show(this.dragRegion);
+			}
 		}
 	}
 
@@ -221,6 +201,26 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		}
 
 		return ret;
+	}
+
+	private onDidChangeWindowMaximized(maximized: boolean): void {
+		if (this.maxRestoreControl) {
+			if (maximized) {
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+			} else {
+				this.maxRestoreControl.classList.remove(...ThemeIcon.asClassNameArray(Codicon.chromeRestore));
+				this.maxRestoreControl.classList.add(...ThemeIcon.asClassNameArray(Codicon.chromeMaximize));
+			}
+		}
+
+		if (this.resizer) {
+			if (maximized) {
+				hide(this.resizer);
+			} else {
+				show(this.resizer);
+			}
+		}
 	}
 
 	override updateStyles(): void {
