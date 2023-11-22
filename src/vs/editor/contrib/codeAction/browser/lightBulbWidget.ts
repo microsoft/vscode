@@ -17,7 +17,6 @@ import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 namespace LightBulbState {
@@ -55,15 +54,13 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	public readonly onClick = this._onClick.event;
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
-	private _iconClasses: string[] = [];
 
 	private _preferredKbLabel?: string;
 	private _quickFixKbLabel?: string;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -81,25 +78,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
-		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, async e => {
+		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, e => {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
-			const focusEditor = () => {
-				this._editor.focus();
-				e.preventDefault();
-			};
 
-			if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
-				const action = this.state.actions.validActions[0].action;
-				if (action.command?.id) {
-					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
-				}
-				focusEditor();
-				return;
-			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
-			focusEditor();
+			this._editor.focus();
+			e.preventDefault();
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
@@ -222,35 +208,26 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateLightBulbTitleAndIcon(): void {
-		this._domNode.classList.remove(...this._iconClasses);
-		this._iconClasses = [];
-		if (this.state.type !== LightBulbState.Type.Showing) {
-			return;
-		}
-		let icon: ThemeIcon;
-		if (this.state.actions.allAIFixes) {
-			icon = Codicon.sparkle;
-		} else if (this.state.actions.hasAutoFix) {
-			if (this.state.actions.hasAIFix) {
-				icon = Codicon.lightbulbSparkleAutofix;
-			} else {
-				icon = Codicon.lightbulbAutofix;
-			}
+		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
+			// update icon
+			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+			this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
+
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
-			}
-		} else if (this.state.actions.hasAIFix) {
-			icon = Codicon.lightbulbSparkle;
-		} else {
-			icon = Codicon.lightBulb;
-			if (this._quickFixKbLabel) {
-				this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
-			} else {
-				this.title = nls.localize('codeAction', "Show Code Actions");
+				return;
 			}
 		}
-		this._iconClasses = ThemeIcon.asClassNameArray(icon);
-		this._domNode.classList.add(...this._iconClasses);
+
+		// update icon
+		this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
+		this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+
+		if (this._quickFixKbLabel) {
+			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
+		} else {
+			this.title = nls.localize('codeAction', "Show Code Actions");
+		}
 	}
 
 	private set title(value: string) {
