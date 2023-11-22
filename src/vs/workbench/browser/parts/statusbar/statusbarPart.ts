@@ -673,11 +673,14 @@ export class MainStatusbarPart extends StatusbarPart {
 
 export interface IAuxiliaryStatusbarPart extends IStatusbarEntryContainer {
 	readonly container: HTMLElement;
+	readonly height: number;
 }
 
 export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryStatusbarPart {
 
 	private static COUNTER = 1;
+
+	readonly height = StatusbarPart.HEIGHT;
 
 	constructor(
 		readonly container: HTMLElement,

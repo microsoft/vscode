@@ -12,10 +12,11 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux, isNative } from 'vs/base/common/platform';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { TitlebarPart as BrowserTitleBarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { Part } from 'vs/workbench/browser/part';
+import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart, ITitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { getTitleBarStyle, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,11 +24,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class TitlebarPart extends BrowserTitleBarPart {
+export class NativeTitlebarPart extends BrowserTitlebarPart {
+
 	private maxRestoreControl: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
 	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
@@ -58,6 +60,8 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
 
 	constructor(
+		id: string,
+		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -74,7 +78,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+		super(id, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 
 		this.environmentService = environmentService;
 	}
@@ -247,5 +251,68 @@ export class TitlebarPart extends BrowserTitleBarPart {
 				this.nativeHostService.updateWindowControls({ height: newHeight });
 			}
 		}
+	}
+}
+
+export class MainNativeTitlebarPart extends NativeTitlebarPart {
+
+	constructor(
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IHoverService hoverService: IHoverService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		super(Parts.TITLEBAR_PART, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+	}
+}
+
+export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxiliaryTitlebarPart {
+
+	private static COUNTER = 1;
+
+	readonly height = 28;
+
+	constructor(
+		editorGroupsContainer: IEditorGroupsContainer,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IHoverService hoverService: IHoverService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService
+	) {
+		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
+		super(`workbench.parts.auxiliaryTitle.${id}`, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+	}
+}
+
+export class NativeTitleService extends BrowserTitleService {
+
+	protected override createMainTitlebarPart(): ITitlebarPart {
+		return this.instantiationService.createInstance(MainNativeTitlebarPart);
+	}
+
+	protected override doCreateAuxiliaryTitlebarPart(editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
+		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, editorGroupsContainer);
 	}
 }

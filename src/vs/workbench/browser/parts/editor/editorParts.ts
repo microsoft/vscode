@@ -17,11 +17,14 @@ import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workben
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { distinct } from 'vs/base/common/arrays';
-import { AuxiliaryStatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
+import { isNative } from 'vs/base/common/platform';
+import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { getTitleBarStyle } from 'vs/platform/window/common/window';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -34,7 +37,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ITitleService private readonly titleService: ITitleService
 	) {
 		super();
 
@@ -67,18 +71,43 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 			}
 		}));
 
+		function computeEditorPartHeightOffset(): number {
+			let editorPartHeightOffset = 0;
+
+			if (statusBarVisible) {
+				editorPartHeightOffset += statusbarPart.height;
+			}
+
+			if (titlebarPart) {
+				editorPartHeightOffset += titlebarPart.height;
+			}
+
+			return editorPartHeightOffset;
+		}
+
 		function updateStatusBarVisibility(fromEvent: boolean): void {
 			if (statusBarVisible) {
-				editorPartContainer.style.height = `calc(100% - ${AuxiliaryStatusbarPart.HEIGHT}px)`;
 				statusbarPart.container.style.display = 'block';
 			} else {
-				editorPartContainer.style.height = '100%';
 				statusbarPart.container.style.display = 'none';
 			}
+
+			editorPartContainer.style.height = `calc(100% - ${computeEditorPartHeightOffset()}px)`;
 
 			if (fromEvent) {
 				auxiliaryWindow.layout();
 			}
+		}
+
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, auxiliaryWindow.window.vscodeWindowId, this, this.getGroupsLabel(this._parts.size)));
+
+		// Titlebar (part)
+		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
+		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
+		if (useCustomTitle) {
+			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+		} else {
+			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 		}
 
 		// Editor Part
@@ -87,14 +116,10 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		editorPartContainer.setAttribute('role', 'main');
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, auxiliaryWindow.window.vscodeWindowId, this, this.getGroupsLabel(this._parts.size)));
 		disposables.add(this.registerEditorPart(editorPart));
 		editorPart.create(editorPartContainer, { restorePreviousState: false });
 
-		// Window Title
-		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
-
-		// Status Bar
+		// Statusbar
 		const statusbarPart = disposables.add(this.statusbarService.createAuxiliaryStatusbarPart(auxiliaryWindow.container));
 
 		// Editor status scoped to auxiliary window
@@ -119,7 +144,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		// Layout
-		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, statusBarVisible ? dimension.height - AuxiliaryStatusbarPart.HEIGHT : dimension.height, 0, 0)));
+		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height - computeEditorPartHeightOffset(), 0, 0)));
 		auxiliaryWindow.layout();
 
 		// Events

@@ -16,7 +16,7 @@ import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, p
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/window/common/window';

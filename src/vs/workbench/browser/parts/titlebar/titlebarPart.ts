@@ -6,13 +6,13 @@
 import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
 import { Part } from 'vs/workbench/browser/part';
-import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -40,7 +40,7 @@ import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from 'vs/workbench/browser/parts/globalCompositeBar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -53,7 +53,81 @@ import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/ed
 import { IEditorCommandsContext, IToolbarActions } from 'vs/workbench/common/editor';
 import { mainWindow } from 'vs/base/browser/window';
 
-export class TitlebarPart extends Part implements ITitleService {
+export interface ITitleProperties {
+	isPure?: boolean;
+	isAdmin?: boolean;
+	prefix?: string;
+}
+
+export interface ITitlebarPart extends IDisposable {
+
+	/**
+	 * An event when the menubar visibility changes.
+	 */
+	readonly onMenubarVisibilityChange: Event<boolean>;
+
+	/**
+	 *  Title menu is visible
+	 */
+	readonly isCommandCenterVisible: boolean;
+
+	/**
+	 * An event when the title menu is enabled/disabled
+	 */
+	readonly onDidChangeCommandCenterVisibility: Event<void>;
+
+	/**
+	 * Update some environmental title properties.
+	 */
+	updateProperties(properties: ITitleProperties): void;
+}
+
+export class BrowserTitleService extends Disposable implements ITitleService {
+
+	declare _serviceBrand: undefined;
+
+	readonly mainPart = this._register(this.createMainTitlebarPart());
+
+	constructor(
+		@IInstantiationService protected readonly instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	protected createMainTitlebarPart(): ITitlebarPart {
+		return this.instantiationService.createInstance(MainBrowserTitlebarPart);
+	}
+
+	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
+
+	get isCommandCenterVisible() { return this.mainPart.isCommandCenterVisible; }
+
+	readonly onDidChangeCommandCenterVisibility = this.mainPart.onDidChangeCommandCenterVisibility;
+
+	updateProperties(properties: ITitleProperties): void {
+		this.mainPart.updateProperties(properties);
+	}
+
+	createAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart {
+		const titlebarPartContainer = document.createElement('div');
+		titlebarPartContainer.classList.add('part', 'titlebar');
+		titlebarPartContainer.setAttribute('role', 'none');
+		titlebarPartContainer.style.height = '28px';
+		titlebarPartContainer.style.position = 'relative';
+		container.appendChild(titlebarPartContainer);
+
+		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(editorGroupsContainer);
+		titlebarPart.create(titlebarPartContainer);
+
+		return titlebarPart;
+	}
+
+	protected doCreateAuxiliaryTitlebarPart(editorGroupsContainer: IEditorGroupsContainer): IAuxiliaryTitlebarPart & Part {
+		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, editorGroupsContainer);
+	}
+}
+
+export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -112,6 +186,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private readonly editorService: IEditorService;
 
 	constructor(
+		id: string,
+		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -122,14 +198,14 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IHoverService hoverService: IHoverService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
-		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, mainWindow, 'main'));
-		this.editorService = editorService.createScoped('main', this._store);
+		super(id, { hasTitle: false }, themeService, storageService, layoutService);
+		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, mainWindow, editorGroupsContainer));
+		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -608,6 +684,59 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 }
 
+export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
+
+	constructor(
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
+		@IHoverService hoverService: IHoverService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+	) {
+		super(Parts.TITLEBAR_PART, 'main', contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+	}
+}
+
+export interface IAuxiliaryTitlebarPart extends ITitlebarPart {
+	readonly height: number;
+}
+
+export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements IAuxiliaryTitlebarPart {
+
+	private static COUNTER = 1;
+
+	readonly height = 28;
+
+	constructor(
+		editorGroupsContainer: IEditorGroupsContainer,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
+		@IHoverService hoverService: IHoverService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+	) {
+		const id = AuxiliaryBrowserTitlebarPart.COUNTER++;
+		super(`workbench.parts.auxiliaryTitle.${id}`, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+	}
+}
 
 class ToggleConfigAction extends Action2 {
 

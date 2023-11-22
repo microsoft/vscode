@@ -36,7 +36,6 @@ import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'v
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
-import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateService } from 'vs/platform/state/node/state';
@@ -294,7 +293,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	private readonly hasWindowControlOverlay: boolean = false;
+	private readonly hasWindowControlOverlay = getTitleBarStyle(this.configurationService) === 'custom' && useWindowControlsOverlay(this.configurationService);
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
@@ -352,31 +351,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 			});
 
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-			if (useCustomTitleStyle) {
-				options.titleBarStyle = 'hidden';
-				if (!isMacintosh) {
-					options.frame = false;
-				}
-
-				if (useWindowControlsOverlay(this.configurationService)) {
-
-					// This logic will not perfectly guess the right colors
-					// to use on initialization, but prefer to keep things
-					// simple as it is temporary and not noticeable
-
-					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
-					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
-
-					options.titleBarOverlay = {
-						height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-						color: titleBarColor,
-						symbolColor
-					};
-
-					this.hasWindowControlOverlay = true;
-				}
-			}
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
@@ -385,6 +359,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			this._id = this._win.id;
 
+			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 			if (isMacintosh && useCustomTitleStyle) {
 				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 			}
