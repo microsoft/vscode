@@ -10,7 +10,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh, isWindows, isLinux, isNative } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isNative, isBigSurOrNewer } from 'vs/base/common/platform';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { Part } from 'vs/workbench/browser/part';
 import { BrowserTitlebarPart as BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart, ITitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -30,34 +30,32 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class NativeTitlebarPart extends BrowserTitlebarPart {
 
-	private maxRestoreControl: HTMLElement | undefined;
-	private resizer: HTMLElement | undefined;
-	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
-	private cachedWindowControlHeight: number | undefined;
-
-	private isBigSurOrNewer(): boolean {
-		const osVersion = this.environmentService.os.release;
-		return parseFloat(osVersion) >= 20;
-	}
-
-	private getMacTitlebarSize() {
-		if (this.isBigSurOrNewer()) { // Big Sur increases title bar height
-			return 28;
-		}
-
-		return 22;
-	}
+	//#region IView
 
 	override get minimumHeight(): number {
 		if (!isMacintosh) {
 			return super.minimumHeight;
 		}
 
-		return (this.isCommandCenterVisible ? 35 : this.getMacTitlebarSize()) / (this.useCounterZoom ? getZoomFactor() : 1);
+		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.useCounterZoom ? getZoomFactor() : 1);
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
-	protected override readonly environmentService: INativeWorkbenchEnvironmentService;
+	private bigSurOrNewer: boolean;
+	private get macTitlebarSize() {
+		if (this.bigSurOrNewer) {
+			return 28; // macOS Big Sur increases title bar height
+		}
+
+		return 22;
+	}
+
+	//#endregion
+
+	private maxRestoreControl: HTMLElement | undefined;
+	private resizer: HTMLElement | undefined;
+	private cachedWindowControlStyles: { bgColor: string; fgColor: string } | undefined;
+	private cachedWindowControlHeight: number | undefined;
 
 	constructor(
 		id: string,
@@ -80,7 +78,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	) {
 		super(id, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 
-		this.environmentService = environmentService;
+		this.bigSurOrNewer = isBigSurOrNewer(environmentService.os.release);
 	}
 
 	private onUpdateAppIconDragBehavior(): void {
@@ -123,8 +121,10 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 
 	protected override onMenubarVisibilityChanged(visible: boolean): void {
+
 		// Hide title when toggling menu bar
 		if ((isWindows || isLinux) && this.currentMenubarVisibility === 'toggle' && visible) {
+
 			// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 			if (this.dragRegion) {
 				hide(this.dragRegion);
@@ -176,6 +176,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh && getTitleBarStyle(this.configurationService) !== 'native' && !isWCOEnabled() && this.primaryWindowControls) {
+
 			// Minimize
 			const minimizeIcon = append(this.primaryWindowControls, $('div.window-icon.window-minimize' + ThemeIcon.asCSSSelector(Codicon.chromeMinimize)));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
@@ -244,8 +245,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			// Instead, set it back to the default titlebar height for Catalina users
 			// so that they can have the traffic lights rendered at the proper offset.
 			// Ref https://github.com/microsoft/vscode/issues/159862
-			const newHeight = (height > 0 || this.isBigSurOrNewer()) ?
-				Math.round(height * getZoomFactor()) : this.getMacTitlebarSize();
+			const newHeight = (height > 0 || this.bigSurOrNewer) ?
+				Math.round(height * getZoomFactor()) : this.macTitlebarSize;
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({ height: newHeight });
