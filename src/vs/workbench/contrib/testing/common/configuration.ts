@@ -165,7 +165,7 @@ export const testingConfiguration: IConfigurationNode = {
 				TestingDisplayedCoveragePercent.Minimum,
 			],
 			enumDescriptions: [
-				localize('testing.displayedCoveragePercent.totalCoverage', 'A calculate of the combined statement, function, and branch coverage.'),
+				localize('testing.displayedCoveragePercent.totalCoverage', 'A calculation of the combined statement, function, and branch coverage.'),
 				localize('testing.displayedCoveragePercent.statement', 'The statement coverage.'),
 				localize('testing.displayedCoveragePercent.minimum', 'The minimum of statement, function, and branch coverage.'),
 			],
