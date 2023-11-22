@@ -90,7 +90,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				e.preventDefault();
 			};
 
-			if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+			const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).highlightAiActions;
+			if (highlightAIActions && this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
 				const action = this.state.actions.validActions[0].action;
 				if (action.command?.id) {
 					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
@@ -243,7 +244,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
-		const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).highlightAIActions;
+		const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).highlightAiActions;
 		if (highlightAIActions) {
 			if (this.state.actions.allAIFixes) {
 				icon = Codicon.sparkle;

@@ -2732,7 +2732,7 @@ export interface IEditorLightbulbOptions {
 	/**
 	 * Highlight AI code actions with AI icon
 	 */
-	highlightAIActions?: boolean;
+	highlightAiActions?: boolean;
 }
 
 /**
@@ -2743,7 +2743,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true, highlightAIActions: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, highlightAiActions: true };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2752,10 +2752,10 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
-				'editor.lightbulb.highlightAIActions': {
+				'editor.lightbulb.highlightAiActions': {
 					type: 'boolean',
-					default: defaults.highlightAIActions,
-					description: nls.localize('highlightAIActions', "Highlight when the menu contains AI Code Actions with an AI icon.")
+					default: defaults.highlightAiActions,
+					description: nls.localize('highlightAiActions', "Highlight when the menu contains AI Code Actions with an AI icon.")
 				},
 			}
 		);
@@ -2768,7 +2768,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		const input = _input as IEditorLightbulbOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			highlightAIActions: boolean(input.highlightAIActions, this.defaultValue.highlightAIActions)
+			highlightAiActions: boolean(input.highlightAiActions, this.defaultValue.highlightAiActions)
 		};
 	}
 }
@@ -5045,8 +5045,6 @@ export const EDITOR_FONT_DEFAULTS = {
 export const editorOptionsRegistry: IEditorOption<EditorOption, any>[] = [];
 
 function register<K extends EditorOption, V>(option: IEditorOption<K, V>): IEditorOption<K, V> {
-	console.log('option : ', option);
-	console.log('option.id : ', option.id);
 	editorOptionsRegistry[option.id] = option;
 	return option;
 }
