@@ -216,11 +216,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async isMaximized(windowId: number | undefined, options?: INativeOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		if (window?.win) {
-			return window.win.isMaximized();
-		}
-
-		return false;
+		return window?.win?.isMaximized() ?? false;
 	}
 
 	async maximizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
