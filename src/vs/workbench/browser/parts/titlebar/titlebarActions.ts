@@ -12,14 +12,16 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IAction } from 'vs/base/common/actions';
+import { IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
 
 class ToggleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number) {
+	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean) {
 		super({
 			id: `toggle.${section}`,
 			title,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
+			precondition: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
 			menu: { id: MenuId.TitleBarContext, order }
 		});
 	}
@@ -33,13 +35,13 @@ class ToggleConfigAction extends Action2 {
 
 registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
-		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1);
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false);
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true);
 	}
 });
 
