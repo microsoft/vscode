@@ -131,25 +131,28 @@ export interface IChatProgressMessage {
 	kind: 'progressMessage';
 }
 
-export interface IChatAgentContentWithVulnerability {
-	content: string;
+export interface IChatAgentVulnerabilityDetails {
 	title: string;
 	description: string;
+}
+
+export interface IChatAgentContentWithVulnerabilities {
+	content: string;
+	vulnerabilities?: IChatAgentVulnerabilityDetails[];
 	kind: 'vulnerability';
 }
 
 // TODO@roblourens Temp until I get MarkdownString out of ChatModel
 export interface IChatAgentMarkdownContentWithVulnerability {
 	content: IMarkdownString;
-	title: string;
-	description: string;
+	vulnerabilities?: IChatAgentVulnerabilityDetails[];
 	kind: 'markdownVuln';
 }
 
 export type IChatProgress =
 	| IChatContent
 	| IChatMarkdownContent
-	| IChatAgentContentWithVulnerability
+	| IChatAgentContentWithVulnerabilities
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatAsyncContent
