@@ -301,7 +301,7 @@ export class CodeActionModel extends Disposable {
 					this._progressService?.showWhile(actions, 250);
 				}
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
-			}, undefined);
+			}, undefined, this._configurationService);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
