@@ -218,7 +218,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			quickPickTop = top;
 		}
 
-		if (this.titleService.isCommandCenterVisible) {
+		const isCommandCenterVisible = this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false;
+		if (isCommandCenterVisible) {
 			// If the command center is visible then the quickinput
 			// should go over the title bar and the banner
 			quickPickTop = 6;
@@ -343,6 +344,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if ([
 				LayoutSettings.ACTIVITY_BAR_LOCATION,
+				LayoutSettings.COMMAND_CENTER,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 				'window.menuBarVisibility',
@@ -351,9 +353,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.doUpdateLayoutConfiguration();
 			}
 		}));
-
-		// Title Menu changes
-		this._register(this.titleService.onDidChangeCommandCenterVisibility(() => this.doUpdateLayoutConfiguration()));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));

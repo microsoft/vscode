@@ -68,16 +68,6 @@ export interface ITitlebarPart extends IDisposable {
 	readonly onMenubarVisibilityChange: Event<boolean>;
 
 	/**
-	 *  Title menu is visible
-	 */
-	readonly isCommandCenterVisible: boolean;
-
-	/**
-	 * An event when the title menu is enabled/disabled
-	 */
-	readonly onDidChangeCommandCenterVisibility: Event<void>;
-
-	/**
 	 * Update some environmental title properties.
 	 */
 	updateProperties(properties: ITitleProperties): void;
@@ -145,10 +135,6 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 
 	readonly onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
 
-	get isCommandCenterVisible() { return this.mainPart.isCommandCenterVisible; }
-
-	readonly onDidChangeCommandCenterVisibility = this.mainPart.onDidChangeCommandCenterVisibility;
-
 	updateProperties(properties: ITitleProperties): void {
 		for (const part of this.parts) {
 			part.updateProperties(properties);
@@ -201,9 +187,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
-
-	private readonly _onDidChangeCommandCenterVisibility = this._register(new Emitter<void>());
-	readonly onDidChangeCommandCenterVisibility = this._onDidChangeCommandCenterVisibility.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -326,7 +309,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		if (event.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 			this.createTitle();
 
-			this._onDidChangeCommandCenterVisibility.fire();
 			this._onDidChange.fire(undefined);
 		}
 	}
@@ -368,10 +350,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	updateProperties(properties: ITitleProperties): void {
 		this.windowTitle.updateProperties(properties);
-	}
-
-	get isCommandCenterVisible() {
-		return this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER);
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -691,7 +669,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return !this.isAuxiliary && this.configurationService.getValue<boolean>('workbench.layoutControl.enabled');
+		return !this.isAuxiliary && this.configurationService.getValue<boolean>('workbench.layoutControl.enabled') !== false;
+	}
+
+	protected get isCommandCenterVisible() {
+		return this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false;
 	}
 
 	private get editorActionsEnabled(): boolean {
