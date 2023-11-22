@@ -366,7 +366,7 @@ export class SCMService implements ISCMService {
 	private providerCount: IContextKey<number>;
 
 	private readonly _inputValueProviders = new Set<ISCMInputValueProvider>();
-	get inputValueProviders(): Iterable<ISCMInputValueProvider> { return this._inputValueProviders.values(); }
+	get inputValueProviders(): ISCMInputValueProvider[] { return Array.from(this._inputValueProviders.values()); }
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;

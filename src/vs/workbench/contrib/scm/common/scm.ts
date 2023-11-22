@@ -186,7 +186,7 @@ export interface ISCMService {
 	getRepository(id: string): ISCMRepository | undefined;
 
 	readonly onDidChangeInputValueProviders: Event<void>;
-	readonly inputValueProviders: Iterable<ISCMInputValueProvider>;
+	readonly inputValueProviders: ISCMInputValueProvider[];
 
 	getDefaultInputValueProvider(): ISCMInputValueProvider | undefined;
 	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
