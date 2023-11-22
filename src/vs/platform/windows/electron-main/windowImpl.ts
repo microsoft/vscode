@@ -293,7 +293,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	private readonly hasWindowControlOverlay = getTitleBarStyle(this.configurationService) === 'custom' && useWindowControlsOverlay(this.configurationService);
+	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 

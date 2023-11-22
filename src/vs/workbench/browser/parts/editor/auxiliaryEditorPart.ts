@@ -57,7 +57,7 @@ export class AuxiliaryEditorPart {
 			return editorPartHeightOffset;
 		}
 
-		function layout(fromEvent: boolean): void {
+		function updateStatusbarVisibility(fromEvent: boolean): void {
 			if (statusBarVisible) {
 				statusbarPart.container.style.display = 'block';
 			} else {
@@ -101,7 +101,7 @@ export class AuxiliaryEditorPart {
 			if (e.affectsConfiguration(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY)) {
 				statusBarVisible = this.configurationService.getValue<boolean>(AuxiliaryEditorPart.STATUS_BAR_VISIBILITY) !== false;
 
-				layout(true);
+				updateStatusbarVisibility(true);
 			}
 		}));
 
@@ -110,7 +110,7 @@ export class AuxiliaryEditorPart {
 		));
 		disposables.add(scopedInstantiationService.createInstance(EditorStatus, auxiliaryEditorPart));
 
-		layout(false);
+		updateStatusbarVisibility(false);
 
 		// Lifecycle
 		const editorCloseListener = disposables.add(Event.once(auxiliaryEditorPart.onWillClose)(() => auxiliaryWindow.window.close()));
