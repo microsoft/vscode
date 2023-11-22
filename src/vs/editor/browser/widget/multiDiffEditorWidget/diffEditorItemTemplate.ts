@@ -14,8 +14,11 @@ import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEdi
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
+import { ActionRunnerWithContext } from './utils';
 
 export class TemplateData implements IObjectData {
 	constructor(
@@ -66,6 +69,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			h('div.header@header', [
 				h('div.collapse-button@collapseButton'),
 				h('div.title.show-file-icons@title', [] as any),
+				h('div.actions@actions'),
 			]),
 
 			h('div.editorParent', {
@@ -75,7 +79,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 					flexDirection: 'column',
 				}
 			}, [
-				h('div@editor', { style: { flex: '1' } }),
+				h('div.editorContainer@editor', { style: { flex: '1' } }),
 			])
 		])
 	]);
@@ -134,8 +138,20 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			});
 		}));
 
+		this._register(autorun(reader => {
+			const isFocused = this.isFocused.read(reader);
+			this._elements.root.classList.toggle('focused', isFocused);
+		}));
+
 		this._container.appendChild(this._elements.root);
 		this._outerEditorHeight = 38;
+
+		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
+			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.diffEditorViewModel?.model.modified.uri))),
+			menuOptions: {
+				shouldForwardArgs: true,
+			}
+		}));
 	}
 
 	public setScrollLeft(left: number): void {

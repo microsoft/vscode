@@ -247,7 +247,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.dragToOpenWindow': {
 				'type': 'boolean',
 				'default': product.quality !== 'stable',
-				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new floating window. Press and hold `Alt`-key while dragging to toggle this dynamically.")
+				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new detached window. Press and hold `Alt`-key while dragging to toggle this dynamically.")
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',

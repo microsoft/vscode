@@ -327,6 +327,27 @@ class DocumentHighlightAdapter {
 	}
 }
 
+class MultiDocumentHighlightAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.MultiDocumentHighlightProvider
+	) { }
+
+	async provideMultiDocumentHighlights(resource: URI, position: IPosition, otherResources: URI[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const otherDocuments = otherResources.map(r => this._documents.getDocument(r));
+		const pos = typeConvert.Position.to(position);
+
+		const value = await this._provider.provideMultiDocumentHighlights(doc, pos, otherDocuments, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.MultiDocumentHighlight.from);
+		}
+		return undefined;
+	}
+}
+
 class LinkedEditingRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -1853,8 +1874,9 @@ class MappedEditsAdapter {
 }
 
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentPasteEditProvider | DocumentFormattingAdapter
-	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
+	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
+	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
+	| OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| CompletionsAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
@@ -1889,6 +1911,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
 	}
+
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
@@ -2093,8 +2116,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
+	registerMultiDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MultiDocumentHighlightProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new MultiDocumentHighlightAdapter(this._documents, provider), extension);
+		this._proxy.$registerMultiDocumentHighlightProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> {
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined, token);
+	}
+
+	$provideMultiDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, otherModels: UriComponents[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+		return this._withAdapter(handle, MultiDocumentHighlightAdapter, adapter => adapter.provideMultiDocumentHighlights(URI.revive(resource), position, otherModels.map(model => URI.revive(model)), token), undefined, token);
 	}
 
 	// --- linked editing

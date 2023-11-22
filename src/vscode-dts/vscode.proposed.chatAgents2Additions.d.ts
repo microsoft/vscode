@@ -41,7 +41,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatAgentContent {
-		vulnerability?: ChatAgentVulnerability;
+		vulnerabilities?: ChatAgentVulnerability[];
 	}
 
 	export type ChatAgentExtendedProgress = ChatAgentProgress

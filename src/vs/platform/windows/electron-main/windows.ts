@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, useNativeFullScreen, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -158,6 +158,15 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		if (windowSettings?.clickThroughInactive === false) {
 			options.acceptFirstMouse = false;
 		}
+	}
+
+	if (isMacintosh && !useNativeFullScreen(configurationService)) {
+		options.fullscreenable = false; // enables simple fullscreen mode
+	}
+
+	const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
+	if (useNativeTabs) {
+		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
 	}
 
 	return options;

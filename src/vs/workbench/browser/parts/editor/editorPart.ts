@@ -910,16 +910,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return targetView;
 	}
 
-	mergeAllGroups(target = this.activeGroup): IEditorGroupView {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		const targetView = this.assertGroupView(target);
+
 		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (group === target) {
+			if (group === targetView) {
 				continue; // keep target
 			}
 
-			this.mergeGroup(group, target);
+			this.mergeGroup(group, targetView);
 		}
 
-		return target;
+		return targetView;
 	}
 
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
@@ -990,7 +992,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.doCreateGridControl(options);
 
 		// Centered layout widget
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY], this._partOptions.centeredLayoutFixedWidth));
 		this._register(this.onDidChangeEditorPartOptions(e => this.centeredLayoutWidget.setFixedWidth(e.newPartOptions.centeredLayoutFixedWidth ?? false)));
 
 		// Drag & Drop support
