@@ -189,7 +189,9 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		}
 		const platform = await this.getPlatformKey();
 		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`) ?? undefined;
-		return primaryBackend.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
+		const profiles = await primaryBackend.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
+		const overriddenNames = profiles.filter(p => p.overrideName).map(p => p.profileName);
+		return profiles.filter(p => !overriddenNames.includes(p.profileName) || p.overrideName);
 	}
 
 	private _updateWebContextKey(): void {
