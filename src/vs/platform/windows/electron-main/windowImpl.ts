@@ -89,7 +89,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected _win: BrowserWindow | null = null;
 	get win(): BrowserWindow | null { return this._win; }
-	protected setWindow(win: BrowserWindow): void {
+	protected set win(win: BrowserWindow) {
 		this._win = win;
 
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -413,7 +413,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
-			this.setWindow(this._win);
+			this.win = this._win;
 
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
