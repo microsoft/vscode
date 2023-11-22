@@ -137,7 +137,9 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	validActions: [],
 	dispose: () => { },
 	documentation: [],
-	hasAutoFix: false
+	hasAutoFix: false,
+	hasAIFix: false,
+	allAIFixes: false,
 });
 
 
@@ -288,7 +290,7 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
 							}
 						}
 					}
@@ -299,7 +301,7 @@ export class CodeActionModel extends Disposable {
 					this._progressService?.showWhile(actions, 250);
 				}
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
-			}, undefined, this._configurationService);
+			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
