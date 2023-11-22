@@ -145,7 +145,7 @@ export class SelectAndInsertFileAction extends Action2 {
 
 		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: [{ level: 'full', value: resource.toString() }]
+			data: [{ level: 'full', value: resource }]
 		});
 	}
 }
