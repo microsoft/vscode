@@ -7,14 +7,14 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, getActiveWindow, hasWindow, getWindow, getWindowById } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
@@ -26,7 +26,7 @@ import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/pl
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -62,7 +62,6 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
@@ -70,8 +69,11 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
+import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
+import { mainWindow } from 'vs/base/browser/window';
+import { BaseWindow } from 'vs/workbench/browser/window';
 
-export class NativeWindow extends Disposable {
+export class NativeWindow extends BaseWindow {
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -82,9 +84,9 @@ export class NativeWindow extends Disposable {
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
 
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
-
 	private isDocumentedEdited = false;
+
+	private readonly mainPartEditorService: IEditorService;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -124,7 +126,9 @@ export class NativeWindow extends Disposable {
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
 	) {
-		super();
+		super(mainWindow);
+
+		this.mainPartEditorService = editorService.createScoped('main', this._store);
 
 		this.registerListeners();
 		this.create();
@@ -133,16 +137,16 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e)));
+		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
+			this._register(addDisposableListener(mainWindow.document.body, event, (e: DragEvent) => {
 				EventHelper.stop(e);
-			});
+			}));
 		}
 
 		// Support `runAction` event
@@ -174,8 +178,9 @@ export class NativeWindow extends Disposable {
 
 		// Support runKeybinding event
 		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: INativeRunKeybindingInWindowRequest) => {
-			if (document.activeElement) {
-				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+			const activeElement = getActiveElement();
+			if (activeElement) {
+				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
 			}
 		});
 
@@ -293,7 +298,7 @@ export class NativeWindow extends Disposable {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
-		// Allow to update settings around allowed UNC Host
+		// Allow to update security settings around allowed UNC Host
 		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
 			if (!isWindows) {
 				return; // only supported on Windows
@@ -317,6 +322,12 @@ export class NativeWindow extends Disposable {
 			}
 		});
 
+		// Allow to update security settings around protocol handlers
+		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
+			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
+			this.configurationService.updateValue(setting, false, ConfigurationTarget.USER_LOCAL);
+		});
+
 		// Zoom level changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel')) {
@@ -326,8 +337,8 @@ export class NativeWindow extends Disposable {
 			}
 		}));
 
-		// Listen to visible editor changes
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
+		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
+		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.filesToWait;
@@ -337,26 +348,39 @@ export class NativeWindow extends Disposable {
 
 		// macOS OS integration
 		if (isMacintosh) {
-			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+			const updateRepresentedFilename = (editorService: IEditorService, targetWindowId: number | undefined) => {
+				const file = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
 
 				// Represented Filename
-				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '');
+				this.nativeHostService.setRepresentedFilename(file?.fsPath ?? '', { targetWindowId });
 
-				// Custom title menu
-				this.provideCustomTitleContextMenu(file?.fsPath);
+				// Custom title menu (main window only currently)
+				if (typeof targetWindowId !== 'number') {
+					this.provideCustomTitleContextMenu(file?.fsPath);
+				}
+			};
+
+			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(this.mainPartEditorService, undefined)));
+
+			this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, disposables }) => {
+				const auxiliaryEditorService = this.editorService.createScoped(part, disposables);
+				disposables.add(auxiliaryEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(auxiliaryEditorService, part.windowId)));
 			}));
 		}
 
 		// Maximize/Restore on doubleclick (for macOS custom title)
 		if (isMacintosh && getTitleBarStyle(this.configurationService) === 'custom') {
-			const titlePart = assertIsDefined(this.layoutService.getContainer(Parts.TITLEBAR_PART));
+			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+				const targetWindow = getWindow(container);
+				const targetWindowId = targetWindow.vscodeWindowId;
+				const titlePart = assertIsDefined(this.layoutService.getContainer(targetWindow, Parts.TITLEBAR_PART));
 
-			this._register(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
-				EventHelper.stop(e);
+				disposables.add(addDisposableListener(titlePart, EventType.DBLCLICK, e => {
+					EventHelper.stop(e);
 
-				this.nativeHostService.handleTitleDoubleClick();
-			}));
+					this.nativeHostService.handleTitleDoubleClick({ targetWindowId });
+				}));
+			}, { container: this.layoutService.mainContainer, disposables: this._store }));
 		}
 
 		// Document edited: indicate for dirty working copies
@@ -373,11 +397,10 @@ export class NativeWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, id => id === this.nativeHostService.windowId), () => true),
-			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
-		)(e => this.onDidChangeWindowMaximized(e)));
-
-		this.onDidChangeWindowMaximized(this.environmentService.window.maximized ?? false);
+			Event.map(Event.filter(this.nativeHostService.onDidMaximizeWindow, windowId => !!hasWindow(windowId)), windowId => ({ maximized: true, windowId })),
+			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, windowId => !!hasWindow(windowId)), windowId => ({ maximized: false, windowId }))
+		)(e => this.layoutService.updateWindowMaximizedState(getWindowById(e.windowId)!.window, e.maximized)));
+		this.layoutService.updateWindowMaximizedState(mainWindow, this.environmentService.window.maximized ?? false);
 
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
@@ -462,7 +485,7 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Update setting if checkbox checked
-		if (res.checkboxChecked) {
+		if (res.confirmed && res.checkboxChecked) {
 			await configurationService.updateValue('window.confirmBeforeClose', 'never');
 		}
 
@@ -537,12 +560,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onWindowResize(e: UIEvent): void {
-		if (e.target === window) {
-			this.layoutService.layout();
-		}
-	}
-
 	private updateDocumentEdited(documentEdited: true | undefined): void {
 		let setDocumentEdited: boolean;
 		if (typeof documentEdited === 'boolean') {
@@ -556,10 +573,6 @@ export class NativeWindow extends Disposable {
 
 			this.nativeHostService.setDocumentEdited(setDocumentEdited);
 		}
-	}
-
-	private onDidChangeWindowMaximized(maximized: boolean): void {
-		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
 	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
@@ -579,24 +592,31 @@ export class NativeWindow extends Disposable {
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidChangeVisibleEditors(): void {
-
-		// Close when empty: check if we should close the window based on the setting
-		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled. Also enabled when running with --wait from the command line.
-		const visibleEditorPanes = this.editorService.visibleEditorPanes;
-		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
-			if (closeWhenEmpty || this.environmentService.args.wait) {
-				this.closeEmptyWindowScheduler.schedule();
-			}
+	private maybeCloseWindow(): void {
+		const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.environmentService.args.wait;
+		if (!closeWhenEmpty) {
+			return; // return early if configured to not close when empty
 		}
-	}
 
-	private onDidAllEditorsClose(): void {
-		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
-		if (visibleEditorPanes === 0) {
-			this.nativeHostService.closeWindow();
+		// Close empty editor groups based on setting and environment
+		for (const editorPart of this.editorGroupService.parts) {
+			if (editorPart.groups.some(group => !group.isEmpty)) {
+				continue; // not empty
+			}
+
+			if (editorPart === this.editorGroupService.mainPart && (
+				this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ||	// only for empty windows
+				this.environmentService.isExtensionDevelopment ||					// not when developing an extension
+				this.editorService.visibleEditors.length > 0						// not when there are still editors open in other windows
+			)) {
+				continue;
+			}
+
+			if (editorPart === this.editorGroupService.mainPart) {
+				this.nativeHostService.closeWindow();
+			} else {
+				editorPart.removeGroup(editorPart.activeGroup);
+			}
 		}
 	}
 
@@ -666,6 +686,25 @@ export class NativeWindow extends Disposable {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
 		}
+
+		// Patch methods that we need to work properly
+		this.patchMethods();
+	}
+
+	private patchMethods(): void {
+
+		// Enable `window.focus()` to work in Electron by
+		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
+		const that = this;
+		const originalWindowFocus = mainWindow.focus.bind(mainWindow);
+		mainWindow.focus = function () {
+			originalWindowFocus();
+
+			if (getActiveWindow() !== mainWindow) {
+				that.nativeHostService.focusWindow({ targetWindowId: that.nativeHostService.windowId });
+			}
+		};
 	}
 
 	private async handleWarnings(): Promise<void> {
@@ -723,37 +762,6 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Windows 32-bit warning
-		if (isWindows && this.environmentService.os.arch === 'ia32') {
-			const message = localize('windows32eolmessage', "You are running {0} 32-bit, which will soon stop receiving updates on Windows. Consider upgrading to the 64-bit build.", this.productService.nameLong);
-			const actions = [{
-				label: localize('windowseolBannerLearnMore', "Learn More"),
-				href: 'https://aka.ms/vscode-faq-old-windows'
-			}];
-
-			this.bannerService.show({
-				id: 'windows32eol.banner',
-				message,
-				ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-				actions,
-				icon: Codicon.warning
-			});
-
-			this.notificationService.prompt(
-				Severity.Warning,
-				message,
-				[{
-					label: localize('learnMore', "Learn More"),
-					run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
-				}],
-				{
-					neverShowAgain: { id: 'windows32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
-					priority: NotificationPriority.URGENT,
-					sticky: true
-				}
-			);
-		}
-
 		// macOS 10.13 and 10.14 warning
 		if (isMacintosh) {
 			const majorVersion = this.environmentService.os.release.split('.')[0];
@@ -764,18 +772,6 @@ export class NativeWindow extends Disposable {
 
 			if (eolReleases.has(majorVersion)) {
 				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
-				const actions = [{
-					label: localize('macoseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-old-macOS'
-				}];
-
-				this.bannerService.show({
-					id: 'macoseol.banner',
-					message,
-					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-					actions,
-					icon: Codicon.warning
-				});
 
 				this.notificationService.prompt(
 					Severity.Warning,
@@ -823,11 +819,6 @@ export class NativeWindow extends Disposable {
 	}
 
 	private setupOpenHandlers(): void {
-
-		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
-		};
 
 		// Handle external open() calls
 		this.openerService.setDefaultExternalOpener({

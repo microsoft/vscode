@@ -23,7 +23,7 @@ function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
 		return repository.provider.count;
 	} else {
-		return repository.provider.groups.elements.reduce<number>((r, g) => r + g.elements.length, 0);
+		return repository.provider.groups.reduce<number>((r, g) => r + g.resources.length, 0);
 	}
 }
 
@@ -197,7 +197,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showViewActivity(VIEW_PANE_ID, { badge, clazz: 'scm-viewlet-label' });
+			this.badgeDisposable.value = this.activityService.showViewActivity(VIEW_PANE_ID, { badge });
 		} else {
 			this.badgeDisposable.value = undefined;
 		}
@@ -264,8 +264,8 @@ export class SCMActiveResourceContextKeyController implements IWorkbenchContribu
 
 			this.activeResourceRepositoryContextKey.set(activeResourceRepository?.id);
 
-			for (const resourceGroup of activeResourceRepository?.provider.groups.elements ?? []) {
-				if (resourceGroup.elements
+			for (const resourceGroup of activeResourceRepository?.provider.groups ?? []) {
+				if (resourceGroup.resources
 					.some(scmResource =>
 						this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri))) {
 					this.activeResourceHasChangesContextKey.set(true);

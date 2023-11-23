@@ -347,7 +347,7 @@ export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 /**
  * Remove all falsy values from `array`. The original array IS modified.
  */
-export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
+export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts array is Array<T> {
 	let to = 0;
 	for (let i = 0; i < array.length; i++) {
 		if (!!array[i]) {

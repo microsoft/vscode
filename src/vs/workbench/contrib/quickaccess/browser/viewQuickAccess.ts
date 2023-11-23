@@ -104,7 +104,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 			for (const view of viewContainerModel.allViewDescriptors) {
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
-						label: view.name,
+						label: view.name.value,
 						containerLabel: viewContainerModel.title,
 						accept: () => this.viewsService.openView(view.id, true)
 					});

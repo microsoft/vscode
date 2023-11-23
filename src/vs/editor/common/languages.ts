@@ -16,7 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import * as model from 'vs/editor/common/model';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
@@ -24,6 +24,7 @@ import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMul
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { LanguageFilter } from 'vs/editor/common/languageSelector';
 
 /**
  * @internal
@@ -746,6 +747,7 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	isAI?: boolean;
 	disabled?: string;
 }
 
@@ -952,6 +954,22 @@ export interface DocumentHighlight {
 	 */
 	kind?: DocumentHighlightKind;
 }
+
+/**
+ * Represents a set of document highlights for a specific URI.
+ */
+export interface MultiDocumentHighlight {
+	/**
+	 * The URI of the document that the highlights belong to.
+	 */
+	uri: URI;
+
+	/**
+	 * The set of highlights for the document.
+	 */
+	highlights: DocumentHighlight[];
+}
+
 /**
  * The document highlight provider interface defines the contract between extensions and
  * the word-highlight-feature.
@@ -962,6 +980,28 @@ export interface DocumentHighlightProvider {
 	 * all exit-points of a function.
 	 */
 	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+}
+
+/**
+ * A provider that can provide document highlights across multiple documents.
+ */
+export interface MultiDocumentHighlightProvider {
+	selector: LanguageFilter;
+
+	/**
+	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or
+	 * all exit-points of a function.
+	 *
+	 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
+	 * with shared symbols.
+	 *
+	 * @param primaryModel The primary text model.
+	 * @param position The position at which to provide document highlights.
+	 * @param otherModels The other text models to search for document highlights.
+	 * @param token A cancellation token.
+	 * @returns A map of URI to document highlights.
+	 */
+	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, otherModels: model.ITextModel[], token: CancellationToken): ProviderResult<Map<URI, DocumentHighlight[]>>;
 }
 
 /**
@@ -1788,9 +1828,10 @@ export interface Comment {
 
 export interface PendingCommentThread {
 	body: string;
-	range: IRange;
+	range: IRange | undefined;
 	uri: URI;
 	owner: string;
+	isReply: boolean;
 }
 
 /**
@@ -2043,14 +2084,15 @@ export interface DocumentOnDropEditProvider {
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
 }
 
-export interface RelatedContextItem {
+export interface DocumentContextItem {
 	readonly uri: URI;
-	readonly range: IRange;
+	readonly version: number;
+	readonly ranges: IRange[];
 }
 
 export interface MappedEditsContext {
-	selections: ISelection[];
-	related: RelatedContextItem[];
+	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
+	documents: DocumentContextItem[][];
 }
 
 export interface MappedEditsProvider {

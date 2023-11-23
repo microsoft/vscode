@@ -21,6 +21,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { mainWindow } from 'vs/base/browser/window';
+import { Event } from 'vs/base/common/event';
+import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -89,22 +92,26 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 	}
 }
 
-class SelectionClipboardPastePreventer implements IWorkbenchContribution {
+class SelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
+		super();
+
 		if (platform.isLinux) {
-			document.addEventListener('mouseup', (e) => {
-				if (e.button === 1) {
-					// middle button
-					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
-					if (!config.selectionClipboard) {
-						// selection clipboard is disabled
-						// try to stop the upcoming paste
-						e.preventDefault();
+			this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+				disposables.add(addDisposableListener(window.document, 'mouseup', e => {
+					if (e.button === 1) {
+						// middle button
+						const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
+						if (!config.selectionClipboard) {
+							// selection clipboard is disabled
+							// try to stop the upcoming paste
+							e.preventDefault();
+						}
 					}
-				}
-			});
+				}));
+			}, { window: mainWindow, disposables: this._store }));
 		}
 	}
 }

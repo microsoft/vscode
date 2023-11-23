@@ -83,7 +83,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
-		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always') {
+		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar !== 'onHover') {
 			return [];
 		}
 
@@ -113,7 +113,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			constObservable(null),
 			model.selectedInlineCompletionIndex,
 			model.inlineCompletionsCount,
-			model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),);
+			model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+		);
 		context.fragment.appendChild(w.getDomNode());
 
 		model.triggerExplicitly();

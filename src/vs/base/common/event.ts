@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { once as onceFn } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
@@ -540,8 +540,8 @@ export namespace Event {
 	export interface IChainableSythensis<T> {
 		map<O>(fn: (i: T) => O): IChainableSythensis<O>;
 		forEach(fn: (i: T) => void): IChainableSythensis<T>;
+		filter<R extends T>(fn: (e: T) => e is R): IChainableSythensis<R>;
 		filter(fn: (e: T) => boolean): IChainableSythensis<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
 		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
@@ -615,8 +615,10 @@ export namespace Event {
 	 * runAndSubscribe(dataChangeEvent, () => this._updateUI());
 	 * ```
 	 */
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
-		handler(undefined);
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+		handler(initial);
 		return event(e => handler(e));
 	}
 
@@ -1449,7 +1451,7 @@ export class EventMultiplexer<T> implements IDisposable {
 			this.events.splice(idx, 1);
 		};
 
-		return toDisposable(onceFn(dispose));
+		return toDisposable(createSingleCallFunction(dispose));
 	}
 
 	private onFirstListenerAdd(): void {

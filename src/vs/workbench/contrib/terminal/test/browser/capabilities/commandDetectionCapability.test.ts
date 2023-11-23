@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -60,9 +60,16 @@ suite('CommandDetectionCapability', () => {
 		capability.handleCommandFinished(exitCode);
 	}
 
+	async function printCommandStart(prompt: string) {
+		capability.handlePromptStart();
+		await writeP(xterm, `\r${prompt}`);
+		capability.handleCommandStart();
+	}
+
+
 	setup(async () => {
 		disposables = new DisposableStore();
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
 		instantiationService = disposables.add(new TestInstantiationService());
@@ -86,6 +93,7 @@ suite('CommandDetectionCapability', () => {
 
 	test('should add commands for expected capability method calls', async () => {
 		await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
+		await printCommandStart('$ ');
 		assertCommands([{
 			command: 'echo foo',
 			exitCode: 0,
@@ -96,6 +104,7 @@ suite('CommandDetectionCapability', () => {
 
 	test('should trim the command when command executed appears on the following line', async () => {
 		await printStandardCommand('$ ', 'echo foo\r\n', 'foo', undefined, 0);
+		await printCommandStart('$ ');
 		assertCommands([{
 			command: 'echo foo',
 			exitCode: 0,
@@ -108,6 +117,7 @@ suite('CommandDetectionCapability', () => {
 		test('should add cwd to commands when it\'s set', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', '/home/second', 0);
+			await printCommandStart('$ ');
 			assertCommands([
 				{ command: 'echo foo', exitCode: 0, cwd: '/home', marker: { line: 0 } },
 				{ command: 'echo bar', exitCode: 0, cwd: '/home/second', marker: { line: 2 } }
@@ -116,6 +126,7 @@ suite('CommandDetectionCapability', () => {
 		test('should add old cwd to commands if no cwd sequence is output', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', '/home', 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', undefined, 0);
+			await printCommandStart('$ ');
 			assertCommands([
 				{ command: 'echo foo', exitCode: 0, cwd: '/home', marker: { line: 0 } },
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
@@ -124,6 +135,7 @@ suite('CommandDetectionCapability', () => {
 		test('should use an undefined cwd if it\'s not set initially', async () => {
 			await printStandardCommand('$ ', 'echo foo', 'foo', undefined, 0);
 			await printStandardCommand('$ ', 'echo bar', 'bar', '/home', 0);
+			await printCommandStart('$ ');
 			assertCommands([
 				{ command: 'echo foo', exitCode: 0, cwd: undefined, marker: { line: 0 } },
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }

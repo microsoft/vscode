@@ -17,6 +17,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DiffEditorOptions } from './diffEditorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 
 export class DiffEditorEditors extends Disposable {
 	public readonly modified: CodeEditorWidget;
@@ -25,7 +27,13 @@ export class DiffEditorEditors extends Disposable {
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
 
+	public readonly modifiedScrollTop: IObservable<number>;
+	public readonly modifiedScrollHeight: IObservable<number>;
+
 	public readonly modifiedModel: IObservable<ITextModel | null>;
+
+	public readonly modifiedSelections: IObservable<Selection[]>;
+	public readonly modifiedCursor: IObservable<Position>;
 
 	constructor(
 		private readonly originalEditorElement: HTMLElement,
@@ -41,7 +49,13 @@ export class DiffEditorEditors extends Disposable {
 		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
 		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
 
-		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => this.modified.getModel());
+		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
+
+		this.modifiedScrollTop = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
+		this.modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
+
+		this.modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
+		this.modifiedCursor = observableFromEvent(this.modified.onDidChangeCursorPosition, () => this.modified.getPosition() ?? new Position(1, 1));
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
@@ -107,6 +121,8 @@ export class DiffEditorEditors extends Disposable {
 			result.unicodeHighlight = this._options.editorOptions.get().unicodeHighlight || {};
 			result.wordWrapOverride1 = this._options.diffWordWrap.get();
 		}
+		result.glyphMargin = this._options.renderSideBySide.get();
+
 		if (changedOptions.originalAriaLabel) {
 			result.ariaLabel = changedOptions.originalAriaLabel;
 		}
@@ -143,7 +159,6 @@ export class DiffEditorEditors extends Disposable {
 
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };
-		clonedOptions.scrollbar.vertical = 'visible';
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = this._options.diffCodeLens.get();
 		clonedOptions.fixedOverflowWidgets = true;

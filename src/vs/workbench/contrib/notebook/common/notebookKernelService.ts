@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
+import { AsyncIterableObject } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -33,6 +35,18 @@ export interface INotebookKernelChangeEvent {
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 	hasInterruptHandler?: true;
+	hasVariableProvider?: true;
+}
+
+export interface Variable {
+	name: string;
+	value: string;
+}
+
+export interface VariablesResult {
+	variable: Variable;
+	namedChildrenCount: number;
+	indexedChildrenCount: number;
 }
 
 export interface INotebookKernel {
@@ -51,9 +65,12 @@ export interface INotebookKernel {
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
+	hasVariableProvider?: boolean;
 
 	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
+
+	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
 }
 
 export const enum ProxyKernelState {
@@ -100,6 +117,7 @@ export interface INotebookKernelService {
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
 	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>;
+	readonly onDidNotebookVariablesUpdate: Event<URI>;
 	registerKernel(kernel: INotebookKernel): IDisposable;
 
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
@@ -138,6 +156,8 @@ export interface INotebookKernelService {
 	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable;
 	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]>;
 	//#endregion
+
+	notifyVariablesChange(notebookUri: URI): void;
 }
 
 export const INotebookKernelHistoryService = createDecorator<INotebookKernelHistoryService>('INotebookKernelHistoryService');

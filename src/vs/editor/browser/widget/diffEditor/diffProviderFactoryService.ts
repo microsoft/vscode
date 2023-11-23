@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkerBasedDocumentDiffProvider } from 'vs/editor/browser/widget/diffEditor/workerBasedDocumentDiffProvider';
 import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -17,7 +16,7 @@ export interface IDocumentDiffProviderOptions {
 
 export interface IDiffProviderFactoryService {
 	readonly _serviceBrand: undefined;
-	createDiffProvider(editor: IDiffEditor, options: IDocumentDiffProviderOptions): IDocumentDiffProvider;
+	createDiffProvider(options: IDocumentDiffProviderOptions): IDocumentDiffProvider;
 }
 
 export class DiffProviderFactoryService implements IDiffProviderFactoryService {
@@ -27,7 +26,7 @@ export class DiffProviderFactoryService implements IDiffProviderFactoryService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
-	createDiffProvider(editor: IDiffEditor, options: IDocumentDiffProviderOptions): IDocumentDiffProvider {
+	createDiffProvider(options: IDocumentDiffProviderOptions): IDocumentDiffProvider {
 		return this.instantiationService.createInstance(WorkerBasedDocumentDiffProvider, options);
 	}
 }

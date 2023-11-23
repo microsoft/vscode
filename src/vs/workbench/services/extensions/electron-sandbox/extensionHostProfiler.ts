@@ -9,7 +9,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IV8InspectProfilingService, IV8Profile, IV8ProfileNode } from 'vs/platform/profiling/common/profiling';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 
 export class ExtensionHostProfiler {
 
@@ -25,7 +25,7 @@ export class ExtensionHostProfiler {
 		const id = await this._profilingService.startProfiling({ port: this._port });
 
 		return {
-			stop: once(async () => {
+			stop: createSingleCallFunction(async () => {
 				const profile = await this._profilingService.stopProfiling(id);
 				await this._extensionService.whenInstalledExtensionsRegistered();
 				const extensions = this._extensionService.extensions;

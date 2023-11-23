@@ -44,6 +44,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isWeb } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
@@ -306,7 +307,7 @@ class InstalledThemesPicker {
 			if (selectThemeTimeout) {
 				clearTimeout(selectThemeTimeout);
 			}
-			selectThemeTimeout = window.setTimeout(() => {
+			selectThemeTimeout = getActiveWindow().setTimeout(() => {
 				selectThemeTimeout = undefined;
 				const newTheme = (theme ?? currentTheme) as IWorkbenchTheme;
 				this.setTheme(newTheme, applyTheme ? 'auto' : 'preview').then(undefined,
@@ -701,7 +702,7 @@ registerAction2(class extends Action2 {
 			if (selectThemeTimeout) {
 				clearTimeout(selectThemeTimeout);
 			}
-			selectThemeTimeout = window.setTimeout(() => {
+			selectThemeTimeout = getActiveWindow().setTimeout(() => {
 				selectThemeTimeout = undefined;
 				const newTheme = (theme ?? currentTheme) as IWorkbenchTheme;
 				themeService.setColorTheme(newTheme as IWorkbenchColorTheme, applyTheme ? 'auto' : 'preview').then(undefined,

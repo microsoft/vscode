@@ -13,7 +13,7 @@ import { Promises } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { basename, resolve } from 'vs/base/common/path';
@@ -135,7 +135,7 @@ class CodeMain {
 				bufferLogService.logger = loggerService.createLogger('main', { name: localize('mainLog', "Main") });
 
 				// Lifecycle
-				once(lifecycleMainService.onWillShutdown)(evt => {
+				Event.once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
 					evt.join('instanceLockfile', FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
@@ -279,7 +279,7 @@ class CodeMain {
 			mark('code/willStartMainServer');
 			mainProcessNodeIpcServer = await nodeIPCServe(environmentMainService.mainIPCHandle);
 			mark('code/didStartMainServer');
-			once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+			Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 		} catch (error) {
 
 			// Handle unexpected errors (the only expected error is EADDRINUSE that

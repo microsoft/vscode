@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { once } from 'vs/base/common/functional';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStorage } from 'vs/base/parts/storage/common/storage';
@@ -171,7 +170,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		const applicationStorage = new ApplicationStorageMain(this.getStorageOptions(), this.userDataProfilesService, this.logService, this.fileService);
 
-		this._register(once(applicationStorage.onDidCloseStorage)(() => {
+		this._register(Event.once(applicationStorage.onDidCloseStorage)(() => {
 			this.logService.trace(`StorageMainService: closed application storage`);
 		}));
 
@@ -202,7 +201,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 				profile
 			})));
 
-			this._register(once(profileStorage.onDidCloseStorage)(() => {
+			this._register(Event.once(profileStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed profile storage (${profile.name})`);
 
 				this.mapProfileToStorage.delete(profile.id);
@@ -241,7 +240,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			workspaceStorage = this._register(this.createWorkspaceStorage(workspace));
 			this.mapWorkspaceToStorage.set(workspace.id, workspaceStorage);
 
-			this._register(once(workspaceStorage.onDidCloseStorage)(() => {
+			this._register(Event.once(workspaceStorage.onDidCloseStorage)(() => {
 				this.logService.trace(`StorageMainService: closed workspace storage (${workspace.id})`);
 
 				this.mapWorkspaceToStorage.delete(workspace.id);

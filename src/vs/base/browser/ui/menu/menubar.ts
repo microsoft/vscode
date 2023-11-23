@@ -145,6 +145,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
+		const window = DOM.getWindow(this.container);
 		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
 			// This mouse event is outside the menubar so it counts as a focus out
 			if (this.isFocused) {
@@ -257,7 +258,7 @@ export class MenuBar extends Disposable {
 
 				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					// Ignore non-left-click
-					const mouseEvent = new StandardMouseEvent(e);
+					const mouseEvent = new StandardMouseEvent(DOM.getWindow(buttonElement), e);
 					if (!mouseEvent.leftButton) {
 						e.preventDefault();
 						return;
@@ -366,7 +367,7 @@ export class MenuBar extends Disposable {
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			// Ignore non-left-click
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(buttonElement), e);
 			if (!mouseEvent.leftButton) {
 				e.preventDefault();
 				return;
@@ -505,7 +506,7 @@ export class MenuBar extends Disposable {
 
 
 		// If below minimium menu threshold, show the overflow menu only as hamburger menu
-		if (this.numMenusShown - 1 <= showableMenus.length / 2) {
+		if (this.numMenusShown - 1 <= showableMenus.length / 4) {
 			for (const menuBarMenu of showableMenus) {
 				menuBarMenu.buttonElement.style.visibility = 'hidden';
 			}
@@ -626,7 +627,7 @@ export class MenuBar extends Disposable {
 		});
 
 		if (!this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
+			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.container), () => {
 				this.updateOverflowAction();
 				this.overflowLayoutScheduled = undefined;
 			});

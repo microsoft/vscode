@@ -327,6 +327,27 @@ class DocumentHighlightAdapter {
 	}
 }
 
+class MultiDocumentHighlightAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.MultiDocumentHighlightProvider
+	) { }
+
+	async provideMultiDocumentHighlights(resource: URI, position: IPosition, otherResources: URI[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const otherDocuments = otherResources.map(r => this._documents.getDocument(r));
+		const pos = typeConvert.Position.to(position);
+
+		const value = await this._provider.provideMultiDocumentHighlights(doc, pos, otherDocuments, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.MultiDocumentHighlight.from);
+		}
+		return undefined;
+	}
+}
+
 class LinkedEditingRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -453,6 +474,7 @@ class CodeActionAdapter {
 					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
+					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
 					disabled: candidate.disabled?.reason
 				});
 			}
@@ -1363,7 +1385,7 @@ class InlayHintsAdapter {
 		const hints = await this._provider.provideInlayHints(doc, range, token);
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
-			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for ${ran}`);
+			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
 			return undefined;
 		}
 		if (token.isCancellationRequested) {
@@ -1379,7 +1401,7 @@ class InlayHintsAdapter {
 				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
 			}
 		}
-		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for ${ran}`);
+		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
 		return result;
 	}
 
@@ -1830,9 +1852,19 @@ class MappedEditsAdapter {
 		const uri = URI.revive(resource);
 		const doc = this._documents.getDocument(uri);
 
+		const usedContext = context.documents.map((docSubArray) =>
+			docSubArray.map((r) => {
+				return {
+					uri: URI.revive(r.uri),
+					version: r.version,
+					ranges: r.ranges.map((range) => typeConvert.Range.to(range)),
+				};
+			})
+		);
+
 		const ctx = {
-			selections: context.selections.map(s => typeConvert.Selection.to(s)),
-			related: context.related.map(r => ({ uri: URI.revive(r.uri), range: typeConvert.Range.to(r.range) })),
+			documents: usedContext,
+			selections: usedContext[0]?.[0]?.ranges ?? [] // @ulugbekna: this is a hack for backward compatibility
 		};
 
 		const mappedEdits = await this._provider.provideMappedEdits(doc, codeBlocks, ctx, token);
@@ -1842,8 +1874,9 @@ class MappedEditsAdapter {
 }
 
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentPasteEditProvider | DocumentFormattingAdapter
-	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
+	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
+	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
+	| OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| CompletionsAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
@@ -1878,6 +1911,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
 	}
+
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
@@ -2082,8 +2116,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
+	registerMultiDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MultiDocumentHighlightProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new MultiDocumentHighlightAdapter(this._documents, provider), extension);
+		this._proxy.$registerMultiDocumentHighlightProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> {
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined, token);
+	}
+
+	$provideMultiDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, otherModels: UriComponents[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+		return this._withAdapter(handle, MultiDocumentHighlightAdapter, adapter => adapter.provideMultiDocumentHighlights(URI.revive(resource), position, otherModels.map(model => URI.revive(model)), token), undefined, token);
 	}
 
 	// --- linked editing

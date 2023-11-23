@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import type { IMarker, Terminal } from 'xterm';
+import type { IMarker, Terminal } from '@xterm/xterm';
 
 export class BufferContentTracker extends Disposable {
 	/**

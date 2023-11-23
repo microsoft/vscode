@@ -6,7 +6,7 @@
 import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -98,7 +98,7 @@ export class TestResultService extends Disposable implements ITestResultService 
 
 	private readonly isRunning: IContextKey<boolean>;
 	private readonly hasAnyResults: IContextKey<boolean>;
-	private readonly loadResults = once(() => this.storage.read().then(loaded => {
+	private readonly loadResults = createSingleCallFunction(() => this.storage.read().then(loaded => {
 		for (let i = loaded.length - 1; i >= 0; i--) {
 			this.push(loaded[i]);
 		}

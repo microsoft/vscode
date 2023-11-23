@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -44,10 +44,13 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
+import { ITestCoverageService, TestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
+import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
 registerSingleton(ITestProfileService, TestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestCoverageService, TestCoverageService, InstantiationType.Delayed);
 registerSingleton(ITestingContinuousRunService, TestingContinuousRunService, InstantiationType.Delayed);
 registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
@@ -74,7 +77,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 
 const testResultsViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ResultsPanelId,
-	title: { value: localize('testResultsPanelName', "Test Results"), original: 'Test Results' },
+	title: localize2('testResultsPanelName', "Test Results"),
 	icon: testingResultsIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Testing.ResultsPanelId, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
@@ -86,7 +89,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: Testing.ResultsViewId,
-	name: localize('testResultsPanelName', "Test Results"),
+	name: localize2('testResultsPanelName', "Test Results"),
 	containerIcon: testingResultsIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -105,15 +108,24 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 
 viewsRegistry.registerViews([{
 	id: Testing.ExplorerViewId,
-	name: localize('testExplorer', "Test Explorer"),
+	name: localize2('testExplorer', "Test Explorer"),
 	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
 	canToggleVisibility: true,
 	canMoveView: true,
 	weight: 80,
 	order: -999,
 	containerIcon: testingViewIcon,
-	// temporary until release, at which point we can show the welcome view:
 	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
+}, {
+	id: Testing.CoverageViewId,
+	name: localize2('testCoverage', "Test Coverage"),
+	ctorDescriptor: new SyncDescriptor(TestCoverageView),
+	canToggleVisibility: true,
+	canMoveView: true,
+	weight: 80,
+	order: -998,
+	containerIcon: testingViewIcon,
+	when: TestingContextKeys.isTestCoverageOpen,
 }], viewContainer);
 
 allTestActions.forEach(registerAction2);

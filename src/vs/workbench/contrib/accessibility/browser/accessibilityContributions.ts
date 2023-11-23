@@ -9,25 +9,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
-import { IAccessibleViewService, IAccessibleContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IAccessibleViewService, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -38,75 +32,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
-export class EditorAccessibilityHelpContribution extends Disposable {
-	static ID: 'editorAccessibilityHelpContribution';
-	constructor() {
-		super();
-		this._register(AccessibilityHelpAction.addImplementation(95, 'editor', async accessor => {
-			const codeEditorService = accessor.get(ICodeEditorService);
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const instantiationService = accessor.get(IInstantiationService);
-			const commandService = accessor.get(ICommandService);
-			let codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			if (!codeEditor) {
-				await commandService.executeCommand(NEW_UNTITLED_FILE_COMMAND_ID);
-				codeEditor = codeEditorService.getActiveCodeEditor()!;
-			}
-			accessibleViewService.show(instantiationService.createInstance(AccessibilityHelpProvider, codeEditor));
-		}, EditorContextKeys.focus));
+export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
+	const kb = keybindingService.lookupKeybinding(commandId);
+	if (kb) {
+		return strings.format(msg, kb.getAriaLabel());
 	}
-}
-
-class AccessibilityHelpProvider implements IAccessibleContentProvider {
-	onClose() {
-		this._editor.focus();
-	}
-	options: IAccessibleViewOptions = { type: AccessibleViewType.Help, readMoreUrl: 'https://go.microsoft.com/fwlink/?linkid=851010' };
-	verbositySettingKey = AccessibilityVerbositySettingId.Editor;
-	constructor(
-		private readonly _editor: ICodeEditor,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
-	) {
-	}
-
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
-		if (kb) {
-			return strings.format(msg, kb.getAriaLabel());
-		}
-		return strings.format(noKbMsg, commandId);
-	}
-
-	provideContent(): string {
-		const options = this._editor.getOptions();
-		const content = [];
-
-		if (options.get(EditorOption.inDiffEditor)) {
-			if (options.get(EditorOption.readOnly)) {
-				content.push(AccessibilityHelpNLS.readonlyDiffEditor);
-			} else {
-				content.push(AccessibilityHelpNLS.editableDiffEditor);
-			}
-		} else {
-			if (options.get(EditorOption.readOnly)) {
-				content.push(AccessibilityHelpNLS.readonlyEditor);
-			} else {
-				content.push(AccessibilityHelpNLS.editableEditor);
-			}
-		}
-
-		if (options.get(EditorOption.stickyScroll).enabled) {
-			content.push(this._descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb));
-		}
-
-		if (options.get(EditorOption.tabFocusMode)) {
-			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb));
-		} else {
-			content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb));
-		}
-		return content.join('\n\n');
-	}
+	return strings.format(noKbMsg, commandId);
 }
 
 export class HoverAccessibleViewContribution extends Disposable {
@@ -124,6 +57,7 @@ export class HoverAccessibleViewContribution extends Disposable {
 			}
 			this._options.language = editor?.getModel()?.getLanguageId() ?? undefined;
 			accessibleViewService.show({
+				id: AccessibleViewProviderId.Hover,
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
 				onClose() {
@@ -145,6 +79,7 @@ export class HoverAccessibleViewContribution extends Disposable {
 				return false;
 			}
 			accessibleViewService.show({
+				id: AccessibleViewProviderId.Hover,
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return extensionHoverContent; },
 				onClose() {
@@ -169,6 +104,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const listService = accessor.get(IListService);
 			const commandService = accessor.get(ICommandService);
+			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 			function renderAccessibleView(): boolean {
 				const notification = getNotificationFromContext(listService);
@@ -202,6 +138,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 				}
 				notification.onDidClose(() => accessibleViewService.next());
 				accessibleViewService.show({
+					id: AccessibleViewProviderId.Notification,
 					provideContent: () => {
 						return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
 					},
@@ -228,7 +165,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: { type: AccessibleViewType.View },
-					actions: getActionsFromNotification(notification)
+					actions: getActionsFromNotification(notification, accessibleNotificationService)
 				});
 				return true;
 			}
@@ -237,7 +174,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 	}
 }
 
-function getActionsFromNotification(notification: INotificationViewItem): IAction[] | undefined {
+function getActionsFromNotification(notification: INotificationViewItem, accessibleNotificationService: IAccessibleNotificationService): IAction[] | undefined {
 	let actions = undefined;
 	if (notification.actions) {
 		actions = [];
@@ -263,7 +200,12 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
 	}
 	if (actions) {
-		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
+		actions.push({
+			id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => {
+				notification.close();
+				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+			}, enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll)
+		});
 	}
 	return actions;
 }
@@ -301,16 +243,13 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 					return false;
 				}
 				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
-				if (!lineText) {
-					return false;
-				}
-
 				const ghostText = state.ghostText.renderForScreenReader(lineText);
 				if (!ghostText) {
 					return false;
 				}
 				this._options.language = editor.getModel()?.getLanguageId() ?? undefined;
 				accessibleViewService.show({
+					id: AccessibleViewProviderId.InlineCompletions,
 					verbositySettingKey: AccessibilityVerbositySettingId.InlineCompletions,
 					provideContent() { return lineText + ghostText; },
 					onClose() {
@@ -330,8 +269,6 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 				return true;
 			}; ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
 			return show();
-		},
-		)
-		);
+		}));
 	}
 }

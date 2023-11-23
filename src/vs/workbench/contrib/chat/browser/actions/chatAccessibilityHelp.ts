@@ -11,7 +11,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'panelChat' | 'inlineChat'): string {
@@ -31,7 +31,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 	} else {
 		const startChatKeybinding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account the current selection. It is useful for making changes to the current editor. For example, fixing diagnostics, documenting or refactoring code. Keep in mind that AI generated code may be incorrect."));
-		content.push(localize('inlineChat.access', "It can be activated via code actions or directly using the command: Inline Chat: Start Code Chat ({0}).", startChatKeybinding));
+		content.push(localize('inlineChat.access', "It can be activated via code actions or directly using the command: Inline Chat: Start Inline Chat ({0}).", startChatKeybinding));
 		const upHistoryKeybinding = keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getAriaLabel();
 		const downHistoryKeybinding = keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getAriaLabel();
 		if (upHistoryKeybinding && downHistoryKeybinding) {
@@ -73,6 +73,7 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(accessor, type);
 	accessibleViewService.show({
+		id: type === 'panelChat' ? AccessibleViewProviderId.Chat : AccessibleViewProviderId.InlineChat,
 		verbositySettingKey: type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
 		provideContent: () => helpText,
 		onClose: () => {

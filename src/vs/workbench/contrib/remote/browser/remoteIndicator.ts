@@ -22,7 +22,6 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { PlatformName, PlatformToString, isWeb, platform } from 'vs/base/common/platform';
-import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -49,6 +48,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { mainWindow } from 'vs/base/browser/window';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 
@@ -275,8 +275,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// Online / Offline changes (web only)
 		if (isWeb) {
 			this._register(Event.any(
-				this._register(new DomEmitter(window, 'online')).event,
-				this._register(new DomEmitter(window, 'offline')).event
+				this._register(new DomEmitter(mainWindow, 'online')).event,
+				this._register(new DomEmitter(mainWindow, 'offline')).event
 			)(() => this.setNetworkState(navigator.onLine ? 'online' : 'offline')));
 		}
 
@@ -768,7 +768,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		quickPick.items = computeItems();
 		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
-		once(quickPick.onDidAccept)((async _ => {
+		Event.once(quickPick.onDidAccept)((async _ => {
 			const selectedItems = quickPick.selectedItems;
 			if (selectedItems.length === 1) {
 				const commandId = selectedItems[0].id!;
@@ -793,7 +793,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			}
 		}));
 
-		once(quickPick.onDidTriggerItemButton)(async (e) => {
+		Event.once(quickPick.onDidTriggerItemButton)(async (e) => {
 			const remoteExtension = this.remoteExtensionMetadata.find(value => ExtensionIdentifier.equals(value.id, e.item.id));
 			if (remoteExtension) {
 				await this.openerService.open(URI.parse(remoteExtension.helpLink));

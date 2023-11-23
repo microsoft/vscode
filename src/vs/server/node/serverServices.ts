@@ -9,7 +9,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { getMachineId } from 'vs/base/node/id';
+import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
 import { Promises } from 'vs/base/node/pfs';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from 'vs/base/parts/ipc/common/ipc';
 import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
@@ -44,7 +44,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
@@ -132,10 +132,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	socketServer.registerChannel('userDataProfiles', new RemoteUserDataProfilesServiceChannel(userDataProfilesService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 	// Initialize
-	const [, , machineId] = await Promise.all([
+	const [, , machineId, sqmId] = await Promise.all([
 		configurationService.initialize(),
 		userDataProfilesService.init(),
-		getMachineId(logService.error.bind(logService))
+		getMachineId(logService.error.bind(logService)),
+		getSqmMachineId(logService.error.bind(logService))
 	]);
 
 	const extensionHostStatusService = new ExtensionHostStatusService();
@@ -148,14 +149,14 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	let oneDsAppender: ITelemetryAppender = NullAppender;
 	const isInternal = isInternalTelemetry(productService, configurationService);
 	if (supportsTelemetry(productService, environmentService)) {
-		if (productService.aiConfig && productService.aiConfig.ariaKey) {
+		if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
 			oneDsAppender = new OneDataSystemAppender(requestService, isInternal, eventPrefix, null, productService.aiConfig.ariaKey);
 			disposables.add(toDisposable(() => oneDsAppender?.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
 
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender],
-			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, isInternal, 'remoteAgent'),
+			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, isInternal, 'remoteAgent'),
 			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];

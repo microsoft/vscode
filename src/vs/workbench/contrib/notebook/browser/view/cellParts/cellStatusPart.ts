@@ -132,11 +132,13 @@ export class CellEditorStatusBar extends CellContentPart {
 		if (this._editor) {
 			// Focus Mode
 			const updateFocusModeForEditorEvent = () => {
-				if (this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))) {
+				if (this._editor && (this._editor.hasWidgetFocus() || (this.statusBarContainer.ownerDocument.activeElement && this.statusBarContainer.contains(this.statusBarContainer.ownerDocument.activeElement)))) {
 					element.focusMode = CellFocusMode.Editor;
 				} else {
 					const currentMode = element.focusMode;
-					if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
+					if (currentMode === CellFocusMode.ChatInput) {
+						element.focusMode = CellFocusMode.ChatInput;
+					} else if (currentMode === CellFocusMode.Output && this._notebookEditor.hasWebviewFocus()) {
 						element.focusMode = CellFocusMode.Output;
 					} else {
 						element.focusMode = CellFocusMode.Container;
@@ -153,7 +155,7 @@ export class CellEditorStatusBar extends CellContentPart {
 				// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
 				if (
 					this._notebookEditor.hasEditorFocus() &&
-					!(document.activeElement && this.statusBarContainer.contains(document.activeElement))) {
+					!(this.statusBarContainer.ownerDocument.activeElement && this.statusBarContainer.contains(this.statusBarContainer.ownerDocument.activeElement))) {
 					updateFocusModeForEditorEvent();
 				}
 			}));

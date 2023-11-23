@@ -9,8 +9,10 @@ import { localize } from 'vs/nls';
 import { QuickPickItem, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IDetectedLinks } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
 import { TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
-import type { ILink } from 'xterm';
+import type { ILink } from '@xterm/xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class TerminalLinkQuickpick extends DisposableStore {
 
@@ -18,7 +20,8 @@ export class TerminalLinkQuickpick extends DisposableStore {
 	readonly onDidRequestMoreLinks = this._onDidRequestMoreLinks.event;
 
 	constructor(
-		@IQuickInputService private readonly _quickInputService: IQuickInputService
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
 	) {
 		super();
 	}
@@ -93,6 +96,9 @@ export class TerminalLinkQuickpick extends DisposableStore {
 		return new Promise(r => {
 			disposables.add(pick.onDidHide(() => {
 				disposables.dispose();
+				if (pick.selectedItems.length === 0) {
+					this._accessibleViewService.showLastProvider(AccessibleViewProviderId.Terminal);
+				}
 				r();
 			}));
 			disposables.add(Event.once(pick.onDidAccept)(() => {

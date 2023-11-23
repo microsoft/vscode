@@ -153,9 +153,9 @@ registry.registerConfiguration({
 			'enum': ['hide', 'filter'],
 			'enumDescriptions': [
 				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
-				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
+				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking on a category will filter the results to that category."),
 			],
-			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
+			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the Settings editor Table of Contents while searching. If this setting is being changed in the Settings editor, the setting will take effect after the search query is modified."),
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
 		},

@@ -389,6 +389,7 @@ export class CallStackView extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 	}
 

@@ -12,7 +12,7 @@ import { forEachAdjacent, groupAdjacentBy } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, recomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
@@ -54,10 +54,9 @@ export class AccessibleDiffViewer extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(recomputeInitiallyAndOnChange(this.model));
 	}
 
-	private readonly model = derivedWithStore(this, (reader, store) => {
+	private readonly _state = derivedWithStore(this, (reader, store) => {
 		const visible = this._visible.read(reader);
 		this._parentNode.style.visibility = visible ? 'visible' : 'hidden';
 		if (!visible) {
@@ -65,18 +64,15 @@ export class AccessibleDiffViewer extends Disposable {
 		}
 		const model = store.add(this._instantiationService.createInstance(ViewModel, this._diffs, this._editors, this._setVisible, this._canClose));
 		const view = store.add(this._instantiationService.createInstance(View, this._parentNode, model, this._width, this._height, this._editors));
-		return {
-			model,
-			view
-		};
-	});
+		return { model, view, };
+	}).recomputeInitiallyAndOnChange(this._store);
 
 	next(): void {
 		transaction(tx => {
 			const isVisible = this._visible.get();
 			this._setVisible(true, tx);
 			if (isVisible) {
-				this.model.get()!.model.nextGroup(tx);
+				this._state.get()!.model.nextGroup(tx);
 			}
 		});
 	}
@@ -84,7 +80,7 @@ export class AccessibleDiffViewer extends Disposable {
 	prev(): void {
 		transaction(tx => {
 			this._setVisible(true, tx);
-			this.model.get()!.model.previousGroup(tx);
+			this._state.get()!.model.previousGroup(tx);
 		});
 	}
 

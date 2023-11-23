@@ -59,6 +59,7 @@ export class ChatEditor extends EditorPane {
 			scopedInstantiationService.createInstance(
 				ChatWidget,
 				{ resource: true },
+				{ supportsFileReferences: true },
 				{
 					listForeground: editorForeground,
 					listBackground: editorBackground,
@@ -71,9 +72,9 @@ export class ChatEditor extends EditorPane {
 	}
 
 	public override focus(): void {
-		if (this.widget) {
-			this.widget.focusInput();
-		}
+		super.focus();
+
+		this.widget?.focusInput();
 	}
 
 	override clearInput(): void {
@@ -118,4 +119,3 @@ export class ChatEditor extends EditorPane {
 		}
 	}
 }
-

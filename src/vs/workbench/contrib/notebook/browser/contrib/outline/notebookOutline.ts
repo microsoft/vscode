@@ -8,7 +8,6 @@ import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IdleValue } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -26,7 +25,7 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { CellRevealType, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealType, ICellModelDecorations, ICellModelDeltaDecorations, INotebookEditorOptions, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -35,6 +34,10 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IOutline, IOutlineComparator, IOutlineCreator, IOutlineListConfig, IOutlineService, IQuickPickDataSource, IQuickPickOutlineElement, OutlineChangeEvent, OutlineConfigCollapseItemsValues, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { mainWindow } from 'vs/base/browser/window';
+import { WindowIdleValue } from 'vs/base/browser/dom';
 
 class NotebookOutlineTemplate {
 
@@ -175,7 +178,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;
@@ -303,12 +306,49 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		if (!widget) {
 			return Disposable.None;
 		}
-		widget.revealInCenterIfOutsideViewport(entry.cell);
+
+
+		if (entry.range) {
+			const range = Range.lift(entry.range);
+			widget.revealRangeInCenterIfOutsideViewportAsync(entry.cell, range);
+		} else {
+			widget.revealInCenterIfOutsideViewport(entry.cell);
+		}
+
 		const ids = widget.deltaCellDecorations([], [{
 			handle: entry.cell.handle,
 			options: { className: 'nb-symbolHighlight', outputClassName: 'nb-symbolHighlight' }
 		}]);
-		return toDisposable(() => { widget.deltaCellDecorations(ids, []); });
+
+		let editorDecorations: ICellModelDecorations[];
+		widget.changeModelDecorations(accessor => {
+			if (entry.range) {
+				const decorations: IModelDeltaDecoration[] = [
+					{
+						range: entry.range, options: {
+							description: 'document-symbols-outline-range-highlight',
+							className: 'rangeHighlight',
+							isWholeLine: true
+						}
+					}
+				];
+				const deltaDecoration: ICellModelDeltaDecorations = {
+					ownerId: entry.cell.handle,
+					decorations: decorations
+				};
+
+				editorDecorations = accessor.deltaDecorations([], [deltaDecoration]);
+			}
+		});
+
+		return toDisposable(() => {
+			widget.deltaCellDecorations(ids, []);
+			if (editorDecorations?.length) {
+				widget.changeModelDecorations(accessor => {
+					accessor.deltaDecorations(editorDecorations, []);
+				});
+			}
+		});
 
 	}
 
@@ -380,7 +420,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[NotebookSetting.gotoSymbolsAllSymbols]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled goto symbol quickpick will display full code symbols from the notebook, as well as markdown headers.")
+			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled the Go to Symbol Quick Pick will display full code symbols from the notebook, as well as Markdown headers.")
 		},
 	}
 });

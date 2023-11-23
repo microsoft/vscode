@@ -56,7 +56,7 @@ import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
@@ -106,6 +106,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
@@ -114,8 +115,6 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IVoiceRecognitionService, VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
-import { VoiceTranscriptionManager } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
@@ -158,6 +157,8 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		instantiationService.invokeFunction(accessor => {
 			const logService = accessor.get(ILogService);
+			const telemetryService = accessor.get(ITelemetryService);
+			const userDataProfilesService = accessor.get(IUserDataProfilesService);
 
 			// Log info
 			logService.trace('sharedProcess configuration', JSON.stringify(this.configuration));
@@ -167,6 +168,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			// Error handler
 			this.registerErrorHandler(logService);
+
+			// Report Profiles Info
+			this.reportProfilesInfo(telemetryService, userDataProfilesService);
+			this._register(userDataProfilesService.onDidChangeProfiles(() => this.reportProfilesInfo(telemetryService, userDataProfilesService)));
 		});
 
 		// Instantiate Contributions
@@ -177,8 +182,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
-			instantiationService.createInstance(UserDataProfilesCleaner),
-			instantiationService.createInstance(VoiceTranscriptionManager, this.onDidWindowConnectRaw.event)
+			instantiationService.createInstance(UserDataProfilesCleaner)
 		));
 	}
 
@@ -271,7 +275,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
 		// Native Host
-		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'));
+		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -289,7 +293,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(logService, loggerService, environmentService, productService);
 			appenders.push(logAppender);
-			if (productService.aiConfig?.ariaKey) {
+			if (!isLoggingOnly(productService, environmentService) && productService.aiConfig?.ariaKey) {
 				const collectorAppender = new OneDataSystemAppender(requestService, internalTelemetry, 'monacoworkbench', null, productService.aiConfig.ariaKey);
 				this._register(toDisposable(() => collectorAppender.flush())); // Ensure the 1DS appender is disposed so that it flushes remaining data
 				appenders.push(collectorAppender);
@@ -297,7 +301,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, internalTelemetry),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
@@ -360,9 +364,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
-
-		// Voice Recognition
-		services.set(IVoiceRecognitionService, new SyncDescriptor(VoiceRecognitionService));
 
 		return new InstantiationService(services);
 	}
@@ -441,6 +442,20 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			}
 
 			logService.error(`[uncaught exception in sharedProcess]: ${message}`);
+		});
+	}
+
+	private reportProfilesInfo(telemetryService: ITelemetryService, userDataProfilesService: IUserDataProfilesService): void {
+		type ProfilesInfoClassification = {
+			owner: 'sandy081';
+			comment: 'Report profiles information';
+			count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of profiles' };
+		};
+		type ProfilesInfoEvent = {
+			count: number;
+		};
+		telemetryService.publicLog2<ProfilesInfoEvent, ProfilesInfoClassification>('profilesInfo', {
+			count: userDataProfilesService.profiles.length
 		});
 	}
 
