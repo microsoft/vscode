@@ -869,7 +869,7 @@ export class EditorStatus extends Disposable {
 	}
 }
 
-export class EditorStatuses extends Disposable implements IWorkbenchContribution {
+export class EditorStatusContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
