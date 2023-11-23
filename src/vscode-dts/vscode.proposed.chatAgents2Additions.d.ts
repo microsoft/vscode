@@ -60,6 +60,8 @@ declare module 'vscode' {
 		label: string | CompletionItemLabel;
 		values: ChatVariableValue[];
 		insertText?: string;
+		detail?: string;
+		documentation?: string | MarkdownString;
 
 		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
 	}

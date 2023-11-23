@@ -4131,6 +4131,8 @@ export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
 	label: string | CompletionItemLabel;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
+	detail?: string;
+	documentation?: string | MarkdownString;
 
 	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
 		this.label = label;

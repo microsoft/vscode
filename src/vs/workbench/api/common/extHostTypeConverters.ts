@@ -2374,6 +2374,8 @@ export namespace ChatAgentCompletionItem {
 			label: item.label,
 			values: item.values.map(ChatVariable.from),
 			insertText: item.insertText,
+			detail: item.detail,
+			documentation: item.documentation,
 		};
 	}
 }

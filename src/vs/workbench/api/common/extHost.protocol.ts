@@ -1188,6 +1188,8 @@ export interface IChatAgentCompletionItem {
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
 	values: IChatRequestVariableValue[];
+	detail?: string;
+	documentation?: string | IMarkdownString;
 }
 
 export interface ExtHostChatAgentsShape2 {

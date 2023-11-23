@@ -180,22 +180,23 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					return;
 				}
 
-				const result = await this._proxy.$invokeCompletionProvider(handle, query, token);
-
 				const range = computeCompletionRanges(model, position, wordRegex);
 				if (!range) {
 					return null;
 				}
 
+				const result = await this._proxy.$invokeCompletionProvider(handle, query, token);
 				const variableItems = result.map(v => {
 					// TODO detail and doc?
-					const insertText = String(v.insertText ?? v.label);
+					const insertText = String(v.insertText ?? (typeof v.label === 'string' ? v.label : v.label.label));
 					const rangeAfterInsert = new Range(range.insert.startLineNumber, range.insert.startColumn, range.insert.endLineNumber, range.insert.startColumn + insertText.length);
 					return {
 						label: v.label,
 						range,
 						insertText: insertText + ' ',
 						kind: CompletionItemKind.Text,
+						detail: v.detail,
+						documentation: v.documentation,
 						command: { id: AddDynamicVariableAction.ID, title: '', arguments: [{ widget, range: rangeAfterInsert, variableData: v.values } satisfies IAddDynamicVariableContext] }
 					} satisfies CompletionItem;
 				});
