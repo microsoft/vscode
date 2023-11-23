@@ -257,8 +257,11 @@ export interface IEditor {
 	 * be called when the container of the editor gets resized.
 	 *
 	 * If a dimension is passed in, the passed in value will be used.
+	 *
+	 * By default, this will also render the editor immediately.
+	 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 	 */
-	layout(dimension?: IDimension): void;
+	layout(dimension?: IDimension, postponeRendering?: boolean): void;
 
 	/**
 	 * Brings browser focus to the editor text
