@@ -24,9 +24,12 @@ export const WindowMinimumSize = {
 	HEIGHT: 270
 };
 
-export interface IRectangle {
+export interface IPoint {
 	readonly x: number;
 	readonly y: number;
+}
+
+export interface IRectangle extends IPoint {
 	readonly width: number;
 	readonly height: number;
 }
@@ -200,6 +203,20 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	// Default to true.
 	return true;
 }
+
+export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		return true; // default
+	}
+
+	if (windowConfig.nativeTabs) {
+		return true; // https://github.com/electron/electron/issues/16142
+	}
+
+	return windowConfig.nativeFullScreen !== false;
+}
+
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
 

@@ -25,7 +25,7 @@ export interface IOptions {
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
-	frameColor?: Color;
+	frameColor?: Color | string;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
 	allowUnlimitedHeight?: boolean;
@@ -34,7 +34,7 @@ export interface IOptions {
 }
 
 export interface IStyles {
-	frameColor?: Color | null;
+	frameColor?: Color | string | null;
 	arrowColor?: Color | null;
 }
 

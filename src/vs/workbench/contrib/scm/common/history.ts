@@ -28,6 +28,13 @@ export interface ISCMHistoryProvider {
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
+}
+
+export interface ISCMHistoryProviderCacheEntry {
+	readonly historyItemGroupDetails?: ISCMHistoryItemGroupDetails;
+	readonly historyItems: Map<string, ISCMHistoryItem[]>;
+	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
 export interface ISCMHistoryOptions {
@@ -46,10 +53,21 @@ export interface ISCMHistoryItemGroup {
 	readonly upstream?: ISCMRemoteHistoryItemGroup;
 }
 
-export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
+export interface ISCMHistoryItemGroupDetails {
+	readonly incoming?: ISCMHistoryItemGroupEntry;
+	readonly outgoing: ISCMHistoryItemGroupEntry;
+}
+
+export interface ISCMHistoryItemGroupEntry {
+	readonly id: string;
+	readonly label: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly description?: string;
 	readonly ancestor?: string;
 	readonly count?: number;
+}
+
+export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroupEntry {
 	readonly repository: ISCMRepository;
 	readonly type: 'historyItemGroup';
 }

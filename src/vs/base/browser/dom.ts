@@ -17,21 +17,17 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 
-interface IRegisteredCodeWindow {
+export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+export const { registerWindow, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
-	if (typeof mainWindow.vscodeWindowId !== 'number') {
-		Object.defineProperty(mainWindow, 'vscodeWindowId', {
-			get: () => 1
-		});
-	}
+	ensureCodeWindow(mainWindow, 1);
 	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
@@ -76,6 +72,12 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 		},
 		getWindowId(targetWindow: Window): number {
 			return (targetWindow as CodeWindow).vscodeWindowId;
+		},
+		hasWindow(windowId: number): boolean {
+			return windows.has(windowId);
+		},
+		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
+			return windows.get(windowId);
 		}
 	};
 })();
@@ -408,7 +410,7 @@ export function addDisposableThrottledListener<R, E extends Event = Event>(node:
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return el.ownerDocument.defaultView!.getComputedStyle(el, null);
+	return getWindow(el).getComputedStyle(el, null);
 }
 
 export function getClientArea(element: HTMLElement): Dimension {
@@ -626,9 +628,10 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
+	const window = getWindow(domNode);
 	return {
-		left: bb.left + (domNode.ownerDocument.defaultView?.scrollX ?? 0),
-		top: bb.top + (domNode.ownerDocument.defaultView?.scrollY ?? 0),
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
 		width: bb.width,
 		height: bb.height
 	};
@@ -851,6 +854,13 @@ export function getActiveDocument(): Document {
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
 	return documents.find(doc => doc.hasFocus()) ?? document;
+}
+
+export function getDocument(element: Node | undefined | null): Document;
+export function getDocument(event: UIEvent | undefined | null): Document;
+export function getDocument(e: unknown): Document {
+	const candidateNode = e as Node | undefined | null;
+	return getWindow(candidateNode).document;
 }
 
 export function getActiveWindow(): CodeWindow {

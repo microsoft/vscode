@@ -29,8 +29,8 @@ enum MoveToNewLocation {
 const getMoveToChatActionDescriptorForViewTitle = (viewId: string, providerId: string, moveTo: MoveToNewLocation): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openIn${moveTo}`,
 	title: {
-		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Session In Editor") : localize('chat.openInNewWindow.label', "Open Session In New Window"),
-		original: moveTo === MoveToNewLocation.Editor ? 'Open Session In Editor' : 'Open Session In New Window',
+		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Session in Editor") : localize('chat.openInNewWindow.label', "Open Session in New Window"),
+		original: moveTo === MoveToNewLocation.Editor ? 'Open Session in Editor' : 'Open Session in New Window',
 	},
 	category: CHAT_CATEGORY,
 	precondition: CONTEXT_PROVIDER_EXISTS,
@@ -75,9 +75,7 @@ export function getMoveToAction(viewId: string, providerId: string, moveTo: Move
 					break;
 				}
 				case (MoveToNewLocation.Window): {
-					const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-					const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-					await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+					await openInNewWindow(instantiationService, editorGroupService, { target: { sessionId } });
 					break;
 				}
 				default: {
@@ -94,8 +92,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
 				title: {
-					value: localize('interactiveSession.openInEditor.label', "Open Session In Editor"),
-					original: 'Open Session In Editor'
+					value: localize('interactiveSession.openInEditor.label', "Open Session in Editor"),
+					original: 'Open Session in Editor'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -114,7 +112,7 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
 				title: {
-					value: localize('interactiveSession.openInNewWindow.label', "Open Session In New Window"),
+					value: localize('interactiveSession.openInNewWindow.label', "Open Session in New Window"),
 					original: 'Open Session In New Window'
 				},
 				category: CHAT_CATEGORY,
@@ -133,8 +131,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInSidebar`,
 				title: {
-					value: localize('interactiveSession.openInSidebar.label', "Open Session In Sidebar"),
-					original: 'Open Session In Sidebar'
+					value: localize('interactiveSession.openInSidebar.label', "Open Session in Side Bar"),
+					original: 'Open Session in Side Bar'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -171,9 +169,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 				break;
 			}
 			case (MoveToNewLocation.Window): {
-				const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-				const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { providerId } });
-				auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+				await openInNewWindow(instantiationService, editorGroupService, { target: { providerId } });
 				break;
 			}
 			default: {
@@ -198,14 +194,18 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 			break;
 		}
 		case (MoveToNewLocation.Window): {
-			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+			await openInNewWindow(instantiationService, editorGroupService, { target: { sessionId } });
 		}
 		default: {
 			throw new Error(`Unexpected move to location : ${moveTo}`);
 		}
 	}
+}
+
+async function openInNewWindow(intstantiationService: IInstantiationService, editorGroupService: IEditorGroupsService, options: IChatEditorOptions) {
+	const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+	const chatEditorInput = intstantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), options);
+	await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents, app } from 'electron';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
@@ -13,9 +14,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
-export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService {
+export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliaryWindowsMainService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
+	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
 	private readonly windows = new Map<number, AuxiliaryWindow>();
 
@@ -23,6 +27,8 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService
 	) {
+		super();
+
 		this.registerListeners();
 	}
 
@@ -67,7 +73,11 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents);
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 
-		Event.once(auxiliaryWindow.onDidClose)(() => this.windows.delete(auxiliaryWindow.id));
+		const disposables = new DisposableStore();
+		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));
+
+		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
+		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());
 	}
 
 	getWindowById(windowId: number): AuxiliaryWindow | undefined {

@@ -17,8 +17,6 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { basename } from 'vs/base/common/resources';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -42,8 +40,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		private actionViewItemProvider: IActionViewItemProvider,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
@@ -70,20 +67,12 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
+		templateData.name.textContent = repository.provider.name;
 		if (repository.provider.rootUri) {
-			const folder = this.workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
-
-			if (folder?.uri.toString() === repository.provider.rootUri.toString()) {
-				templateData.name.textContent = folder.name;
-			} else {
-				templateData.name.textContent = basename(repository.provider.rootUri);
-			}
-
 			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
 			templateData.description.textContent = repository.provider.label;
 		} else {
 			templateData.label.title = repository.provider.label;
-			templateData.name.textContent = repository.provider.label;
 			templateData.description.textContent = '';
 		}
 

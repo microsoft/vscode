@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IChatAgentCommand, IChatAgentData, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
@@ -469,23 +469,10 @@ export class ChatService extends Disposable implements IChatService {
 
 				gotProgress = true;
 
-				if ('content' in progress) {
+				if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
-				} else if ('placeholder' in progress) {
-					this.trace('sendRequest', `Provider returned placeholder for session ${model.sessionId}, ${progress.placeholder}`);
-				} else if (isCompleteInteractiveProgressTreeData(progress)) {
-					// This isn't exposed in API
-					this.trace('sendRequest', `Provider returned tree data for session ${model.sessionId}, ${progress.treeData.label}`);
-				} else if ('documents' in progress) {
-					this.trace('sendRequest', `Provider returned documents for session ${model.sessionId}:\n ${JSON.stringify(progress.documents, null, '\t')}`);
-				} else if ('reference' in progress) {
-					this.trace('sendRequest', `Provider returned a reference for session ${model.sessionId}:\n ${JSON.stringify(progress.reference, null, '\t')}`);
-				} else if ('inlineReference' in progress) {
-					this.trace('sendRequest', `Provider returned an inline reference for session ${model.sessionId}:\n ${JSON.stringify(progress.inlineReference, null, '\t')}`);
-				} else if ('agentName' in progress) {
-					this.trace('sendRequest', `Provider returned an agent detection for session ${model.sessionId}:\n ${JSON.stringify(progress, null, '\t')}`);
 				} else {
-					this.trace('sendRequest', `Provider returned unknown progress for session ${model.sessionId}:\n ${JSON.stringify(progress, null, '\t')}`);
+					this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);
 				}
 
 				model.acceptResponseProgress(request, progress);
@@ -571,7 +558,7 @@ export class ChatService extends Disposable implements IChatService {
 					rawResponse = { session: model.session! };
 
 				} else {
-					throw new Error(`Can't handle request`);
+					throw new Error(`Cannot handle request`);
 				}
 
 				if (token.isCancellationRequested) {
@@ -603,10 +590,10 @@ export class ChatService extends Disposable implements IChatService {
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
-							model.completeResponse(request);
+							model.completeResponse(request, rawResponse?.errorDetails);
 						});
 					} else {
-						model.completeResponse(request);
+						model.completeResponse(request, rawResponse?.errorDetails);
 					}
 				}
 			} finally {
@@ -656,13 +643,10 @@ export class ChatService extends Disposable implements IChatService {
 		const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
 		const request = model.addRequest(parsedRequest);
 		if (typeof response.message === 'string') {
-			model.acceptResponseProgress(request, { content: response.message });
+			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
 		} else {
 			for (const part of response.message) {
-				const progress = 'inlineReference' in part ? part :
-					isMarkdownString(part) ? { content: part.value } :
-						{ treeData: part };
-				model.acceptResponseProgress(request, progress, true);
+				model.acceptResponseProgress(request, part, true);
 			}
 		}
 		model.setResponse(request, {
@@ -672,7 +656,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (response.followups !== undefined) {
 			model.setFollowups(request, response.followups);
 		}
-		model.completeResponse(request);
+		model.completeResponse(request, response.errorDetails);
 	}
 
 	cancelCurrentRequestForSession(sessionId: string): void {
