@@ -21,8 +21,11 @@ class ToggleConfigAction extends Action2 {
 			id: `toggle.${section}`,
 			title,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
-			precondition: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
-			menu: { id: MenuId.TitleBarContext, order }
+			menu: {
+				id: MenuId.TitleBarContext,
+				when: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
+				order
+			}
 		});
 	}
 
