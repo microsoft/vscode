@@ -120,10 +120,6 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
-		// const editorOptionsOverrideRaw = this.textResourceConfigurationService.getValue<ICodeEditorOptions>(this.getActiveResource(), 'editor');
-		// if (editorOptionsOverrideRaw.renderValidationDecorations === 'off') {
-		// 	editorConfiguration.renderValidationDecorations = editorOptionsOverrideRaw.renderValidationDecorations;
-		// }
 		return editorConfiguration;
 	}
 
