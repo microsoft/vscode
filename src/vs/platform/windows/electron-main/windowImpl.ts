@@ -104,10 +104,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected _win: BrowserWindow | null = null;
 	get win() { return this._win; }
 	protected setWin(win: BrowserWindow): void {
-		if (this._win) {
-			return; // already set
-		}
-
 		this._win = win;
 
 		// Window Events
