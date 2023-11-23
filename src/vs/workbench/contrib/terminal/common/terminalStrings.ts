@@ -14,6 +14,8 @@ export const terminalStrings = {
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
+	typeTask: localize('task', "Task"),
+	typeLocal: localize('local', "Local"),
 	actionCategory: {
 		value: localize('terminalCategory', "Terminal"),
 		original: 'Terminal'
@@ -79,5 +81,17 @@ export const terminalStrings = {
 	renameWithArgs: {
 		value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
 		original: 'Rename the Currently Active Terminal'
+	},
+	stickyScroll: {
+		value: localize('stickyScroll', "Sticky Scroll"),
+		original: 'Sticky Scroll'
+	},
+	scrollToPreviousCommand: {
+		value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"),
+		original: 'Scroll To Previous Command'
+	},
+	scrollToNextCommand: {
+		value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"),
+		original: 'Scroll To Next Command'
 	}
 };

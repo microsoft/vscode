@@ -3,17 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from 'vs/base/browser/dom';
+import { $, addDisposableListener } from 'vs/base/browser/dom';
 import { ArrayQueue } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { IViewZone } from 'vs/editor/browser/editorBrowser';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/decorations';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
@@ -21,7 +19,7 @@ import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffE
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditor/inlineDiffDeletedCodeMargin';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
-import { animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditor/utils';
+import { IObservableViewZone, animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -37,38 +35,44 @@ import { DiffEditorOptions } from './diffEditorOptions';
  * Ensures both editors have the same height by aligning unchanged lines.
  * In inline view mode, inserts viewzones to show deleted code from the original text model in the modified code editor.
  * Synchronizes scrolling.
+ *
+ * Make sure to add the view zones!
  */
 export class ViewZoneManager extends Disposable {
 	private readonly _originalTopPadding = observableValue(this, 0);
 	private readonly _originalScrollTop: IObservable<number>;
 	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _originalScrollOffsetAnimated = animatedObservable(this._originalScrollOffset, this._store);
+	private readonly _originalScrollOffsetAnimated = animatedObservable(this._targetWindow, this._originalScrollOffset, this._store);
 
 	private readonly _modifiedTopPadding = observableValue(this, 0);
 	private readonly _modifiedScrollTop: IObservable<number>;
 	private readonly _modifiedScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._modifiedScrollOffset, this._store);
+	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._targetWindow, this._modifiedScrollOffset, this._store);
+
+	public readonly viewZones: IObservable<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>;
 
 	constructor(
+		private readonly _targetWindow: Window,
 		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _options: DiffEditorOptions,
 		private readonly _diffEditorWidget: DiffEditorWidget,
 		private readonly _canIgnoreViewZoneUpdateEvent: () => boolean,
+		private readonly _origViewZonesToIgnore: Set<string>,
+		private readonly _modViewZonesToIgnore: Set<string>,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super();
 
-		let isChangingViewZones = false;
-		const state = observableValue('state', 0);
+		const state = observableValue('invalidateAlignmentsState', 0);
 
 		const updateImmediately = this._register(new RunOnceScheduler(() => {
 			state.set(state.get() + 1, undefined);
 		}, 0));
 
-		this._register(this._editors.original.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
-		this._register(this._editors.modified.onDidChangeViewZones((_args) => { if (!isChangingViewZones && !this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
+		this._register(this._editors.original.onDidChangeViewZones((_args) => { if (!this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
+		this._register(this._editors.modified.onDidChangeViewZones((_args) => { if (!this._canIgnoreViewZoneUpdateEvent()) { updateImmediately.schedule(); } }));
 		this._register(this._editors.original.onDidChangeConfiguration((args) => {
 			if (args.hasChanged(EditorOption.wrappingInfo) || args.hasChanged(EditorOption.lineHeight)) { updateImmediately.schedule(); }
 		}));
@@ -79,9 +83,6 @@ export class ViewZoneManager extends Disposable {
 		const originalModelTokenizationCompleted = this._diffModel.map(m =>
 			m ? observableFromEvent(m.model.original.onDidChangeTokens, () => m.model.original.tokenization.backgroundTokenizationState === BackgroundTokenizationState.Completed) : undefined
 		).map((m, reader) => m?.read(reader));
-
-		const alignmentViewZoneIdsOrig = new Set<string>();
-		const alignmentViewZoneIdsMod = new Set<string>();
 
 		const alignments = derived<ILineRangeAlignment[] | null>((reader) => {
 			/** @description alignments */
@@ -95,14 +96,14 @@ export class ViewZoneManager extends Disposable {
 				this._editors.original,
 				this._editors.modified,
 				diff.mappings,
-				alignmentViewZoneIdsOrig,
-				alignmentViewZoneIdsMod,
+				this._origViewZonesToIgnore,
+				this._modViewZonesToIgnore,
 				innerHunkAlignment
 			);
 		});
 
 		const alignmentsSyncedMovedText = derived<ILineRangeAlignment[] | null>((reader) => {
-			/** @description alignments */
+			/** @description alignmentsSyncedMovedText */
 			const syncedMovedText = this._diffModel.read(reader)?.movedTextToCompare.read(reader);
 			if (!syncedMovedText) { return null; }
 			state.read(reader);
@@ -112,8 +113,8 @@ export class ViewZoneManager extends Disposable {
 				this._editors.original,
 				this._editors.modified,
 				mappings,
-				alignmentViewZoneIdsOrig,
-				alignmentViewZoneIdsMod,
+				this._origViewZonesToIgnore,
+				this._modViewZonesToIgnore,
 				true
 			);
 		});
@@ -125,14 +126,13 @@ export class ViewZoneManager extends Disposable {
 		}
 
 		const alignmentViewZonesDisposables = this._register(new DisposableStore());
-		const alignmentViewZones = derived<{ orig: IViewZoneWithZoneId[]; mod: IViewZoneWithZoneId[] }>((reader) => {
-			/** @description alignment viewzones */
+		this.viewZones = derivedWithStore<{ orig: IObservableViewZone[]; mod: IObservableViewZone[] }>(this, (reader, store) => {
 			alignmentViewZonesDisposables.clear();
 
 			const alignmentsVal = alignments.read(reader) || [];
 
-			const origViewZones: IViewZoneWithZoneId[] = [];
-			const modViewZones: IViewZoneWithZoneId[] = [];
+			const origViewZones: IObservableViewZone[] = [];
+			const modViewZones: IObservableViewZone[] = [];
 
 			const modifiedTopPaddingVal = this._modifiedTopPadding.read(reader);
 			if (modifiedTopPaddingVal > 0) {
@@ -289,6 +289,11 @@ export class ViewZoneManager extends Disposable {
 						function createViewZoneMarginArrow(): HTMLElement {
 							const arrow = document.createElement('div');
 							arrow.className = 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight);
+							store.add(addDisposableListener(arrow, 'mousedown', e => e.stopPropagation()));
+							store.add(addDisposableListener(arrow, 'click', e => {
+								e.stopPropagation();
+								_diffEditorWidget.revert(a.diff!);
+							}));
 							return $('div', {}, arrow);
 						}
 
@@ -339,50 +344,6 @@ export class ViewZoneManager extends Disposable {
 			return { orig: origViewZones, mod: modViewZones };
 		});
 
-		this._register(autorunWithStore((reader) => {
-			/** @description alignment viewzones */
-			const scrollState = StableEditorScrollState.capture(this._editors.modified);
-
-			const alignmentViewZones_ = alignmentViewZones.read(reader);
-			isChangingViewZones = true;
-			this._editors.original.changeViewZones((aOrig) => {
-				for (const id of alignmentViewZoneIdsOrig) { aOrig.removeZone(id); }
-				alignmentViewZoneIdsOrig.clear();
-				for (const z of alignmentViewZones_.orig) {
-					const id = aOrig.addZone(z);
-					if (z.setZoneId) {
-						z.setZoneId(id);
-					}
-					alignmentViewZoneIdsOrig.add(id);
-				}
-			});
-			this._editors.modified.changeViewZones(aMod => {
-				for (const id of alignmentViewZoneIdsMod) { aMod.removeZone(id); }
-				alignmentViewZoneIdsMod.clear();
-				for (const z of alignmentViewZones_.mod) {
-					const id = aMod.addZone(z);
-					if (z.setZoneId) {
-						z.setZoneId(id);
-					}
-					alignmentViewZoneIdsMod.add(id);
-				}
-			});
-			isChangingViewZones = false;
-
-			scrollState.restore(this._editors.modified);
-		}));
-
-		this._register(toDisposable(() => {
-			this._editors.original.changeViewZones((a) => {
-				for (const id of alignmentViewZoneIdsOrig) { a.removeZone(id); }
-				alignmentViewZoneIdsOrig.clear();
-			});
-			this._editors.modified.changeViewZones((a) => {
-				for (const id of alignmentViewZoneIdsMod) { a.removeZone(id); }
-				alignmentViewZoneIdsMod.clear();
-			});
-		}));
-
 		let ignoreChange = false;
 		this._register(this._editors.original.onDidScrollChange(e => {
 			if (e.scrollLeftChanged && !ignoreChange) {
@@ -399,8 +360,8 @@ export class ViewZoneManager extends Disposable {
 			}
 		}));
 
-		this._originalScrollTop = observableFromEvent(this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
-		this._modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+		this._originalScrollTop = observableFromEvent(this._editors.original.onDidScrollChange, () => /** @description original.getScrollTop */ this._editors.original.getScrollTop());
+		this._modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this._editors.modified.getScrollTop());
 
 		// origExtraHeight + origOffset - origScrollTop = modExtraHeight + modOffset - modScrollTop
 
@@ -462,11 +423,6 @@ export class ViewZoneManager extends Disposable {
 			}
 		}));
 	}
-}
-
-interface IViewZoneWithZoneId extends IViewZone {
-	// Tells a view zone its id.
-	setZoneId?(zoneId: string): void;
 }
 
 interface ILineRangeAlignment {

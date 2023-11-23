@@ -9,8 +9,6 @@ import { PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export const IPaneCompositePartService = createDecorator<IPaneCompositePartService>('paneCompositePartService');
 
@@ -65,9 +63,4 @@ export interface IPaneCompositePartService {
 	 * Return the last active viewlet id.
 	 */
 	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string;
-
-	/**
-	 * Show an activity in a viewlet.
-	 */
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }

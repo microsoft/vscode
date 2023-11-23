@@ -17,17 +17,18 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkOpeners';
-import { TerminalCapability, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapability, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { IFileQuery, ISearchComplete, ISearchService } from 'vs/workbench/services/search/common/search';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
-import { ITerminalLogService, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -36,7 +37,7 @@ interface ITerminalLinkActivationResult {
 }
 
 class TestCommandDetectionCapability extends CommandDetectionCapability {
-	setCommands(commands: ITerminalCommand[]) {
+	setCommands(commands: TerminalCommand[]) {
 		this._commands = commands;
 	}
 }
@@ -112,7 +113,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				}
 			}
 		} as Partial<IEditorService>);
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 	});
 
@@ -133,7 +134,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 			const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
 			opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/initial/cwd', localFileOpener, localFolderOpener, () => OperatingSystem.Linux);
 			// Set a fake detected command starting as line 0 to establish the cwd
-			commandDetection.setCommands([{
+			commandDetection.setCommands([new TerminalCommand(xterm, {
 				command: '',
 				exitCode: 0,
 				commandStartLineContent: '',
@@ -141,13 +142,12 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
-				getOutput() { return undefined; },
-				getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
+				executedX: undefined,
+				startX: undefined,
 				marker: {
 					line: 0
 				} as Partial<IXtermMarker> as any,
-				hasOutput() { return true; }
-			}]);
+			})]);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo2/bar.txt' })
@@ -274,21 +274,20 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				]);
 
 				// Set a fake detected command starting as line 0 to establish the cwd
-				commandDetection.setCommands([{
+				commandDetection.setCommands([new TerminalCommand(xterm, {
 					command: '',
 					isTrusted: true,
 					cwd,
 					timestamp: 0,
-					getOutput() { return undefined; },
-					getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
+					executedX: undefined,
+					startX: undefined,
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput() { return true; },
 					exitCode: 0,
 					commandStartLineContent: '',
 					markProperties: {}
-				}]);
+				})]);
 				await opener.open({
 					text: 'file.txt',
 					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
@@ -365,21 +364,20 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				]);
 
 				// Set a fake detected command starting as line 0 to establish the cwd
-				commandDetection.setCommands([{
+				commandDetection.setCommands([new TerminalCommand(xterm, {
 					exitCode: 0,
 					commandStartLineContent: '',
 					markProperties: {},
 					command: '',
 					isTrusted: true,
 					cwd,
+					executedX: undefined,
+					startX: undefined,
 					timestamp: 0,
-					getOutput() { return undefined; },
-					getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
-					hasOutput() { return true; }
-				}]);
+				})]);
 				await opener.open({
 					text: 'file.txt',
 					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },

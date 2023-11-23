@@ -11,7 +11,7 @@ import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/b
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import * as strings from 'vs/base/common/strings';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,6 +21,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
@@ -101,6 +102,7 @@ export class CommentsAccessibilityHelpContribution extends Disposable {
 	}
 }
 export class CommentsAccessibilityHelpProvider implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.Comments;
 	verbositySettingKey: AccessibilityVerbositySettingId = AccessibilityVerbositySettingId.Comments;
 	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 	private _element: HTMLElement | undefined;
@@ -117,7 +119,7 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 		return strings.format(noKbMsg, commandId);
 	}
 	provideContent(): string {
-		this._element = document.activeElement as HTMLElement;
+		this._element = getActiveElement() as HTMLElement;
 		const content: string[] = [];
 		content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, CommentAccessibilityHelpNLS.introWidget, CommentAccessibilityHelpNLS.introWidgetNoKb) + '\n');
 		content.push(CommentAccessibilityHelpNLS.commentCommands);

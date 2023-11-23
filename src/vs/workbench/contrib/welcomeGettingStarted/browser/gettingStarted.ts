@@ -3,77 +3,77 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-import 'vs/css!./media/gettingStarted';
-import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
-import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
+import { $, Dimension, addDisposableListener, append, clearNode, getWindow, reset } from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { URI } from 'vs/base/common/uri';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
+import { coalesce, equals, flatten } from 'vs/base/common/arrays';
+import { Delayer, Throttler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { splitRecentLabel } from 'vs/base/common/labels';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { ILink, LinkedText } from 'vs/base/common/linkedText';
+import { parse } from 'vs/base/common/marshalling';
+import { Schemas, matchesScheme } from 'vs/base/common/network';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IFeaturedExtension } from 'vs/base/common/product';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { assertIsDefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import 'vs/css!./media/gettingStarted';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
-import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { IWindowOpenable } from 'vs/platform/window/common/window';
-import { splitRecentLabel } from 'vs/base/common/labels';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh } from 'vs/base/common/platform';
-import { Delayer, Throttler } from 'vs/base/common/async';
-import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
-import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ILink, LinkedText } from 'vs/base/common/linkedText';
-import { Button } from 'vs/base/browser/ui/button/button';
-import { Link } from 'vs/platform/opener/browser/link';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { generateUuid } from 'vs/base/common/uuid';
-import { IFileService } from 'vs/platform/files/common/files';
-import { parse } from 'vs/base/common/marshalling';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { coalesce, equals, flatten } from 'vs/base/common/arrays';
-import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { GettingStartedIndexList } from './gettingStartedList';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
-import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { OpenFolderAction, OpenFileFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
-import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Codicon } from 'vs/base/common/codicons';
-import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
-import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/featuredExtensionService';
-import { IFeaturedExtension } from 'vs/base/common/product';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Link } from 'vs/platform/opener/browser/link';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService, TelemetryLevel, firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
+import { defaultButtonStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/workspace/common/workspace';
+import { IRecentFolder, IRecentWorkspace, IRecentlyOpened, IWorkspacesService, isRecentFolder, isRecentWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { OpenFileFolderAction, OpenFolderAction, OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
+import { IEditorOpenContext, IEditorSerializer } from 'vs/workbench/common/editor';
+import { IWebviewElement, IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
+import { IFeaturedExtensionsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/featuredExtensionService';
+import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
+import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedIcons';
+import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
+import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
+import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
+import { startEntries } from 'vs/workbench/contrib/welcomeGettingStarted/common/gettingStartedContent';
+import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { GettingStartedIndexList } from './gettingStartedList';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -221,8 +221,18 @@ export class GettingStartedPage extends EditorPane {
 		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 			this.featuredExtensions = this.featuredExtensionService.getExtensions();
-
-			this.buildSlideThrottle.queue(async () => await this.buildCategoriesSlide());
+			if (this.currentWalkthrough) {
+				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
+				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
+				if (newCategory) {
+					const newSteps = newCategory.steps.map(step => step.id);
+					if (!equals(newSteps, existingSteps)) {
+						this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+					}
+				}
+			} else {
+				this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+			}
 		};
 
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
@@ -275,7 +285,7 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertIsDefined(getWindow(this.container).document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
@@ -1165,7 +1175,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private updateCategoryProgress() {
-		document.querySelectorAll('.category-progress').forEach(element => {
+		getWindow(this.container).document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
@@ -1225,9 +1235,9 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.groupsService.contentDimension;
+		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
 
-		if (toSide && fullSize.width > 700) {
+		if (toSide && fullSize && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
 				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
 				this.groupsService.activateGroup(sideGroup);
@@ -1381,7 +1391,6 @@ export class GettingStartedPage extends EditorPane {
 		const categoryDescriptorComponent =
 			$('.getting-started-category',
 				{},
-				this.iconWidgetFor(category),
 				$('.category-description-container', {},
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, ...renderLabelWithIcons(category.title)),
 					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, ...renderLabelWithIcons(category.description))));
@@ -1574,7 +1583,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	override focus() {
-		const active = document.activeElement;
+		super.focus();
+
+		const active = this.container.ownerDocument.activeElement;
 
 		let parent = this.container.parentElement;
 		while (parent && parent !== active) {

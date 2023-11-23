@@ -55,6 +55,8 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { mainWindow } from 'vs/base/browser/window';
+import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -315,8 +317,7 @@ const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
-
-export class EditorStatus extends Disposable implements IWorkbenchContribution {
+export class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -330,11 +331,15 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly state = new State();
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
-	private toRender: StateChange | null = null;
-	private tabFocusMode: TabFocusMode;
+	private readonly tabFocusMode = this.instantiationService.createInstance(TabFocusMode);
+
+	private toRender: StateChange | undefined = undefined;
+
+	private editorService: IEditorService;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
+		editorGroupsContainer: IEditorGroupsContainer | 'main',
+		@IEditorService editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -343,7 +348,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.tabFocusMode = instantiationService.createInstance(TabFocusMode);
+
+		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+
 		this.registerCommands();
 		this.registerListeners();
 	}
@@ -557,13 +564,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;
-				this.toRender = null;
+				this.toRender = undefined;
 				if (toRender) {
-					this.doRenderNow(toRender);
+					this.doRenderNow();
 				}
 			});
 		} else {
@@ -571,7 +578,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private doRenderNow(changed: StateChange): void {
+	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);
@@ -863,6 +870,21 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const activeEditorPane = this.editorService.activeEditorPane;
 
 		return !!activeEditorPane && activeEditorPane === control;
+	}
+}
+
+export class MainEditorStatus extends EditorStatus implements IWorkbenchContribution {
+
+	constructor(
+		@IEditorService editorService: IEditorService,
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILanguageService languageService: ILanguageService,
+		@ITextFileService textFileService: ITextFileService,
+		@IStatusbarService statusbarService: IStatusbarService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super('main', editorService, quickInputService, languageService, textFileService, statusbarService, instantiationService, configurationService);
 	}
 }
 

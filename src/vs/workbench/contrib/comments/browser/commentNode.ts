@@ -16,7 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { LayoutableEditor, STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -72,7 +72,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
-	private _editorHeight = STARTING_EDITOR_HEIGHT;
+	private _editorHeight = MIN_EDITOR_HEIGHT;
 
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
@@ -170,7 +170,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
-			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb)
+			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
@@ -486,7 +486,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
 
-		dom.scheduleAtNextAnimationFrame(() => {
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(editContainer), () => {
 			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});
@@ -573,8 +573,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditContainer!.remove();
 	}
 
-	layout() {
-		this._commentEditor?.layout({ width: this._commentEditor.getLayoutInfo().width, height: this._editorHeight });
+	layout(widthInPixel?: number) {
+		const editorWidth = widthInPixel !== undefined ? widthInPixel - 72 /* - margin and scrollbar*/ : (this._commentEditor?.getLayoutInfo().width ?? 0);
+		this._commentEditor?.layout({ width: editorWidth, height: this._editorHeight });
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
 		const scrollHeight = this._body.scrollHeight;
@@ -729,7 +730,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(dom.getWindow(this._domNode), e);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,

@@ -836,7 +836,7 @@ export class MouseTargetFactory {
 
 		points.sort((a, b) => a.offset - b.offset);
 
-		const mouseCoordinates = request.pos.toClientCoordinates();
+		const mouseCoordinates = request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode));
 		const spanNodeClientRect = spanNode.getBoundingClientRect();
 		const mouseIsOverSpanNode = (spanNodeClientRect.left <= mouseCoordinates.clientX && mouseCoordinates.clientX <= spanNodeClientRect.right);
 
@@ -897,14 +897,14 @@ export class MouseTargetFactory {
 
 			const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
 
-			const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
+			const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 			if (r.type === HitTestResultType.Content) {
 				return r;
 			}
 		}
 
 		// Also try to hit test without the adjustment (for the edge cases that we are near the top or bottom)
-		return this._actualDoHitTestWithCaretRangeFromPoint(ctx, request.pos.toClientCoordinates());
+		return this._actualDoHitTestWithCaretRangeFromPoint(ctx, request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 	}
 
 	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
@@ -1014,7 +1014,7 @@ export class MouseTargetFactory {
 		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint) {
-			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
+			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates(dom.getWindow(ctx.viewDomNode)));
 		}
 		if (result.type === HitTestResultType.Content) {
 			const injectedText = ctx.viewModel.getInjectedTextAt(result.position);
@@ -1046,12 +1046,13 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		const rect = el.getBoundingClientRect();
 
 		// And its font (the computed shorthand font property might be empty, see #3217)
-		const fontStyle = window.getComputedStyle(el, null).getPropertyValue('font-style');
-		const fontVariant = window.getComputedStyle(el, null).getPropertyValue('font-variant');
-		const fontWeight = window.getComputedStyle(el, null).getPropertyValue('font-weight');
-		const fontSize = window.getComputedStyle(el, null).getPropertyValue('font-size');
-		const lineHeight = window.getComputedStyle(el, null).getPropertyValue('line-height');
-		const fontFamily = window.getComputedStyle(el, null).getPropertyValue('font-family');
+		const elWindow = dom.getWindow(el);
+		const fontStyle = elWindow.getComputedStyle(el, null).getPropertyValue('font-style');
+		const fontVariant = elWindow.getComputedStyle(el, null).getPropertyValue('font-variant');
+		const fontWeight = elWindow.getComputedStyle(el, null).getPropertyValue('font-weight');
+		const fontSize = elWindow.getComputedStyle(el, null).getPropertyValue('font-size');
+		const lineHeight = elWindow.getComputedStyle(el, null).getPropertyValue('line-height');
+		const fontFamily = elWindow.getComputedStyle(el, null).getPropertyValue('font-family');
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content

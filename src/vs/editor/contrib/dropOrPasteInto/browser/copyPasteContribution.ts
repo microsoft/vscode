@@ -40,7 +40,7 @@ registerEditorAction(class extends EditorAction {
 			label: nls.localize('pasteAs', "Paste As..."),
 			alias: 'Paste As...',
 			precondition: undefined,
-			description: {
+			metadata: {
 				description: 'Paste as',
 				args: [{
 					name: 'args',

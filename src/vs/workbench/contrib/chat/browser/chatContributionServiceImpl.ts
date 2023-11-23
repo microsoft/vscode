@@ -5,18 +5,17 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import * as resources from 'vs/base/common/resources';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { getClearAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
-import { getMoveToEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
+import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { IChatContributionService, IChatProviderContribution, IRawChatProviderContribution } from 'vs/workbench/contrib/chat/common/chatContributionService';
@@ -79,13 +78,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 				const extensionDisposable = new DisposableStore();
 				for (const providerDescriptor of extension.value) {
 					this.registerChatProvider(providerDescriptor);
-					const extensionIcon = extension.description.icon ?
-						resources.joinPath(extension.description.extensionLocation, extension.description.icon) :
-						undefined;
-					this._chatContributionService.registerChatProvider({
-						...providerDescriptor,
-						extensionIcon
-					});
+					this._chatContributionService.registerChatProvider(providerDescriptor);
 				}
 				this._registrationDisposables.set(extension.description.identifier.value, extensionDisposable);
 			}
@@ -106,12 +99,12 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	private registerViewContainer(): ViewContainer {
 		// Register View Container
-		const title = localize('chat.viewContainer.label', "Chat");
+		const title = localize2('chat.viewContainer.label', "Chat");
 		const icon = Codicon.commentDiscussion;
 		const viewContainerId = CHAT_SIDEBAR_PANEL_ID;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
-			title: { value: title, original: 'Chat' },
+			title,
 			icon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,
@@ -129,7 +122,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 			id: viewId,
 			containerIcon: this._viewContainer.icon,
 			containerTitle: this._viewContainer.title.value,
-			name: providerDescriptor.label,
+			name: { value: providerDescriptor.label, original: providerDescriptor.label },
 			canToggleVisibility: false,
 			canMoveView: true,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane, [<IChatViewOptions>{ providerId: providerDescriptor.id }]),
@@ -144,6 +137,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		disposables.add(registerAction2(getHistoryAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getClearAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getMoveToEditorAction(viewId, providerDescriptor.id)));
+		disposables.add(registerAction2(getMoveToNewWindowAction(viewId, providerDescriptor.id)));
 
 		// "Open Chat" Actions
 		disposables.add(registerAction2(getOpenChatEditorAction(providerDescriptor.id, providerDescriptor.label, providerDescriptor.when)));

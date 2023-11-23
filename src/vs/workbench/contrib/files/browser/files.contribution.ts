@@ -444,6 +444,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('confirmDragAndDrop', "Controls whether the Explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
+		'explorer.confirmPasteNative': {
+			'type': 'boolean',
+			'description': nls.localize('confirmPasteNative', "Controls whether the Explorer should ask for confirmation when pasting native files and folders."),
+			'default': true
+		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
 			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting a file via the trash."),
@@ -514,7 +519,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('smart', "Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number."),
 				nls.localize('disabled', "Disables incremental naming. If two files with the same name exist you will be prompted to overwrite the existing file.")
 			],
-			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated Explorer item on paste."),
+			description: nls.localize('explorer.incrementalNaming', "Controls which naming strategy to use when giving a new name to a duplicated Explorer item on paste."),
 			default: 'simple'
 		},
 		'explorer.compactFolders': {

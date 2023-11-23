@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixExecuteTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -61,6 +61,7 @@ interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableColle
 }
 
 export interface ITerminalInternalOptions {
+	cwd?: string | URI;
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	resolvedExtHostIdentifier?: ExtHostTerminalIdentifier;
@@ -116,9 +117,9 @@ export class ExtHostTerminal {
 			get selection(): string | undefined {
 				return that._selection;
 			},
-			sendText(text: string, addNewLine: boolean = true): void {
+			sendText(text: string, shouldExecute: boolean = true): void {
 				that._checkDisposed();
-				that._proxy.$sendText(that._id, text, addNewLine);
+				that._proxy.$sendText(that._id, text, shouldExecute);
 			},
 			show(preserveFocus: boolean): void {
 				that._checkDisposed();
@@ -157,7 +158,7 @@ export class ExtHostTerminal {
 			name: options.name,
 			shellPath: options.shellPath ?? undefined,
 			shellArgs: options.shellArgs ?? undefined,
-			cwd: options.cwd ?? undefined,
+			cwd: options.cwd ?? internalOptions?.cwd ?? undefined,
 			env: options.env ?? undefined,
 			icon: asTerminalIcon(options.iconPath) ?? undefined,
 			color: ThemeColor.isThemeColor(options.color) ? options.color.id : undefined,
@@ -737,7 +738,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto): Promise<(ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto)[] | ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto | undefined> {
+	public async $provideTerminalQuickFixes(id: string, matchResult: TerminalCommandMatchResultDto): Promise<(ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto)[] | ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto | undefined> {
 		const token = new CancellationTokenSource().token;
 		if (token.isCancellationRequested) {
 			return;
