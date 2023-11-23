@@ -4122,11 +4122,6 @@ export enum ChatVariableLevel {
 	Full = 3
 }
 
-export enum ChatVariableKind {
-	String = 1,
-	Uri = 2
-}
-
 export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
 	label: string | CompletionItemLabel;
 	insertText?: string;
