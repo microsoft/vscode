@@ -719,6 +719,7 @@ export class StatusbarService extends Disposable implements IStatusbarService {
 		const statusbarPartContainer = document.createElement('footer');
 		statusbarPartContainer.classList.add('part', 'statusbar');
 		statusbarPartContainer.setAttribute('role', 'status');
+		statusbarPartContainer.style.position = 'relative';
 		statusbarPartContainer.setAttribute('aria-live', 'off');
 		statusbarPartContainer.setAttribute('tabindex', '0');
 		container.appendChild(statusbarPartContainer);
