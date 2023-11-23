@@ -18,6 +18,12 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidMaximizeWindow = this._register(new Emitter<IAuxiliaryWindow>());
+	readonly onDidMaximizeWindow = this._onDidMaximizeWindow.event;
+
+	private readonly _onDidUnmaximizeWindow = this._register(new Emitter<IAuxiliaryWindow>());
+	readonly onDidUnmaximizeWindow = this._onDidUnmaximizeWindow.event;
+
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: IAuxiliaryWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
@@ -76,7 +82,10 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 		const disposables = new DisposableStore();
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));
 
+		disposables.add(auxiliaryWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(auxiliaryWindow)));
+		disposables.add(auxiliaryWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(auxiliaryWindow)));
 		disposables.add(auxiliaryWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: auxiliaryWindow, x, y })));
+
 		Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose());
 	}
 
