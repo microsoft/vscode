@@ -1,0 +1,21 @@
+{
+	"displayName": "Default Themes",
+	"description": "Themes bundled with Visual Studio Code",
+	"abyssThemeLabel": "Abyss",
+	"darkPlusColorThemeLabel": "Dark+",
+	"darkModernThemeLabel": "Dark Modern",
+	"lightPlusColorThemeLabel": "Light+",
+	"lightModernThemeLabel": "Light Modern",
+	"darkColorThemeLabel": "Dark (Visual Studio)",
+	"lightColorThemeLabel": "Light (Visual Studio)",
+	"hcColorThemeLabel": "Dark High Contrast",
+	"lightHcColorThemeLabel": "Light High Contrast",
+	"kimbieThemeLabel": "Kimbie Dark",
+	"monokaiThemeLabel": "Monokai",
+	"monokaiDimmedThemeLabel": "Monokai Dimmed",
+	"quietLightThemeLabel": "Quiet Light",
+	"redThemeLabel": "Red",
+	"solarizedDarkThemeLabel": "Solarized Dark",
+	"solarizedLightThemeLabel": "Solarized Light",
+	"tomorrowNightBlueThemeLabel": "Tomorrow Night Blue"
+}

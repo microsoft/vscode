@@ -1,7 +1,10 @@
 {
-  "name": "theme-monokai-dimmed",
+  "name": "theme-default-icons",
   "displayName": "%displayName%",
   "description": "%description%",
+  "categories": [
+    "Themes"
+  ],
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -9,12 +12,11 @@
     "vscode": "*"
   },
   "contributes": {
-    "themes": [
+    "iconThemes": [
       {
-        "id": "Monokai Dimmed",
-        "label": "%themeLabel%",
-        "uiTheme": "vs-dark",
-        "path": "./themes/dimmed-monokai-color-theme.json"
+        "id": "vs-minimal",
+        "label": "%minimalIconThemeLabel%",
+        "path": "./fileicons/vs_minimal-icon-theme.json"
       }
     ]
   },

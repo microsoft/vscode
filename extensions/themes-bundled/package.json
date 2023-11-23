@@ -1,10 +1,7 @@
 {
-  "name": "theme-defaults",
+  "name": "themes-builtin",
   "displayName": "%displayName%",
   "description": "%description%",
-  "categories": [
-    "Themes"
-  ],
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
@@ -13,6 +10,12 @@
   },
   "contributes": {
     "themes": [
+      {
+        "id": "Abyss",
+        "label": "%abyssThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/abyss-color-theme.json"
+      },
       {
         "id": "Default Dark+",
         "label": "%darkPlusColorThemeLabel%",
@@ -60,13 +63,54 @@
         "label": "%lightHcColorThemeLabel%",
         "uiTheme": "hc-light",
         "path": "./themes/hc_light.json"
-      }
-    ],
-    "iconThemes": [
+      },
       {
-        "id": "vs-minimal",
-        "label": "%minimalIconThemeLabel%",
-        "path": "./fileicons/vs_minimal-icon-theme.json"
+        "id": "Kimbie Dark",
+        "label": "%kimbieThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/kimbie-dark-color-theme.json"
+      },
+      {
+        "id": "Monokai",
+        "label": "%monokaiThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/monokai-color-theme.json"
+      },
+      {
+        "id": "Monokai Dimmed",
+        "label": "%monokaiDimmedThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/dimmed-monokai-color-theme.json"
+      },
+      {
+        "id": "Quiet Light",
+        "label": "%quietLightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/quietlight-color-theme.json"
+      },
+      {
+        "id": "Red",
+        "label": "%redThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/Red-color-theme.json"
+      },
+      {
+        "id": "Solarized Dark",
+        "label": "%solarizedDarkThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/solarized-dark-color-theme.json"
+      },
+      {
+        "id": "Solarized Light",
+        "label": "%solarizedLightThemeLabel%",
+        "uiTheme": "vs",
+        "path": "./themes/solarized-light-color-theme.json"
+      },
+      {
+        "id": "Tomorrow Night Blue",
+        "label": "%tomorrowNightBlueThemeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/tomorrow-night-blue-color-theme.json"
       }
     ]
   },
