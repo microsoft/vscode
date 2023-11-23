@@ -726,6 +726,7 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 
 	render(): void {
 		reset(this.container);
+		this.renderDisposables.clear();
 		const extensionStatus = this.extensionStatusAction.status;
 		if (extensionStatus) {
 			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
