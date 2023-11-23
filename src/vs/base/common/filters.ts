@@ -64,12 +64,121 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 // Contiguous Substring
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
-	const index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+	const index = wordToMatchAgainst.toLowerCase().indexOf(getLocaleBaseString(word.toLowerCase()));
 	if (index === -1) {
+		// TODO: Alt chars need to be handled here to get mid-word matches wording
 		return null;
 	}
 
 	return [{ start: index, end: index + word.length }];
+}
+
+
+
+
+// export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+// 	const index = localeIndexOf(wordToMatchAgainst.toLowerCase(), word.toLowerCase());
+// 	if (index === -1) {
+// 		// TODO: Locale alt chars
+// 		// TODO: Alt chars
+// 		return null;
+// 	}
+
+// 	return [{ start: index, end: index + word.length }];
+// }
+
+
+
+
+// Plan: Generate data at build time via a manually run script for chars a-z and
+// put in a map for fast access
+const collator = new Intl.Collator('en', { sensitivity: 'base' });
+
+const baseChar = 'a';
+const equivalentChars = [];
+
+for (let i = 0; i < 65536; i++) {
+	const testChar = String.fromCharCode(i);
+	if (collator.compare(baseChar, testChar) === 0) {
+		equivalentChars.push(testChar);
+	}
+}
+
+console.log(equivalentChars);
+
+const equivalentCharsMap = new Map<string, string>(equivalentChars.map(e => {
+	return [e, 'a'];
+}));
+
+
+/**
+ * Gets the locale base string for a given word, this will translate
+ * "equivalent" characters like those with accents for example by using the
+ * Intl.Collator API. This will only create a new string if the locale base
+ * string differs.
+ * @param word The original word.
+ */
+function getLocaleBaseString(word: string): string {
+	for (let i = 0; i < word.length; i++) {
+		if (equivalentCharsMap.get(word[i])) {
+			return createLocaleBaseString(word, i);
+		}
+	}
+	return word;
+}
+
+/**
+ * Creates a new locale base string for a given word.
+ * @param word The original word.
+ * @param startIndex The start index in the word to begin comparing. It's
+ * assumed all characters before this index are already correct.
+ */
+function createLocaleBaseString(word: string, startIndex: number): string {
+	let result = word.substring(0, startIndex);
+	for (let i = startIndex; i < word.length; i++) {
+		result += equivalentCharsMap.get(word[i]) ?? word[i];
+	}
+	return result;
+}
+
+
+
+
+
+// TODO: This is too slow
+
+const localeCompareCache = new LRUCache<string, boolean>(10000); // bounded to 10000 elements
+function localeIndexOf(str: string, searchStr: string, locale?: string | string[]): number {
+
+	const len = str.length;
+	const searchLen = searchStr.length;
+
+	for (let i = 0; i <= len - searchLen; i++) {
+		let found = true;
+		for (let j = 0; j < searchLen; j++) {
+			const v = localeCompareCache.get(`${str[i + j]}_${searchStr[j]}`);
+			if (v !== undefined) {
+				if (!v) {
+					found = false;
+					break;
+				} else {
+					continue;
+				}
+			}
+			if (str[i + j].localeCompare(searchStr[j], locale, { sensitivity: 'base' })) {
+				localeCompareCache.set(`${str[i + j]}_${searchStr[j]}`, false);
+				found = false;
+				break;
+			} else {
+				localeCompareCache.set(`${str[i + j]}_${searchStr[j]}`, true);
+			}
+		}
+		if (found) {
+			return i;
+		}
+	}
+
+	return -1;
 }
 
 // Substring
@@ -131,7 +240,11 @@ function isWordSeparator(code: number): boolean {
 }
 
 function charactersMatch(codeA: number, codeB: number): boolean {
-	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
+	return (
+		(codeA === codeB) ||
+		(isWordSeparator(codeA) && isWordSeparator(codeB)) ||
+		(String.fromCharCode(codeB).localeCompare(String.fromCharCode(codeA), undefined, { sensitivity: 'base' }) === 0)
+	);
 }
 
 function isAlphanumeric(code: number): boolean {
@@ -290,8 +403,8 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	let result: IMatch[] | null = null;
 	let i = 0;
 
-	word = word.toLowerCase();
-	target = target.toLowerCase();
+	word = getLocaleBaseString(word.toLowerCase());
+	target = getLocaleBaseString(target.toLowerCase());
 	while (i < target.length && (result = _matchesWords(word, target, 0, i, contiguous)) === null) {
 		i = nextWord(target, i + 1);
 	}
@@ -323,7 +436,8 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 
 		// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
 		// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
-		if (word.charCodeAt(i) !== target.charCodeAt(j)) {
+		if (word.charCodeAt(i) !== target.charCodeAt(j) &&
+			target.charAt(j).localeCompare(word.charAt(i), undefined, { sensitivity: 'base' }) !== 0) {
 			return result;
 		}
 
