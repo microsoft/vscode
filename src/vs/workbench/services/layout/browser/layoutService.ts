@@ -110,7 +110,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Emits when the target window is maximized or unmaximized.
 	 */
-	readonly onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }>;
+	readonly onDidChangeWindowMaximized: Event<{ readonly windowId: number; readonly maximized: boolean }>;
 
 	/**
 	 * Emits when centered layout is enabled or disabled.
