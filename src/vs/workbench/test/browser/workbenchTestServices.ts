@@ -56,7 +56,7 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, Gro
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { Dimension, IDimension } from 'vs/base/browser/dom';
+import { IDimension } from 'vs/base/browser/dom';
 import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
@@ -622,7 +622,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getWindowBorderWidth(): number { return 0; }
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
-	getDimension(_part: Parts): IDimension { return new Dimension(0, 0); }
 	getContainer(): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
@@ -653,8 +652,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
 	registerPart(part: Part): void { }
-	isWindowMaximized(targetWindowId: number) { return false; }
-	updateWindowMaximizedState(targetWindowId: number, maximized: boolean): void { }
+	isWindowMaximized(targetWindow: Window) { return false; }
+	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
 	focus() { }
 }

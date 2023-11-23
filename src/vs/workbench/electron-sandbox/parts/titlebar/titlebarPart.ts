@@ -141,7 +141,8 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		const result = super.createContentArea(parent);
-		const targetWindowId = getWindowId(getWindow(parent));
+		const targetWindow = getWindow(parent);
+		const targetWindowId = getWindowId(targetWindow);
 
 		// Native menu controller
 		if (isMacintosh || getTitleBarStyle(this.configurationService) === 'native') {
@@ -189,7 +190,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 				if (windowId === targetWindowId) {
 					this.onDidChangeWindowMaximized(maximized);
 				}
-			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindowId) }));
+			}, { windowId: targetWindowId, maximized: this.layoutService.isWindowMaximized(targetWindow) }));
 		}
 
 		// Window System Context Menu
