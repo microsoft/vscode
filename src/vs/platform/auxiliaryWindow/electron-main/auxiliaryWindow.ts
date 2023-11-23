@@ -89,6 +89,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			this.logService.trace('[aux window] Closed window');
 
 			this._onDidClose.fire();
+
+			this.dispose();
 		});
 
 		// Window Focus
