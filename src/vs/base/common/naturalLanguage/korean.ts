@@ -14,7 +14,7 @@
  * @param code The character code to get alternate characters for
  */
 export function getKoreanAltChars(code: number): ArrayLike<number> | undefined {
-	// TODO: Show cut by checking ranges first
+	// TODO: Early exit by checking ranges first
 	const result = disassembleKorean(code);
 	if (result && result.length > 0) {
 		return new Uint32Array(result);
@@ -37,7 +37,7 @@ function disassembleKorean(code: number): Uint32Array | undefined {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
-	getCodesFromArray(code, modernLatterConsonants, 0x11A9);
+	getCodesFromArray(code, modernLatterConsonants, 0x11A8);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
@@ -173,50 +173,50 @@ const enum AsciiCode {
  * bundle and runtime overhead.
  */
 const enum AsciiCodeCombo {
-	aq = AsciiCode.a << 8 | AsciiCode.q,
-	at = AsciiCode.a << 8 | AsciiCode.t,
+	aq = AsciiCode.q << 8 | AsciiCode.a,
+	at = AsciiCode.t << 8 | AsciiCode.a,
 	dd = AsciiCode.d << 8 | AsciiCode.d,
-	fa = AsciiCode.f << 8 | AsciiCode.a,
-	fe = AsciiCode.f << 8 | AsciiCode.e,
-	fg = AsciiCode.f << 8 | AsciiCode.g,
-	fq = AsciiCode.f << 8 | AsciiCode.q,
-	fqt = AsciiCode.f << 16 | AsciiCode.q << 8 | AsciiCode.t,
-	fr = AsciiCode.f << 8 | AsciiCode.r,
-	frt = AsciiCode.f << 16 | AsciiCode.r << 8 | AsciiCode.t,
-	ft = AsciiCode.f << 8 | AsciiCode.t,
-	fv = AsciiCode.f << 8 | AsciiCode.v,
-	fx = AsciiCode.f << 8 | AsciiCode.x,
+	fa = AsciiCode.a << 8 | AsciiCode.f,
+	fe = AsciiCode.e << 8 | AsciiCode.f,
+	fg = AsciiCode.g << 8 | AsciiCode.f,
+	fq = AsciiCode.q << 8 | AsciiCode.f,
+	fqt = AsciiCode.t << 16 | AsciiCode.q << 8 | AsciiCode.f,
+	fr = AsciiCode.r << 8 | AsciiCode.f,
+	frt = AsciiCode.t << 16 | AsciiCode.r << 8 | AsciiCode.f,
+	ft = AsciiCode.t << 8 | AsciiCode.f,
+	fv = AsciiCode.v << 8 | AsciiCode.f,
+	fx = AsciiCode.x << 8 | AsciiCode.f,
 	gg = AsciiCode.g << 8 | AsciiCode.g,
-	hk = AsciiCode.h << 8 | AsciiCode.k,
-	hl = AsciiCode.h << 8 | AsciiCode.l,
-	ho = AsciiCode.h << 8 | AsciiCode.o,
-	ml = AsciiCode.m << 8 | AsciiCode.l,
-	nj = AsciiCode.n << 8 | AsciiCode.j,
-	nl = AsciiCode.n << 8 | AsciiCode.l,
-	np = AsciiCode.n << 8 | AsciiCode.p,
-	qe = AsciiCode.q << 8 | AsciiCode.e,
-	qr = AsciiCode.q << 8 | AsciiCode.r,
-	qt = AsciiCode.q << 8 | AsciiCode.t,
-	qte = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.e,
-	qtr = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.r,
-	qw = AsciiCode.q << 8 | AsciiCode.w,
-	qx = AsciiCode.q << 8 | AsciiCode.x,
-	rt = AsciiCode.r << 8 | AsciiCode.t,
-	se = AsciiCode.s << 8 | AsciiCode.e,
-	sg = AsciiCode.s << 8 | AsciiCode.g,
+	hk = AsciiCode.k << 8 | AsciiCode.h,
+	hl = AsciiCode.l << 8 | AsciiCode.h,
+	ho = AsciiCode.o << 8 | AsciiCode.h,
+	ml = AsciiCode.l << 8 | AsciiCode.m,
+	nj = AsciiCode.j << 8 | AsciiCode.n,
+	nl = AsciiCode.l << 8 | AsciiCode.n,
+	np = AsciiCode.p << 8 | AsciiCode.n,
+	qe = AsciiCode.e << 8 | AsciiCode.q,
+	qr = AsciiCode.r << 8 | AsciiCode.q,
+	qt = AsciiCode.t << 8 | AsciiCode.q,
+	qte = AsciiCode.e << 16 | AsciiCode.t << 8 | AsciiCode.q,
+	qtr = AsciiCode.r << 16 | AsciiCode.t << 8 | AsciiCode.q,
+	qw = AsciiCode.w << 8 | AsciiCode.q,
+	qx = AsciiCode.x << 8 | AsciiCode.q,
+	rt = AsciiCode.t << 8 | AsciiCode.r,
+	se = AsciiCode.e << 8 | AsciiCode.s,
+	sg = AsciiCode.g << 8 | AsciiCode.s,
 	ss = AsciiCode.s << 8 | AsciiCode.s,
-	st = AsciiCode.s << 8 | AsciiCode.t,
-	sw = AsciiCode.s << 8 | AsciiCode.w,
-	te = AsciiCode.t << 8 | AsciiCode.e,
-	tq = AsciiCode.t << 8 | AsciiCode.q,
-	tr = AsciiCode.t << 8 | AsciiCode.r,
-	ts = AsciiCode.t << 8 | AsciiCode.s,
-	tw = AsciiCode.t << 8 | AsciiCode.w,
-	yi = AsciiCode.y << 8 | AsciiCode.i,
-	yl = AsciiCode.y << 8 | AsciiCode.l,
-	yO = AsciiCode.y << 8 | AsciiCode.O,
-	yP = AsciiCode.y << 8 | AsciiCode.P,
-	yu = AsciiCode.y << 8 | AsciiCode.u,
+	st = AsciiCode.t << 8 | AsciiCode.s,
+	sw = AsciiCode.w << 8 | AsciiCode.s,
+	te = AsciiCode.e << 8 | AsciiCode.t,
+	tq = AsciiCode.q << 8 | AsciiCode.t,
+	tr = AsciiCode.r << 8 | AsciiCode.t,
+	ts = AsciiCode.s << 8 | AsciiCode.t,
+	tw = AsciiCode.w << 8 | AsciiCode.t,
+	yi = AsciiCode.i << 8 | AsciiCode.y,
+	yl = AsciiCode.l << 8 | AsciiCode.y,
+	yO = AsciiCode.O << 8 | AsciiCode.y,
+	yP = AsciiCode.P << 8 | AsciiCode.y,
+	yu = AsciiCode.u << 8 | AsciiCode.y,
 }
 
 /**
