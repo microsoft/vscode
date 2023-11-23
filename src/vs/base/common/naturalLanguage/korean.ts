@@ -27,17 +27,20 @@ const codeBuffer = new Uint32Array(10);
 function disassembleKorean(code: number): Uint32Array | undefined {
 	codeBufferLength = 0;
 
+	// Initial consonants (초성)
 	getCodesFromArray(code, modernConsonants, 0x1100);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
+	// Vowels (중성)
 	getCodesFromArray(code, modernVowels, 0x01161);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
-	getCodesFromArray(code, modernLatterConsonants, 0x11A8);
+	// Final consonants (종성)
+	getCodesFromArray(code, modernFinalConsonants, 0x11A8);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
@@ -75,8 +78,8 @@ function disassembleKorean(code: number): Uint32Array | undefined {
 		}
 
 		if (finalConsonantIndex >= 0) {
-			if (finalConsonantIndex < modernLatterConsonants.length) {
-				getCodesFromArray(finalConsonantIndex, modernLatterConsonants, 0);
+			if (finalConsonantIndex < modernFinalConsonants.length) {
+				getCodesFromArray(finalConsonantIndex, modernFinalConsonants, 0);
 			} else if (0x11A8 + finalConsonantIndex - 0x3131 < compatibilityJamo.length) {
 				getCodesFromArray(0x11A8 + finalConsonantIndex - 0x3131, compatibilityJamo, 0x3131);
 			}
@@ -173,20 +176,13 @@ const enum AsciiCode {
  * bundle and runtime overhead.
  */
 const enum AsciiCodeCombo {
-	aq = AsciiCode.q << 8 | AsciiCode.a,
-	at = AsciiCode.t << 8 | AsciiCode.a,
-	dd = AsciiCode.d << 8 | AsciiCode.d,
 	fa = AsciiCode.a << 8 | AsciiCode.f,
-	fe = AsciiCode.e << 8 | AsciiCode.f,
 	fg = AsciiCode.g << 8 | AsciiCode.f,
 	fq = AsciiCode.q << 8 | AsciiCode.f,
-	fqt = AsciiCode.t << 16 | AsciiCode.q << 8 | AsciiCode.f,
 	fr = AsciiCode.r << 8 | AsciiCode.f,
-	frt = AsciiCode.t << 16 | AsciiCode.r << 8 | AsciiCode.f,
 	ft = AsciiCode.t << 8 | AsciiCode.f,
 	fv = AsciiCode.v << 8 | AsciiCode.f,
 	fx = AsciiCode.x << 8 | AsciiCode.f,
-	gg = AsciiCode.g << 8 | AsciiCode.g,
 	hk = AsciiCode.k << 8 | AsciiCode.h,
 	hl = AsciiCode.l << 8 | AsciiCode.h,
 	ho = AsciiCode.o << 8 | AsciiCode.h,
@@ -194,29 +190,10 @@ const enum AsciiCodeCombo {
 	nj = AsciiCode.j << 8 | AsciiCode.n,
 	nl = AsciiCode.l << 8 | AsciiCode.n,
 	np = AsciiCode.p << 8 | AsciiCode.n,
-	qe = AsciiCode.e << 8 | AsciiCode.q,
-	qr = AsciiCode.r << 8 | AsciiCode.q,
 	qt = AsciiCode.t << 8 | AsciiCode.q,
-	qte = AsciiCode.e << 16 | AsciiCode.t << 8 | AsciiCode.q,
-	qtr = AsciiCode.r << 16 | AsciiCode.t << 8 | AsciiCode.q,
-	qw = AsciiCode.w << 8 | AsciiCode.q,
-	qx = AsciiCode.x << 8 | AsciiCode.q,
 	rt = AsciiCode.t << 8 | AsciiCode.r,
-	se = AsciiCode.e << 8 | AsciiCode.s,
 	sg = AsciiCode.g << 8 | AsciiCode.s,
-	ss = AsciiCode.s << 8 | AsciiCode.s,
-	st = AsciiCode.t << 8 | AsciiCode.s,
 	sw = AsciiCode.w << 8 | AsciiCode.s,
-	te = AsciiCode.e << 8 | AsciiCode.t,
-	tq = AsciiCode.q << 8 | AsciiCode.t,
-	tr = AsciiCode.r << 8 | AsciiCode.t,
-	ts = AsciiCode.s << 8 | AsciiCode.t,
-	tw = AsciiCode.w << 8 | AsciiCode.t,
-	yi = AsciiCode.i << 8 | AsciiCode.y,
-	yl = AsciiCode.l << 8 | AsciiCode.y,
-	yO = AsciiCode.O << 8 | AsciiCode.y,
-	yP = AsciiCode.P << 8 | AsciiCode.y,
-	yu = AsciiCode.u << 8 | AsciiCode.y,
 }
 
 /**
@@ -296,7 +273,7 @@ const modernVowels = new Uint16Array([
  * | U+11Bx | ᆰ | ᆱ | ᆲ | ᆳ | ᆴ | ᆵ | ᆶ | ᆷ | ᆸ | ᆹ | ᆺ | ᆻ | ᆼ | ᆽ | ᆾ | ᆿ |
  * | U+11Cx | ᇀ | ᇁ | ᇂ |
  */
-const modernLatterConsonants = new Uint16Array([
+const modernFinalConsonants = new Uint16Array([
 	AsciiCode.r,       // ㄱ
 	AsciiCode.R,       // ㄲ
 	AsciiCodeCombo.rt, // ㄳ
@@ -395,47 +372,46 @@ const compatibilityJamo = new Uint16Array([
 	AsciiCode.m,        // ㅡ
 	AsciiCodeCombo.ml,  // ㅢ
 	AsciiCode.l,        // ㅣ
-	AsciiCode.NUL,      // HF: Hangul Filler
-	AsciiCodeCombo.ss,  // ㅥ
-	AsciiCodeCombo.se,  // ㅦ
-	AsciiCodeCombo.st,  // ㅧ
-	AsciiCode.NUL,      // ㅨ
-	AsciiCodeCombo.frt, // ㅩ
-	AsciiCodeCombo.fe,  // ㅪ
-	AsciiCodeCombo.fqt, // ㅫ
-	AsciiCode.NUL,      // ㅬ
-	AsciiCodeCombo.fg,  // ㅭ
-	AsciiCodeCombo.aq,  // ㅮ
-	AsciiCodeCombo.at,  // ㅯ
-	AsciiCode.NUL,      // ㅰ
-	AsciiCode.NUL,      // ㅱ
-	AsciiCodeCombo.qr,  // ㅲ
-	AsciiCodeCombo.qe,  // ㅳ
-	AsciiCodeCombo.qtr, // ㅴ
-	AsciiCodeCombo.qte, // ㅵ
-	AsciiCodeCombo.qw,  // ㅶ
-	AsciiCodeCombo.qx,  // ㅷ
-	AsciiCode.NUL,      // ㅸ
-	AsciiCode.NUL,      // ㅹ
-	AsciiCodeCombo.tr,  // ㅺ
-	AsciiCodeCombo.ts,  // ㅻ
-	AsciiCodeCombo.te,  // ㅼ
-	AsciiCodeCombo.tq,  // ㅽ
-	AsciiCodeCombo.tw,  // ㅾ
-	AsciiCode.NUL,      // ㅿ
-	AsciiCodeCombo.dd,  // ㆀ
-	AsciiCode.NUL,      // ㆁ
-	AsciiCode.NUL,      // ㆂ
-	AsciiCode.NUL,      // ㆃ
-	AsciiCode.NUL,      // ㆄ
-	AsciiCodeCombo.gg,  // ㆅ
-	AsciiCode.NUL,      // ㆆ
-	AsciiCodeCombo.yi,  // ㆇ
-	AsciiCodeCombo.yO,  // ㆈ
-	AsciiCodeCombo.yl,  // ㆉ
-	AsciiCodeCombo.yu,  // ㆊ
-	AsciiCodeCombo.yP,  // ㆋ
-	AsciiCodeCombo.yl,  // ㆌ
-	AsciiCode.NUL,      // ㆍ
-	AsciiCode.NUL,      // ㆎ
+	// HF: Hangul Filler (everything after this is archaic)
+	// ㅥ
+	// ㅦ
+	// ㅧ
+	// ㅨ
+	// ㅩ
+	// ㅪ
+	// ㅫ
+	// ㅬ
+	// ㅮ
+	// ㅯ
+	// ㅰ
+	// ㅱ
+	// ㅲ
+	// ㅳ
+	// ㅴ
+	// ㅵ
+	// ㅶ
+	// ㅷ
+	// ㅸ
+	// ㅹ
+	// ㅺ
+	// ㅻ
+	// ㅼ
+	// ㅽ
+	// ㅾ
+	// ㅿ
+	// ㆀ
+	// ㆁ
+	// ㆂ
+	// ㆃ
+	// ㆄ
+	// ㆅ
+	// ㆆ
+	// ㆇ
+	// ㆈ
+	// ㆉ
+	// ㆊ
+	// ㆋ
+	// ㆌ
+	// ㆍ
+	// ㆎ
 ]);
