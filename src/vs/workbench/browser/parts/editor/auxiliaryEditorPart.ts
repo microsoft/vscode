@@ -134,14 +134,15 @@ export class AuxiliaryEditorPart {
 
 		// Layout
 		disposables.add(auxiliaryWindow.onDidLayout(dimension => {
+			const titlebarPartHeight = titlebarPart?.height ?? 0;
 			if (titlebarPart) {
-				titlebarPart.layout(dimension.width, titlebarPart.height, 0, 0);
+				titlebarPart.layout(dimension.width, titlebarPartHeight, 0, 0);
 			}
 
 			const editorPartHeight = dimension.height - computeEditorPartHeightOffset();
-			editorPart.layout(dimension.width, editorPartHeight, titlebarPart?.height ?? 0, 0);
+			editorPart.layout(dimension.width, editorPartHeight, titlebarPartHeight, 0);
 
-			statusbarPart.layout(dimension.width, statusbarPart.height, dimension.height - computeEditorPartHeightOffset(), 0);
+			statusbarPart.layout(dimension.width, statusbarPart.height, dimension.height - statusbarPart.height, 0);
 		}));
 		auxiliaryWindow.layout();
 
