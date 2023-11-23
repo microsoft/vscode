@@ -321,8 +321,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height });
-		this._editors.modified.layout({ width: modifiedWidth, height });
+		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height }, true);
+		this._editors.modified.layout({ width: modifiedWidth, height }, true);
 
 		return {
 			modifiedEditor: this._editors.modified.getLayoutInfo(),
