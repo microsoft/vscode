@@ -1817,9 +1817,16 @@ class SCMInputWidgetButtonAction extends Action {
 
 	constructor(
 		private readonly input: ISCMInput,
-		private readonly provider: ISCMInputValueProvider
+		private readonly provider: ISCMInputValueProvider,
+		readonly repository: ISCMRepository
 	) {
-		super(SCMInputCommandId.ProvideValue, provider.label, ThemeIcon.isThemeIcon(provider.icon) ? ThemeIcon.asClassName(provider.icon) : ThemeIcon.asClassName(Codicon.sparkle));
+		super(
+			SCMInputCommandId.ProvideValue,
+			provider.label,
+			ThemeIcon.isThemeIcon(provider.icon) ? ThemeIcon.asClassName(provider.icon) : ThemeIcon.asClassName(Codicon.sparkle),
+			repository.provider.groups.some(g => g.resources.length > 0));
+
+		this._register(repository.provider.onDidChangeResources(() => this.enabled = repository.provider.groups.some(g => g.resources.length > 0)));
 	}
 
 	override async run(context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<void> {
@@ -1834,7 +1841,7 @@ class SCMInputWidgetButtonAction extends Action {
 
 class SCMInputWidgetButtonActionViewItem extends ActionViewItem {
 
-	constructor(action: IAction, actionRunner: SCMInputWidgetActionRunner, repository: ISCMRepository) {
+	constructor(action: IAction, actionRunner: SCMInputWidgetActionRunner) {
 		super(undefined, action, { icon: true, label: false });
 
 		this.actionRunner = actionRunner;
@@ -1842,11 +1849,6 @@ class SCMInputWidgetButtonActionViewItem extends ActionViewItem {
 		this._register(Event.any(actionRunner.onWillRun, actionRunner.onDidRun)(() => {
 			this.updateTooltip();
 			this.updateClass();
-		}));
-
-		this._register(repository.provider.onDidChangeResources(() => {
-			action.enabled = repository.provider.groups.some(g => g.resources.length > 0);
-			this.updateEnabled();
 		}));
 	}
 
@@ -2082,7 +2084,7 @@ class SCMInputWidget {
 			actionViewItemProvider: action => {
 				// Button (single provider)
 				if (action instanceof SCMInputWidgetButtonAction) {
-					return this.instantiationService.createInstance(SCMInputWidgetButtonActionViewItem, action, actionRunner, input.repository);
+					return this.instantiationService.createInstance(SCMInputWidgetButtonActionViewItem, action, actionRunner);
 				}
 
 				return createActionViewItem(this.instantiationService, action);
@@ -2094,7 +2096,7 @@ class SCMInputWidget {
 		const updateToolbar = () => {
 			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
 			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
-			toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider)] : []);
+			toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider, input.repository)] : []);
 
 			this.toolbarContainer.classList.toggle('hidden', !showInputActionButton || defaultProvider === undefined);
 			this.layout();
