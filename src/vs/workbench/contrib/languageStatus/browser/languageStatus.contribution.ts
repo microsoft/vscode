@@ -31,7 +31,6 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { mainWindow } from 'vs/base/browser/window';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
@@ -227,8 +226,9 @@ class LanguageStatus {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = mainWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
-			const container = mainWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
+			const targetWindow = dom.getWindow(editor?.getContainerDomNode());
+			const node = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
 			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';
@@ -248,10 +248,10 @@ class LanguageStatus {
 			// track when the hover shows (this is automagic and DOM mutation spying is needed...)
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
-				const hoverTarget = mainWindow.document.querySelector('.monaco-workbench .context-view');
+				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
 				if (hoverTarget instanceof HTMLElement) {
 					const observer = new MutationObserver(() => {
-						if (mainWindow.document.contains(element)) {
+						if (targetWindow.document.contains(element)) {
 							this._interactionCounter.increment();
 							observer.disconnect();
 						}
