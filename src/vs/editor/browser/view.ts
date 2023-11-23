@@ -8,7 +8,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { IVisibleRangeProvider, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
@@ -720,13 +720,23 @@ class EditorRenderingCoordinator {
 	scheduleCoordinatedRendering(rendering: ICoordinatedRendering): IDisposable {
 		this._coordinatedRenderings.push(rendering);
 		this._scheduleRender(rendering.window);
-		return toDisposable(() => {
-			const renderingIndex = this._coordinatedRenderings.indexOf(rendering);
-			if (renderingIndex === -1) {
-				return;
+		return {
+			dispose: () => {
+				const renderingIndex = this._coordinatedRenderings.indexOf(rendering);
+				if (renderingIndex === -1) {
+					return;
+				}
+				this._coordinatedRenderings.splice(renderingIndex, 1);
+
+				if (this._coordinatedRenderings.length === 0) {
+					// There are no more renderings to coordinate => cancel animation frame
+					if (this._animationFrameRunner !== null) {
+						this._animationFrameRunner.dispose();
+						this._animationFrameRunner = null;
+					}
+				}
 			}
-			this._coordinatedRenderings.splice(renderingIndex, 1);
-		});
+		};
 	}
 
 	private _scheduleRender(window: CodeWindow): void {
