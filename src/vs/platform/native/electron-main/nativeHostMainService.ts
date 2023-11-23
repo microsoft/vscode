@@ -77,10 +77,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Events
 
 	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
-	readonly onDidTriggerMainWindowSystemContextMenu = Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidTriggerWindowSystemContextMenu = Event.any(
+		Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId)),
+		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+	);
 
-	readonly onDidMaximizeMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidUnmaximizeMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId) || !!this.auxiliaryWindowsMainService.getWindowById(windowId));
+	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId) || !!this.auxiliaryWindowsMainService.getWindowById(windowId));
 
 	readonly onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 	readonly onDidFocusMainWindow = Event.any(
@@ -202,8 +205,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.toggleFullScreen();
 	}
 
-	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
+	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.handleTitleDoubleClick();
 	}
 
@@ -214,41 +217,29 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return { point, display: display.bounds };
 	}
 
-	async isMaximized(windowId: number | undefined): Promise<boolean> {
-		const window = this.codeWindowById(windowId);
-		if (window?.win) {
-			return window.win.isMaximized();
-		}
-
-		return false;
+	async isMaximized(windowId: number | undefined, options?: INativeOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.isMaximized() ?? false;
 	}
 
-	async maximizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
-		if (window?.win) {
-			window.win.maximize();
-		}
+	async maximizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.maximize();
 	}
 
-	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
-		if (window?.win) {
-			window.win.unmaximize();
-		}
+	async unmaximizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.unmaximize();
 	}
 
-	async minimizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
-		if (window?.win) {
-			window.win.minimize();
-		}
+	async minimizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.minimize();
 	}
 
 	async moveWindowTop(windowId: number | undefined, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		if (window?.win) {
-			window.win.moveTop();
-		}
+		window?.win?.moveTop();
 	}
 
 	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeOptions): Promise<void> {
@@ -264,11 +255,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
-		const window = this.codeWindowById(windowId);
-		if (window) {
-			window.updateWindowControls(options);
-		}
+	async updateWindowControls(windowId: number | undefined, options: INativeOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.updateWindowControls(options);
 	}
 
 	async focusWindow(windowId: number | undefined, options?: INativeOptions & { force?: boolean }): Promise<void> {
@@ -539,6 +528,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isLinux || isWindows) {
 			return false;
 		}
+
 		return app.runningUnderARM64Translation;
 	}
 
@@ -724,12 +714,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async closeWindow(windowId: number | undefined): Promise<void> {
-		this.closeWindowById(windowId, windowId);
-	}
-
-	async closeWindowById(windowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
-		const window = this.windowById(targetWindowId) ?? this.codeWindowById(targetWindowId);
+	async closeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.win?.close();
 	}
 

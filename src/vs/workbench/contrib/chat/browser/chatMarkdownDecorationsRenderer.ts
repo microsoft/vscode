@@ -12,7 +12,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
@@ -69,8 +69,8 @@ export function extractVulnerabilitiesFromText(text: string): { newText: string;
 	const vulnerabilities: IMarkdownVulnerability[] = [];
 	let newText = text;
 	let match: RegExpExecArray | null;
-	while ((match = /<vscode_annotation title="(.*?)" description="(.*?)">(.*?)<\/vscode_annotation>/ms.exec(newText)) !== null) {
-		const [full, title, description, content] = match;
+	while ((match = /<vscode_annotation details="(.*?)">(.*?)<\/vscode_annotation>/ms.exec(newText)) !== null) {
+		const [full, details, content] = match;
 		const start = match.index;
 		const textBefore = newText.substring(0, start);
 		const linesBefore = textBefore.split('\n').length - 1;
@@ -81,7 +81,16 @@ export function extractVulnerabilitiesFromText(text: string): { newText: string;
 		const endPreviousNewlineIdx = (textBefore + content).lastIndexOf('\n');
 		const endColumn = start + content.length - (endPreviousNewlineIdx + 1) + 1;
 
-		vulnerabilities.push({ title: decodeURIComponent(title), description: decodeURIComponent(description), range: { startLineNumber: linesBefore + 1, startColumn, endLineNumber: linesBefore + linesInside + 1, endColumn } });
+		try {
+			const vulnDetails: IChatAgentVulnerabilityDetails[] = JSON.parse(decodeURIComponent(details));
+			vulnDetails.forEach(({ title, description }) =>
+				vulnerabilities.push({
+					title, description, range:
+						{ startLineNumber: linesBefore + 1, startColumn, endLineNumber: linesBefore + linesInside + 1, endColumn }
+				}));
+		} catch (err) {
+			// Something went wrong with encoding this text, just ignore it
+		}
 		newText = newText.substring(0, start) + content + newText.substring(start + full.length);
 	}
 
@@ -106,7 +115,8 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
 			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 		} else if (item.kind === 'markdownVuln') {
-			const markdownText = `<vscode_annotation title="${encodeURIComponent(item.title)}" description="${encodeURIComponent(item.description)}">${item.content.value}</vscode_annotation>`;
+			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
+			const markdownText = `<vscode_annotation details="${vulnText}">${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
 				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
 			} else {

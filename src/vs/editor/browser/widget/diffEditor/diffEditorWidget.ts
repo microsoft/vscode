@@ -8,7 +8,7 @@ import { findLast } from 'vs/base/common/arraysFind';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -86,7 +86,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _editors: DiffEditorEditors;
 
 	private readonly _overviewRulerPart: IObservable<OverviewRulerPart | undefined>;
-	private readonly movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>(this, undefined);
+	private readonly _movedBlocksLinesPart = observableValue<MovedBlocksLinesPart | undefined>(this, undefined);
 
 	public get collapseUnchangedRegions() { return this._options.hideUnchangedRegions.get(); }
 
@@ -111,7 +111,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
 
-		this._options = new DiffEditorOptions(options, this._rootSizeObserver.width);
+		this._options = new DiffEditorOptions(options);
+		this._register(autorun(reader => {
+			this._options.setWidth(this._rootSizeObserver.width.read(reader));
+		}));
 
 		this._contextKeyService.createKey(EditorContextKeys.isEmbeddedDiffEditor.key, false);
 		this._register(bindContextKey(EditorContextKeys.isEmbeddedDiffEditor, this._contextKeyService,
@@ -250,7 +253,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			)
 		).recomputeInitiallyAndOnChange(this._store, value => {
 			// This is to break the layout info <-> moved blocks lines part dependency cycle.
-			this.movedBlocksLinesPart.set(value, undefined);
+			this._movedBlocksLinesPart.set(value, undefined);
 		});
 
 		this._register(applyStyle(this.elements.overlay, {
@@ -310,7 +313,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const originalWidth = sashLeft ?? Math.max(5, this._editors.original.getLayoutInfo().decorationsLeft);
 		const modifiedWidth = width - originalWidth - (this._overviewRulerPart.read(reader)?.width ?? 0);
 
-		const movedBlocksLinesWidth = this.movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+		const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
 		const originalWidthWithoutMovedBlockLines = originalWidth - movedBlocksLinesWidth;
 		this.elements.original.style.width = originalWidthWithoutMovedBlockLines + 'px';
 		this.elements.original.style.left = '0px';
@@ -386,7 +389,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	}
 
 	public createViewModel(model: IDiffEditorModel): IDiffEditorViewModel {
-		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options, this);
+		return this._instantiationService.createInstance(DiffEditorViewModel, model, this._options);
 	}
 
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
@@ -467,6 +470,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	revert(diff: DetailedLineRangeMapping): void {
 		if (diff.innerChanges) {
 			this.revertRangeMappings(diff.innerChanges);
+			return;
 		}
 
 		const model = this._diffModel.get()?.model;

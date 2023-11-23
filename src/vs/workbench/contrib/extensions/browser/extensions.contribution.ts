@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension, extensionsSearchActionsMenu } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, SkipUpdateAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -35,7 +35,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
@@ -1297,6 +1297,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
 			}
 		});
+
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showReleasedVersion',
 			title: { value: localize('show released version', "Show Release Version"), original: 'Show Release Version' },
@@ -1312,6 +1313,30 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
 			}
 		});
+
+		this.registerExtensionAction({
+			id: SkipUpdateAction.ID,
+			title: { value: SkipUpdateAction.LABEL, original: 'Ignore Updates' },
+			category: ExtensionsLocalizedLabel,
+			toggled: ContextKeyDefinedExpr.create('isExtensionPinned'),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: INSTALL_ACTIONS_GROUP,
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
+				if (extension) {
+					const action = instantiationService.createInstance(SkipUpdateAction);
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
 		this.registerExtensionAction({
 			id: SwitchToPreReleaseVersionAction.ID,
 			title: SwitchToPreReleaseVersionAction.TITLE,
@@ -1330,6 +1355,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
 		this.registerExtensionAction({
 			id: SwitchToReleasedVersionAction.ID,
 			title: SwitchToReleasedVersionAction.TITLE,
@@ -1348,6 +1374,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
 		this.registerExtensionAction({
 			id: ClearLanguageAction.ID,
 			title: ClearLanguageAction.TITLE,

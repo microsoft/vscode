@@ -21,7 +21,7 @@ suite('ChatMarkdownDecorationsRenderer', function () {
 			const before = 'some code ';
 			const vulnContent = 'content with vuln';
 			const after = ' after';
-			const annotatedResult = annotateSpecialMarkdownContent([content(before), { kind: 'markdownVuln', content: new MarkdownString(vulnContent), title: 'title', description: 'vuln' }, content(after)]);
+			const annotatedResult = annotateSpecialMarkdownContent([content(before), { kind: 'markdownVuln', content: new MarkdownString(vulnContent), vulnerabilities: [{ title: 'title', description: 'vuln' }] }, content(after)]);
 			await assertSnapshot(annotatedResult);
 
 			const markdown = annotatedResult[0] as IChatMarkdownContent;
@@ -33,7 +33,7 @@ suite('ChatMarkdownDecorationsRenderer', function () {
 			const before = 'some code\nover\nmultiple lines ';
 			const vulnContent = 'content with vuln\nand\nnewlines';
 			const after = 'more code\nwith newline';
-			const annotatedResult = annotateSpecialMarkdownContent([content(before), { kind: 'markdownVuln', content: new MarkdownString(vulnContent), title: 'title', description: 'vuln' }, content(after)]);
+			const annotatedResult = annotateSpecialMarkdownContent([content(before), { kind: 'markdownVuln', content: new MarkdownString(vulnContent), vulnerabilities: [{ title: 'title', description: 'vuln' }] }, content(after)]);
 			await assertSnapshot(annotatedResult);
 
 			const markdown = annotatedResult[0] as IChatMarkdownContent;
@@ -47,9 +47,9 @@ suite('ChatMarkdownDecorationsRenderer', function () {
 			const after = 'more code\nwith newline';
 			const annotatedResult = annotateSpecialMarkdownContent([
 				content(before),
-				{ kind: 'markdownVuln', content: new MarkdownString(vulnContent), title: 'title', description: 'vuln' },
+				{ kind: 'markdownVuln', content: new MarkdownString(vulnContent), vulnerabilities: [{ title: 'title', description: 'vuln' }] },
 				content(after),
-				{ kind: 'markdownVuln', content: new MarkdownString(vulnContent), title: 'title', description: 'vuln' },
+				{ kind: 'markdownVuln', content: new MarkdownString(vulnContent), vulnerabilities: [{ title: 'title', description: 'vuln' }] },
 			]);
 			await assertSnapshot(annotatedResult);
 

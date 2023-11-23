@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { Event } from 'vs/base/common/event';
 import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -13,6 +14,8 @@ export const IAuxiliaryWindowsMainService = createDecorator<IAuxiliaryWindowsMai
 export interface IAuxiliaryWindowsMainService {
 
 	readonly _serviceBrand: undefined;
+
+	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: IAuxiliaryWindow; readonly x: number; readonly y: number }>;
 
 	createWindow(): BrowserWindowConstructorOptions;
 	registerWindow(webContents: WebContents): void;

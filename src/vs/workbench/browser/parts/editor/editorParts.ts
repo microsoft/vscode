@@ -5,18 +5,17 @@
 
 import { localize } from 'vs/nls';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { distinct } from 'vs/base/common/arrays';
+import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -25,9 +24,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	readonly mainPart = this._register(this.createMainEditorPart());
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -44,41 +41,15 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
 
 	async createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart> {
-		const disposables = new DisposableStore();
+		const { part, disposables } = await this.instantiationService.createInstance(AuxiliaryEditorPart, this).create(this.getGroupsLabel(this._parts.size), options);
 
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
-
-		const partContainer = document.createElement('div');
-		partContainer.classList.add('part', 'editor');
-		partContainer.setAttribute('role', 'main');
-		auxiliaryWindow.container.appendChild(partContainer);
-
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, auxiliaryWindow.window.vscodeWindowId, this, this.getGroupsLabel(this._parts.size)));
-		disposables.add(this.registerEditorPart(editorPart));
-		editorPart.create(partContainer, { restorePreviousState: false });
-		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
-
-		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
-		disposables.add(Event.once(auxiliaryWindow.onWillClose)(() => {
-			if (disposables.isDisposed) {
-				return; // the close happened as part of an earlier dispose call
-			}
-
-			editorCloseListener.dispose();
-			editorPart.close();
-			disposables.dispose();
-		}));
-		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
-
-		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
-		auxiliaryWindow.layout();
-
-		this._onDidAddGroup.fire(editorPart.activeGroup);
+		// Events
+		this._onDidAddGroup.fire(part.activeGroup);
 
 		const eventDisposables = disposables.add(new DisposableStore());
-		this._onDidCreateAuxiliaryEditorPart.fire({ part: editorPart, disposables: eventDisposables });
+		this._onDidCreateAuxiliaryEditorPart.fire({ part, disposables: eventDisposables });
 
-		return editorPart;
+		return part;
 	}
 
 	//#endregion
@@ -88,7 +59,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	private readonly _parts = new Set<EditorPart>();
 	get parts() { return Array.from(this._parts); }
 
-	private registerEditorPart(part: EditorPart): IDisposable {
+	registerEditorPart(part: EditorPart): IDisposable {
 		this._parts.add(part);
 
 		const disposables = this._register(new DisposableStore());

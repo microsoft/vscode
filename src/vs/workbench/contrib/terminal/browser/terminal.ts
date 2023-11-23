@@ -846,15 +846,14 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * process (shell) of the terminal instance.
 	 *
 	 * @param text The text to send.
-	 * @param addNewLine Whether to add a new line to the text being sent, this is normally required
-	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
-	 * platform. This defaults to `true`.
+	 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+	 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 	 * @param bracketedPasteMode Whether to wrap the text in the bracketed paste mode sequence when
 	 * it's enabled. When true, the shell will treat the text as if it were pasted into the shell,
 	 * this may for example select the text and it will also ensure that the text will not be
 	 * interpreted as a shell keybinding.
 	 */
-	sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void>;
+	sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void>;
 
 	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
@@ -862,13 +861,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * (shell) of the terminal instance.
 	 *
 	 * @param originalPath The path to send.
-	 * @param addNewLine Whether to add a new line to the path being sent, this is normally required
-	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
-	 * platform. This defaults to `true`.
+	 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+	 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 	 */
-	sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void>;
+	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, addNewLine?: boolean): void;
+	runCommand(command: string, shouldExecute?: boolean): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this

@@ -8,6 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IStateService } from 'vs/platform/state/node/state';
 import { IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
@@ -23,13 +24,12 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	readonly id = this.contents.id;
 	parentId = -1;
 
-	private _win: BrowserWindow | null = null;
-	get win() {
-		if (!this._win) {
+	override get win() {
+		if (!super.win) {
 			this.tryClaimWindow();
 		}
 
-		return this._win;
+		return super.win;
 	}
 
 	private _lastFocusTime = Date.now(); // window is shown on creation so take current time
@@ -39,9 +39,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		private readonly contents: WebContents,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStateService stateService: IStateService
 	) {
-		super(configurationService);
+		super(configurationService, stateService);
 
 		this.create();
 	}
@@ -70,7 +71,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		if (window) {
 			this.logService.trace('[aux window] Claimed browser window instance');
 
-			this._win = window;
+			// Remember
+			this.setWin(window);
 
 			// Disable Menu
 			window.setMenu(null);

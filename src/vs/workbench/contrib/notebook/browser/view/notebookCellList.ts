@@ -830,7 +830,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
-		const firstIndex = this.view.firstVisibleIndex;
+		const firstIndex = this.view.firstMostlyVisibleIndex;
 		const elementHeight = this.view.elementHeight(viewIndex);
 
 		if (viewIndex <= firstIndex || (!firstLine && elementHeight >= this.view.renderHeight)) {

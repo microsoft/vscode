@@ -588,9 +588,10 @@ export class InlineChatWidget {
 	updateChatMessage(message: IInlineChatMessage | undefined): void;
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean): IInlineChatMessageAppender | undefined {
 		this._chatMessageDisposables.clear();
-		this._elements.chatMessage.classList.toggle('hidden', !message);
+		const hasMessage = message?.message.value;
+		this._elements.chatMessage.classList.toggle('hidden', !hasMessage);
 		reset(this._elements.chatMessageContent);
-		if (message) {
+		if (hasMessage) {
 			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService));
 			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, message.requestId, !isIncomplete, false, undefined));
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
