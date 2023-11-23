@@ -1046,12 +1046,12 @@ export class Emitter<T> {
 			let stack: Stacktrace | undefined;
 			if (this._leakageMon && this._size >= Math.ceil(this._leakageMon.threshold * 0.2)) {
 				// check and record this emitter for potential leakage
-				contained.stack = Stacktrace.create();
-				removeMonitor = this._leakageMon.check(contained.stack, this._size + 1);
+				// contained.stack = Stacktrace.create();
+				// removeMonitor = this._leakageMon.check(contained.stack, this._size + 1);
 			}
 
 			if (_enableDisposeWithListenerWarning) {
-				contained.stack = stack ?? Stacktrace.create();
+				// contained.stack = stack ?? Stacktrace.create();
 			}
 
 			if (!this._listeners) {

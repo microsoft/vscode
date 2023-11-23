@@ -199,6 +199,7 @@ class ExtensionWorker {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				if (!terminating) {
+					// TODO: do it with setimmediate or something?
 					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
 					channel.port1.postMessage(data, [data]);
 				}

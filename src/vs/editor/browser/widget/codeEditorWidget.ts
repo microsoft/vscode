@@ -1419,7 +1419,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public layout(dimension?: IDimension): void {
 		this._configuration.observeContainer(dimension);
-		this.render();
+		// this.render();
 	}
 
 	public focus(): void {

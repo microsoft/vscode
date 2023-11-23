@@ -714,14 +714,14 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _layout(): void {
+		// this._updateMaxDimensions();
+	}
+
+	private _updateFont(): void {
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._updateMaxDimensions();
-	}
-
-	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}

@@ -121,16 +121,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			const totalHeight = this._totalHeight.read(reader);
 			this._elements.content.style.height = `${totalHeight}px`;
 
-			let scrollWidth = _element.clientWidth;
+			let scrollWidth = this._sizeObserver.width.read(reader);
 			const viewItems = this._viewItems.read(reader);
 			const max = findFirstMaxBy(viewItems, i => i.maxScroll.read(reader).maxScroll);
 			if (max) {
 				const maxScroll = max.maxScroll.read(reader);
-				scrollWidth = _element.clientWidth + maxScroll.maxScroll;
+				scrollWidth = this._sizeObserver.width.read(reader) + maxScroll.maxScroll;
 			}
 
 			this._scrollableElement.setScrollDimensions({
-				width: _element.clientWidth,
+				width: this._sizeObserver.width.read(reader),
 				height: height,
 				scrollHeight: totalHeight,
 				scrollWidth,
