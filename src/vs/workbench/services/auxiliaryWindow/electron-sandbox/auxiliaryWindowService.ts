@@ -47,7 +47,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
 			this.skipUnloadConfirmation = true;
-			this.nativeHostService.closeWindowById(this.window.vscodeWindowId);
+			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
 		}
 	}
 }

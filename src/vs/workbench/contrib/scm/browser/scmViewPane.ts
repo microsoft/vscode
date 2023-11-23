@@ -1732,7 +1732,7 @@ class HistoryItemViewChangesAction extends Action2 {
 		super({
 			id: `workbench.scm.action.historyItemViewChanges`,
 			title: localize('historyItemViewChanges', "View Changes"),
-			icon: Codicon.search,
+			icon: Codicon.tasklist,
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryItem,
@@ -3144,7 +3144,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		let historyItemGroupDetails = historyProviderCacheEntry?.historyItemGroupDetails;
 
 		if (!historyItemGroupDetails) {
-			historyItemGroupDetails = await historyProvider.resolveHistoryItemGroup(currentHistoryItemGroup);
+			historyItemGroupDetails = await historyProvider.resolveHistoryItemGroupDetails(currentHistoryItemGroup);
 			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
 				historyItemGroupDetails

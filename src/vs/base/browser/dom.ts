@@ -24,7 +24,7 @@ export interface IRegisteredCodeWindow {
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+export const { registerWindow, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
@@ -72,6 +72,12 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 		},
 		getWindowId(targetWindow: Window): number {
 			return (targetWindow as CodeWindow).vscodeWindowId;
+		},
+		hasWindow(windowId: number): boolean {
+			return windows.has(windowId);
+		},
+		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
+			return windows.get(windowId);
 		}
 	};
 })();

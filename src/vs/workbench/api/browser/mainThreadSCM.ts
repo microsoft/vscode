@@ -161,7 +161,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
+	async resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
 		// History item group base
 		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
 
@@ -175,7 +175,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			incoming = {
 				id: historyItemGroupBase.id,
 				label: historyItemGroupBase.label,
-				icon: Codicon.cloudDownload,
+				icon: Codicon.arrowCircleDown,
 				ancestor: ancestor?.id,
 				count: ancestor?.behind ?? 0,
 			};
@@ -185,7 +185,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
-			icon: Codicon.cloudUpload,
+			icon: Codicon.arrowCircleUp,
 			ancestor: ancestor?.id,
 			count: ancestor?.ahead ?? 0,
 		};

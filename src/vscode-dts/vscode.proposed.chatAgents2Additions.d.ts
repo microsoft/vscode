@@ -48,6 +48,27 @@ declare module 'vscode' {
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
 
+	export interface ChatAgent2 {
+		/**
+		 * Provide a set of variables that can only be used with this agent.
+		 */
+		agentVariableProvider?: { provider: ChatAgentCompletionItemProvider; triggerCharacters: string[] };
+	}
+
+	export interface ChatAgentCompletionItemProvider {
+		provideCompletionItems(query: string, token: CancellationToken): ProviderResult<ChatAgentCompletionItem[]>;
+	}
+
+	export class ChatAgentCompletionItem {
+		label: string | CompletionItemLabel;
+		values: ChatVariableValue[];
+		insertText?: string;
+		detail?: string;
+		documentation?: string | MarkdownString;
+
+		constructor(label: string | CompletionItemLabel, values: ChatVariableValue[]);
+	}
+
 	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentExtendedProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {

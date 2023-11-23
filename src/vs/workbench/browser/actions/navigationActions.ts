@@ -17,6 +17,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { mainWindow } from 'vs/base/browser/window';
 
 abstract class BaseNavigationAction extends Action2 {
 
@@ -274,7 +275,7 @@ abstract class BaseFocusAction extends Action2 {
 				neighbour = Parts.EDITOR_PART;
 		}
 
-		if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
+		if (layoutService.isVisible(neighbour, mainWindow) || neighbour === Parts.EDITOR_PART) {
 			return neighbour;
 		}
 
@@ -295,7 +296,7 @@ abstract class BaseFocusAction extends Action2 {
 			currentlyFocusedPart = Parts.PANEL_PART;
 		}
 
-		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART);
+		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART, mainWindow);
 	}
 }
 

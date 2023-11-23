@@ -96,6 +96,8 @@ export function setDefaultGetWordAtTextConfig(value: IGetWordAtTextConfig) {
 }
 
 export function getWordAtText(column: number, wordDefinition: RegExp, text: string, textOffset: number, config?: IGetWordAtTextConfig): IWordAtPosition | null {
+	// Ensure the regex has the 'g' flag, otherwise this will loop forever
+	wordDefinition = ensureValidWordDefinition(wordDefinition);
 
 	if (!config) {
 		config = Iterable.first(_defaultConfig)!;

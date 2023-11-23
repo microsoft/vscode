@@ -1177,9 +1177,19 @@ export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
+	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
+	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, responsePartHandle?: number): Promise<number | void>;
+}
+
+export interface IChatAgentCompletionItem {
+	insertText?: string;
+	label: string | languages.CompletionItemLabel;
+	values: IChatRequestVariableValue[];
+	detail?: string;
+	documentation?: string | IMarkdownString;
 }
 
 export interface ExtHostChatAgentsShape2 {
@@ -1188,6 +1198,7 @@ export interface ExtHostChatAgentsShape2 {
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
+	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$releaseSession(sessionId: string): void;
 }
 
