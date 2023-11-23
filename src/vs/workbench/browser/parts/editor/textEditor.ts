@@ -156,13 +156,11 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
-		const editorOptionsOverrideRaw = this.textResourceConfigurationService.getValue<ICodeEditorOptions>(this.getActiveResource(), 'editor');
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: editorOptionsOverrideRaw.renderValidationDecorations // Originally defaulted 'on': render problems even in readonly editors (https://github.com/microsoft/vscode/issues/89057)
+			...this.getReadonlyConfiguration(this.input?.isReadonly())
 		};
 	}
 
