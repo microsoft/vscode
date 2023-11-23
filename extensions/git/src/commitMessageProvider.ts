@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, SourceControlInputBoxActionButton, ThemeIcon, l10n } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, ThemeIcon, l10n, SourceControlInputBoxActionButton } from 'vscode';
 import { CommitMessageProvider, Status, Repository as ApiRepository } from './api/git';
 import { Repository } from './repository';
 import { dispose } from './util';
