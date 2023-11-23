@@ -1887,7 +1887,6 @@ class SCMInputWidget {
 	private inputEditor: CodeEditorWidget;
 	private toolbarContainer: HTMLElement;
 	private actionBar: ActionBar;
-	// private toolbar: WorkbenchToolBar;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
