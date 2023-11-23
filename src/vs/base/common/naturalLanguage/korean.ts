@@ -14,6 +14,7 @@
  * @param code The character code to get alternate characters for
  */
 export function getKoreanAltChars(code: number): ArrayLike<number> | undefined {
+	// TODO: Show cut by checking ranges first
 	const result = disassembleKorean(code);
 	if (result && result.length > 0) {
 		return new Uint32Array(result);
@@ -56,9 +57,9 @@ function disassembleKorean(code: number): Uint32Array | undefined {
 		const initialConsonantIndex = Math.floor(hangulIndex / 588);
 		// 0-based starting at 0x1161
 		const vowelIndex = Math.floor(vowelAndFinalConsonantProduct / 28);
-		// TODO: Include initial in data array to avoid confusion
-		// 0-based starting at 0x11A7
-		// Subtract 1 to skip initial null final consonant
+		// 0-based starting at 0x11A8
+		// Subtract 1 as the standard algorithm uses the 0 index to represent no
+		// final consonant
 		const finalConsonantIndex = vowelAndFinalConsonantProduct % 28 - 1;
 
 		if (initialConsonantIndex < modernConsonants.length) {
@@ -172,51 +173,50 @@ const enum AsciiCode {
  * bundle and runtime overhead.
  */
 const enum AsciiCodeCombo {
-	hk = AsciiCode.h << 8 | AsciiCode.k,
-	ho = AsciiCode.h << 8 | AsciiCode.o,
-	hl = AsciiCode.h << 8 | AsciiCode.l,
-	nj = AsciiCode.n << 8 | AsciiCode.j,
-	np = AsciiCode.n << 8 | AsciiCode.p,
-	nl = AsciiCode.n << 8 | AsciiCode.l,
-	ml = AsciiCode.m << 8 | AsciiCode.l,
-	rt = AsciiCode.r << 8 | AsciiCode.t,
-	sw = AsciiCode.s << 8 | AsciiCode.w,
-	sg = AsciiCode.s << 8 | AsciiCode.g,
-	fr = AsciiCode.f << 8 | AsciiCode.r,
-	fa = AsciiCode.f << 8 | AsciiCode.a,
-	fq = AsciiCode.f << 8 | AsciiCode.q,
-	ft = AsciiCode.f << 8 | AsciiCode.t,
-	fx = AsciiCode.f << 8 | AsciiCode.x,
-	fv = AsciiCode.f << 8 | AsciiCode.v,
-	fg = AsciiCode.f << 8 | AsciiCode.g,
-	qt = AsciiCode.q << 8 | AsciiCode.t,
-
-	ss = AsciiCode.s << 8 | AsciiCode.s,
-	se = AsciiCode.s << 8 | AsciiCode.e,
-	st = AsciiCode.s << 8 | AsciiCode.t,
-	frt = AsciiCode.f << 16 | AsciiCode.r << 8 | AsciiCode.t,
-	fe = AsciiCode.f << 8 | AsciiCode.e,
-	fqt = AsciiCode.f << 16 | AsciiCode.q << 8 | AsciiCode.t,
 	aq = AsciiCode.a << 8 | AsciiCode.q,
 	at = AsciiCode.a << 8 | AsciiCode.t,
-	qr = AsciiCode.q << 8 | AsciiCode.r,
+	dd = AsciiCode.d << 8 | AsciiCode.d,
+	fa = AsciiCode.f << 8 | AsciiCode.a,
+	fe = AsciiCode.f << 8 | AsciiCode.e,
+	fg = AsciiCode.f << 8 | AsciiCode.g,
+	fq = AsciiCode.f << 8 | AsciiCode.q,
+	fqt = AsciiCode.f << 16 | AsciiCode.q << 8 | AsciiCode.t,
+	fr = AsciiCode.f << 8 | AsciiCode.r,
+	frt = AsciiCode.f << 16 | AsciiCode.r << 8 | AsciiCode.t,
+	ft = AsciiCode.f << 8 | AsciiCode.t,
+	fv = AsciiCode.f << 8 | AsciiCode.v,
+	fx = AsciiCode.f << 8 | AsciiCode.x,
+	gg = AsciiCode.g << 8 | AsciiCode.g,
+	hk = AsciiCode.h << 8 | AsciiCode.k,
+	hl = AsciiCode.h << 8 | AsciiCode.l,
+	ho = AsciiCode.h << 8 | AsciiCode.o,
+	ml = AsciiCode.m << 8 | AsciiCode.l,
+	nj = AsciiCode.n << 8 | AsciiCode.j,
+	nl = AsciiCode.n << 8 | AsciiCode.l,
+	np = AsciiCode.n << 8 | AsciiCode.p,
 	qe = AsciiCode.q << 8 | AsciiCode.e,
-	qtr = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.r,
+	qr = AsciiCode.q << 8 | AsciiCode.r,
+	qt = AsciiCode.q << 8 | AsciiCode.t,
 	qte = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.e,
+	qtr = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.r,
 	qw = AsciiCode.q << 8 | AsciiCode.w,
 	qx = AsciiCode.q << 8 | AsciiCode.x,
-	tr = AsciiCode.t << 8 | AsciiCode.r,
-	ts = AsciiCode.t << 8 | AsciiCode.s,
+	rt = AsciiCode.r << 8 | AsciiCode.t,
+	se = AsciiCode.s << 8 | AsciiCode.e,
+	sg = AsciiCode.s << 8 | AsciiCode.g,
+	ss = AsciiCode.s << 8 | AsciiCode.s,
+	st = AsciiCode.s << 8 | AsciiCode.t,
+	sw = AsciiCode.s << 8 | AsciiCode.w,
 	te = AsciiCode.t << 8 | AsciiCode.e,
 	tq = AsciiCode.t << 8 | AsciiCode.q,
+	tr = AsciiCode.t << 8 | AsciiCode.r,
+	ts = AsciiCode.t << 8 | AsciiCode.s,
 	tw = AsciiCode.t << 8 | AsciiCode.w,
-	dd = AsciiCode.d << 8 | AsciiCode.d,
-	gg = AsciiCode.g << 8 | AsciiCode.g,
 	yi = AsciiCode.y << 8 | AsciiCode.i,
-	yO = AsciiCode.y << 8 | AsciiCode.O,
 	yl = AsciiCode.y << 8 | AsciiCode.l,
-	yu = AsciiCode.y << 8 | AsciiCode.u,
+	yO = AsciiCode.y << 8 | AsciiCode.O,
 	yP = AsciiCode.y << 8 | AsciiCode.P,
+	yu = AsciiCode.y << 8 | AsciiCode.u,
 }
 
 /**
@@ -288,7 +288,7 @@ const modernVowels = new Uint16Array([
 /**
  * Hangul Jamo - Modern Consonants #2
  *
- * Range U+11A9..U+11C2
+ * Range U+11A8..U+11C2
  *
  * |        | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |
  * |--------|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
