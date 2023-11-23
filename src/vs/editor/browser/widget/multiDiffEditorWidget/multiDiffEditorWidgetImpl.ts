@@ -63,8 +63,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		useShadows: false,
 	}, this._scrollable));
 
-	private readonly _scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
-	private readonly _scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
+	public readonly scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
+	public readonly scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
 
 	private readonly _viewItems = derivedWithStore<readonly VirtualizedViewItem[]>(this,
 		(reader, store) => {
@@ -73,7 +73,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return [];
 			}
 			const items = vm.items.read(reader);
-			return items.map(d => store.add(new VirtualizedViewItem(d, this._objectPool, this._scrollLeft)));
+			return items.map(d => store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft)));
 		}
 	);
 
@@ -150,8 +150,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		})));
 	}
 
+	public setScrollState(scrollState: { top?: number; left?: number }): void {
+		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	}
+
 	private render(reader: IReader | undefined) {
-		const scrollTop = this._scrollTop.read(reader);
+		const scrollTop = this.scrollTop.read(reader);
 		let contentScrollOffsetToScrollOffset = 0;
 		let itemHeightSumBefore = 0;
 		let itemContentHeightSumBefore = 0;

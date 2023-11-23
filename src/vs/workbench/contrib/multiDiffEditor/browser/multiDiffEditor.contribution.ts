@@ -51,9 +51,11 @@ class MultiDiffEditorResolverContribution extends Disposable {
 								return new MultiDiffEditorInputData(
 									resource.resource,
 									resource.original.resource,
-									resource.modified.resource
+									resource.modified.resource,
 								);
-							}))
+							}),
+							undefined,
+						),
 					};
 				}
 			}
@@ -72,13 +74,13 @@ class MultiDiffEditorSerializer implements IEditorSerializer {
 	}
 
 	serialize(editor: MultiDiffEditorInput): string | undefined {
-		return JSON.stringify({ label: editor.label, resources: editor.resources });
+		return JSON.stringify({ label: editor.label, resources: editor.resources, id: editor.id });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
-			const data = parse(serializedEditor) as { label: string | undefined; resources: MultiDiffEditorInputData[] };
-			return instantiationService.createInstance(MultiDiffEditorInput, data.label, data.resources);
+			const data = parse(serializedEditor) as { label: string | undefined; resources: MultiDiffEditorInputData[]; id: string };
+			return instantiationService.createInstance(MultiDiffEditorInput, data.label, data.resources, data.id);
 		} catch (err) {
 			onUnexpectedError(err);
 			return undefined;
