@@ -1642,13 +1642,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// this a little bit we try at least to schedule this work on the next animation frame
 				// when we have restored or when idle otherwise.
 
-				const layoutFunction = () => {
+				const disposable = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
-				};
-
-				const disposable = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
+				});
 				this.layoutScheduler.value = { options, dispose: () => disposable.dispose() };
 			}
 
