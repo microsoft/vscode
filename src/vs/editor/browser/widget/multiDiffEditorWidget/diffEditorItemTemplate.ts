@@ -199,6 +199,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		});
 	}
 
+	private readonly _headerHeight = this._elements.header.clientHeight;
+
 	public render(verticalRange: OffsetRange, width: number, editorScroll: number, viewPort: OffsetRange): void {
 		this._elements.root.style.visibility = 'visible';
 		this._elements.root.style.top = `${verticalRange.start}px`;
@@ -207,7 +209,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.position = 'absolute';
 
 		// For sticky scroll
-		const delta = Math.max(0, Math.min(verticalRange.length - this._elements.header.clientHeight, viewPort.start - verticalRange.start));
+		const delta = Math.max(0, Math.min(verticalRange.length - this._headerHeight, viewPort.start - verticalRange.start));
 		this._elements.header.style.transform = `translateY(${delta}px)`;
 
 		globalTransaction(tx => {

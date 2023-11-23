@@ -24,8 +24,10 @@ import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfile
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	static readonly ID: string = 'workbench.input.multiDiffEditor';
 
+	public readonly id: string;
+
 	get resource(): URI | undefined {
-		return undefined;
+		return URI.parse(`multi-diff-editor:${this.id}`);
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -47,12 +49,14 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	constructor(
 		readonly label: string | undefined,
 		readonly resources: readonly MultiDiffEditorInputData[],
+		id: string | undefined,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
+		this.id = id || new Date().getMilliseconds().toString() + Math.random().toString();
 	}
 
 	setLanguageId(languageId: string, source?: string | undefined): void {

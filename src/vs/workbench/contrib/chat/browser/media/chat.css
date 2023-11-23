@@ -57,7 +57,7 @@
 	width: 11px;
 }
 
-.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+.interactive-item-container:not(.show-detail-progress) .chat-animated-ellipsis {
 	display: none;
 }
 
@@ -602,6 +602,7 @@
 	flex-direction: column;
 	gap: 4px;
 	margin-left: 4px;
+	white-space: normal;
 }
 
 .interactive-item-container .progress-steps .progress-step {
