@@ -112,6 +112,7 @@ export const enum ExtensionHostStartup {
 }
 
 export interface IExtensionHost {
+	readonly pid: number | null;
 	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
 	readonly startup: ExtensionHostStartup;
@@ -133,6 +134,7 @@ export class ExtensionHostExtensions {
 	private _versionId: number;
 	private _allExtensions: IExtensionDescription[];
 	private _myExtensions: ExtensionIdentifier[];
+	private _myActivationEvents: Set<string> | null;
 
 	public get versionId(): number {
 		return this._versionId;
@@ -150,6 +152,7 @@ export class ExtensionHostExtensions {
 		this._versionId = versionId;
 		this._allExtensions = allExtensions.slice(0);
 		this._myExtensions = myExtensions.slice(0);
+		this._myActivationEvents = null;
 	}
 
 	toSnapshot(): IExtensionDescriptionSnapshot {
@@ -260,6 +263,9 @@ export class ExtensionHostExtensions {
 			this._myExtensions.push(extensionId);
 		}
 
+		// clear cached activation events
+		this._myActivationEvents = null;
+
 		return extensionsDelta;
 	}
 
@@ -270,6 +276,30 @@ export class ExtensionHostExtensions {
 			}
 		}
 		return false;
+	}
+
+	public containsActivationEvent(activationEvent: string): boolean {
+		if (!this._myActivationEvents) {
+			this._myActivationEvents = this._readMyActivationEvents();
+		}
+		return this._myActivationEvents.has(activationEvent);
+	}
+
+	private _readMyActivationEvents(): Set<string> {
+		const result = new Set<string>();
+
+		for (const extensionDescription of this._allExtensions) {
+			if (!this.containsExtension(extensionDescription.identifier)) {
+				continue;
+			}
+
+			const activationEvents = ImplicitActivationEvents.readActivationEvents(extensionDescription);
+			for (const activationEvent of activationEvents) {
+				result.add(activationEvent);
+			}
+		}
+
+		return result;
 	}
 }
 
@@ -426,6 +456,12 @@ export interface IExtensionService {
 	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
+	 * Send an activation ID and activate interested extensions.
+	 *
+	 */
+	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
+
+	/**
 	 * Determine if `activateByEvent(activationEvent)` has resolved already.
 	 *
 	 * i.e. the activation event is finished and all interested extensions are already active.
@@ -543,6 +579,7 @@ export class NullExtensionService implements IExtensionService {
 	onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
 	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
+	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(undefined); }
 	activationEventIsDone(_activationEvent: string): boolean { return false; }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
 	getExtension() { return Promise.resolve(undefined); }

@@ -5,72 +5,102 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { DeferredPromise } from 'vs/base/common/async';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
+import { mark } from 'vs/base/common/performance';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
+import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-type AuxiliaryWindow = BaseAuxiliaryWindow & {
-	moveTop: () => void;
+type NativeCodeWindow = CodeWindow & {
+	readonly vscode: ISandboxGlobals;
 };
 
-export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
+export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 
-	return typeof candidate?.moveTop === 'function';
+	private skipUnloadConfirmation = false;
+
+	constructor(
+		window: CodeWindow,
+		container: HTMLElement,
+		@IConfigurationService configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super(window, container, configurationService);
+	}
+
+	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
+		if (this.skipUnloadConfirmation) {
+			return;
+		}
+
+		e.preventDefault();
+
+		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
+		if (confirmed) {
+			this.skipUnloadConfirmation = true;
+			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
+		}
+	}
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@IConfigurationService configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IDialogService dialogService: IDialogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(layoutService);
+		super(layoutService, dialogService, configurationService);
 	}
 
-	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
+	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
+		mark('code/auxiliaryWindow/willResolveWindowId');
+		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+		mark('code/auxiliaryWindow/didResolveWindowId');
+
+		return windowId;
+	}
+
+	protected override createContainer(auxiliaryWindow: NativeCodeWindow, disposables: DisposableStore): HTMLElement {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
-		getGlobals(auxiliaryWindow)?.webFrame?.setZoomLevel(windowZoomLevel);
+		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
 
-		return super.create(auxiliaryWindow, disposables);
+		return super.createContainer(auxiliaryWindow, disposables);
 	}
 
-	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
+	protected override patchMethods(auxiliaryWindow: NativeCodeWindow): void {
 		super.patchMethods(auxiliaryWindow);
-
-		// Obtain window identifier
-		const windowId = new DeferredPromise<number>();
-		(async () => {
-			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
-		})();
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = async function () {
+		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
+			if (getActiveWindow() !== auxiliaryWindow) {
+				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
+			}
 		};
+	}
 
-		// Add a method to move window to the top
-		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: async () => {
-				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
-			},
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
+	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement): AuxiliaryWindow {
+		return new NativeAuxiliaryWindow(targetWindow, container, this.configurationService, this.nativeHostService, this.instantiationService);
 	}
 }
 

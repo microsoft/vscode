@@ -11,13 +11,15 @@ import { inputLatency } from 'vs/base/browser/performance';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -193,7 +195,8 @@ export class TextAreaInput extends Disposable {
 	// ---
 
 	private readonly _asyncTriggerCut: RunOnceScheduler;
-	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
+
+	private _asyncFocusGainWriteScreenReaderContent: MutableDisposable<RunOnceScheduler> = this._register(new MutableDisposable());
 
 	private _textAreaState: TextAreaState;
 
@@ -210,16 +213,24 @@ export class TextAreaInput extends Disposable {
 		private readonly _host: ITextAreaInputHost,
 		private readonly _textArea: ICompleteTextAreaWrapper,
 		private readonly _OS: OperatingSystem,
-		private readonly _browser: IBrowser
+		private readonly _browser: IBrowser,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
-		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
-
 		this._textAreaState = TextAreaState.EMPTY;
 		this._selectionChangeListener = null;
-		this.writeScreenReaderContent('ctor');
-
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			this.writeNativeTextAreaContent('ctor');
+		}
+		this._register(Event.runAndSubscribe(this._accessibilityService.onDidChangeScreenReaderOptimized, () => {
+			if (this._accessibilityService.isScreenReaderOptimized() && !this._asyncFocusGainWriteScreenReaderContent.value) {
+				this._asyncFocusGainWriteScreenReaderContent.value = this._register(new RunOnceScheduler(() => this.writeNativeTextAreaContent('asyncFocusGain'), 0));
+			} else {
+				this._asyncFocusGainWriteScreenReaderContent.clear();
+			}
+		}));
 		this._hasFocus = false;
 		this._currentComposition = null;
 
@@ -431,10 +442,13 @@ export class TextAreaInput extends Disposable {
 
 			this._setHasFocus(true);
 
-			if (this._browser.isSafari && !hadFocus && this._hasFocus) {
+			if (this._accessibilityService.isScreenReaderOptimized() && this._browser.isSafari && !hadFocus && this._hasFocus) {
 				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
 				// Safari will always move the selection at offset 0 in the textarea
-				this._asyncFocusGainWriteScreenReaderContent.schedule();
+				if (!this._asyncFocusGainWriteScreenReaderContent.value) {
+					this._asyncFocusGainWriteScreenReaderContent.value = new RunOnceScheduler(() => this.writeNativeTextAreaContent('asyncFocusGain'), 0);
+				}
+				this._asyncFocusGainWriteScreenReaderContent.value.schedule();
 			}
 		}));
 		this._register(this._textArea.onBlur(() => {
@@ -447,7 +461,7 @@ export class TextAreaInput extends Disposable {
 				this._currentComposition = null;
 
 				// Clear the textarea to avoid an unwanted cursor type
-				this.writeScreenReaderContent('blurWithoutCompositionEnd');
+				this.writeNativeTextAreaContent('blurWithoutCompositionEnd');
 
 				// Fire artificial composition end
 				this._onCompositionEnd.fire();
@@ -463,7 +477,7 @@ export class TextAreaInput extends Disposable {
 				this._currentComposition = null;
 
 				// Clear the textarea to avoid an unwanted cursor type
-				this.writeScreenReaderContent('tapWithoutCompositionEnd');
+				this.writeNativeTextAreaContent('tapWithoutCompositionEnd');
 
 				// Fire artificial composition end
 				this._onCompositionEnd.fire();
@@ -602,7 +616,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		if (this._hasFocus) {
-			this.writeScreenReaderContent('focusgain');
+			this.writeNativeTextAreaContent('focusgain');
 		}
 
 		if (this._hasFocus) {
@@ -621,12 +635,13 @@ export class TextAreaInput extends Disposable {
 		this._textAreaState = textAreaState;
 	}
 
-	public writeScreenReaderContent(reason: string): void {
-		if (this._currentComposition) {
+	public writeNativeTextAreaContent(reason: string): void {
+		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
+			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
 			return;
 		}
-
+		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 
@@ -783,6 +798,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		} else {
 			activeElement = textArea.ownerDocument.activeElement;
 		}
+		const activeWindow = dom.getWindow(activeElement);
 
 		const currentIsFocused = (activeElement === textArea);
 		const currentSelectionStart = textArea.selectionStart;
@@ -791,7 +807,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
 			// No change
 			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
-			if (browser.isFirefox && window.parent !== window) {
+			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
 				textArea.focus();
 			}
 			return;
@@ -803,7 +819,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 			// No need to focus, only need to change the selection range
 			this.setIgnoreSelectionChangeTime('setSelectionRange');
 			textArea.setSelectionRange(selectionStart, selectionEnd);
-			if (browser.isFirefox && window.parent !== window) {
+			if (browser.isFirefox && activeWindow.parent !== activeWindow) {
 				textArea.focus();
 			}
 			return;

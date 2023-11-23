@@ -70,7 +70,7 @@ import { StandaloneQuickInputService } from 'vs/editor/standalone/browser/quickI
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -92,6 +92,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { mainWindow } from 'vs/base/browser/window';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -257,7 +258,7 @@ class StandaloneDialogService implements IDialogService {
 			messageText = messageText + '\n\n' + detail;
 		}
 
-		return window.confirm(messageText);
+		return mainWindow.confirm(messageText);
 	}
 
 	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
@@ -527,7 +528,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		return mainWindow.document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
@@ -758,6 +759,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly telemetryLevel = TelemetryLevel.NONE;
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
@@ -1060,6 +1062,14 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 }
 
+class StandaloneAccessibleNotificationService implements IAccessibleNotificationService {
+	_serviceBrand: undefined;
+
+	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void {
+		// NOOP
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: any;
 }
@@ -1098,6 +1108,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
+registerSingleton(IAccessibleNotificationService, StandaloneAccessibleNotificationService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

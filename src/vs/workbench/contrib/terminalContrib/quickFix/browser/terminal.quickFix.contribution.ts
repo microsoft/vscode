@@ -20,7 +20,7 @@ import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/q
 import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
-import type { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 // Services
 registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
@@ -51,7 +51,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		xterm.raw.loadAddon(this._addon);
 
 		// Hook up listeners
-		this.add(this._addon.onDidRequestRerunCommand((e) => this._instance.runCommand(e.command, e.addNewLine || false)));
+		this.add(this._addon.onDidRequestRerunCommand((e) => this._instance.runCommand(e.command, e.shouldExecute || false)));
 
 		// Register quick fixes
 		for (const actionOption of [

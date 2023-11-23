@@ -105,9 +105,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ added: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], removed: [] });
 		}));
 
-		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer }) => {
+		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer, viewContainerLocation }) => {
 			this.onDidDeregisterViewContainer(viewContainer);
-			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], added: [] });
+			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: viewContainerLocation }], added: [] });
 		}));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
@@ -435,6 +435,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private moveViewsWithoutSaving(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer, visibilityState: ViewVisibilityState = ViewVisibilityState.Expand): void {
+		const fromContainerViews = this.getViewsByContainer(from);
+
 		this.removeViews(from, views);
 		this.addViews(to, views, visibilityState);
 
@@ -443,6 +445,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		if (oldLocation !== newLocation) {
 			this._onDidChangeLocation.fire({ views, from: oldLocation, to: newLocation });
+
+			if (fromContainerViews.length === views.length) {
+				this._onDidChangeViewContainers.fire({ removed: [{ container: from, location: oldLocation }], added: [] });
+			}
 		}
 
 		this._onDidChangeContainer.fire({ views, from, to });
@@ -779,11 +785,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
-								group: '1_toggleViews',
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-								),
+								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,

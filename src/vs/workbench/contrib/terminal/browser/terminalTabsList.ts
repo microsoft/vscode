@@ -49,6 +49,7 @@ import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 const $ = DOM.$;
 
@@ -266,7 +267,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					return this._hoverService.showHover({
 						...options,
 						actions: context.hoverActions,
-						hideOnHover: true
+						persistence: {
+							hideOnHover: true
+						}
 					});
 				}
 			}
@@ -275,6 +278,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = new ActionBar(actionsContainer, {
+			actionRunner: new TerminalContextActionRunner(),
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)

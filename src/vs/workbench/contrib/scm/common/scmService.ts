@@ -5,7 +5,7 @@
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation, ISCMActionButtonDescriptor, ISCMInputValueProvider } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -68,6 +68,19 @@ class SCMInput implements ISCMInput {
 
 	private readonly _onDidChangeVisibility = new Emitter<boolean>();
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+
+	private _actionButton: ISCMActionButtonDescriptor | undefined;
+	get actionButton(): ISCMActionButtonDescriptor | undefined {
+		return this._actionButton;
+	}
+
+	set actionButton(actionButton: ISCMActionButtonDescriptor) {
+		this._actionButton = actionButton;
+		this._onDidChangeActionButton.fire();
+	}
+
+	private readonly _onDidChangeActionButton = new Emitter<void>();
+	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
 
 	setFocus(): void {
 		this._onDidChangeFocus.fire();
@@ -352,11 +365,17 @@ export class SCMService implements ISCMService {
 	private inputHistory: SCMInputHistory;
 	private providerCount: IContextKey<number>;
 
+	private readonly _inputValueProviders = new Set<ISCMInputValueProvider>();
+	get inputValueProviders(): Iterable<ISCMInputValueProvider> { return this._inputValueProviders; }
+
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
 
 	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
+
+	private readonly _onDidChangeInputValueProviders = new Emitter<void>();
+	readonly onDidChangeInputValueProviders: Event<void> = this._onDidChangeInputValueProviders.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -392,4 +411,15 @@ export class SCMService implements ISCMService {
 	getRepository(id: string): ISCMRepository | undefined {
 		return this._repositories.get(id);
 	}
+
+	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable {
+		this._inputValueProviders.add(provider);
+		this._onDidChangeInputValueProviders.fire();
+
+		return toDisposable(() => {
+			this._inputValueProviders.delete(provider);
+			this._onDidChangeInputValueProviders.fire();
+		});
+	}
+
 }

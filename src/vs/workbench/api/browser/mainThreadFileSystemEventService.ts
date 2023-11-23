@@ -212,9 +212,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this._proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
-	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
-		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0; // TODO@bpasero for now only correlate proposed new file system watcher API with excludes
 
 		const opts: IWatchOptions = {
 			...unvalidatedOpts

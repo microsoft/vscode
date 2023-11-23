@@ -507,7 +507,7 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default":"never",
+          "default": "never",
           "enum": [
             "always",
             "smart",
@@ -726,7 +726,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.8.5",
+    "@vscode/extension-telemetry": "^0.9.0",
     "dompurify": "^3.0.5",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
@@ -734,6 +734,7 @@
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
+    "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

@@ -66,6 +66,7 @@ import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/bro
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -275,7 +276,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
-	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
+	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController[]>();
 
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
@@ -334,12 +335,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			return overflowed ? this.hoverService.showHover({
 				...options,
 				target: indentGuideElement,
-				compact: true,
 				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
-				skipFadeInAnimation: true,
-				showPointer: false,
-				hoverPosition: HoverPosition.RIGHT,
+				position: {
+					hoverPosition: HoverPosition.RIGHT,
+				},
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+					showPointer: false,
+				}
 			}, focus) : undefined;
 		}
 
@@ -450,7 +455,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			templateData.elementDisposables.add(compressedNavigationController);
-			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+
+			const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+			this.compressedNavigationControllers.set(stat, [...nodeControllers, compressedNavigationController]);
 
 			// accessibility
 			templateData.elementDisposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
@@ -463,7 +470,20 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}));
 
-			templateData.elementDisposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
+			templateData.elementDisposables.add(toDisposable(() => {
+				const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+				const renderedIndex = nodeControllers.findIndex(controller => controller === compressedNavigationController);
+
+				if (renderedIndex < 0) {
+					throw new Error('Disposing unknown navigation controller');
+				}
+
+				if (nodeControllers.length === 1) {
+					this.compressedNavigationControllers.delete(stat);
+				} else {
+					nodeControllers.splice(renderedIndex, 1);
+				}
+			}));
 		}
 
 		// Input Box
@@ -621,11 +641,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				while (true) {
 					await timeout(0);
 
-					if (!document.hasFocus()) {
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
 						break;
-					} if (document.activeElement === inputBox.inputElement) {
+					} if (DOM.isActiveElement(inputBox.inputElement)) {
 						return;
-					} else if (document.activeElement instanceof HTMLElement && DOM.hasParentWithClass(document.activeElement, 'context-view')) {
+					} else if (ownerDocument.activeElement instanceof HTMLElement && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
 					} else {
 						break;
@@ -656,7 +677,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.templateDisposables.dispose();
 	}
 
-	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined {
+	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController[] | undefined {
 		return this.compressedNavigationControllers.get(stat);
 	}
 
@@ -683,8 +704,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	getActiveDescendantId(stat: ExplorerItem): string | undefined {
-		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
-		return compressedNavigationController?.currentId;
+		return this.compressedNavigationControllers.get(stat)?.[0]?.currentId ?? undefined;
 	}
 
 	dispose(): void {
@@ -1257,9 +1277,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
 				// Use local file import when supported
-				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
+				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(mainWindow))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent);
+					await fileImport.import(resolvedTarget, originalEvent, mainWindow);
 				}
 				// Otherwise fallback to browser based file upload
 				else {
@@ -1459,7 +1479,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragEvent: DragEvent): ExplorerItem {
-		const target = document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
+		const target = DOM.getWindow(dragEvent).document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
 		const iconLabelName = getIconLabelNameFromHTMLElement(target);
 
 		if (iconLabelName) {

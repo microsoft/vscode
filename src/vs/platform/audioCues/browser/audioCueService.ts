@@ -122,7 +122,10 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 				this.sounds.set(url, playedSound);
 			}
 		} catch (e) {
-			console.error('Error while playing sound', e);
+			if (!e.message.includes('play() can only be initiated by a user gesture')) {
+				// tracking this issue in #178642, no need to spam the console
+				console.error('Error while playing sound', e);
+			}
 		} finally {
 			this.playingSounds.delete(sound);
 		}
@@ -254,6 +257,9 @@ export class Sound {
 	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
 	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
 	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
+	public static readonly clear = Sound.register({ fileName: 'clear.mp3' });
+	public static readonly save = Sound.register({ fileName: 'save.mp3' });
+	public static readonly format = Sound.register({ fileName: 'format.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -417,6 +423,24 @@ export class AudioCue {
 		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
 		sound: Sound.chatResponsePending,
 		settingsKey: 'audioCues.chatResponsePending'
+	});
+
+	public static readonly clear = AudioCue.register({
+		name: localize('audioCues.clear', 'Clear'),
+		sound: Sound.clear,
+		settingsKey: 'audioCues.clear'
+	});
+
+	public static readonly save = AudioCue.register({
+		name: localize('audioCues.save', 'Save'),
+		sound: Sound.save,
+		settingsKey: 'audioCues.save'
+	});
+
+	public static readonly format = AudioCue.register({
+		name: localize('audioCues.format', 'Format'),
+		sound: Sound.format,
+		settingsKey: 'audioCues.format'
 	});
 
 	private constructor(

@@ -8,7 +8,7 @@ import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { IsAuxiliaryWindowFocusedContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -34,6 +34,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { getActiveElement, getActiveWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -308,7 +310,7 @@ class ToggleFullScreenAction extends Action2 {
 	override run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		return hostService.toggleFullScreen();
+		return hostService.toggleFullScreen(getActiveWindow());
 	}
 }
 
@@ -321,6 +323,7 @@ export class ReloadWindowAction extends Action2 {
 			id: ReloadWindowAction.ID,
 			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
 			category: Categories.Developer,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -330,10 +333,12 @@ export class ReloadWindowAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		return hostService.reload();
+		if (getActiveWindow() === mainWindow) {
+			return hostService.reload(); // only supported for main window
+		}
 	}
 }
 
@@ -406,10 +411,9 @@ class BlurAction extends Action2 {
 	}
 
 	run(): void {
-		const el = document.activeElement;
-
-		if (el instanceof HTMLElement) {
-			el.blur();
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
 		}
 	}
 }

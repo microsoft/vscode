@@ -95,10 +95,14 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	}
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
-		hoverPosition: HoverPosition.BELOW,
-		showPointer: true,
-		compact: false,
-		trapFocus: true
+		trapFocus: true,
+		position: {
+			hoverPosition: HoverPosition.BELOW,
+		},
+		appearance: {
+			showPointer: true,
+			compact: false,
+		}
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
@@ -451,9 +455,13 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				return this.hoverService.showHover({
 					content: defaultOverrideHoverContent,
 					target: this.defaultOverrideIndicator.element,
-					hoverPosition: HoverPosition.BELOW,
-					showPointer: true,
-					compact: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					appearance: {
+						showPointer: true,
+						compact: false
+					}
 				}, focus);
 			};
 			this.addHoverDisposables(this.defaultOverrideIndicator.disposables, this.defaultOverrideIndicator.element, showHover);
