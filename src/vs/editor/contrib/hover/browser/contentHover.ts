@@ -514,7 +514,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		dom.append(this._resizableNode.domNode, this._hover.containerDomNode);
 		this._resizableNode.domNode.style.zIndex = '50';
 
-		this._register(this._editor.onDidLayoutChange(() => this._layout()));
+		this._register(this._editor.onDidLayoutChange(() => {
+			if (this.isVisible) {
+				this._updateMaxDimensions();
+			}
+		}));
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
 				this._updateFont();
@@ -528,7 +532,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			this._hoverFocusedKey.set(false);
 		}));
 		this._setHoverData(undefined);
-		this._layout();
 		this._editor.addContentWidget(this);
 	}
 
@@ -713,15 +716,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._hover.containerDomNode.classList.toggle('hidden', !hoverData);
 	}
 
-	private _layout(): void {
+	private _updateFont(): void {
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 		const contentsDomNode = this._hover.contentsDomNode;
 		contentsDomNode.style.fontSize = `${fontSize}px`;
 		contentsDomNode.style.lineHeight = `${lineHeight / fontSize}`;
-		this._updateMaxDimensions();
-	}
-
-	private _updateFont(): void {
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
