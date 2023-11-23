@@ -61,8 +61,8 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 };
 
-const codeActionsTriggerOnEmptyLines: IConfigurationPropertySchema = {
-	markdownDescription: nls.localize('editor.codeActionsTriggerOnEmptyLines', 'Trigger code actions on empty lines.'),
+const triggerAiCodeActionsOnEmptyLines: IConfigurationPropertySchema = {
+	markdownDescription: nls.localize('editor.triggerAiCodeActionsOnEmptyLines', 'Trigger AI code actions on empty lines.'),
 	type: 'boolean',
 	default: true
 };
@@ -71,7 +71,7 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 	...editorConfigurationBaseNode,
 	properties: {
 		'editor.codeActionsOnSave': codeActionsOnSaveSchema,
-		'editor.codeActionsTriggerOnEmptyLines': codeActionsTriggerOnEmptyLines,
+		'editor.triggerAiCodeActionsOnEmptyLines': triggerAiCodeActionsOnEmptyLines,
 	}
 });
 

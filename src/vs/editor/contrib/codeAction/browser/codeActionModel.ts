@@ -75,7 +75,7 @@ class CodeActionOracle extends Disposable {
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const triggerOnEmptyLines = !!this._configurationService?.getValue<boolean>('editor.codeActionsTriggerOnEmptyLines');
+				const triggerOnEmptyLines = !!this._configurationService?.getValue<boolean>('editor.triggerAiCodeActionsOnEmptyLines');
 				if (!triggerOnEmptyLines) {
 					return undefined;
 				}
