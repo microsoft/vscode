@@ -24,7 +24,7 @@ import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './pos
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { GitHistoryProvider } from './historyProvider';
-import { ICommitMessageProviderRegistry } from './commitMessageProvider';
+import { GenerateCommitMessageActionButton, ICommitMessageProviderRegistry } from './commitMessageProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -901,10 +901,10 @@ export class Repository implements Disposable {
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
 
-		// const inputActionButton = new GenerateCommitMessageActionButton(this, commitMessageProviderRegistry);
-		// this.disposables.push(inputActionButton);
-		// inputActionButton.onDidChange(() => this._sourceControl.inputBox.actionButton = inputActionButton.button);
-		// this._sourceControl.inputBox.actionButton = inputActionButton.button;
+		const inputActionButton = new GenerateCommitMessageActionButton(this, commitMessageProviderRegistry);
+		this.disposables.push(inputActionButton);
+		inputActionButton.onDidChange(() => this._sourceControl.inputBox.actionButton = inputActionButton.button);
+		this._sourceControl.inputBox.actionButton = inputActionButton.button;
 
 		this.disposables.push(this._sourceControl);
 

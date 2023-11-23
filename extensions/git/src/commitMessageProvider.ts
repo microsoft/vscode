@@ -8,7 +8,6 @@ import { CommitMessageProvider, Status, Repository as ApiRepository } from './ap
 import { Repository } from './repository';
 import { dispose } from './util';
 import { Model } from './model';
-//import { Model } from './model';
 
 export interface ICommitMessageProviderRegistry {
 	readonly onDidChangeCommitMessageProvider: Event<void>;
