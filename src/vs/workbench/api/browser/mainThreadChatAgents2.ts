@@ -187,8 +187,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 				const result = await this._proxy.$invokeCompletionProvider(handle, query, token);
 				const variableItems = result.map(v => {
-					// TODO detail and doc?
-					const insertText = String(v.insertText ?? (typeof v.label === 'string' ? v.label : v.label.label));
+					const insertText = v.insertText ?? (typeof v.label === 'string' ? v.label : v.label.label);
 					const rangeAfterInsert = new Range(range.insert.startLineNumber, range.insert.startColumn, range.insert.endLineNumber, range.insert.startColumn + insertText.length);
 					return {
 						label: v.label,
