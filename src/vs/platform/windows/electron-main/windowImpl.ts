@@ -84,7 +84,20 @@ const enum ReadyState {
 
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
+	//#region Events
+
+	private readonly _onDidMaximize = this._register(new Emitter<void>());
+	readonly onDidMaximize = this._onDidMaximize.event;
+
+	private readonly _onDidUnmaximize = this._register(new Emitter<void>());
+	readonly onDidUnmaximize = this._onDidUnmaximize.event;
+
+	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
+	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
 	abstract readonly onDidClose: Event<void>;
+
+	//#endregion
 
 	abstract readonly id: number;
 
@@ -93,6 +106,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected setWin(win: BrowserWindow): void {
 		this._win = win;
 
+		// Window Events
+		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => this._onDidMaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => this._onDidUnmaximize.fire()));
+
+		// Sheet Offsets
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
 		if (isMacintosh && useCustomTitleStyle) {
 			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
@@ -363,13 +381,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win?.setSimpleFullScreen(fullscreen);
 		win?.webContents.focus(); // workaround issue where focus is not going into window
 	}
-
-	//#endregion
-
-	//#region System Context Menu
-
-	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
-	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
 	//#endregion
 }
@@ -651,16 +662,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			if (this._config) {
 				this._config.maximized = true;
 			}
-
-			app.emit('browser-window-maximize', e, this._win);
 		});
 
 		this._win.on('unmaximize', (e: ElectronEvent) => {
 			if (this._config) {
 				this._config.maximized = false;
 			}
-
-			app.emit('browser-window-unmaximize', e, this._win);
 		});
 
 		// Window Fullscreen
