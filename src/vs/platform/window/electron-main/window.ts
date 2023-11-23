@@ -15,6 +15,7 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export interface IBaseWindow extends IDisposable {
 
+	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
 	readonly onDidClose: Event<void>;
 
 	readonly id: number;
@@ -41,7 +42,6 @@ export interface ICodeWindow extends IBaseWindow {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
-	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
 	readonly onDidDestroy: Event<void>;
 
 	readonly whenClosedOrLoaded: Promise<void>;

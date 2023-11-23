@@ -62,9 +62,9 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string; account: string }>;
+	readonly onDidChangePassword: Event<{ readonly service: string; readonly account: string }>;
 
-	readonly onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ readonly windowId: number; readonly x: number; readonly y: number }>;
 
 	// Window
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
