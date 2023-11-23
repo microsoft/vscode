@@ -112,9 +112,9 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 /**
  * An invocation of a dynamic reference like '#file:'
  */
-export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
+export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
-	readonly kind = ChatRequestDynamicReferencePart.Kind;
+	readonly kind = ChatRequestDynamicVariablePart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
 
 	get referenceText(): string {
@@ -162,12 +162,12 @@ export function reviveParsedChatRequest(serialized: IParsedChatRequest): IParsed
 					part.editorRange,
 					(part as ChatRequestSlashCommandPart).slashCommand
 				);
-			} else if (part.kind === ChatRequestDynamicReferencePart.Kind) {
-				return new ChatRequestDynamicReferencePart(
+			} else if (part.kind === ChatRequestDynamicVariablePart.Kind) {
+				return new ChatRequestDynamicVariablePart(
 					new OffsetRange(part.range.start, part.range.endExclusive),
 					part.editorRange,
-					(part as ChatRequestDynamicReferencePart).text,
-					revive((part as ChatRequestDynamicReferencePart).data)
+					(part as ChatRequestDynamicVariablePart).text,
+					revive((part as ChatRequestDynamicVariablePart).data)
 				);
 			} else {
 				throw new Error(`Unknown chat request part: ${part.kind}`);

@@ -36,7 +36,7 @@ export interface IChatVariablesService {
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
 	hasVariable(name: string): boolean;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
-	getDynamicReferences(sessionId: string): ReadonlyArray<IDynamicReference>; // should be its own service?
+	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
 
 	/**
 	 * Resolves all variables that occur in `prompt`
@@ -49,7 +49,7 @@ export interface IChatVariableResolveResult {
 	prompt: string;
 }
 
-export interface IDynamicReference {
+export interface IDynamicVariable {
 	range: IRange;
 	// data: any; // File details for a file, something else for a different type of thing, is it typed?
 	data: IChatRequestVariableValue[];

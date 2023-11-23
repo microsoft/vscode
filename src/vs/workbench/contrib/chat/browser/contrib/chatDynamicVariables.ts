@@ -17,20 +17,20 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IChatRequestVariableValue, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export const dynamicReferenceDecorationType = 'chat-dynamic-reference';
+export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
-export class ChatDynamicReferenceModel extends Disposable implements IChatWidgetContrib {
-	public static readonly ID = 'chatDynamicReferenceModel';
+export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
+	public static readonly ID = 'chatDynamicVariableModel';
 
-	private readonly _references: IDynamicReference[] = [];
-	get references(): ReadonlyArray<IDynamicReference> {
-		return [...this._references];
+	private readonly _variables: IDynamicVariable[] = [];
+	get variables(): ReadonlyArray<IDynamicVariable> {
+		return [...this._variables];
 	}
 
 	get id() {
-		return ChatDynamicReferenceModel.ID;
+		return ChatDynamicVariableModel.ID;
 	}
 
 	constructor(
@@ -40,10 +40,10 @@ export class ChatDynamicReferenceModel extends Disposable implements IChatWidget
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
-				this._references.forEach((ref, i) => {
+				this._variables.forEach((ref, i) => {
 					if (Range.areIntersecting(ref.range, c.range)) {
 						// The reference text was changed, it's broken
-						this._references.splice(i, 1);
+						this._variables.splice(i, 1);
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
 						ref.range = {
@@ -60,19 +60,19 @@ export class ChatDynamicReferenceModel extends Disposable implements IChatWidget
 		}));
 	}
 
-	addReference(ref: IDynamicReference): void {
-		this._references.push(ref);
+	addReference(ref: IDynamicVariable): void {
+		this._variables.push(ref);
 		this.updateReferences();
 	}
 
 	private updateReferences(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicReferenceDecorationType, this._references.map(r => (<IDecorationOptions>{
+		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map(r => (<IDecorationOptions>{
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
 		})));
 	}
 
-	private getHoverForReference(ref: IDynamicReference): string | IMarkdownString {
+	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
 		const value = ref.data[0];
 		if (URI.isUri(value.value)) {
 			return new MarkdownString(this.labelService.getUriLabel(value.value, { relative: true }));
@@ -82,7 +82,7 @@ export class ChatDynamicReferenceModel extends Disposable implements IChatWidget
 	}
 }
 
-ChatWidget.CONTRIBS.push(ChatDynamicReferenceModel);
+ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
 
 interface SelectAndInsertFileActionContext {
 	widget: IChatWidget;
@@ -143,7 +143,7 @@ export class SelectAndInsertFileAction extends Action2 {
 			return;
 		}
 
-		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
 			data: [{ level: 'full', value: resource }]
 		});
@@ -179,7 +179,7 @@ export class AddDynamicVariableAction extends Action2 {
 			return;
 		}
 
-		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			range: context.range,
 			data: context.variableData
 		});

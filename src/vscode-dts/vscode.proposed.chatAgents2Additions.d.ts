@@ -49,7 +49,10 @@ declare module 'vscode' {
 		| ChatAgentDetectedAgent;
 
 	export interface ChatAgent2 {
-		dynamicVariableProvider?: { provider: ChatAgentCompletionItemProvider; triggerCharacters: string[] };
+		/**
+		 * Provide a set of variables that can only be used with this agent.
+		 */
+		agentVariableProvider?: { provider: ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 	}
 
 	export interface ChatAgentCompletionItemProvider {

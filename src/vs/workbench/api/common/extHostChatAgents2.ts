@@ -245,7 +245,7 @@ class ExtHostChatAgent {
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
-	private _dynamicVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
+	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -264,11 +264,11 @@ class ExtHostChatAgent {
 	}
 
 	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatAgentCompletionItem[]> {
-		if (!this._dynamicVariableProvider) {
+		if (!this._agentVariableProvider) {
 			return [];
 		}
 
-		return await this._dynamicVariableProvider.provider.provideCompletionItems(query, token) ?? [];
+		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
 	}
 
 	async validateSlashCommand(command: string) {
@@ -453,8 +453,8 @@ class ExtHostChatAgent {
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
 			},
-			set dynamicVariableProvider(v) {
-				that._dynamicVariableProvider = v;
+			set agentVariableProvider(v) {
+				that._agentVariableProvider = v;
 				if (v) {
 					if (!v.triggerCharacters.length) {
 						throw new Error('triggerCharacters are required');
@@ -465,8 +465,8 @@ class ExtHostChatAgent {
 					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
 				}
 			},
-			get dynamicVariableProvider() {
-				return that._dynamicVariableProvider;
+			get agentVariableProvider() {
+				return that._agentVariableProvider;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
 				? undefined!
