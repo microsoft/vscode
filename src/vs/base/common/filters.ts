@@ -333,8 +333,6 @@ function _matchesWords(word: string, target: string, wordIndex: number, targetIn
 		if (!altChars) {
 			return null;
 		}
-		// TODO: This causes a problem as the alt char sequence doesn't need to match a contiguous
-		//       string in target
 		for (let k = 0; k < altChars.length; k++) {
 			if (!charactersMatch(altChars[k], target.charCodeAt(targetIndex + k))) {
 				return null;
@@ -360,11 +358,11 @@ function _matchesWords(word: string, target: string, wordIndex: number, targetIn
 	// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
 	// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
 	if (word.charCodeAt(wordIndex) !== target.charCodeAt(targetIndex)) {
+		// Verify alternate characters before exiting
 		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
 		if (!altChars) {
 			return result;
 		}
-		// TODO: Check alt char match more gracefully
 		for (let k = 0; k < altChars.length; k++) {
 			if (altChars[k] !== target.charCodeAt(targetIndex + k)) {
 				return result;
