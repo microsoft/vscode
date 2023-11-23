@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorstatus';
 import { localize } from 'vs/nls';
-import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, assertIsDefined } from 'vs/base/common/types';
@@ -318,7 +318,7 @@ const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
-export class EditorStatus extends Disposable {
+class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -337,6 +337,7 @@ export class EditorStatus extends Disposable {
 	private toRender: StateChange | undefined = undefined;
 
 	constructor(
+		private readonly targetWindowId: number,
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -560,7 +561,7 @@ export class EditorStatus extends Disposable {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => {
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(getWindowById(this.targetWindowId)?.window ?? mainWindow, () => {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;
@@ -882,11 +883,11 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IEditorService, editorService.createScoped('main', this._store)]
 		));
-		this._register(mainInstantiationService.createInstance(EditorStatus));
+		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
 
 		// Auxiliary Editor Status
-		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables }) => {
-			disposables.add(instantiationService.createInstance(EditorStatus));
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
+			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
 		}));
 	}
 }

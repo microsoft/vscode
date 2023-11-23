@@ -254,6 +254,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly windowTitle: WindowTitle;
 
 	private readonly editorService: IEditorService;
+	private readonly editorGroupsContainer: IEditorGroupsContainer;
 
 	constructor(
 		id: string,
@@ -269,7 +270,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
@@ -278,6 +279,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.isAuxiliary = editorGroupsContainer !== 'main';
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.editorGroupsContainer = editorGroupsContainer === 'main' ? editorGroupService.mainPart : editorGroupsContainer;
 
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow, editorGroupsContainer));
 
@@ -514,7 +516,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// --- Editor Actions
-		const activeEditorPane = this.editorGroupService.mainPart.activeGroup?.activeEditorPane;
+		const activeEditorPane = this.editorGroupsContainer.activeGroup?.activeEditorPane;
 		if (activeEditorPane && activeEditorPane instanceof EditorPane) {
 			const result = activeEditorPane.getActionViewItem(action);
 
@@ -528,7 +530,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		const editorPaneAwareContextKeyService = this.editorGroupService.mainPart.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const editorPaneAwareContextKeyService = this.editorGroupsContainer.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 
 		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
@@ -553,7 +555,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		if (this.editorActionsEnabled) {
-			this.actionToolBarDisposable.add(this.editorGroupService.mainPart.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
+			this.actionToolBarDisposable.add(this.editorGroupsContainer.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
 		}
 	}
 
@@ -569,8 +571,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			if (this.editorActionsEnabled) {
 				this.editorActionsChangeDisposable.clear();
 
-				const activeGroup = this.editorGroupService.mainPart.activeGroup;
-				if (activeGroup) { // Can be undefined on startup
+				const activeGroup = this.editorGroupsContainer.activeGroup;
+				if (activeGroup) {
 					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable);
 
 					actions.primary.push(...editorActions.actions.primary);
@@ -607,7 +609,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			// The editor toolbar menu is handled by the editor group so we do not need to manage it here.
 			// However, depending on the active editor, we need to update the context and action runner of the toolbar menu.
 			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
-				const context: IEditorCommandsContext = { groupId: this.editorGroupService.mainPart.activeGroup.id };
+				const context: IEditorCommandsContext = { groupId: this.editorGroupsContainer.activeGroup.id };
 
 				this.actionToolBar.actionRunner = new EditorCommandsContextActionRunner(context);
 				this.actionToolBar.context = context;
@@ -703,10 +705,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get editorActionsEnabled(): boolean {
-		return this.editorGroupService.partOptions.editorActionsLocation === 'titleBar' ||
+		return this.editorGroupsContainer.partOptions.editorActionsLocation === 'titleBar' ||
 			(
-				this.editorGroupService.partOptions.editorActionsLocation === 'default' &&
-				this.editorGroupService.partOptions.showTabs === 'none'
+				this.editorGroupsContainer.partOptions.editorActionsLocation === 'default' &&
+				this.editorGroupsContainer.partOptions.showTabs === 'none'
 			);
 	}
 
