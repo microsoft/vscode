@@ -35,6 +35,7 @@ import { IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/brows
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -671,13 +672,16 @@ export class MainStatusbarPart extends StatusbarPart {
 	}
 }
 
-export interface IAuxiliaryStatusbarPart extends IStatusbarEntryContainer {
+export interface IAuxiliaryStatusbarPart extends IStatusbarEntryContainer, IView {
 	readonly container: HTMLElement;
+	readonly height: number;
 }
 
 export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryStatusbarPart {
 
 	private static COUNTER = 1;
+
+	readonly height = StatusbarPart.HEIGHT;
 
 	constructor(
 		readonly container: HTMLElement,
@@ -716,6 +720,7 @@ export class StatusbarService extends Disposable implements IStatusbarService {
 		const statusbarPartContainer = document.createElement('footer');
 		statusbarPartContainer.classList.add('part', 'statusbar');
 		statusbarPartContainer.setAttribute('role', 'status');
+		statusbarPartContainer.style.position = 'relative';
 		statusbarPartContainer.setAttribute('aria-live', 'off');
 		statusbarPartContainer.setAttribute('tabindex', '0');
 		container.appendChild(statusbarPartContainer);

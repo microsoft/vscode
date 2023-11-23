@@ -16,7 +16,7 @@ import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, p
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { StartupKind, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { getTitleBarStyle, getMenuBarVisibility, IPath } from 'vs/platform/window/common/window';
@@ -48,14 +48,14 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { mainWindow } from 'vs/base/browser/window';
+import { $window, mainWindow } from 'vs/base/browser/window';
 
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
 	activeContainerId: number;
 	fullscreen: boolean;
-	maximized: boolean;
+	maximized: Set<number>;
 	hasFocus: boolean;
 	windowBorder: boolean;
 	readonly menuBar: {
@@ -135,7 +135,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangePanelAlignment = this._register(new Emitter<PanelAlignment>());
 	readonly onDidChangePanelAlignment = this._onDidChangePanelAlignment.event;
 
-	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<boolean>());
+	private readonly _onDidChangeWindowMaximized = this._register(new Emitter<{ windowId: number; maximized: boolean }>());
 	readonly onDidChangeWindowMaximized = this._onDidChangeWindowMaximized.event;
 
 	private readonly _onDidChangePanelPosition = this._register(new Emitter<string>());
@@ -218,7 +218,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			quickPickTop = top;
 		}
 
-		if (this.titleService.isCommandCenterVisible) {
+		const isCommandCenterVisible = this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) !== false;
+		if (isCommandCenterVisible) {
 			// If the command center is visible then the quickinput
 			// should go over the title bar and the banner
 			quickPickTop = 6;
@@ -343,6 +344,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if ([
 				LayoutSettings.ACTIVITY_BAR_LOCATION,
+				LayoutSettings.COMMAND_CENTER,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 				'window.menuBarVisibility',
@@ -351,9 +353,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.doUpdateLayoutConfiguration();
 			}
 		}));
-
-		// Title Menu changes
-		this._register(this.titleService.onDidChangeCommandCenterVisibility(() => this.doUpdateLayoutConfiguration()));
 
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
@@ -371,10 +370,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowBorder($window.vscodeWindowId)));
 
 		// Window active / focus changes
-		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged(focused)));
+		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged($window.vscodeWindowId, focused)));
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
@@ -452,7 +451,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 
-			this.updateWindowBorder(true);
+			this.updateWindowBorder($window.vscodeWindowId, true);
 		}
 
 		this._onDidChangeFullscreen.fire(this.state.runtime.fullscreen);
@@ -466,10 +465,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private onWindowFocusChanged(hasFocus: boolean): void {
+	private onWindowFocusChanged(targetWindowId: number, hasFocus: boolean): void {
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
-			this.updateWindowBorder();
+			this.updateWindowBorder(targetWindowId);
 		}
 	}
 
@@ -523,7 +522,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.adjustPartPositions(position, panelAlignment, panelPosition);
 	}
 
-	private updateWindowBorder(skipLayout: boolean = false) {
+	private updateWindowBorder(targetWindowId: number, skipLayout: boolean = false) {
 		if (
 			isWeb ||
 			isWindows || // not working well with zooming and window control overlays
@@ -538,7 +537,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
 
 		let windowBorder = false;
-		if (!this.state.runtime.fullscreen && !this.state.runtime.maximized && (activeBorder || inactiveBorder)) {
+		if (!this.state.runtime.fullscreen && !this.state.runtime.maximized.has(targetWindowId) && (activeBorder || inactiveBorder)) {
 			windowBorder = true;
 
 			// If the inactive color is missing, fallback to the active one
@@ -557,10 +556,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!skipLayout) {
 			this.layout();
 		}
-	}
-
-	private updateStyles() {
-		this.updateWindowBorder();
 	}
 
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
@@ -620,7 +615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			activeContainerId: this.getActiveContainerId(),
 			fullscreen: isFullscreen(),
 			hasFocus: this.hostService.hasFocus,
-			maximized: false,
+			maximized: new Set<number>(),
 			windowBorder: false,
 			menuBar: {
 				toggled: false,
@@ -683,7 +678,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Window border
-		this.updateWindowBorder(true);
+		this.updateWindowBorder(mainWindow.vscodeWindowId, true);
 	}
 
 	private getDefaultLayoutViews(environmentService: IBrowserWorkbenchEnvironmentService, storageService: IStorageService): string[] | undefined {
@@ -1101,6 +1096,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		switch (part) {
 			case Parts.EDITOR_PART:
 			case Parts.STATUSBAR_PART:
+			case Parts.TITLEBAR_PART:
 				targetWindow = getActiveWindow();
 				break;
 			default:
@@ -1155,6 +1151,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			partCandidate = this.editorGroupService.getPart(this.getContainerFromDocument(targetWindow.document));
 		} else if (part === Parts.STATUSBAR_PART) {
 			partCandidate = this.statusBarService.getPart(this.getContainerFromDocument(targetWindow.document));
+		} else if (part === Parts.TITLEBAR_PART) {
+			partCandidate = this.titleService.getPart(this.getContainerFromDocument(targetWindow.document));
 		}
 
 		if (partCandidate instanceof Part) {
@@ -2131,21 +2129,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangePanelPosition.fire(newPositionValue);
 	}
 
-	isWindowMaximized() {
-		return this.state.runtime.maximized;
+	isWindowMaximized(targetWindowId: number): boolean {
+		return this.state.runtime.maximized.has(targetWindowId);
 	}
 
-	updateWindowMaximizedState(maximized: boolean) {
+	updateWindowMaximizedState(targetWindowId: number, maximized: boolean) {
 		this.mainContainer.classList.toggle(LayoutClasses.MAXIMIZED, maximized);
 
-		if (this.state.runtime.maximized === maximized) {
+		if (maximized === this.state.runtime.maximized.has(targetWindowId)) {
 			return;
 		}
 
-		this.state.runtime.maximized = maximized;
+		this.state.runtime.maximized.add(targetWindowId);
 
-		this.updateWindowBorder();
-		this._onDidChangeWindowMaximized.fire(maximized);
+		this.updateWindowBorder(targetWindowId);
+		this._onDidChangeWindowMaximized.fire({ windowId: targetWindowId, maximized });
 	}
 
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined {

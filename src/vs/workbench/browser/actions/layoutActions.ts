@@ -762,7 +762,8 @@ if (isWindows || isLinux || isWeb) {
 		command: {
 			id: 'workbench.action.toggleMenuBar',
 			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
-			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		},
 		order: 0
 	});
