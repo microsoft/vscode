@@ -14,7 +14,6 @@
  * @param code The character code to get alternate characters for
  */
 export function getKoreanAltChars(code: number): ArrayLike<number> | undefined {
-	// TODO: Early exit by checking ranges first
 	const result = disassembleKorean(code);
 	if (result && result.length > 0) {
 		return new Uint32Array(result);
@@ -28,25 +27,25 @@ function disassembleKorean(code: number): Uint32Array | undefined {
 	codeBufferLength = 0;
 
 	// Initial consonants (초성)
-	getCodesFromArray(code, modernConsonants, 0x1100);
+	getCodesFromArray(code, modernConsonants, HangulRangeStartCode.InitialConsonant);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
 	// Vowels (중성)
-	getCodesFromArray(code, modernVowels, 0x01161);
+	getCodesFromArray(code, modernVowels, HangulRangeStartCode.Vowel);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
 	// Final consonants (종성)
-	getCodesFromArray(code, modernFinalConsonants, 0x11A8);
+	getCodesFromArray(code, modernFinalConsonants, HangulRangeStartCode.FinalConsonant);
 	if (codeBufferLength > 0) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
 	// Hangul Compatibility Jamo
-	getCodesFromArray(code, compatibilityJamo, 0x3131);
+	getCodesFromArray(code, compatibilityJamo, HangulRangeStartCode.CompatibilityJamo);
 	if (codeBufferLength) {
 		return codeBuffer.subarray(0, codeBufferLength);
 	}
@@ -67,21 +66,21 @@ function disassembleKorean(code: number): Uint32Array | undefined {
 
 		if (initialConsonantIndex < modernConsonants.length) {
 			getCodesFromArray(initialConsonantIndex, modernConsonants, 0);
-		} else if (0x1100 + initialConsonantIndex - 0x3131 < compatibilityJamo.length) {
-			getCodesFromArray(0x1100 + initialConsonantIndex, compatibilityJamo, 0x3131);
+		} else if (HangulRangeStartCode.InitialConsonant + initialConsonantIndex - HangulRangeStartCode.CompatibilityJamo < compatibilityJamo.length) {
+			getCodesFromArray(HangulRangeStartCode.InitialConsonant + initialConsonantIndex, compatibilityJamo, HangulRangeStartCode.CompatibilityJamo);
 		}
 
 		if (vowelIndex < modernVowels.length) {
 			getCodesFromArray(vowelIndex, modernVowels, 0);
-		} else if (0x1161 + vowelIndex - 0x3131 < compatibilityJamo.length) {
-			getCodesFromArray(0x1161 + vowelIndex - 0x3131, compatibilityJamo, 0x3131);
+		} else if (HangulRangeStartCode.Vowel + vowelIndex - HangulRangeStartCode.CompatibilityJamo < compatibilityJamo.length) {
+			getCodesFromArray(HangulRangeStartCode.Vowel + vowelIndex - HangulRangeStartCode.CompatibilityJamo, compatibilityJamo, HangulRangeStartCode.CompatibilityJamo);
 		}
 
 		if (finalConsonantIndex >= 0) {
 			if (finalConsonantIndex < modernFinalConsonants.length) {
 				getCodesFromArray(finalConsonantIndex, modernFinalConsonants, 0);
-			} else if (0x11A8 + finalConsonantIndex - 0x3131 < compatibilityJamo.length) {
-				getCodesFromArray(0x11A8 + finalConsonantIndex - 0x3131, compatibilityJamo, 0x3131);
+			} else if (HangulRangeStartCode.FinalConsonant + finalConsonantIndex - HangulRangeStartCode.CompatibilityJamo < compatibilityJamo.length) {
+				getCodesFromArray(HangulRangeStartCode.FinalConsonant + finalConsonantIndex - HangulRangeStartCode.CompatibilityJamo, compatibilityJamo, HangulRangeStartCode.CompatibilityJamo);
 			}
 		}
 
@@ -113,6 +112,13 @@ function addCodesToBuffer(codes: number): void {
 	if (codes >> 16) {
 		codeBuffer[codeBufferLength++] = (codes >> 16) & 0xFF;
 	}
+}
+
+const enum HangulRangeStartCode {
+	InitialConsonant = 0x1100,
+	Vowel = 0x1161,
+	FinalConsonant = 0x11A8,
+	CompatibilityJamo = 0x3131,
 }
 
 const enum AsciiCode {
