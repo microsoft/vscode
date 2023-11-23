@@ -909,12 +909,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return sourceControl;
 	}
 
-	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
+	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, sourceControlId: string, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
 		this.logService.trace('ExtHostSCM#registerSourceControlInputBoxValueProvider', extension.identifier.value, provider.label);
 
 		const handle = ExtHostSCM._inputBoxValueProviderHandlePool++;
 		this._inputBoxValueProviders.set(handle, provider);
-		this._proxy.$registerSourceControlInputBoxValueProvider(handle, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
+		this._proxy.$registerSourceControlInputBoxValueProvider(handle, sourceControlId, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
 
 		return toDisposable(() => {
 			this._proxy.$unregisterSourceControlInputBoxValueProvider(handle);

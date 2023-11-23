@@ -186,10 +186,9 @@ export interface ISCMService {
 	getRepository(id: string): ISCMRepository | undefined;
 
 	readonly onDidChangeInputValueProviders: Event<void>;
-	readonly inputValueProviders: ISCMInputValueProvider[];
 
 	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined;
-	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
+	registerSCMInputValueProvider(sourceControlId: string, provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {

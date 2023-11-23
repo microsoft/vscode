@@ -7,7 +7,7 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/195474
 
 	export namespace scm {
-		export function registerSourceControlInputBoxValueProvider(provider: SourceControlInputBoxValueProvider): Disposable;
+		export function registerSourceControlInputBoxValueProvider(sourceControlId: string, provider: SourceControlInputBoxValueProvider): Disposable;
 	}
 
 	export interface SourceControlInputBoxValueProviderContext {
