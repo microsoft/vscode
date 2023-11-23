@@ -370,7 +370,7 @@ function _matchesWords(word: string, target: string, wordIndex: number, targetIn
 		}
 	}
 
-	return join({ start: targetIndex, end: nextWordIndex }, result);
+	return join({ start: targetIndex, end: targetIndex + targetIndexOffset + 1 }, result);
 }
 
 function nextWord(word: string, start: number): number {
