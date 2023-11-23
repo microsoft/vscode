@@ -2098,7 +2098,7 @@ class SCMInputWidget {
 			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
 			toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider, input.repository)] : []);
 
-			this.toolbarContainer.classList.toggle('hidden', !showInputActionButton || defaultProvider === undefined);
+			this.toolbarContainer.classList.toggle('hidden', !showInputActionButton || (defaultProvider === undefined && this.actionBar.isEmpty()));
 			this.layout();
 		};
 		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(updateToolbar, this));
