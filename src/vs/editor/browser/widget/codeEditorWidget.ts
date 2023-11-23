@@ -1417,9 +1417,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	public layout(dimension?: IDimension): void {
+	public layout(dimension?: IDimension, postponeRendering: boolean = false): void {
 		this._configuration.observeContainer(dimension);
-		this.render();
+		if (!postponeRendering) {
+			this.render();
+		}
 	}
 
 	public focus(): void {
