@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -15,11 +16,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -37,11 +38,12 @@ export class AuxiliaryEditorPart {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@ITitleService private readonly titleService: ITitleService
+		@ITitleService private readonly titleService: ITitleService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 	}
 
-	async create(label: string, options?: IAuxiliaryWindowOpenOptions): Promise<{ part: AuxiliaryEditorPartImpl; disposables: DisposableStore }> {
+	async create(label: string, options?: IAuxiliaryWindowOpenOptions): Promise<{ readonly part: AuxiliaryEditorPartImpl; readonly instantiationService: IInstantiationService; readonly disposables: DisposableStore }> {
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -59,9 +61,9 @@ export class AuxiliaryEditorPart {
 
 		function updateStatusbarVisibility(fromEvent: boolean): void {
 			if (statusBarVisible) {
-				statusbarPart.container.style.display = 'block';
+				show(statusbarPart.container);
 			} else {
-				statusbarPart.container.style.display = 'none';
+				hide(statusbarPart.container);
 			}
 
 			updateEditorPartHeight(fromEvent);
@@ -112,10 +114,6 @@ export class AuxiliaryEditorPart {
 			}
 		}));
 
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IStatusbarService, statusbarPart] // Editor status scoped to auxiliary window
-		));
-		disposables.add(scopedInstantiationService.createInstance(EditorStatus, editorPart));
 
 		updateStatusbarVisibility(false);
 
@@ -146,7 +144,17 @@ export class AuxiliaryEditorPart {
 		}));
 		auxiliaryWindow.layout();
 
-		return { part: editorPart, disposables };
+		// Have a InstantiationService that is scoped to the auxiliary window
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection(
+			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
+			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
+		));
+
+		return {
+			part: editorPart,
+			instantiationService,
+			disposables
+		};
 	}
 }
 

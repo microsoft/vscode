@@ -56,7 +56,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { mainWindow } from 'vs/base/browser/window';
-import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -327,7 +328,7 @@ export class EditorStatus extends Disposable {
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+	private readonly currentProblemStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
 	private readonly state = new State();
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
@@ -335,11 +336,8 @@ export class EditorStatus extends Disposable {
 
 	private toRender: StateChange | undefined = undefined;
 
-	private editorService: IEditorService;
-
 	constructor(
-		editorGroupsContainer: IEditorGroupsContainer | 'main',
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -348,8 +346,6 @@ export class EditorStatus extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-
-		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 
 		this.registerCommands();
 		this.registerListeners();
@@ -873,18 +869,25 @@ export class EditorStatus extends Disposable {
 	}
 }
 
-export class MainEditorStatus extends EditorStatus implements IWorkbenchContribution {
+export class EditorStatusContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IEditorService editorService: IEditorService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@ILanguageService languageService: ILanguageService,
-		@ITextFileService textFileService: ITextFileService,
-		@IStatusbarService statusbarService: IStatusbarService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
-		super('main', editorService, quickInputService, languageService, textFileService, statusbarService, instantiationService, configurationService);
+		super();
+
+		// Main Editor Status
+		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+			[IEditorService, editorService.createScoped('main', this._store)]
+		));
+		this._register(mainInstantiationService.createInstance(EditorStatus));
+
+		// Auxiliary Editor Status
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables }) => {
+			disposables.add(instantiationService.createInstance(EditorStatus));
+		}));
 	}
 }
 
