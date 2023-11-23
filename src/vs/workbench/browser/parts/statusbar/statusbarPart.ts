@@ -35,6 +35,7 @@ import { IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/brows
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export interface IStatusbarEntryContainer extends IDisposable {
 
@@ -671,7 +672,7 @@ export class MainStatusbarPart extends StatusbarPart {
 	}
 }
 
-export interface IAuxiliaryStatusbarPart extends IStatusbarEntryContainer {
+export interface IAuxiliaryStatusbarPart extends IStatusbarEntryContainer, IView {
 	readonly container: HTMLElement;
 	readonly height: number;
 }

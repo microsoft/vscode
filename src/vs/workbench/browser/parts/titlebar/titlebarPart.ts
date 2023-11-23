@@ -53,6 +53,7 @@ import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/ed
 import { IEditorCommandsContext, IToolbarActions } from 'vs/workbench/common/editor';
 import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
+import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export interface ITitleProperties {
 	isPure?: boolean;
@@ -100,14 +101,15 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		titlebarPartContainer.style.position = 'relative';
 		container.insertBefore(titlebarPartContainer, container.firstChild); // ensure we are first element
 
+		const disposables = new DisposableStore();
+
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer);
-		titlebarPartContainer.style.height = `${titlebarPart.height}px`;
+		disposables.add(this.registerTitlebarPart(titlebarPart));
 
-		const disposable = this.registerTitlebarPart(titlebarPart);
-
+		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
 
-		Event.once(titlebarPart.onWillDispose)(() => disposable.dispose());
+		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
 
 		return titlebarPart;
 	}
@@ -784,7 +786,7 @@ export class MainBrowserTitlebarPart extends BrowserTitlebarPart {
 	}
 }
 
-export interface IAuxiliaryTitlebarPart extends ITitlebarPart {
+export interface IAuxiliaryTitlebarPart extends ITitlebarPart, IView {
 	readonly container: HTMLElement;
 	readonly height: number;
 }

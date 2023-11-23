@@ -64,6 +64,10 @@ export class AuxiliaryEditorPart {
 				statusbarPart.container.style.display = 'none';
 			}
 
+			updateEditorPartHeight(fromEvent);
+		}
+
+		function updateEditorPartHeight(fromEvent: boolean): void {
 			editorPartContainer.style.height = `calc(100% - ${computeEditorPartHeightOffset()}px)`;
 
 			if (fromEvent) {
@@ -92,6 +96,7 @@ export class AuxiliaryEditorPart {
 		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
 		} else {
 			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 		}
@@ -128,7 +133,16 @@ export class AuxiliaryEditorPart {
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		// Layout
-		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height - computeEditorPartHeightOffset(), 0, 0)));
+		disposables.add(auxiliaryWindow.onDidLayout(dimension => {
+			if (titlebarPart) {
+				titlebarPart.layout(dimension.width, titlebarPart.height, 0, 0);
+			}
+
+			const editorPartHeight = dimension.height - computeEditorPartHeightOffset();
+			editorPart.layout(dimension.width, editorPartHeight, titlebarPart?.height ?? 0, 0);
+
+			statusbarPart.layout(dimension.width, statusbarPart.height, dimension.height - computeEditorPartHeightOffset(), 0);
+		}));
 		auxiliaryWindow.layout();
 
 		return { part: editorPart, disposables };
