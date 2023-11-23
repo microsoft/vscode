@@ -120,10 +120,10 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
-		const editorOptionsOverrideRaw = this.textResourceConfigurationService.getValue<ICodeEditorOptions>(this.getActiveResource(), 'editor');
-		if (editorOptionsOverrideRaw.renderValidationDecorations === 'off') {
-			editorConfiguration.renderValidationDecorations = editorOptionsOverrideRaw.renderValidationDecorations;
-		}
+		// const editorOptionsOverrideRaw = this.textResourceConfigurationService.getValue<ICodeEditorOptions>(this.getActiveResource(), 'editor');
+		// if (editorOptionsOverrideRaw.renderValidationDecorations === 'off') {
+		// 	editorConfiguration.renderValidationDecorations = editorOptionsOverrideRaw.renderValidationDecorations;
+		// }
 		return editorConfiguration;
 	}
 
@@ -163,8 +163,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: 'on'
+			...this.getReadonlyConfiguration(this.input?.isReadonly())
 		};
 	}
 

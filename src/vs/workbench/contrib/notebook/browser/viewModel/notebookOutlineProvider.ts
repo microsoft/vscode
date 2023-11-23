@@ -204,6 +204,10 @@ export class NotebookCellOutlineProvider {
 				}
 			};
 			const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
+			if (!problem) {
+				return;
+			}
+
 			const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
 
 			if ((problem.renderValidationDecorations === 'on' || problem.renderValidationDecorations === 'editable') && config) {
