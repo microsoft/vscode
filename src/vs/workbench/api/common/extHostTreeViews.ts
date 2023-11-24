@@ -895,6 +895,13 @@ class ExtHostTreeView<T> extends Disposable {
 		this.nodes.set(element, node);
 	}
 
+	private updateNodeInCache(node: TreeNode): void {
+		const element = this.elements.get(node.item.handle);
+		if (element) {
+			this.nodes.set(element, node);
+		}
+	}
+
 	private updateNodeCache(element: T, newNode: TreeNode, existing: TreeNode, parentNode: TreeNode | Root): void {
 		// Remove from the cache
 		this.elements.delete(newNode.item.handle);
@@ -920,6 +927,7 @@ class ExtHostTreeView<T> extends Disposable {
 				parentNode.children = [];
 			}
 			parentNode.children.push(node);
+			this.updateNodeInCache(parentNode);
 		} else {
 			if (!this.roots) {
 				this.roots = [];
