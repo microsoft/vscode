@@ -58,3 +58,9 @@
 .monaco-component .multiDiffEntry .header .actions {
 	padding: 0 8px;
 }
+
+
+
+.context-view .details > div {
+	border: 1px solid var(--vscode-editorWidget-border);
+}

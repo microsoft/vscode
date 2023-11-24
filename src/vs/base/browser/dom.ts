@@ -1256,7 +1256,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			const currentNodeHasFocus = FocusTracker.hasFocusWithin(<HTMLElement>element);
 			if (currentNodeHasFocus !== hasFocus) {
 				if (hasFocus) {
-					onBlur();
+					//onBlur();
 				} else {
 					onFocus();
 				}
@@ -1264,7 +1264,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		};
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
-		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		//this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
 		if (element instanceof HTMLElement) {
 			this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
 			this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));

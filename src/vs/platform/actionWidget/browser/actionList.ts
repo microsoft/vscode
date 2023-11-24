@@ -27,6 +27,7 @@ export interface IActionListDelegate<T> {
 	onSelect(action: T, preview?: boolean): void;
 	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 	onFocus?(action: T | undefined): void;
+	renderDetails?(action: T, node: HTMLElement): Promise<boolean>;
 }
 
 export interface IActionListItem<T> {
@@ -164,6 +165,8 @@ export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
 
+	public readonly detailsNode: HTMLElement;
+
 	private readonly _list: List<IActionListItem<T>>;
 
 	private readonly _actionLineHeight = 24;
@@ -182,6 +185,8 @@ export class ActionList<T> extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+
+		this.detailsNode = document.createElement('div');
 
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
@@ -322,6 +327,14 @@ export class ActionList<T> extends Disposable {
 		const focusIndex = focused[0];
 		const element = this._list.element(focusIndex);
 		this._delegate.onFocus?.(element.item);
+
+		this.detailsNode.replaceChildren();
+		if (element.item) {
+			this.detailsNode.style.display = 'block';
+			this._delegate.renderDetails?.(element.item, this.detailsNode);
+		} else {
+			this.detailsNode.style.display = 'none';
+		}
 	}
 
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
+import { Dimension, getDomNodePagePosition } from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
@@ -16,7 +16,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -38,6 +38,14 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
+import { WorkbenchUIElementFactory } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
+import { Event, EventBufferer } from 'vs/base/common/event';
+import { ConstLazyPromise, IDocumentDiffItem, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 
 interface IActionShowOptions {
@@ -78,6 +86,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
 
@@ -95,7 +106,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		this._resolver = instantiationService.createInstance(CodeActionKeybindingResolver);
 
-		this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
+		//this._register(this._editor.onDidLayoutChange(() => this._actionWidgetService.hide()));
 	}
 
 	override dispose() {
@@ -246,6 +257,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		className: DECORATION_CLASS_NAME
 	});
 
+	private readonly _domElement = document.createElement('div');
+	private readonly _multiDiffEditorWidget = new Lazy(() => this._instantiationService.createInstance(MultiDiffEditorWidget, this._domElement, new WorkbenchUIElementFactory(this._instantiationService)));
+
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
 
 		const currentDecorations = this._editor.createDecorationsCollection();
@@ -261,7 +275,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		}
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
-
+		const self = this;
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
 				this._applyCodeAction(action, /* retrigger */ true, !!preview);
@@ -289,7 +303,85 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				} else {
 					currentDecorations.clear();
 				}
-			}
+			},
+			async renderDetails(item, node) {
+				node.appendChild(self._domElement);
+				node.style.width = '550px';
+
+				node.onscroll = e => {
+					e.preventDefault();
+					e.stopPropagation();
+				};
+				node.onwheel = e => {
+					e.preventDefault();
+					e.stopPropagation();
+				};
+
+				self._multiDiffEditorWidget.value.layout(new Dimension(600, 300));
+
+				await item.resolve(CancellationToken.None);
+
+				const e = item.action.edit;
+				if (!e) {
+					node.style.display = 'none';
+					return false;
+				}
+
+				node.style.display = 'block';
+				//self._multiDiffEditorWidget
+				const resources = new Map<string, { original: ITextModel, modified: ITextModel }>();
+
+				const documents: LazyPromise<IDocumentDiffItem>[] = [];
+				for (const ed of e.edits) {
+					if ('resource' in ed) {
+						const key = ed.resource.toString();
+						let original: ITextModel;
+						let modified: ITextModel;
+
+						if (resources.has(key)) {
+							original = resources.get(key)!.original;
+							modified = resources.get(key)!.modified;
+						} else {
+							let modifiedValue = '';
+							try {
+								const ref = await self._textModelService.createModelReference(ed.resource);
+								original = ref.object.textEditorModel;
+								modifiedValue = original.getValue();
+							} catch (e) {
+								original = self._modelService.createModel('', self._languageService.createByFilepathOrFirstLine(ed.resource));
+							}
+							modified = self._modelService.createModel(modifiedValue, self._languageService.createByFilepathOrFirstLine(ed.resource));
+							resources.set(key, { original, modified });
+
+							documents.push(new ConstLazyPromise({
+								original: original,
+								modified: modified,
+								title: 'foobar',
+								options: {
+									glyphMargin: false,
+									fontSize: 12,
+								},
+								displayUri: ed.resource,
+							}));
+						}
+
+						modified.applyEdits([ed.textEdit]);
+					} else {
+
+					}
+				}
+				const vm = new MultiDiffEditorViewModel({
+					onDidChange: Event.None,
+					documents: documents,
+				}, self._instantiationService);
+				await vm.waitForDiffs();
+				self._multiDiffEditorWidget.value.setViewModel(vm);
+				const height = self._multiDiffEditorWidget.value.getContentHeight();
+				node.style.height = Math.min(300, height) + 'px';
+
+
+				return true;
+			},
 		};
 
 		this._actionWidgetService.show(

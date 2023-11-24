@@ -59,6 +59,10 @@ export class MultiDiffEditorWidget extends Disposable {
 		return this._activeControl.get();
 	}
 
+	public getContentHeight(): number {
+		return this._widgetImpl.get().getContentHeight();
+	}
+
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
 
 	private readonly _scrollState = derived(this, (reader) => {

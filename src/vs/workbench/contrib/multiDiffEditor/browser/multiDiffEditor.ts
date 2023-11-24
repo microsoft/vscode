@@ -106,7 +106,7 @@ interface IMultiDiffEditorViewState {
 	scrollState: { top: number; left: number };
 }
 
-class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
+export class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) { }
