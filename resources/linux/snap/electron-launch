@@ -67,6 +67,10 @@ fi
 # Set $REALHOME to the users real home directory
 REALHOME=$(getent passwd $UID | cut -d ':' -f 6)
 
+
+# Extra launch arguments
+declare -a launch_args
+
 # Set config folder to local path
 ensure_dir_exists "$SNAP_USER_DATA/.config"
 chmod 700 "$SNAP_USER_DATA/.config"
@@ -248,6 +252,7 @@ fi
 # shellcheck disable=SC2154
 if [ "$wayland_available" = true ]; then
   export GDK_BACKEND="wayland"
+  launch_args+=(--enable-native-wayland-client)
 fi
 
 append_dir GTK_PATH "$SNAP/usr/lib/$ARCH/gtk-3.0"
@@ -275,4 +280,8 @@ fi
 
 wait_for_async_execs
 
-exec "$@"
+
+binary="$1"
+shift
+
+exec "$binary" "${launch_args[@]}" "$@"
