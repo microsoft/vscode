@@ -225,7 +225,3 @@
 	background-color: var(--vscode-statusBarItem-offlineHoverBackground) !important;
 }
 
-.monaco-workbench .part.statusbar > .items-container > .statusbar-item[id="status.problems.off"] {
-	color: var(--vscode-statusBarItem-warningHoverForeground);
-	background-color: var(--vscode-statusBarItem-warningBackground) !important;
-}

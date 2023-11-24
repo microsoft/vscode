@@ -563,7 +563,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problems.off', StatusbarAlignment.LEFT, 49));
+		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'error-kind', StatusbarAlignment.LEFT, 49));
 		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
 		this.markerService.onMarkerChanged(() => this.markersStatusItemOff.update(this.getMarkersItemTurnedOff()));
 		this.configurationService.onDidChangeConfiguration(e => {
@@ -600,6 +600,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			text: this.markersOffText(),
 			ariaLabel: tooltip,
 			tooltip,
+			kind: 'warning',
 			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
 		};
 	}
