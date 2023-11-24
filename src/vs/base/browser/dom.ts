@@ -24,7 +24,21 @@ export interface IRegisteredCodeWindow {
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+//# region Multi-Window Support Utilities
+
+export const {
+	registerWindow,
+	getWindow,
+	getDocument,
+	getWindows,
+	getWindowsCount,
+	getWindowId,
+	getWindowById,
+	hasWindow,
+	onDidRegisterWindow,
+	onWillUnregisterWindow,
+	onDidUnregisterWindow
+} = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
@@ -78,9 +92,28 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, getWind
 		},
 		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
 			return windows.get(windowId);
+		},
+		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
+			const candidateNode = e as Node | undefined | null;
+			if (candidateNode?.ownerDocument?.defaultView) {
+				return candidateNode.ownerDocument.defaultView.window as CodeWindow;
+			}
+
+			const candidateEvent = e as UIEvent | undefined | null;
+			if (candidateEvent?.view) {
+				return candidateEvent.view.window as CodeWindow;
+			}
+
+			return mainWindow;
+		},
+		getDocument(e: Node | UIEvent | undefined | null): Document {
+			const candidateNode = e as Node | undefined | null;
+			return getWindow(candidateNode).document;
 		}
 	};
 })();
+
+//#endregion
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -103,7 +136,7 @@ class DomListener implements IDisposable {
 		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (!this._handler) {
 			// Already disposed
 			return;
@@ -180,7 +213,6 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
-
 /**
  * Execute the callback the next time the browser is idle, returning an
  * {@link IDisposable} that will cancel the callback when disposed. This wraps
@@ -213,7 +245,6 @@ export class WindowIdleValue<T> extends AbstractIdleValue<T> {
 		super(targetWindow, executor);
 	}
 }
-
 
 /**
  * Schedule a callback to be run at the next animation frame.
@@ -263,11 +294,11 @@ class AnimationFrameQueueItem implements IDisposable {
 		this._canceled = false;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._canceled = true;
 	}
 
-	public execute(): void {
+	execute(): void {
 		if (this._canceled) {
 			return;
 		}
@@ -280,7 +311,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	}
 
 	// Sort by priority (largest to lowest)
-	public static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
+	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
 		return b.priority - a.priority;
 	}
 }
@@ -414,7 +445,6 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 }
 
 export function getClientArea(element: HTMLElement): Dimension {
-
 	const elDocument = element.ownerDocument;
 	const elWindow = elDocument.defaultView?.window;
 
@@ -512,8 +542,8 @@ export class Dimension implements IDimension {
 	static readonly None = new Dimension(0, 0);
 
 	constructor(
-		public readonly width: number,
-		public readonly height: number,
+		readonly width: number,
+		readonly height: number,
 	) { }
 
 	with(width: number = this.width, height: number = this.height): Dimension {
@@ -856,32 +886,9 @@ export function getActiveDocument(): Document {
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
-export function getDocument(element: Node | undefined | null): Document;
-export function getDocument(event: UIEvent | undefined | null): Document;
-export function getDocument(e: unknown): Document {
-	const candidateNode = e as Node | undefined | null;
-	return getWindow(candidateNode).document;
-}
-
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
-}
-
-export function getWindow(element: Node | undefined | null): CodeWindow;
-export function getWindow(event: UIEvent | undefined | null): CodeWindow;
-export function getWindow(e: unknown): CodeWindow {
-	const candidateNode = e as Node | undefined | null;
-	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window as CodeWindow;
-	}
-
-	const candidateEvent = e as UIEvent | undefined | null;
-	if (candidateEvent?.view) {
-		return candidateEvent.view.window as CodeWindow;
-	}
-
-	return mainWindow;
 }
 
 export function focusWindow(element: Node): void {
@@ -1182,8 +1189,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker extends Disposable {
-	onDidFocus: event.Event<void>;
-	onDidBlur: event.Event<void>;
+	readonly onDidFocus: event.Event<void>;
+	readonly onDidBlur: event.Event<void>;
 	refreshState(): void;
 }
 
@@ -1208,10 +1215,10 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	public readonly onDidFocus: event.Event<void> = this._onDidFocus.event;
+	readonly onDidFocus = this._onDidFocus.event;
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	public readonly onDidBlur: event.Event<void> = this._onDidBlur.event;
+	readonly onDidBlur = this._onDidBlur.event;
 
 	private _refreshStateHandler: () => void;
 
