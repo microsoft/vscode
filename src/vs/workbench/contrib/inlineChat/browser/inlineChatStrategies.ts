@@ -711,7 +711,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	private async _computeDiff(): Promise<IDocumentDiff> {
-		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			return { identical: false, quitEarly: false, changes: [], moves: [] };
