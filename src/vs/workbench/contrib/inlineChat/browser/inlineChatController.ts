@@ -745,6 +745,10 @@ export class InlineChatController implements IEditorContribution {
 			this._chatAccessibilityService.acceptResponse(a11yResponse, requestId);
 		}
 
+		// todo@jrieken we can likely remove 'trackEdit'
+		const diff = await this._editorWorkerService.computeDiff(this._activeSession.textModel0.uri, this._activeSession.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
+		this._activeSession.wholeRange.fixup(diff?.changes ?? []);
+
 		progressiveEditsCts.dispose(true);
 		requestCts.dispose();
 		msgListener.dispose();

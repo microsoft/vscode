@@ -711,7 +711,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	private async _computeDiff(): Promise<IDocumentDiff> {
-		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			return { identical: false, quitEarly: false, changes: [], moves: [] };
@@ -750,8 +750,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 		this._sessionStore.clear();
 
-		this._updateSummaryMessage(diff.changes);
-
 		if (diff.identical || diff.changes.length === 0) {
 
 			if (isAfterManualInteraction) {
@@ -767,10 +765,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 		const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
 		const renderOptions = RenderOptions.fromEditor(this._editor);
 
-		let widgetData: { distance: number; position: Position; actions: IAction[] } | undefined;
+		let widgetData: { distance: number; position: Position; actions: IAction[]; mapping: LineRangeMapping } | undefined;
 
-		for (const { original, modified, innerChanges } of diff.changes) {
-
+		for (const mapping of diff.changes) {
+			const { original, modified, innerChanges } = mapping;
 			const modifiedRange: Range = modified.isEmpty
 				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._session.textModelN.getLineLength(modified.startLineNumber))
 				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._session.textModelN.getLineLength(modified.endLineNumberExclusive - 1));
@@ -895,7 +893,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 					: zoneLineNumber - modifiedRange.endLineNumber;
 
 				if (!widgetData || widgetData.distance > myDistance) {
-					widgetData = { distance: myDistance, position: modifiedRange.getStartPosition().delta(-1), actions };
+					widgetData = { distance: myDistance, position: modifiedRange.getStartPosition().delta(-1), mapping, actions };
 				}
 			}
 		}
@@ -904,6 +902,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._zone.widget.setExtraButtons(widgetData.actions);
 			this._zone.updatePositionAndHeight(widgetData.position);
 			this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+
+			this._updateSummaryMessage(widgetData.mapping, diff.changes);
+
 		}
 
 		const decorations = this._editor.createDecorationsCollection(newDecorations);
@@ -940,18 +941,20 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 	}
 
-	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[]) {
-		let linesChanged = 0;
-		for (const change of mappings) {
-			linesChanged += change.changedLineCount;
-		}
+	protected _updateSummaryMessage(current: LineRangeMapping, mappings: readonly LineRangeMapping[]) {
+		const thisLinesChange = current.changedLineCount;
+		const allLinesChanges = mappings.reduce((total, change) => total + change.changedLineCount, 0);
 		let message: string;
-		if (linesChanged === 0) {
+		if (allLinesChanges === 0) {
 			message = localize('lines.0', "Nothing changed");
-		} else if (linesChanged === 1) {
+		} else if (allLinesChanges === 1) {
 			message = localize('lines.1', "Changed 1 line");
 		} else {
-			message = localize('lines.N', "Changed {0} lines", linesChanged);
+			if (mappings.length === 1) {
+				message = localize('lines.N', "Changed {0} lines", allLinesChanges);
+			} else {
+				message = localize('lines.NM', "{0} of {1} changed lines", thisLinesChange, allLinesChanges);
+			}
 		}
 		this._zone.widget.updateStatus(message);
 	}
