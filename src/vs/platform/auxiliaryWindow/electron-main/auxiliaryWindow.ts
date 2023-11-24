@@ -37,6 +37,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	) {
 		super(configurationService, stateService, environmentMainService);
 
+		contents.removeAllListeners('devtools-reload-page'); // remove built in listener as aux windows have no reload
+
 		// Try to claim window
 		this.tryClaimWindow();
 	}
