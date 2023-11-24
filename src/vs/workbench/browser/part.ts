@@ -192,9 +192,9 @@ export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Dispo
 	protected readonly _parts = new Set<T>();
 	get parts() { return Array.from(this._parts); }
 
-	protected abstract mainPart: T;
+	abstract readonly mainPart: T;
 
-	protected registerPart(part: T): IDisposable {
+	registerPart(part: T): IDisposable {
 		this._parts.add(part);
 
 		return this._register(toDisposable(() => this.unregisterPart(part)));
