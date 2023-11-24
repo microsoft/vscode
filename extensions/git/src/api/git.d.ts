@@ -36,6 +36,7 @@ export interface Ref {
 export interface UpstreamRef {
 	readonly remote: string;
 	readonly name: string;
+	readonly commit?: string;
 }
 
 export interface Branch extends Ref {
@@ -222,6 +223,8 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 
+	getDiff(): Promise<string[]>;
+
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
@@ -233,7 +236,7 @@ export interface Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;

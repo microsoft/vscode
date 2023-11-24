@@ -1297,6 +1297,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
 			}
 		});
+
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showReleasedVersion',
 			title: { value: localize('show released version', "Show Release Version"), original: 'Show Release Version' },
@@ -1312,6 +1313,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
 			}
 		});
+
 		this.registerExtensionAction({
 			id: SwitchToPreReleaseVersionAction.ID,
 			title: SwitchToPreReleaseVersionAction.TITLE,
@@ -1330,6 +1332,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
 		this.registerExtensionAction({
 			id: SwitchToReleasedVersionAction.ID,
 			title: SwitchToReleasedVersionAction.TITLE,
@@ -1348,6 +1351,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
 		this.registerExtensionAction({
 			id: ClearLanguageAction.ID,
 			title: ClearLanguageAction.TITLE,

@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatProgressMessage, IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
@@ -79,6 +79,7 @@ export interface IChatLiveUpdateData {
 	loadingStartTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
+	lastWordCount: number;
 }
 
 export interface IChatResponseViewModel {
@@ -94,6 +95,9 @@ export interface IChatResponseViewModel {
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
+	readonly usedContext: IChatUsedContext | undefined;
+	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
@@ -106,6 +110,7 @@ export interface IChatResponseViewModel {
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
+	vulnerabilitiesListExpanded: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -287,6 +292,18 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.response;
 	}
 
+	get usedContext(): IChatUsedContext | undefined {
+		return this._model.usedContext;
+	}
+
+	get contentReferences(): ReadonlyArray<IChatContentReference> {
+		return this._model.contentReferences;
+	}
+
+	get progressMessages(): ReadonlyArray<IChatProgressMessage> {
+		return this._model.progressMessages;
+	}
+
 	get isComplete() {
 		return this._model.isComplete;
 	}
@@ -320,7 +337,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	currentRenderedHeight: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;
-
 	get usedReferencesExpanded(): boolean | undefined {
 		if (typeof this._usedReferencesExpanded === 'boolean') {
 			return this._usedReferencesExpanded;
@@ -331,6 +347,15 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	set usedReferencesExpanded(v: boolean) {
 		this._usedReferencesExpanded = v;
+	}
+
+	private _vulnerabilitiesListExpanded: boolean = false;
+	get vulnerabilitiesListExpanded(): boolean {
+		return this._vulnerabilitiesListExpanded;
+	}
+
+	set vulnerabilitiesListExpanded(v: boolean) {
+		this._vulnerabilitiesListExpanded = v;
 	}
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
@@ -348,7 +373,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				impliedWordLoadRate: 0
+				impliedWordLoadRate: 0,
+				lastWordCount: 0
 			};
 		}
 
@@ -358,18 +384,14 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 				const now = Date.now();
 				const wordCount = countWords(_model.response.asString());
 				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
-				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
-				const renderedWordCount = this.renderData?.renderedParts.reduce((acc, part) => acc += ('label' in part ? 0 : part.renderedWordCount), 0);
-				if (!this.isComplete) {
-					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-					this._contentUpdateTimings = {
-						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
-						lastUpdateTime: now,
-						impliedWordLoadRate
-					};
-				} else {
-					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-				}
+				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (timeDiff / 1000);
+				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+				this._contentUpdateTimings = {
+					loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
+					lastUpdateTime: now,
+					impliedWordLoadRate,
+					lastWordCount: wordCount
+				};
 			} else {
 				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
 			}

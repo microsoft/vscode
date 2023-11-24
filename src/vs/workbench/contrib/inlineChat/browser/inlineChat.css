@@ -151,7 +151,6 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
-
 .monaco-editor .inline-chat .markdownMessage {
 	padding: 10px 5px;
 }
@@ -192,6 +191,32 @@
 
 .monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
+}
+
+.monaco-editor .inline-chat .followUps {
+	padding: 5px 5px;
+}
+
+.monaco-editor .inline-chat .followUps .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+}
+
+.monaco-editor .inline-chat .followUps.hidden {
+	display: none;
+}
+
+.monaco-editor .inline-chat .chatMessage {
+	padding: 8px 3px;
+}
+
+.monaco-editor .inline-chat .chatMessage .chatMessageContent {
+	padding: 2px 2px;
+}
+
+.monaco-editor .inline-chat .chatMessage.hidden {
+	display: none;
 }
 
 .monaco-editor .inline-chat .status .label A {
@@ -285,7 +310,34 @@
 	display: none;
 }
 
+.monaco-editor .inline-chat-toolbar {
+	display: flex;
+}
+
+.monaco-editor .inline-chat-toolbar > .monaco-button{
+	margin-right: 6px;
+}
+
+.monaco-editor .inline-chat-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
 /* decoration styles */
+
+.monaco-editor .inline-chat-inserted-range {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-editor .inline-chat-inserted-range-linehighlight {
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.monaco-editor .inline-chat-original-zone2 {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	opacity: 0.8;
+}
 
 .monaco-editor .inline-chat-lines-deleted-range-inline {
 	text-decoration: line-through;
@@ -318,7 +370,6 @@
 /* create zone */
 
 .monaco-editor .inline-chat-newfile-widget {
-	padding: 3px 0 6px 0;
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
@@ -326,7 +377,22 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 3px 6px 3px 0;
+}
+
+.monaco-editor .inline-chat-newfile-widget .title .detail {
+	margin-left: 4px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget {
+	display: flex;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
+	display: inline-flex;
+	white-space: nowrap;
+	margin-left: 4px;
 }
 
 /* gutter decoration */
@@ -350,4 +416,3 @@
 .monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
 }
-

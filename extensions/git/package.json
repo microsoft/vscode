@@ -24,7 +24,8 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
-    "scmInputBoxActionButton"
+    "scmInputBoxActionButton",
+    "scmInputBoxValueProvider"
   ],
   "categories": [
     "Other"
@@ -697,7 +698,7 @@
       {
         "command": "git.timeline.openCommit",
         "title": "%command.timelineOpenCommit%",
-        "icon": "$(search)",
+        "icon": "$(tasklist)",
         "category": "Git"
       },
       {
@@ -762,14 +763,14 @@
       },
       {
         "command": "git.viewChanges",
-        "title": "View Changes",
-        "icon": "$(search)",
+        "title": "%command.viewChanges%",
+        "icon": "$(tasklist)",
         "category": "Git"
       },
       {
         "command": "git.viewStagedChanges",
-        "title": "View Staged Changes",
-        "icon": "$(search)",
+        "title": "%command.viewStagedChanges%",
+        "icon": "$(tasklist)",
         "category": "Git"
       }
     ],
@@ -2503,7 +2504,7 @@
             "warn",
             "off"
           ],
-          "default": "warn",
+          "default": "off",
           "description": "%config.inputValidation%"
         },
         "git.inputValidationLength": {

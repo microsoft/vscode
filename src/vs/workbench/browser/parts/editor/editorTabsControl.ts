@@ -40,8 +40,9 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -119,7 +120,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		private readonly parent: HTMLElement,
+		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
 		protected readonly groupsView: IEditorGroupsView,
 		protected readonly groupView: IEditorGroupView,
@@ -132,7 +133,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -316,9 +317,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-			bounds: { x: e.screenX, y: e.screenY }
-		});
+		const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, element);
+		if (!auxiliaryEditorPart) {
+			return;
+		}
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
@@ -326,6 +328,36 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		});
 
 		targetGroup.focus();
+	}
+
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
+		const window = getWindow(e);
+		if (window.document.visibilityState === 'visible') {
+			if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
+				return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
+			}
+		}
+
+		const offsetX = offsetElement.offsetWidth / 2;
+		const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
+
+		const bounds = {
+			x: point.x - offsetX,
+			y: point.y - offsetY
+		};
+
+		if (display) {
+			if (bounds.x < display.x) {
+				bounds.x = display.x; // prevent overflow to the left
+			}
+
+			if (bounds.y < display.y) {
+				bounds.y = display.y; // prevent overflow to the top
+			}
+		}
+
+		return this.editorPartsView.createAuxiliaryEditorPart({ bounds });
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {

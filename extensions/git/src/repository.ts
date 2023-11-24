@@ -1142,6 +1142,11 @@ export class Repository implements Disposable {
 		await this.run(Operation.Status);
 	}
 
+	@throttle
+	async refresh(): Promise<void> {
+		await this.run(Operation.Refresh);
+	}
+
 	diff(cached?: boolean): Promise<string> {
 		return this.run(Operation.Diff, () => this.repository.diff(cached));
 	}
@@ -1189,7 +1194,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
 	}
 
@@ -1664,6 +1669,21 @@ export class Repository implements Disposable {
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
+	}
+
+	async getDiff(): Promise<string[]> {
+		const diff: string[] = [];
+		if (this.indexGroup.resourceStates.length !== 0) {
+			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffIndexWithHEAD(file));
+			}
+		} else {
+			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffWithHEAD(file));
+			}
+		}
+
+		return diff;
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {

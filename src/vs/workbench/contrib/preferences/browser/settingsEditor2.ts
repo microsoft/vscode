@@ -65,6 +65,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 
 export const enum SettingsFocusContext {
@@ -1291,7 +1292,14 @@ export class SettingsEditor2 extends EditorPane {
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
-				const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
+				let manifest: IExtensionManifest | null = null;
+				try {
+					manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
+				} catch (e) {
+					// Likely a networking issue.
+					// Skip adding a button for this extension to the Settings editor.
+					continue;
+				}
 				const contributesConfiguration = manifest?.contributes?.configuration;
 
 				let groupTitle: string | undefined;
@@ -1526,6 +1534,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async triggerSearch(query: string): Promise<void> {
+		const progressRunner = this.editorProgressService.show(true);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
@@ -1584,6 +1593,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.splitView.setViewVisible(0, true);
 			}
 		}
+		progressRunner.done();
 	}
 
 	/**
@@ -1655,17 +1665,13 @@ export class SettingsEditor2 extends EditorPane {
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.localSearchDelayer.trigger(async () => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				const progressRunner = this.editorProgressService.show(true);
 				const result = await this.localFilterPreferences(query);
 				if (result && !result.exactMatch) {
 					this.remoteSearchThrottle.trigger(async () => {
 						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-							await this.remoteSearchPreferences(query, this.searchInProgress!.token);
+							await this.remoteSearchPreferences(query, this.searchInProgress?.token);
 						}
-						progressRunner.done();
 					});
-				} else {
-					progressRunner.done();
 				}
 			}
 		});

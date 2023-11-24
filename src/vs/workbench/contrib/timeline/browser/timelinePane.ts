@@ -279,15 +279,6 @@ export class TimelinePane extends ViewPane {
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 		this.timelineExcludeSourcesContext = TimelineExcludeSources.bindTo(this.contextKeyService);
 
-		// TOOD @lramos15 remove after a few iterations of deprecated setting
-		const oldExcludedSourcesSetting: string[] = configurationService.getValue('timeline.excludeSources');
-		if (oldExcludedSourcesSetting) {
-			configurationService.updateValue('timeline.excludeSources', undefined);
-			const oldSettingString = JSON.stringify(oldExcludedSourcesSetting);
-			this.timelineExcludeSourcesContext.set(oldSettingString);
-			// Update the storage service with the setting
-			storageService.store('timeline.excludeSources', oldSettingString, StorageScope.PROFILE, StorageTarget.USER);
-		}
 		const excludedSourcesString = storageService.get('timeline.excludeSources', StorageScope.PROFILE, '[]');
 		this.timelineExcludeSourcesContext.set(excludedSourcesString);
 		this.excludedSources = new Set(JSON.parse(excludedSourcesString));

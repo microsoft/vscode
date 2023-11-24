@@ -3,19 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// Entry file for webpack bunlding.
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 
-import * as monaco from 'monaco-editor-core';
-
-self.MonacoEnvironment = {
-	getWorkerUrl: function (moduleId, label) {
-		return './editor.worker.bundle.js';
+export class ActionRunnerWithContext extends ActionRunner {
+	constructor(private readonly _getContext: () => any) {
+		super();
 	}
-};
 
-monaco.editor.create(document.getElementById('container'), {
-	value: [
-		'var hello = "hello world";'
-	].join('\n'),
-	language: 'javascript'
-});
+	protected override runAction(action: IAction, _context?: unknown): Promise<void> {
+		return super.runAction(action, this._getContext());
+	}
+}

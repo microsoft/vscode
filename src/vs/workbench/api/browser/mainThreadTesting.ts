@@ -7,20 +7,20 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { revive } from 'vs/base/common/marshalling';
+import { ISettableObservable } from 'vs/base/common/observable';
+import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
-import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
 export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
@@ -124,17 +124,21 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	/**
 	 * @inheritdoc
 	 */
-	$signalCoverageAvailable(runId: string, taskId: string): void {
+	$signalCoverageAvailable(runId: string, taskId: string, available: boolean): void {
 		this.withLiveRun(runId, run => {
 			const task = run.tasks.find(t => t.id === taskId);
 			if (!task) {
 				return;
 			}
 
-			(task.coverage as MutableObservableValue<TestCoverage>).value = new TestCoverage({
-				provideFileCoverage: async token => revive<IFileCoverage[]>(await this.proxy.$provideFileCoverage(runId, taskId, token)),
-				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token),
-			});
+			const fn = available ? ((token: CancellationToken) => TestCoverage.load({
+				provideFileCoverage: async token => await this.proxy.$provideFileCoverage(runId, taskId, token)
+					.then(c => c.map(IFileCoverage.deserialize)),
+				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token)
+					.then(d => d.map(CoverageDetails.deserialize)),
+			}, token)) : undefined;
+
+			(task.coverage as ISettableObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>).set(fn, undefined);
 		});
 	}
 

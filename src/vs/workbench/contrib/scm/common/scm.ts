@@ -14,11 +14,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -60,6 +60,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
 	readonly onDidChangeResourceGroups: Event<void>;
@@ -79,6 +80,17 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
+}
+
+export interface ISCMInputValueProviderContext {
+	readonly resourceGroupId: string;
+	readonly resources: readonly URI[];
+}
+
+export interface ISCMInputValueProvider {
+	readonly label: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined>;
 }
 
 export const enum InputValidationType {
@@ -173,6 +185,11 @@ export interface ISCMService {
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 	getRepository(id: string): ISCMRepository | undefined;
+
+	readonly onDidChangeInputValueProviders: Event<void>;
+
+	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined;
+	registerSCMInputValueProvider(sourceControlId: string, provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {
