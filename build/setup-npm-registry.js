@@ -32,10 +32,12 @@ async function setup(url, file) {
 async function main(url, dir) {
 	const root = dir ?? process.cwd();
 
+	const promises = [];
 	for await (const file of getYarnLockFiles(root)) {
 		console.log(`Enabling custom NPM registry: ${path.relative(root, file)}`);
-		await setup(url, file);
+		promises.push(setup(url, file));
 	}
+	await Promise.all(promises);
 }
 
 main(process.argv[2], process.argv[3]);

@@ -706,11 +706,11 @@ async function main() {
 
 	await fs.writeFile(path.join(root, `${product.win32RegValueName}.admx`), admx.replace(/\r?\n/g, '\n'));
 
-	for (const { languageId, contents } of adml) {
+	await Promise.all(adml.map(async({ languageId, contents }) => {
 		const languagePath = path.join(root, languageId === 'en-us' ? 'en-us' : Languages[languageId as keyof typeof Languages]);
 		await fs.mkdir(languagePath, { recursive: true });
-		await fs.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
-	}
+		return fs.writeFile(path.join(languagePath, `${product.win32RegValueName}.adml`), contents.replace(/\r?\n/g, '\n'));
+	}));
 }
 
 if (require.main === module) {

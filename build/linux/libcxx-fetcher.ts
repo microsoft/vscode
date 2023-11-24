@@ -67,8 +67,10 @@ async function main(): Promise<void> {
 	}
 
 	await downloadLibcxxObjects(libcxxObjectsDirPath, electronVersion, arch);
-	await downloadLibcxxHeaders(libcxxHeadersDownloadDir, electronVersion, 'libcxx');
-	await downloadLibcxxHeaders(libcxxabiHeadersDownloadDir, electronVersion, 'libcxxabi');
+	await Promise.all([
+		downloadLibcxxHeaders(libcxxHeadersDownloadDir, electronVersion, 'libcxx'),
+		downloadLibcxxHeaders(libcxxabiHeadersDownloadDir, electronVersion, 'libcxxabi'),
+	]);
 }
 
 if (require.main === module) {

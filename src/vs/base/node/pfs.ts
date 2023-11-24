@@ -634,9 +634,9 @@ async function doCopyDirectory(source: string, target: string, mode: number, pay
 
 	// Copy each file recursively
 	const files = await readdir(source);
-	for (const file of files) {
-		await doCopy(join(source, file), join(target, file), payload);
-	}
+	await Promise.all(files.map((file) => {
+		return doCopy(join(source, file), join(target, file), payload);
+	}));
 }
 
 async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
