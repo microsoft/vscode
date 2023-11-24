@@ -18,6 +18,7 @@ import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -59,9 +60,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(layoutService, dialogService, configurationService);
+		super(layoutService, dialogService, configurationService, telemetryService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
