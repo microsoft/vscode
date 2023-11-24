@@ -140,9 +140,7 @@ append_dir LOCPATH "$SNAP/usr/lib/locale"
 
 # If detect wayland server socket, then set environment so applications prefer
 # wayland, and setup compat symlink (until we use user mounts. Remember,
-# XDG_RUNTIME_DIR is /run/user/<uid>/snap.$SNAP so look in the parent directory
-# for the socket. For details:
-# https://forum.snapcraft.io/t/wayland-dconf-and-xdg-runtime-dir/186/10
+# XDG_RUNTIME_DIR is /run/user/<uid> for classic snaps.
 # Applications that don't support wayland natively may define DISABLE_WAYLAND
 # (to any non-empty value) to skip that logic entirely.
 wayland_available=false
@@ -151,17 +149,12 @@ if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
     wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
-    if [ -S "$wayland_sockpath" ]; then
+    if [ -S "$wayland_snappath" ]; then
         # if running under wayland, use it
         #export WAYLAND_DEBUG=1
         # shellcheck disable=SC2034
         wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
-        fi
     fi
 fi
 
