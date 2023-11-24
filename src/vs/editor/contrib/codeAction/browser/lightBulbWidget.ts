@@ -205,9 +205,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}
 
-		const firstCharacterOfEffectiveLineNumber = model.getLineContent(effectiveLineNumber)[0] ?? '';
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
-			position: { lineNumber: effectiveLineNumber, column: (!firstCharacterOfEffectiveLineNumber || firstCharacterOfEffectiveLineNumber.match(/\s/)) ? 1 : 2 },
+			position: { lineNumber: effectiveLineNumber, column: !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1 },
 			preference: LightBulbWidget._posPref
 		});
 		this._editor.layoutContentWidget(this);
