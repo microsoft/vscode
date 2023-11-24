@@ -145,6 +145,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.changeTitle', "The Source Control inline change menu")
 	},
 	{
+		key: 'scm/inputBox',
+		id: MenuId.SCMInputBox,
+		description: localize('menus.input', "The Source Control input box menu")
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),

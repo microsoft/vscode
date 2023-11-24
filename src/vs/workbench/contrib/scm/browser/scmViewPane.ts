@@ -11,7 +11,7 @@ import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/par
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext, ISCMInputValueProvider } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -75,7 +75,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -100,10 +100,10 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ICommandAction } from 'vs/platform/action/common/action';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1779,42 +1779,82 @@ export const enum SCMInputCommandId {
 	ProvideValue = 'scm.input.provideValue'
 }
 
+// registerAction2(class extends Action2 {
+// 	constructor() {
+// 		super(
+// 			{
+// 				id: 'scm.input.provideValue',
+// 				title: 'SCM Input: Provide Value',
+// 				icon: Codicon.squirrel,
+// 				// toggled: {
+// 				// 	icon: Codicon.debugStop,
+// 				// 	tooltip: 'Cancel',
+// 				// 	condition: ContextKeyExpr.equals('scmInputActionIsRunning', true)
+// 				// },
+// 				menu: {
+// 					id: MenuId.SCMInputBox
+// 				}
+// 			});
+// 	}
+
+// 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+// 		return new Promise((resolve, reject) => setTimeout(() => resolve(), 5000));
+// 	}
+// });
+
 class SCMInputWidgetActionRunner extends ActionRunner {
 
 	private _cts: CancellationTokenSource | undefined;
+	private _ctxIsActionRunning: IContextKey<boolean>;
 
-	private _isActionRunning: boolean = false;
-	get isActionRunning(): boolean { return this._isActionRunning; }
+	// private _isActionRunning: boolean = false;
+	// get isActionRunning(): boolean { return this._isActionRunning; }
 
 	constructor(
 		private readonly input: ISCMInput,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
+
+		this._ctxIsActionRunning = contextKeyService.createKey('scmInputActionIsRunning', false);
 	}
 
-	override async run(action: IAction, context?: unknown): Promise<void> {
-		if (!action.enabled) {
-			return;
-		}
+	// 	override async run(action: IAction, context?: unknown): Promise<void> {
+	// 		if (!action.enabled) {
+	// 			return;
+	// 		}
 
-		// Cancel previous action
-		if (this._isActionRunning) {
-			this._cts?.cancel();
+	// 		// Cancel previous action
+	// 		if (this._ctxIsActionRunning.get() === true) {
+	// 			this._cts?.cancel();
 
-			// Cancel button was clicked
-			if (action instanceof SCMInputWidgetButtonAction) {
-				return;
-			}
-		}
+	// 			// Cancel button was clicked
+	// 			if (action instanceof SCMInputWidgetButtonAction) {
+	// 				return;
+	// 			}
+	// 		}
 
-		this._isActionRunning = true;
+	// // 		this._isActionRunning = true;
+	// 		this._ctxIsActionRunning.set(true);
 
-		super.run(action, context);
-	}
+	// 		super.run(action, context);
+	// 	}
 
 	protected override async runAction(action: IAction): Promise<void> {
 		try {
+			// Cancel previous action
+			if (this._ctxIsActionRunning.get() === true) {
+				this._cts?.cancel();
+
+				// Cancel button was clicked
+				if (action instanceof MenuItemAction) {
+					return;
+				}
+			}
+
+			this._ctxIsActionRunning.set(true);
+
 			await this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
 				const context: ISCMInputValueProviderContext[] = [];
 				for (const group of this.input.repository.provider.groups) {
@@ -1825,72 +1865,84 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 				}
 
 				this._cts = new CancellationTokenSource();
-				await action.run(context, this._cts.token);
+				await action.run(...[this.input.repository.provider.rootUri!, context, this._cts.token]);
 			});
 		} finally {
-			this._isActionRunning = false;
+			// this._isActionRunning = false;
+			this._ctxIsActionRunning.set(false);
 		}
 	}
 
 }
 
-class SCMInputWidgetButtonAction extends Action {
+class SCMInputWidgetPrimaryAction extends MenuItemAction {
+	constructor(
+		action: MenuItemAction,
+		options: IMenuWorkbenchToolBarOptions | undefined,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		const commandActionWithToggle: ICommandAction = {
+			...action.item,
+			precondition: action.item.precondition ?
+				ContextKeyExpr.or(action.item.precondition, ContextKeyExpr.equals('scmInputActionIsEnabled', true)) :
+				ContextKeyExpr.equals('scmInputActionIsEnabled', true),
+			toggled: {
+				icon: Codicon.debugStop,
+				tooltip: 'Cancel',
+				condition: ContextKeyExpr.equals('scmInputActionIsRunning', true),
+			}
+		};
+
+		super(commandActionWithToggle, undefined, options?.menuOptions, undefined, contextKeyService, commandService);
+	}
+}
+
+class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 	constructor(
-		private readonly input: ISCMInput,
-		private readonly provider: ISCMInputValueProvider,
-		readonly repository: ISCMRepository
+		container: HTMLElement,
+		menuId: MenuId,
+		options: IMenuWorkbenchToolBarOptions | undefined,
+		@IMenuService menuService: IMenuService,
+		@ICommandService commandService: ICommandService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(
-			SCMInputCommandId.ProvideValue,
-			provider.label,
-			ThemeIcon.isThemeIcon(provider.icon) ? ThemeIcon.asClassName(provider.icon) : ThemeIcon.asClassName(Codicon.sparkle),
-			repository.provider.groups.some(g => g.resources.length > 0));
+		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
-		this._register(repository.provider.onDidChangeResources(() => this.enabled = repository.provider.groups.some(g => g.resources.length > 0)));
-	}
+		const updateToolbar = () => {
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(
+				menu,
+				options?.menuOptions,
+				actions,
+				options?.toolbarOptions?.primaryGroup,
+				options?.toolbarOptions?.shouldInlineSubmenu,
+				options?.toolbarOptions?.useSeparatorsInPrimaryActions
+			);
 
-	override async run(context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<void> {
-		const value = await this.provider.provideValue(this.input.repository.provider.rootUri!, context, token);
+			const primary: IAction[] = [];
+			if (actions.length !== 0 && actions[0] instanceof MenuItemAction) {
+				primary.push(new SCMInputWidgetPrimaryAction(actions[0], options, commandService, contextKeyService));
+			}
 
-		if (value) {
-			this.input.setValue(value, false);
-		}
-	}
+			container.classList.toggle('has-no-actions', primary.length === 0);
+			super.setActions(primary, []);
+		};
 
-}
+		const contextKeys = new Set(['scmInputActionIsEnabled', 'scmInputActionIsRunning']);
+		this._store.add(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeys))(updateToolbar));
 
-class SCMInputWidgetButtonActionViewItem extends ActionViewItem {
+		this._store.add(menu.onDidChange(() => updateToolbar()));
 
-	constructor(action: IAction, actionRunner: SCMInputWidgetActionRunner) {
-		super(undefined, action, { icon: true, label: false });
-
-		this.actionRunner = actionRunner;
-
-		this._register(Event.any(actionRunner.onWillRun, actionRunner.onDidRun)(() => {
-			this.updateTooltip();
-			this.updateClass();
-		}));
-	}
-
-	protected override getClass(): string | undefined {
-		if (this.actionRunner instanceof SCMInputWidgetActionRunner) {
-			return this.actionRunner.isActionRunning ? ThemeIcon.asClassName(Codicon.debugStop) : super.getClass();
-		}
-
-		return super.getClass();
-	}
-
-	protected override getTooltip(): string | undefined {
-		if (this.actionRunner instanceof SCMInputWidgetActionRunner) {
-			return this.actionRunner.isActionRunning ? localize('cancel', "Cancel") : super.getTooltip();
-		}
-
-		return super.getTooltip();
+		updateToolbar();
 	}
 
 }
-
 
 class SCMInputWidget {
 
@@ -2061,32 +2113,32 @@ class SCMInputWidget {
 		updateEnablement(input.enabled);
 
 		// Toolbar
-		const onDidChangeActionButton = () => {
-			this.actionBar.clear();
+		// const onDidChangeActionButton = () => {
+		// 	this.actionBar.clear();
 
-			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
+		// 	const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
 
-			if (input.actionButton && defaultProvider === undefined) {
-				const action = new Action(
-					input.actionButton.command.id,
-					input.actionButton.command.title,
-					ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
-					input.actionButton.enabled,
-					() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
+		// 	if (input.actionButton && defaultProvider === undefined) {
+		// 		const action = new Action(
+		// 			input.actionButton.command.id,
+		// 			input.actionButton.command.title,
+		// 			ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
+		// 			input.actionButton.enabled,
+		// 			() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
 
-				this.actionBar.push(action, { icon: true, label: false });
-			}
+		// 		this.actionBar.push(action, { icon: true, label: false });
+		// 	}
 
-			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
-			this.actionBar.domNode.classList.toggle('hidden', !showInputActionButton || this.actionBar.isEmpty());
+		// 	const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
+		// 	this.actionBar.domNode.classList.toggle('hidden', !showInputActionButton || this.actionBar.isEmpty());
 
-			this.layout();
-		};
+		// 	this.layout();
+		// };
 
-		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
-		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeActionButton, this));
-		this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(onDidChangeActionButton, this));
-		onDidChangeActionButton();
+		// this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
+		// this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeActionButton, this));
+		// this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(onDidChangeActionButton, this));
+		// onDidChangeActionButton();
 
 		// Toolbar (new)
 		this.createToolbar(input);
@@ -2103,34 +2155,64 @@ class SCMInputWidget {
 	}
 
 	private createToolbar(input: ISCMInput): void {
-		const actionRunner = this.instantiationService.createInstance(SCMInputWidgetActionRunner, input);
+		const contextKeyService2 = this.contextKeyService.createScoped(this.toolbarContainer);
+
+		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
+		const instantiationService2 = this.instantiationService.createChild(services);
+
+		const actionRunner = instantiationService2.createInstance(SCMInputWidgetActionRunner, input);
 		this.repositoryDisposables.add(actionRunner);
 
-		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
+		const toolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, MenuId.SCMInputBox, {
 			actionRunner,
-			actionViewItemProvider: action => {
-				// Button (single provider)
-				if (action instanceof SCMInputWidgetButtonAction) {
-					return this.instantiationService.createInstance(SCMInputWidgetButtonActionViewItem, action, actionRunner);
-				}
-
-				return createActionViewItem(this.instantiationService, action);
-			},
-
+			// actionViewItemProvider: action => {
+			// 	return createActionViewItem(instantiationService2, action);
+			// },
+			menuOptions: {
+				shouldForwardArgs: true
+			}
 		});
 		this.repositoryDisposables.add(toolbar);
 
-		const updateToolbar = () => {
-			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
-			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
-			toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider, input.repository)] : []);
+		const ctxIsActionEnebled = contextKeyService2.createKey<boolean>('scmInputActionIsEnabled', true);
+		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => ctxIsActionEnebled.set(input.repository.provider.groups.some(r => r.resources.length > 0))));
 
-			toolbar.getElement().classList.toggle('hidden', !showInputActionButton || defaultProvider === undefined);
-			this.layout();
-		};
-		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(updateToolbar, this));
-		this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(updateToolbar, this));
-		updateToolbar();
+		// 	actionRunner,
+		// 	actionViewItemProvider: action => {
+		// 		// // Button (single provider)
+		// 		// if (action instanceof SCMInputWidgetButtonAction) {
+		// 		// 	return this.instantiationService.createInstance(SCMInputWidgetButtonActionViewItem, action, actionRunner);
+		// 		// }
+
+		// 		return createActionViewItem(this.instantiationService, action);
+		// 	},
+		// });
+
+		// const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
+		// 	actionRunner,
+		// 	actionViewItemProvider: action => {
+		// 		// Button (single provider)
+		// 		if (action instanceof SCMInputWidgetButtonAction) {
+		// 			return this.instantiationService.createInstance(SCMInputWidgetButtonActionViewItem, action, actionRunner);
+		// 		}
+
+		// 		return createActionViewItem(this.instantiationService, action);
+		// 	},
+
+		// });
+		// this.repositoryDisposables.add(toolbar);
+
+		// const updateToolbar = () => {
+		// 	const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
+		// 	const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
+		// 	toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider, input.repository)] : []);
+
+		// 	toolbar.getElement().classList.toggle('hidden', !showInputActionButton || defaultProvider === undefined);
+		// 	this.layout();
+		// };
+		// this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(updateToolbar, this));
+		// this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(updateToolbar, this));
+		// updateToolbar();
 	}
 
 	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
@@ -2154,17 +2236,15 @@ class SCMInputWidget {
 	constructor(
 		container: HTMLElement,
 		overflowWidgetsDomNode: HTMLElement,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
 		@ITextModelService private textModelService: ITextModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@ICommandService private readonly commandService: ICommandService
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));

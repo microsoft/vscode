@@ -772,6 +772,12 @@
         "title": "%command.viewStagedChanges%",
         "icon": "$(tasklist)",
         "category": "Git"
+      },
+      {
+        "command": "git.generateCommitMessage",
+        "title": "Generate Commit Message (Test)",
+        "icon": "$(rocket)",
+        "category": "Git"
       }
     ],
     "continueEditSession": [
@@ -1805,6 +1811,12 @@
         {
           "command": "git.revertChange",
           "when": "config.git.enabled && !git.missing && originalResourceScheme == git"
+        }
+      ],
+      "scm/inputBox": [
+        {
+          "command": "git.generateCommitMessage",
+          "when": "config.git.enabled && !git.missing"
         }
       ],
       "timeline/item/context": [

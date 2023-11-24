@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, CancellationToken, SourceControlInputBoxValueProviderContext } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -3632,14 +3632,28 @@ export class CommandCenter {
 	}
 
 	@command('git.generateCommitMessage', { repository: true })
-	async generateCommitMessage(repository: Repository): Promise<void> {
-		if (!repository || !this.model.commitMessageProvider) {
+	async generateCommitMessage(repository: Repository, _: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
 			return;
 		}
 
-		await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
-			await repository.generateCommitMessage();
+		return new Promise<void>(resolve => {
+			token.onCancellationRequested(() => resolve());
+
+			setTimeout(() => {
+				repository.inputBox.value = 'Hello World!';
+				resolve();
+			}, 5000);
 		});
+
+		// await new Promise(c => setTimeout(c, 5000));
+		// if (!repository || !this.model.commitMessageProvider) {
+		// 	return;
+		// }
+
+		// await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+		// 	await repository.generateCommitMessage();
+		// });
 	}
 
 	@command('git.generateCommitMessageCancel', { repository: true })
