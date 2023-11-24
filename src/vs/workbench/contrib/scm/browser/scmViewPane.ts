@@ -1073,7 +1073,7 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 		} else if (isSCMResourceGroup(element)) {
 			return element.resources.length > 0 || !element.hideWhenEmpty;
 		} else if (isSCMViewSeparator(element)) {
-			return element.repository.provider.groups.some(g => g.resources.length > 0);
+			return true;
 		} else {
 			return true;
 		}
@@ -3232,7 +3232,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			// ResourceGroups
-			const showWheEmpty = resourceGroups.some(group => !group.hideWhenEmpty);
 			const hasSomeChanges = resourceGroups.some(group => group.resources.length > 0);
 			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !actionButton))) {
 				children.push(...resourceGroups);
@@ -3242,7 +3241,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
 
 			// Incoming/Outgoing Separator
-			if (historyItemGroups.length > 0 && (hasSomeChanges || showWheEmpty)) {
+			if (historyItemGroups.length > 0) {
 				children.push({
 					label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
 					repository: inputOrElement,
