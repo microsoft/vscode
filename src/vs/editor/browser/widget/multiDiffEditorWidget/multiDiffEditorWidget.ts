@@ -60,4 +60,22 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public readonly onDidChangeActiveControl = Event.fromObservableLight(this._activeControl);
+
+	private readonly _scrollState = derived(this, (reader) => {
+		const w = this._widgetImpl.read(reader);
+		const top = w.scrollTop.read(reader);
+		const left = w.scrollLeft.read(reader);
+		return { top, left };
+	});
+
+	public getScrollState(): { top: number; left: number } {
+		return this._scrollState.get();
+	}
+
+	public setScrollState(scrollState: { top?: number; left?: number }): void {
+		const w = this._widgetImpl.get();
+		w.setScrollState(scrollState);
+	}
+
+	public readonly onDidChangeScrollState = Event.fromObservableLight(this._scrollState);
 }

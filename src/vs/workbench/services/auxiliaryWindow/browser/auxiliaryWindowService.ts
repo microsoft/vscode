@@ -37,8 +37,6 @@ export interface IAuxiliaryWindowService {
 
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
 
-	hasWindow(windowId: number): boolean;
-
 	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 }
 
@@ -347,10 +345,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
-	}
-
-	hasWindow(windowId: number): boolean {
-		return this.windows.has(windowId);
 	}
 }
 

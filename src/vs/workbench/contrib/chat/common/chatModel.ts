@@ -654,7 +654,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'vulnerability') {
 			// TODO@roblourens ChatModel should just work with strings
-			request.response.updateContent({ kind: 'markdownVuln', content: { value: progress.content }, title: progress.title, description: progress.description }, quiet);
+			request.response.updateContent({ kind: 'markdownVuln', content: { value: progress.content }, vulnerabilities: progress.vulnerabilities }, quiet);
 		} else if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'asyncContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference' || progress.kind === 'markdownVuln') {
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'usedContext' || progress.kind === 'reference' || progress.kind === 'progressMessage') {

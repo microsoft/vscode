@@ -551,6 +551,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentHighlightProvider(extension, checkSelector(selector), provider);
 			},
+			registerMultiDocumentHighlightProvider(selector: vscode.DocumentSelector, provider: vscode.MultiDocumentHighlightProvider): vscode.Disposable {
+				return extHostLanguageFeatures.registerMultiDocumentHighlightProvider(extension, checkSelector(selector), provider);
+			},
 			registerLinkedEditingRangeProvider(selector: vscode.DocumentSelector, provider: vscode.LinkedEditingRangeProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerLinkedEditingRangeProvider(extension, checkSelector(selector), provider);
 			},
@@ -1168,9 +1171,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
 			},
-			registerSourceControlInputBoxValueProvider(provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
+			registerSourceControlInputBoxValueProvider(sourceControlId: string, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'scmInputBoxValueProvider');
-				return extHostSCM.registerSourceControlInputBoxValueProvider(extension, provider);
+				return extHostSCM.registerSourceControlInputBoxValueProvider(extension, sourceControlId, provider);
 			}
 		};
 
@@ -1421,6 +1424,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatMessage: extHostTypes.ChatMessage,
 			ChatMessageRole: extHostTypes.ChatMessageRole,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
+			ChatAgentCompletionItem: extHostTypes.ChatAgentCompletionItem,
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			CallHierarchyOutgoingCall: extHostTypes.CallHierarchyOutgoingCall,
@@ -1460,6 +1464,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			Disposable: extHostTypes.Disposable,
 			DocumentHighlight: extHostTypes.DocumentHighlight,
 			DocumentHighlightKind: extHostTypes.DocumentHighlightKind,
+			MultiDocumentHighlight: extHostTypes.MultiDocumentHighlight,
 			DocumentLink: extHostTypes.DocumentLink,
 			DocumentSymbol: extHostTypes.DocumentSymbol,
 			EndOfLine: extHostTypes.EndOfLine,
@@ -1522,7 +1527,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
-			TerminalQuickFixExecuteTerminalCommand: extHostTypes.TerminalQuickFixCommand,
+			TerminalQuickFixTerminalCommand: extHostTypes.TerminalQuickFixCommand,
 			TerminalQuickFixOpener: extHostTypes.TerminalQuickFixOpener,
 			TerminalLocation: extHostTypes.TerminalLocation,
 			TerminalProfile: extHostTypes.TerminalProfile,

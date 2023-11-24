@@ -14,8 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { disposableWindowInterval, getActiveDocument, getWindowsCount, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { disposableWindowInterval, getActiveDocument, getWindowsCount, hasWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { isAuxiliaryWindow } from 'vs/base/browser/window';
 
@@ -36,8 +35,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -46,8 +44,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	readonly onDidChangeFocus = Event.latch(
 		Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.hasWindow(id)), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId) || !!this.auxiliaryWindowService.hasWindow(id), this._store), () => this.hasFocus, this._store)
+			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store)
 		), undefined, this._store
 	);
 
@@ -75,7 +73,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		const emitter = this._register(new Emitter<number>());
 
 		// Emit via native focus tracking
-		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.hasWindow(id), this._store)(id => emitter.fire(id)));
+		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store)(id => emitter.fire(id)));
 
 		this._register(onDidRegisterWindow(({ window, disposables }) => {
 

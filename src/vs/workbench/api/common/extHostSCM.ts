@@ -909,12 +909,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return sourceControl;
 	}
 
-	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
+	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, sourceControlId: string, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
 		this.logService.trace('ExtHostSCM#registerSourceControlInputBoxValueProvider', extension.identifier.value, provider.label);
 
 		const handle = ExtHostSCM._inputBoxValueProviderHandlePool++;
 		this._inputBoxValueProviders.set(handle, provider);
-		this._proxy.$registerSourceControlInputBoxValueProvider(handle, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
+		this._proxy.$registerSourceControlInputBoxValueProvider(handle, sourceControlId, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
 
 		return toDisposable(() => {
 			this._proxy.$unregisterSourceControlInputBoxValueProvider(handle);
@@ -922,13 +922,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	async $provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: vscode.SourceControlInputBoxValueProviderContext[]): Promise<string | undefined> {
+	async $provideInputBoxValue(inputBoxValueProviderHandle: number, rootUri: UriComponents, context: vscode.SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
 		const provider = this._inputBoxValueProviders.get(inputBoxValueProviderHandle);
 		if (!provider) {
 			return undefined;
 		}
 
-		return await provider.provideValue(sourceControlId, context, CancellationToken.None) ?? undefined;
+		return await provider.provideValue(URI.revive(rootUri), context, token) ?? undefined;
 	}
 
 	// Deprecated

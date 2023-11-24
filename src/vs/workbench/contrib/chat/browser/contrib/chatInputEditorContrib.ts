@@ -26,7 +26,7 @@ import { SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExec
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { SelectAndInsertFileAction, dynamicReferenceDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferences';
+import { SelectAndInsertFileAction, dynamicVariableDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -94,7 +94,7 @@ class InputEditorDecorations extends Disposable {
 
 	private updateRegisteredDecorationTypes() {
 		this.codeEditorService.removeDecorationType(variableTextDecorationType);
-		this.codeEditorService.removeDecorationType(dynamicReferenceDecorationType);
+		this.codeEditorService.removeDecorationType(dynamicVariableDecorationType);
 		this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 
 		const theme = this.themeService.getColorTheme();
@@ -108,7 +108,7 @@ class InputEditorDecorations extends Disposable {
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
 			borderRadius: '3px'
 		});
-		this.codeEditorService.registerDecorationType(decorationDescription, dynamicReferenceDecorationType, {
+		this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
 			color: theme.getColor(chatSlashCommandForeground)?.toString(),
 			backgroundColor: theme.getColor(chatSlashCommandBackground)?.toString(),
 			borderRadius: '3px'

@@ -16,7 +16,7 @@
 	border-left: 2px var(--vscode-notebook-focusedCellBorder) solid;
 }
 
-.monaco-component .multiDiffEntry .editor {
+.monaco-component .multiDiffEntry .editorParent .editorContainer {
 	border-left: 17px var(--vscode-tab-inactiveBackground) solid;
 }
 
@@ -50,6 +50,11 @@
 }
 
 .monaco-component .multiDiffEntry .header .title {
+	flex: 1;
 	font-size: 14px;
 	line-height: 22px;
+}
+
+.monaco-component .multiDiffEntry .header .actions {
+	padding: 0 8px;
 }

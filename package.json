@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.85.0",
-  "distro": "c9c6c35cb41a0105a02be5ad66d9f124191bb7f2",
+  "distro": "4f9a312701bf2db8eea9da8d2ea70e6ff6cd7446",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -72,7 +72,7 @@
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
     "@vscode/proxy-agent": "^0.18.2",
-    "@vscode/ripgrep": "^1.15.6",
+    "@vscode/ripgrep": "^1.15.9",
     "@vscode/spdlog": "^0.13.12",
     "@vscode/sqlite3": "5.1.6-vscode",
     "@vscode/sudo-prompt": "9.3.1",
@@ -135,7 +135,7 @@
     "@typescript-eslint/parser": "^5.57.0",
     "@vscode/gulp-electron": "^1.36.0",
     "@vscode/l10n-dev": "0.0.21",
-    "@vscode/telemetry-extractor": "^1.9.10",
+    "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.3",
     "@vscode/test-electron": "^2.3.5",
     "@vscode/test-web": "^0.0.42",

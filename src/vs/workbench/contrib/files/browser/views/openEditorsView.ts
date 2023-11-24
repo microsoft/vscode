@@ -786,7 +786,7 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '4_flip',
+	group: '5_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: {

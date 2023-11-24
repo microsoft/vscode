@@ -230,7 +230,7 @@ body.web {
 	left: 0;
 	width: 100%;
 	height: 100%;
-	z-index: 5; /* make sure we are on top of the tree items */
+	z-index: 15; /* make sure we are on top of the tree sticky scroll widget */
 	content: "";
 	pointer-events: none; /* enable click through */
 	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */

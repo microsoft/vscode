@@ -20,7 +20,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, MainEditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, EditorStatusContribution } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuRegistry, MenuId, IMenuItem, registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -41,13 +41,13 @@ import {
 	ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction,
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
 	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction,
-	MaximizeGroupHideSidebarAction, MoveEditorToNewDetachedWindowAction, CopyEditorToNewDetachedWindowAction, RestoreEditorsToMainWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction, CopyEditorGroupToNewDetachedWindowAction, MoveEditorGroupToNewDetachedWindowAction
+	MaximizeGroupHideSidebarAction, MoveEditorToNewWindowAction, CopyEditorToNewindowAction, RestoreEditorsToMainWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction, CopyEditorGroupToNewWindowAction, MoveEditorGroupToNewWindowAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 	CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID, PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT,
 	SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID,
-	TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_FIRST_SIDE_EDITOR, FOCUS_SECOND_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT, LOCK_GROUP_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP
+	TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_FIRST_SIDE_EDITOR, FOCUS_SECOND_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT, LOCK_GROUP_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID
 } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -124,7 +124,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 //#region Workbench Contributions
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MainEditorStatus, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, LifecyclePhase.Ready);
 
@@ -293,10 +293,10 @@ registerAction2(QuickAccessPreviousRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessLeastRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessPreviousEditorFromHistoryAction);
 
-registerAction2(MoveEditorToNewDetachedWindowAction);
-registerAction2(CopyEditorToNewDetachedWindowAction);
-registerAction2(MoveEditorGroupToNewDetachedWindowAction);
-registerAction2(CopyEditorGroupToNewDetachedWindowAction);
+registerAction2(MoveEditorToNewWindowAction);
+registerAction2(CopyEditorToNewindowAction);
+registerAction2(MoveEditorGroupToNewWindowAction);
+registerAction2(CopyEditorGroupToNewWindowAction);
 registerAction2(RestoreEditorsToMainWindowAction);
 
 const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
@@ -383,8 +383,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_ED
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorCanSplitInGroupContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: SideBySideEditorActiveContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '5_split', order: 50, when: ActiveEditorCanSplitInGroupContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '5_split', order: 50, when: SideBySideEditorActiveContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, title: localize('moveToNewWindow', "Move into New Window") }, group: '6_new_window', order: 10 });
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
@@ -721,7 +722,33 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '3_new_window',
+	command: {
+		id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+		title: {
+			original: 'Move Editor into New Window',
+			value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
+			mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window")
+		}
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '3_new_window',
+	command: {
+		id: COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+		title: {
+			original: 'Copy Editor into New Window',
+			value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
+			mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window")
+		}
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutSingleAction.ID,
 		title: {
@@ -734,7 +761,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsAction.ID,
 		title: {
@@ -747,7 +774,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutThreeColumnsAction.ID,
 		title: {
@@ -760,7 +787,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoRowsAction.ID,
 		title: {
@@ -773,7 +800,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutThreeRowsAction.ID,
 		title: {
@@ -786,7 +813,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoByTwoGridAction.ID,
 		title: {
@@ -799,7 +826,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoRowsRightAction.ID,
 		title: {
@@ -812,7 +839,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsBottomAction.ID,
 		title: {

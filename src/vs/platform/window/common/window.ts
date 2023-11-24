@@ -204,6 +204,20 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	return true;
 }
 
+export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		return true; // default
+	}
+
+	if (windowConfig.nativeTabs) {
+		return true; // https://github.com/electron/electron/issues/16142
+	}
+
+	return windowConfig.nativeFullScreen !== false;
+}
+
+
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
 
 	/**

@@ -11,9 +11,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isBigSurOrNewer, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { release } from 'os';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,12 +32,11 @@ import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useNativeFullScreen, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
-import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateService } from 'vs/platform/state/node/state';
@@ -84,14 +84,99 @@ const enum ReadyState {
 
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
+	//#region Events
+
+	private readonly _onDidMaximize = this._register(new Emitter<void>());
+	readonly onDidMaximize = this._onDidMaximize.event;
+
+	private readonly _onDidUnmaximize = this._register(new Emitter<void>());
+	readonly onDidUnmaximize = this._onDidUnmaximize.event;
+
+	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
+	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
 	abstract readonly onDidClose: Event<void>;
 
+	//#endregion
+
 	abstract readonly id: number;
-	abstract readonly win: BrowserWindow | null;
+
+	protected _win: BrowserWindow | null = null;
+	get win() { return this._win; }
+	protected setWin(win: BrowserWindow): void {
+		this._win = win;
+
+		// Window Events
+		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => this._onDidMaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => this._onDidUnmaximize.fire()));
+
+		// Sheet Offsets
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+		if (isMacintosh && useCustomTitleStyle) {
+			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		// Update the window controls immediately based on cached values
+		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
+			if (cachedWindowControlHeight) {
+				this.updateWindowControls({ height: cachedWindowControlHeight });
+			}
+		}
+
+		// Windows Custom System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		//
+		// The purpose of this is to allow for the context menu in the Windows Title Bar
+		//
+		// Currently, all mouse events in the title bar are captured by the OS
+		// thus we need to capture them here with a window hook specific to Windows
+		// and then forward them to the correct window.
+		if (isWindows && useCustomTitleStyle) {
+			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
+			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
+			win.hookWindowMessage(WM_INITMENU, () => {
+				const [x, y] = win.getPosition();
+				const cursorPos = screen.getCursorScreenPoint();
+				const cx = cursorPos.x - x;
+				const cy = cursorPos.y - y;
+
+				// In some cases, show the default system context menu
+				// 1) The mouse position is not within the title bar
+				// 2) The mouse position is within the title bar, but over the app icon
+				// We do not know the exact title bar height but we make an estimate based on window height
+				const shouldTriggerDefaultSystemContextMenu = () => {
+					// Use the custom context menu when over the title bar, but not over the app icon
+					// The app icon is estimated to be 30px wide
+					// The title bar is estimated to be the max of 35px and 15% of the window height
+					if (cx > 30 && cy >= 0 && cy <= Math.max(win.getBounds().height * 0.15, 35)) {
+						return false;
+					}
+
+					return true;
+				};
+
+				if (!shouldTriggerDefaultSystemContextMenu()) {
+
+					// This is necessary to make sure the native system context menu does not show up.
+					win.setEnabled(false);
+					win.setEnabled(true);
+
+					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+				}
+
+				return 0;
+			});
+		}
+	}
 
 	abstract readonly lastFocusTime: number;
 
-	constructor(protected readonly configurationService: IConfigurationService) {
+	constructor(
+		protected readonly configurationService: IConfigurationService,
+		protected readonly stateService: IStateService
+	) {
 		super();
 	}
 
@@ -148,6 +233,80 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win.focus();
 	}
 
+	handleTitleDoubleClick(): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					if (win.isMaximized()) {
+						win.unmaximize();
+					} else {
+						win.maximize();
+					}
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (win.isMaximized()) {
+				win.unmaximize();
+			} else {
+				win.maximize();
+			}
+		}
+	}
+
+	//#region WCO
+
+	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
+
+	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// Cache the height for speeds lookups on startup
+		if (options.height) {
+			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
+		}
+
+		// Windows: window control overlay (WCO)
+		if (isWindows && this.hasWindowControlOverlay) {
+			win.setTitleBarOverlay({
+				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
+				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
+				height: options.height ? options.height - 1 : undefined // account for window border
+			});
+		}
+
+		// macOS: traffic lights
+		else if (isMacintosh && options.height !== undefined) {
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			if (!verticalOffset) {
+				win.setWindowButtonPosition(null);
+			} else {
+				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+			}
+		}
+	}
+
+	//#endregion
+
 	//#region Fullscreen
 
 	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
@@ -163,7 +322,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	protected setFullScreen(fullscreen: boolean): void {
 
 		// Set fullscreen state
-		if (this.useNativeFullScreen()) {
+		if (useNativeFullScreen(this.configurationService)) {
 			this.setNativeFullScreen(fullscreen);
 		} else {
 			this.setSimpleFullScreen(fullscreen);
@@ -223,25 +382,10 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win?.webContents.focus(); // workaround issue where focus is not going into window
 	}
 
-	protected useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-			return true; // default
-		}
-
-		if (windowConfig.nativeTabs) {
-			return true; // https://github.com/electron/electron/issues/16142
-		}
-
-		return windowConfig.nativeFullScreen !== false;
-	}
-
 	//#endregion
 }
 
 export class CodeWindow extends BaseWindow implements ICodeWindow {
-
-	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
 	//#region Events
 
@@ -250,9 +394,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private readonly _onDidSignalReady = this._register(new Emitter<void>());
 	readonly onDidSignalReady = this._onDidSignalReady.event;
-
-	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
-	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
@@ -268,8 +409,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private _id: number;
 	get id(): number { return this._id; }
 
-	private _win: BrowserWindow;
-	get win(): BrowserWindow | null { return this._win; }
+	protected override _win: BrowserWindow;
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
@@ -307,8 +447,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	private readonly hasWindowControlOverlay: boolean = false;
-
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
@@ -340,10 +478,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(configurationService);
+		super(configurationService, stateService);
 
 		//#region create browser window
 		{
@@ -356,8 +494,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
-			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
-
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				webPreferences: {
@@ -367,40 +503,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 			});
 
-			if (isMacintosh && !this.useNativeFullScreen()) {
-				options.fullscreenable = false; // enables simple fullscreen mode
-			}
-
-			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-			if (useNativeTabs) {
-				options.tabbingIdentifier = this.productService.nameShort; // this opts in to sierra tabs
-			}
-
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-			if (useCustomTitleStyle) {
-				options.titleBarStyle = 'hidden';
-				if (!isMacintosh) {
-					options.frame = false;
-				}
-
-				if (useWindowControlsOverlay(this.configurationService)) {
-
-					// This logic will not perfectly guess the right colors
-					// to use on initialization, but prefer to keep things
-					// simple as it is temporary and not noticeable
-
-					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
-					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
-
-					options.titleBarOverlay = {
-						height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-						color: titleBarColor,
-						symbolColor
-					};
-
-					this.hasWindowControlOverlay = true;
-				}
-			}
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
@@ -408,63 +510,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
-
-			if (isMacintosh && useCustomTitleStyle) {
-				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
-			}
-
-			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
-				const cachedWindowControlHeight = this.stateService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
-				if (cachedWindowControlHeight) {
-					this.updateWindowControls({ height: cachedWindowControlHeight });
-				}
-			}
-
-			// Windows Custom System Context Menu
-			// See https://github.com/electron/electron/issues/24893
-			//
-			// The purpose of this is to allow for the context menu in the Windows Title Bar
-			//
-			// Currently, all mouse events in the title bar are captured by the OS
-			// thus we need to capture them here with a window hook specific to Windows
-			// and then forward them to the correct window.
-			if (isWindows && useCustomTitleStyle) {
-				const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-
-				// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
-				this._win.hookWindowMessage(WM_INITMENU, () => {
-					const [x, y] = this._win.getPosition();
-					const cursorPos = screen.getCursorScreenPoint();
-					const cx = cursorPos.x - x;
-					const cy = cursorPos.y - y;
-
-					// In some cases, show the default system context menu
-					// 1) The mouse position is not within the title bar
-					// 2) The mouse position is within the title bar, but over the app icon
-					// We do not know the exact title bar height but we make an estimate based on window height
-					const shouldTriggerDefaultSystemContextMenu = () => {
-						// Use the custom context menu when over the title bar, but not over the app icon
-						// The app icon is estimated to be 30px wide
-						// The title bar is estimated to be the max of 35px and 15% of the window height
-						if (cx > 30 && cy >= 0 && cy <= Math.max(this._win.getBounds().height * 0.15, 35)) {
-							return false;
-						}
-
-						return true;
-					};
-
-					if (!shouldTriggerDefaultSystemContextMenu()) {
-						// This is necessary to make sure the native system context menu does not show up.
-						this._win.setEnabled(false);
-						this._win.setEnabled(true);
-
-						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
-					}
-
-					return 0;
-				});
-			}
+			this.setWin(this._win);
 
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
@@ -475,6 +521,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			// However, when running with native tabs with multiple windows we cannot use this workaround
 			// because there is a potential that the new window will be added as native tab instead of being
 			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
 			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
 				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
 					this._win.setBounds({
@@ -614,16 +662,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			if (this._config) {
 				this._config.maximized = true;
 			}
-
-			app.emit('browser-window-maximize', e, this._win);
 		});
 
 		this._win.on('unmaximize', (e: ElectronEvent) => {
 			if (this._config) {
 				this._config.maximized = false;
 			}
-
-			app.emit('browser-window-unmaximize', e, this._win);
 		});
 
 		// Window Fullscreen
@@ -1147,33 +1191,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return state;
 	}
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
-
-		// Cache the height for speeds lookups on startup
-		if (options.height) {
-			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
-		}
-
-		// Windows: window control overlay (WCO)
-		if (isWindows && this.hasWindowControlOverlay) {
-			this._win.setTitleBarOverlay({
-				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
-				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
-				height: options.height ? options.height - 1 : undefined // account for window border
-			});
-		}
-
-		// macOS: traffic lights
-		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
-				this._win.setWindowButtonPosition(null);
-			} else {
-				this._win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
-			}
-		}
-	}
-
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
 		mark('code/willRestoreCodeWindowState');
 
@@ -1412,37 +1429,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.setMenuBarVisibility(false);
 				this._win.autoHideMenuBar = false;
 				break;
-		}
-	}
-
-	handleTitleDoubleClick(): void {
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					this._win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (this._win.isMaximized()) {
-						this._win.unmaximize();
-					} else {
-						this._win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (this._win.isMaximized()) {
-				this._win.unmaximize();
-			} else {
-				this._win.maximize();
-			}
 		}
 	}
 
