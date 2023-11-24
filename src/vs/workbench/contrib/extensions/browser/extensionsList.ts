@@ -111,7 +111,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			focusOnlyEnabledItems: true
 		});
 		actionbar.setFocusable(false);
-		const eventDisposable = actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
+		actionbar.onDidRun(({ error }) => error && this.notificationService.error(error));
 
 		const extensionStatusIconAction = this.instantiationService.createInstance(ExtensionStatusAction);
 		const actions = [
@@ -150,7 +150,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const extensionContainers: ExtensionContainers = this.instantiationService.createInstance(ExtensionContainers, [...actions, ...widgets]);
 
 		actionbar.push(actions, { icon: true, label: true });
-		const disposable = combinedDisposable(eventDisposable, ...actions, ...widgets, actionbar, extensionContainers);
+		const disposable = combinedDisposable(...actions, ...widgets, actionbar, extensionContainers);
 
 		return {
 			root, element, icon, name, installCount, ratings, description, publisherDisplayName, disposables: [disposable], actionbar,
