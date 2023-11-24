@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -86,6 +86,9 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#region Events
 
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
+
 	private readonly _onDidMaximize = this._register(new Emitter<void>());
 	readonly onDidMaximize = this._onDidMaximize.event;
 
@@ -95,11 +98,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
-	abstract readonly onDidClose: Event<void>;
-
 	//#endregion
 
 	abstract readonly id: number;
+
+	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
+	get lastFocusTime(): number { return this._lastFocusTime; }
 
 	protected _win: BrowserWindow | null = null;
 	get win() { return this._win; }
@@ -109,6 +113,14 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Window Events
 		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => this._onDidMaximize.fire()));
 		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => this._onDidUnmaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'closed')(() => {
+			this._onDidClose.fire();
+
+			this.dispose();
+		}));
+		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
+			this._lastFocusTime = Date.now();
+		}));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -169,13 +181,17 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				return 0;
 			});
 		}
-	}
 
-	abstract readonly lastFocusTime: number;
+		// Open devtools if instructed from command line args
+		if (this.environmentMainService.args['open-devtools'] === true) {
+			win.webContents.openDevTools();
+		}
+	}
 
 	constructor(
 		protected readonly configurationService: IConfigurationService,
-		protected readonly stateService: IStateService
+		protected readonly stateService: IStateService,
+		protected readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
 	}
@@ -383,6 +399,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	}
 
 	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		this._win = null!; // Important to dereference the window object to allow for GC
+	}
 }
 
 export class CodeWindow extends BaseWindow implements ICodeWindow {
@@ -394,9 +416,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private readonly _onDidSignalReady = this._register(new Emitter<void>());
 	readonly onDidSignalReady = this._onDidSignalReady.event;
-
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
 
 	private readonly _onDidDestroy = this._register(new Emitter<void>());
 	readonly onDidDestroy = this._onDidDestroy.event;
@@ -410,9 +429,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	get id(): number { return this._id; }
 
 	protected override _win: BrowserWindow;
-
-	private _lastFocusTime = -1;
-	get lastFocusTime(): number { return this._lastFocusTime; }
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
@@ -462,7 +478,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@IFileService private readonly fileService: IFileService,
@@ -481,7 +497,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(configurationService, stateService);
+		super(configurationService, stateService, environmentMainService);
 
 		//#region create browser window
 		{
@@ -557,11 +573,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 		//#endregion
 
-		// Open devtools if instructed from command line args
-		if (this.environmentMainService.args['open-devtools'] === true) {
-			this._win.webContents.openDevTools();
-		}
-
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
 
@@ -634,13 +645,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			event.preventDefault();
 		});
 
-		// Window close
-		this._win.on('closed', () => {
-			this._onDidClose.fire();
-
-			this.dispose();
-		});
-
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
 
@@ -652,38 +656,33 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 		});
 
-		// Window Focus
-		this._win.on('focus', () => {
-			this._lastFocusTime = Date.now();
-		});
-
 		// Window (Un)Maximize
-		this._win.on('maximize', (e: ElectronEvent) => {
+		this._register(this.onDidMaximize(() => {
 			if (this._config) {
 				this._config.maximized = true;
 			}
-		});
+		}));
 
-		this._win.on('unmaximize', (e: ElectronEvent) => {
+		this._register(this.onDidUnmaximize(() => {
 			if (this._config) {
 				this._config.maximized = false;
 			}
-		});
+		}));
 
 		// Window Fullscreen
-		this._win.on('enter-full-screen', () => {
+		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
-		});
+		}));
 
-		this._win.on('leave-full-screen', () => {
+		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
-		});
+		}));
 
 		// Handle configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
@@ -1542,7 +1541,5 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Deregister the loggers for this window
 		this.loggerMainService.deregisterLoggers(this.id);
-
-		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }
