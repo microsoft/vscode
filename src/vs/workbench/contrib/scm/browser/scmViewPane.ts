@@ -2063,22 +2063,29 @@ class SCMInputWidget {
 		// Toolbar
 		const onDidChangeActionButton = () => {
 			this.actionBar.clear();
-			if (!input.actionButton) {
-				return;
+
+			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
+
+			if (input.actionButton && defaultProvider === undefined) {
+				const action = new Action(
+					input.actionButton.command.id,
+					input.actionButton.command.title,
+					ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
+					input.actionButton.enabled,
+					() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
+
+				this.actionBar.push(action, { icon: true, label: false });
 			}
 
-			const action = new Action(
-				input.actionButton.command.id,
-				input.actionButton.command.title,
-				ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
-				input.actionButton.enabled,
-				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
+			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
+			this.actionBar.domNode.classList.toggle('hidden', !showInputActionButton || this.actionBar.isEmpty());
 
-			this.actionBar.push(action, { icon: true, label: false });
 			this.layout();
 		};
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
+		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeActionButton, this));
+		this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(onDidChangeActionButton, this));
 		onDidChangeActionButton();
 
 		// Toolbar (new)
@@ -2118,7 +2125,7 @@ class SCMInputWidget {
 			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
 			toolbar.setActions(showInputActionButton && defaultProvider ? [this.instantiationService.createInstance(SCMInputWidgetButtonAction, input, defaultProvider, input.repository)] : []);
 
-			this.toolbarContainer.classList.toggle('hidden', !showInputActionButton || (defaultProvider === undefined && this.actionBar.isEmpty()));
+			toolbar.getElement().classList.toggle('hidden', !showInputActionButton || defaultProvider === undefined);
 			this.layout();
 		};
 		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(updateToolbar, this));
