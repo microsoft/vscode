@@ -253,13 +253,13 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				icon = Codicon.sparkle;
 			} else if (this.state.actions.hasAutoFix) {
 				if (this.state.actions.hasAIFix) {
-					icon = Codicon.lightbulbSparkleAutofix;
+					icon = Codicon.lightbulbAutofix; // Codicon.lightbulbSparkleAutofix;
 				} else {
 					icon = Codicon.lightbulbAutofix;
 				}
 				updateAutoFixLightbulbTitle();
 			} else if (this.state.actions.hasAIFix) {
-				icon = Codicon.lightbulbSparkle;
+				icon = Codicon.lightBulb; // Codicon.lightbulbSparkle;
 			} else {
 				icon = Codicon.lightBulb;
 				updateLightbulbTitle();
