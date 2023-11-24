@@ -678,6 +678,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
+		this._sessionStore.clear();
+		this._modifiedRangesDecorations.clear();
+		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
+
 		const { textModelN } = this._session;
 		LiveStrategy3._undoModelUntil(textModelN, altVersionId);
 	}
