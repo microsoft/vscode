@@ -5,14 +5,14 @@
 
 import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
-import { Part } from 'vs/workbench/browser/part';
+import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -74,7 +74,7 @@ export interface ITitlebarPart extends IDisposable {
 	updateProperties(properties: ITitleProperties): void;
 }
 
-export class BrowserTitleService extends Disposable implements ITitleService {
+export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> implements ITitleService {
 
 	declare _serviceBrand: undefined;
 
@@ -85,7 +85,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 	) {
 		super();
 
-		this._register(this.registerTitlebarPart(this.mainPart));
+		this._register(this.registerPart(this.mainPart));
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
@@ -104,7 +104,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		const disposables = new DisposableStore();
 
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer);
-		disposables.add(this.registerTitlebarPart(titlebarPart));
+		disposables.add(this.registerPart(titlebarPart));
 
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
@@ -120,40 +120,6 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 
 	//#endregion
 
-	//#region Registration
-
-	private readonly parts = new Set<BrowserTitlebarPart>();
-
-	private registerTitlebarPart(part: BrowserTitlebarPart): IDisposable {
-		this.parts.add(part);
-
-		const disposables = this._register(new DisposableStore());
-		disposables.add(toDisposable(() => this.parts.delete(part)));
-
-		return disposables;
-	}
-
-	//#endregion
-
-	//#region Helpers
-
-	getPart(container: HTMLElement): ITitlebarPart {
-		return this.getPartByDocument(container.ownerDocument);
-	}
-
-	private getPartByDocument(document: Document): ITitlebarPart {
-		if (this.parts.size > 1) {
-			for (const part of this.parts) {
-				if (part.element?.ownerDocument === document) {
-					return part;
-				}
-			}
-		}
-
-		return this.mainPart;
-	}
-
-	//#endregion
 
 	//#region Service Implementation
 

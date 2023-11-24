@@ -6,8 +6,7 @@
 import { localize } from 'vs/nls';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
-import { getActiveDocument } from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
@@ -16,8 +15,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { distinct } from 'vs/base/common/arrays';
 import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
+import { MultiWindowParts } from 'vs/workbench/browser/part';
 
-export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
+export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -28,7 +28,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	) {
 		super();
 
-		this._register(this.registerEditorPart(this.mainPart));
+		this._register(this.registerPart(this.mainPart));
 	}
 
 	protected createMainEditorPart(): MainEditorPart {
@@ -56,22 +56,17 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Registration
 
-	private readonly _parts = new Set<EditorPart>();
-	get parts() { return Array.from(this._parts); }
-
-	registerEditorPart(part: EditorPart): IDisposable {
-		this._parts.add(part);
-
+	override registerPart(part: EditorPart): IDisposable {
 		const disposables = this._register(new DisposableStore());
-		disposables.add(toDisposable(() => this.unregisterEditorPart(part)));
+		disposables.add(super.registerPart(part));
 
 		this.registerEditorPartListeners(part, disposables);
 
 		return disposables;
 	}
 
-	private unregisterEditorPart(part: EditorPart): void {
-		this._parts.delete(part);
+	protected override unregisterPart(part: EditorPart): void {
+		super.unregisterPart(part);
 
 		// Notify all parts about a groups label change
 		// given it is computed based on the index
@@ -111,25 +106,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Helpers
 
-	get activePart(): EditorPart {
-		return this.getPartByDocument(getActiveDocument());
-	}
-
-	private getPartByDocument(document: Document): EditorPart {
-		if (this._parts.size > 1) {
-			for (const part of this._parts) {
-				if (part.element?.ownerDocument === document) {
-					return part;
-				}
-			}
-		}
-
-		return this.mainPart;
-	}
-
-	getPart(group: IEditorGroupView | GroupIdentifier): EditorPart;
-	getPart(element: HTMLElement): EditorPart;
-	getPart(groupOrElement: IEditorGroupView | GroupIdentifier | HTMLElement): EditorPart {
+	override getPart(group: IEditorGroupView | GroupIdentifier): EditorPart;
+	override getPart(element: HTMLElement): EditorPart;
+	override getPart(groupOrElement: IEditorGroupView | GroupIdentifier | HTMLElement): EditorPart {
 		if (this._parts.size > 1) {
 			if (groupOrElement instanceof HTMLElement) {
 				const element = groupOrElement;
