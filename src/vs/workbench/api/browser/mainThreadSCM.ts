@@ -161,7 +161,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
+	async resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
 		// History item group base
 		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
 
@@ -175,7 +175,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			incoming = {
 				id: historyItemGroupBase.id,
 				label: historyItemGroupBase.label,
-				icon: Codicon.cloudDownload,
+				icon: Codicon.arrowCircleDown,
 				ancestor: ancestor?.id,
 				count: ancestor?.behind ?? 0,
 			};
@@ -185,7 +185,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
-			icon: Codicon.cloudUpload,
+			icon: Codicon.arrowCircleUp,
 			ancestor: ancestor?.id,
 			count: ancestor?.ahead ?? 0,
 		};
@@ -250,7 +250,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
-	get contextValue(): string { return this._contextValue; }
+	get contextValue(): string { return this._providerId; }
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
@@ -282,7 +282,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
-		private readonly _contextValue: string,
+		private readonly _providerId: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _inputBoxDocumentUri: URI,
@@ -478,8 +478,8 @@ class MainThreadSCMInputBoxValueProvider implements ISCMInputValueProvider {
 		readonly label: string,
 		readonly icon?: URI | ThemeIcon | { light: URI; dark: URI }) { }
 
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined> {
-		return this.proxy.$provideInputBoxValue(this.handle, repositoryId, context);
+	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
+		return this.proxy.$provideInputBoxValue(this.handle, rootUri, context, token);
 	}
 
 }
@@ -561,9 +561,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	$registerSourceControlInputBoxValueProvider(handle: number, label: string, icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): void {
+	$registerSourceControlInputBoxValueProvider(handle: number, sourceControlId: string, label: string, icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): void {
 		const provider = new MainThreadSCMInputBoxValueProvider(this._proxy, handle, label, getIconFromIconDto(icon));
-		const disposable = this.scmService.registerSCMInputValueProvider(provider);
+		const disposable = this.scmService.registerSCMInputValueProvider(sourceControlId, provider);
 
 		this._inputBoxValueProviders.set(handle, disposable);
 	}

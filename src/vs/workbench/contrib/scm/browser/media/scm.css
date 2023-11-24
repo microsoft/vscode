@@ -124,13 +124,6 @@
 	align-items: center;
 }
 
-.scm-sync-view .monaco-list-row .monaco-icon-label .icon-container
-.scm-sync-view .monaco-list-row .monaco-icon-label .icon-container {
-	display: flex;
-	font-size: 14px;
-	padding-right: 4px;
-}
-
 .scm-view .monaco-list-row .history-item {
 	display: flex;
 	align-items: center;
@@ -175,7 +168,6 @@
 .scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
 .scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
-	font-size: 14px;
 	padding-right: 4px;
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/base/common/themables';
 import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -26,6 +26,12 @@ export interface IStatusbarService extends IStatusbarEntryContainer {
 	 * Creates a new auxililary status bar part in the provided container.
 	 */
 	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart;
+
+	/**
+	 * Create a scoped status bar service that only operates on the provided
+	 * status entry container.
+	 */
+	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService;
 }
 
 export const enum StatusbarAlignment {

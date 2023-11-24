@@ -365,8 +365,7 @@ export class SCMService implements ISCMService {
 	private inputHistory: SCMInputHistory;
 	private providerCount: IContextKey<number>;
 
-	private readonly _inputValueProviders = new Set<ISCMInputValueProvider>();
-	get inputValueProviders(): Iterable<ISCMInputValueProvider> { return this._inputValueProviders; }
+	private readonly _inputValueProviders = new Map<string, Set<ISCMInputValueProvider>>();
 
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
@@ -412,14 +411,38 @@ export class SCMService implements ISCMService {
 		return this._repositories.get(id);
 	}
 
-	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable {
-		this._inputValueProviders.add(provider);
+	registerSCMInputValueProvider(sourceControlId: string, provider: ISCMInputValueProvider): IDisposable {
+		const providers = this._inputValueProviders.get(sourceControlId) ?? new Set();
+		this._inputValueProviders.set(sourceControlId, providers.add(provider));
+
 		this._onDidChangeInputValueProviders.fire();
 
 		return toDisposable(() => {
-			this._inputValueProviders.delete(provider);
+			const providers = this._inputValueProviders.get(sourceControlId)!;
+
+			providers.delete(provider);
+			this._inputValueProviders.set(sourceControlId, providers);
+
+			if (providers.size === 0) {
+				this._inputValueProviders.delete(sourceControlId);
+			}
+
 			this._onDidChangeInputValueProviders.fire();
 		});
+	}
+
+	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined {
+		if (!repository.provider.rootUri) {
+			return undefined;
+		}
+
+		const sourceControlId = repository.provider.contextValue;
+		const providers = this._inputValueProviders.get(sourceControlId) ?? new Set();
+		if (providers.size === 0) {
+			return undefined;
+		}
+
+		return Iterable.first(providers);
 	}
 
 }

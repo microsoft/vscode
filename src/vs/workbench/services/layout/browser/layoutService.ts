@@ -93,6 +93,9 @@ export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedO
 	return panelOpensMaximizedByString[str];
 }
 
+export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
+export type SINGLE_WINDOW_PARTS = Exclude<Parts, MULTI_WINDOW_PARTS>;
+
 export interface IWorkbenchLayoutService extends ILayoutService {
 
 	readonly _serviceBrand: undefined;
@@ -108,9 +111,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeFullscreen: Event<boolean>;
 
 	/**
-	 * Emits when the window is maximized or unmaximized.
+	 * Emits when the target window is maximized or unmaximized.
 	 */
-	readonly onDidChangeWindowMaximized: Event<boolean>;
+	readonly onDidChangeWindowMaximized: Event<{ readonly windowId: number; readonly maximized: boolean }>;
 
 	/**
 	 * Emits when centered layout is enabled or disabled.
@@ -164,9 +167,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasFocus(part: Parts): boolean;
 
 	/**
-	 * Focuses the part. If the part is not visible this is a noop.
+	 * Focuses the part in the target window. If the part is not visible this is a noop.
 	 */
-	focusPart(part: Parts): void;
+	focusPart(part: SINGLE_WINDOW_PARTS): void;
+	focusPart(part: MULTI_WINDOW_PARTS, targetWindow: Window): void;
+	focusPart(part: Parts, targetWindow: Window): void;
 
 	/**
 	 * Returns the target window container or parts HTML element within, if there is one.
@@ -175,19 +180,18 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getContainer(targetWindow: Window, part: Parts): HTMLElement | undefined;
 
 	/**
-	 * Returns if the part is visible.
+	 * Returns if the part is visible in the target window.
 	 */
-	isVisible(part: Parts): boolean;
+	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
+	isVisible(part: MULTI_WINDOW_PARTS, targetWindow: Window): boolean;
+	isVisible(part: Parts, targetWindow: Window): boolean;
 
 	/**
-	 * Returns if the part is visible.
+	 * Set part hidden or not in the target window.
 	 */
-	getDimension(part: Parts): IDimension | undefined;
-
-	/**
-	 * Set part hidden or not
-	 */
-	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
+	setPartHidden(hidden: boolean, part: Exclude<SINGLE_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>): void;
+	setPartHidden(hidden: boolean, part: Exclude<MULTI_WINDOW_PARTS, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
+	setPartHidden(hidden: boolean, part: Exclude<Parts, Parts.STATUSBAR_PART | Parts.TITLEBAR_PART>, targetWindow: Window): void;
 
 	/**
 	 * Maximizes the panel height if the panel is not already maximized.
@@ -266,7 +270,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	centerMainEditorLayout(active: boolean): void;
 
 	/**
-	 * Resizes currently focused part on main access
+	 * Resize the provided part in the main window.
 	 */
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void;
 
@@ -276,17 +280,17 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	registerPart(part: Part): void;
 
 	/**
-	 * Returns whether the window is maximized.
+	 * Returns whether the target window is maximized.
 	 */
-	isWindowMaximized(): boolean;
+	isWindowMaximized(targetWindow: Window): boolean;
 
 	/**
-	 * Updates the maximized state of the window.
+	 * Updates the maximized state of the target window.
 	 */
-	updateWindowMaximizedState(maximized: boolean): void;
+	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void;
 
 	/**
-	 * Returns the next visible view part in a given direction
+	 * Returns the next visible view part in a given direction in the main window.
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
