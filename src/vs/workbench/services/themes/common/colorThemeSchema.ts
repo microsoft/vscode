@@ -10,6 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const textMateScopes = [
 	'comment',
@@ -218,67 +219,103 @@ const textmateColorSchema: IJSONSchema = {
 };
 
 export const colorThemeSchemaId = 'vscode://schemas/color-theme';
+export const workbenchColorsSchemaForThemeId = 'vscode://schemas/workbench-color-for-theme';
+export const themePaletteEnumSchemaId = 'vscode://schemas/theme-palette-enum';
+let colorThemeSchema: IJSONSchema = generateColorThemeSchemas();
 
-const colorThemeSchema: IJSONSchema = {
-	type: 'object',
-	allowComments: true,
-	allowTrailingCommas: true,
-	properties: {
-		colors: {
-			description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),
-			$ref: workbenchColorsSchemaId,
-			additionalProperties: false
-		},
-		tokenColors: {
-			anyOf: [{
-				type: 'string',
-				description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file).')
-			},
-			{
-				description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
-				$ref: textmateColorsSchemaId
-			}
-			]
-		},
-		semanticHighlighting: {
-			type: 'boolean',
-			description: nls.localize('schema.supportsSemanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.')
-		},
-		semanticTokenColors: {
-			type: 'object',
-			description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
-			$ref: tokenStylingSchemaId
-		},
-		colorPalette: {
-			type: 'object',
-			description: nls.localize('schema.colorPalette', 'Color palette for the theme. Property names must start with a $ sign and followed by one or more letters.'),
-			additionalProperties: false,
-			patternProperties: {
-				'^\\$[a-zA-Z]+': {
-					type: 'string',
-					description: nls.localize('schema.colorPalette.color', 'Color in the palette'),
-					format: 'color-hex',
-				}
-			},
-			defaultSnippets: [
-				{
-					label: 'Color palette',
-					body: {
-						'\$${1:accentName1}': '#ffffff',
-						'\$${2:accentName2}': '#ffffff',
-						'\$${3:accentName3}': '#ffffff',
-						'\$${4:accentName4}': '#ffffff',
-					}
-				}
-			]
-		}
+
+
+function generateColorThemeSchemas() {
+	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+	const originalWorkbenchColorsSchema = schemaRegistry.getSchemaContributions().schemas[workbenchColorsSchemaId];
+
+	const workbenchColorSchemaForTheme = JSON.parse(JSON.stringify(originalWorkbenchColorsSchema));
+
+	for (const key in workbenchColorSchemaForTheme.properties) {
+		const property = workbenchColorSchemaForTheme.properties[key];
+
+		delete property.format;
+
+		property.anyOf = [
+			{ $ref: themePaletteEnumSchemaId, errorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)") },
+			{ format: 'color-hex' },
+			// 	NOTE: the error message include both message for var and hex
+			// 	because when using anyOf, whenever there is error, only the first message will be used });
+		];
 	}
-};
 
+	schemaRegistry.registerSchema(workbenchColorsSchemaForThemeId, workbenchColorSchemaForTheme);
 
+	const colorThemeSchema: IJSONSchema = {
+		type: 'object',
+		allowComments: true,
+		allowTrailingCommas: true,
+		properties: {
+			colors: {
+				description: nls.localize('schema.workbenchColors', 'Colors in the workbench'),
+				$ref: workbenchColorsSchemaForThemeId,
+				additionalProperties: false
+			},
+			tokenColors: {
+				anyOf: [{
+					type: 'string',
+					description: nls.localize('schema.tokenColors.path', 'Path to a tmTheme file (relative to the current file).')
+				},
+				{
+					description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
+					$ref: textmateColorsSchemaId
+				}
+				]
+			},
+			semanticHighlighting: {
+				type: 'boolean',
+				description: nls.localize('schema.supportsSemanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.')
+			},
+			semanticTokenColors: {
+				type: 'object',
+				description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
+				$ref: tokenStylingSchemaId
+			},
+			colorPalette: {
+				type: 'object',
+				description: nls.localize('schema.colorPalette', 'Color palette for the theme. Property names must start with a $ sign and followed by one or more letters.'),
+				additionalProperties: false,
+				patternProperties: {
+					'^\\$[a-zA-Z]+': {
+						type: 'string',
+						description: nls.localize('schema.colorPalette.color', 'Color in the palette'),
+						format: 'color-hex',
+					}
+				},
+				defaultSnippets: [
+					{
+						label: 'Color palette',
+						body: {
+							'\$${1:accentName1}': '#ffffff',
+							'\$${2:accentName2}': '#ffffff',
+							'\$${3:accentName3}': '#ffffff',
+							'\$${4:accentName4}': '#ffffff',
+						}
+					}
+				]
+			}
+		}
+	};
+	return colorThemeSchema;
+}
 
 export function registerColorThemeSchemas() {
 	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(colorThemeSchemaId, colorThemeSchema);
 	schemaRegistry.registerSchema(textmateColorsSchemaId, textmateColorSchema);
 }
+
+const delay = 500;
+
+const delayer = new RunOnceScheduler(() => { colorThemeSchema = generateColorThemeSchemas(); registerColorThemeSchemas(); }, delay);
+const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+schemaRegistry.onDidChangeSchema(uri => {
+	if ((uri === workbenchColorsSchemaId || uri === themePaletteEnumSchemaId) && !delayer.isScheduled()) {
+		delayer.schedule();
+	}
+});
