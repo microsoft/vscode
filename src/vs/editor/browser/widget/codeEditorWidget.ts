@@ -2312,6 +2312,20 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 		}
 		return this._decorationIds;
 	}
+
+	public append(newDecorations: readonly IModelDeltaDecoration[]): string[] {
+		let newDecorationIds: string[] = [];
+		try {
+			this._isChangingDecorations = true;
+			this._editor.changeDecorations((accessor) => {
+				newDecorationIds = accessor.deltaDecorations([], newDecorations);
+				this._decorationIds = this._decorationIds.concat(newDecorationIds);
+			});
+		} finally {
+			this._isChangingDecorations = false;
+		}
+		return newDecorationIds;
+	}
 }
 
 const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' enable-background='new 0 0 6 3' height='3' width='6'><g fill='`);
