@@ -205,6 +205,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}
 
+		console.log('atPosition : ', atPosition);
+		console.log('{ lineNumber: effectiveLineNumber, column: 1 } : ', { lineNumber: effectiveLineNumber, column: 1 });
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
@@ -250,7 +252,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).showAiIcon;
 		if (highlightAIActions) {
 			if (this.state.actions.allAIFixes) {
-				icon = Codicon.sparkle;
+				icon = Codicon.sparkleOpaque;
 			} else if (this.state.actions.hasAutoFix) {
 				if (this.state.actions.hasAIFix) {
 					icon = Codicon.lightbulbAutofix; // Codicon.lightbulbSparkleAutofix;
