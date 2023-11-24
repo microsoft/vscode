@@ -348,9 +348,10 @@ export class ReplyResponse {
 
 		for (const [uri, edits] of editsMap) {
 
-			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isEqual(uri, localUri));
+			const isLocalUri = isEqual(uri, localUri);
+			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isLocalUri);
 
-			if (uri.scheme === Schemas.untitled && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
+			if (uri.scheme === Schemas.untitled && !isLocalUri && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
 				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
 				const untitledTextModel = this._textFileService.untitled.create({
 					associatedResource: uri,
