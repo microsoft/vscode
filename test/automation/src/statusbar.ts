@@ -13,7 +13,7 @@ export const enum StatusBarElement {
 	INDENTATION_STATUS = 4,
 	ENCODING_STATUS = 5,
 	EOL_STATUS = 6,
-	LANGUAGE_STATUS = 7,
+	LANGUAGE_STATUS = 7
 }
 
 export class StatusBar {
