@@ -131,7 +131,7 @@ export class EditorPanes extends Disposable {
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			if (getWindow(this.editorPanesParent) !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
+			if (getWindow(this.editorGroupParent) !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
 				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in other windows yet."), [
 					toAction({
 						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
@@ -277,7 +277,7 @@ export class EditorPanes extends Disposable {
 			if (focus && this.shouldRestoreFocus(activeElement)) {
 				pane.focus();
 			} else if (!internalOptions?.preserveWindowOrder) {
-				this.hostService.moveTop(getWindow(pane.getContainer()));
+				this.hostService.moveTop(getWindow(this.editorGroupParent));
 			}
 		}
 
