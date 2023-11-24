@@ -270,7 +270,9 @@
 			"scope": [
 				"support.type.vendored.property-name",
 				"support.type.property-name",
-				"source.css variable",
+				"variable.css",
+				"variable.scss",
+				"source.css.less variable.other",
 				"source.coffee.embedded"
 			],
 			"settings": {
