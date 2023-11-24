@@ -914,9 +914,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 		if (isAfterManualInteraction && newDecorations.length === 0) {
 			this._sessionStore.clear();
 			this._onDidAccept.fire();
-		} else {
-			// reveal input at change
 		}
+
 		return widgetData?.position;
 	}
 
@@ -929,8 +928,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 
 		return await this._showDiff(true, false);
-
-		// this._zone.widget.updateToolbar(false);
 	}
 
 	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {

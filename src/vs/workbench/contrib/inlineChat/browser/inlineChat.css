@@ -360,39 +360,6 @@
 	opacity: 0.5;
 }
 
-.monaco-editor .inline-chat-line-original {
-	display: inline-block;
-	height: 100%;
-	background-color: var(--vscode-diffEditor-removedTextBackground);
-	opacity: 0.75;
-	margin-right: 4px;
-	padding-right: 4px;
-	font-style: normal;
-	font-weight: normal;
-	box-sizing: border-box;
-
-	/* TODO@jrieken better color for shadow */
-	box-shadow: inset -5px 0px 5px -5px var(--vscode-scrollbar-shadow);
-	border-right: 1px solid var(--vscode-diffEditor-border);
-}
-
-.monaco-editor .inline-chat-original-zone {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-	opacity: 0.75;
-}
-
-.monaco-editor .inline-chat-original-zone .line {
-	display: flex;
-	width: fit-content;
-	padding-right: 4px;
-	background-color: var(--vscode-diffEditor-removedTextBackground);
-}
-
-.monaco-editor .inline-chat-line-modified {
-	/* background-color: var(--vscode-diffEditor-insertedTextBackground); */
-	opacity: 0.6;
-}
-
 /* diff zone */
 
 .monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
