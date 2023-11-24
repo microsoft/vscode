@@ -205,10 +205,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}
 
-		console.log('atPosition : ', atPosition);
-		console.log('{ lineNumber: effectiveLineNumber, column: 1 } : ', { lineNumber: effectiveLineNumber, column: 1 });
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
-			position: { lineNumber: effectiveLineNumber, column: 1 },
+			position: { lineNumber: effectiveLineNumber, column: 2 },
 			preference: LightBulbWidget._posPref
 		});
 		this._editor.layoutContentWidget(this);
