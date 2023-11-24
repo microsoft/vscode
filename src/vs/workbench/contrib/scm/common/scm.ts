@@ -118,12 +118,6 @@ export interface ISCMInputChangeEvent {
 	readonly reason?: SCMInputChangeReason;
 }
 
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
-}
-
 export interface ISCMActionButtonDescriptor {
 	command: Command;
 	secondaryCommands?: Command[][];
@@ -155,9 +149,6 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
-
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
 
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;
