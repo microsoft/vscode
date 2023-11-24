@@ -3,120 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IActiveNotebookEditor, ICellViewModel, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { getMarkdownHeadersInCell } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { IActiveNotebookEditor, INotebookEditor, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineChangeEvent, OutlineConfigKeys, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
-
-export interface IOutlineMarkerInfo {
-	readonly count: number;
-	readonly topSev: MarkerSeverity;
-}
-
-export class OutlineEntry {
-	private _children: OutlineEntry[] = [];
-	private _parent: OutlineEntry | undefined;
-	private _markerInfo: IOutlineMarkerInfo | undefined;
-
-	get icon(): ThemeIcon {
-		return this.isExecuting && this.isPaused ? executingStateIcon :
-			this.isExecuting ? ThemeIcon.modify(executingStateIcon, 'spin') :
-				this.cell.cellKind === CellKind.Markup ? Codicon.markdown : Codicon.code;
-	}
-
-	constructor(
-		readonly index: number,
-		readonly level: number,
-		readonly cell: ICellViewModel,
-		readonly label: string,
-		readonly isExecuting: boolean,
-		readonly isPaused: boolean
-	) { }
-
-	addChild(entry: OutlineEntry) {
-		this._children.push(entry);
-		entry._parent = this;
-	}
-
-	get parent(): OutlineEntry | undefined {
-		return this._parent;
-	}
-
-	get children(): Iterable<OutlineEntry> {
-		return this._children;
-	}
-
-	get markerInfo(): IOutlineMarkerInfo | undefined {
-		return this._markerInfo;
-	}
-
-	updateMarkers(markerService: IMarkerService): void {
-		if (this.cell.cellKind === CellKind.Code) {
-			// a code cell can have marker
-			const marker = markerService.read({ resource: this.cell.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
-			if (marker.length === 0) {
-				this._markerInfo = undefined;
-			} else {
-				const topSev = marker.find(a => a.severity === MarkerSeverity.Error)?.severity ?? MarkerSeverity.Warning;
-				this._markerInfo = { topSev, count: marker.length };
-			}
-		} else {
-			// a markdown cell can inherit markers from its children
-			let topChild: MarkerSeverity | undefined;
-			for (const child of this.children) {
-				child.updateMarkers(markerService);
-				if (child.markerInfo) {
-					topChild = !topChild ? child.markerInfo.topSev : Math.max(child.markerInfo.topSev, topChild);
-				}
-			}
-			this._markerInfo = topChild && { topSev: topChild, count: 0 };
-		}
-	}
-
-	clearMarkers(): void {
-		this._markerInfo = undefined;
-		for (const child of this.children) {
-			child.clearMarkers();
-		}
-	}
-
-	find(cell: ICellViewModel, parents: OutlineEntry[]): OutlineEntry | undefined {
-		if (cell.id === this.cell.id) {
-			return this;
-		}
-		parents.push(this);
-		for (const child of this.children) {
-			const result = child.find(cell, parents);
-			if (result) {
-				return result;
-			}
-		}
-		parents.pop();
-		return undefined;
-	}
-
-	asFlatList(bucket: OutlineEntry[]): void {
-		bucket.push(this);
-		for (const child of this.children) {
-			child.asFlatList(bucket);
-		}
-	}
-}
-
+import { OutlineEntry } from './OutlineEntry';
+import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 
 export class NotebookCellOutlineProvider {
 	private readonly _dispoables = new DisposableStore();
@@ -139,15 +40,19 @@ export class NotebookCellOutlineProvider {
 		return this._activeEntry;
 	}
 
+	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
+
 	constructor(
 		private readonly _editor: INotebookEditor,
 		private readonly _target: OutlineTarget,
 		@IThemeService themeService: IThemeService,
-		@IEditorService _editorService: IEditorService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
+		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
+		this._outlineEntryFactory = new NotebookOutlineEntryFactory(notebookExecutionStateService);
+
 		const selectionListener = new MutableDisposable();
 		this._dispoables.add(selectionListener);
 
@@ -174,7 +79,7 @@ export class NotebookCellOutlineProvider {
 			this._onDidChange.fire({});
 		}));
 
-		this._dispoables.add(_notebookExecutionStateService.onDidChangeExecution(e => {
+		this._dispoables.add(notebookExecutionStateService.onDidChangeExecution(e => {
 			if (e.type === NotebookExecutionType.cell && !!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
 				this._recomputeState();
 			}
@@ -194,10 +99,28 @@ export class NotebookCellOutlineProvider {
 		this._recomputeState();
 	}
 
+	async setFullSymbols(cancelToken: CancellationToken) {
+		const notebookEditorWidget = this._editor;
+
+		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
+
+		this._entries.length = 0;
+		if (notebookCells) {
+			const promises: Promise<void>[] = [];
+			// limit the number of cells so that we don't resolve an excessive amount of text models
+			for (const cell of notebookCells.slice(0, 100)) {
+				// gather all symbols asynchronously
+				promises.push(this._outlineEntryFactory.cacheSymbols(cell, this._outlineModelService, cancelToken));
+			}
+			await Promise.allSettled(promises);
+		}
+
+		this._recomputeState();
+	}
+
 	private _recomputeState(): void {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
-		this._entries.length = 0;
 		this._uri = undefined;
 
 		if (!this._editor.hasModel()) {
@@ -219,61 +142,11 @@ export class NotebookCellOutlineProvider {
 			includeCodeCells = this._configurationService.getValue<boolean>('notebook.breadcrumbs.showCodeCells');
 		}
 
-		const focusedCellIndex = notebookEditorWidget.getFocus().start;
-		const focused = notebookEditorWidget.cellAt(focusedCellIndex)?.handle;
+		const notebookCells = notebookEditorWidget.getViewModel().viewCells.filter((cell) => cell.cellKind === CellKind.Markup || includeCodeCells);
+
 		const entries: OutlineEntry[] = [];
-
-		for (let i = 0; i < notebookEditorWidget.getLength(); i++) {
-			const cell = notebookEditorWidget.cellAt(i);
-			const isMarkdown = cell.cellKind === CellKind.Markup;
-			if (!isMarkdown && !includeCodeCells) {
-				continue;
-			}
-
-			// cap the amount of characters that we look at and use the following logic
-			// - for MD prefer headings (each header is an entry)
-			// - otherwise use the first none-empty line of the cell (MD or code)
-			let content = this._getCellFirstNonEmptyLine(cell);
-			let hasHeader = false;
-
-			if (isMarkdown) {
-				const fullContent = cell.getText().substring(0, 10_000);
-				for (const { depth, text } of getMarkdownHeadersInCell(fullContent)) {
-					hasHeader = true;
-					entries.push(new OutlineEntry(entries.length, depth, cell, text, false, false));
-				}
-
-				if (!hasHeader) {
-					// no markdown syntax headers, try to find html tags
-					const match = fullContent.match(/<h([1-6]).*>(.*)<\/h\1>/i);
-					if (match) {
-						hasHeader = true;
-						const level = parseInt(match[1]);
-						const text = match[2].trim();
-						entries.push(new OutlineEntry(entries.length, level, cell, text, false, false));
-					}
-				}
-
-				if (!hasHeader) {
-					content = renderMarkdownAsPlaintext({ value: content });
-				}
-			}
-
-			if (!hasHeader) {
-				let preview = content.trim();
-				if (preview.length === 0) {
-					// empty or just whitespace
-					preview = localize('empty', "empty cell");
-				}
-
-				const exeState = !isMarkdown && this._notebookExecutionStateService.getCellExecution(cell.uri);
-				entries.push(new OutlineEntry(entries.length, 7, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-			}
-
-			if (cell.handle === focused) {
-				this._activeEntry = entries[entries.length - 1];
-			}
-
+		for (const cell of notebookCells) {
+			entries.push(...this._outlineEntryFactory.getOutlineEntries(cell, entries.length));
 			// send an event whenever any of the cells change
 			this._entriesDisposables.add(cell.model.onDidChangeContent(() => {
 				this._recomputeState();
@@ -355,6 +228,7 @@ export class NotebookCellOutlineProvider {
 			}
 		}));
 
+		this._recomputeActive();
 		this._onDidChange.fire({});
 	}
 
@@ -381,18 +255,7 @@ export class NotebookCellOutlineProvider {
 		}
 	}
 
-	private _getCellFirstNonEmptyLine(cell: ICellViewModel) {
-		const textBuffer = cell.textBuffer;
-		for (let i = 0; i < textBuffer.getLineCount(); i++) {
-			const firstNonWhitespace = textBuffer.getLineFirstNonWhitespaceColumn(i + 1);
-			const lineLength = textBuffer.getLineLength(i + 1);
-			if (firstNonWhitespace < lineLength) {
-				return textBuffer.getLineContent(i + 1);
-			}
-		}
 
-		return cell.getText().substring(0, 10_000);
-	}
 
 	get isEmpty(): boolean {
 		return this._entries.length === 0;

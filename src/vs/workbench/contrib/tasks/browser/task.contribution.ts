@@ -145,16 +145,12 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	}
 
 	private _ignoreEventForUpdateRunningTasksCount(event: ITaskEvent): boolean {
-		if (!this._taskService.inTerminal()) {
+		if (!this._taskService.inTerminal() || event.kind === TaskEventKind.Changed) {
 			return false;
 		}
 
 		if ((isString(event.group) ? event.group : event.group?._id) !== TaskGroup.Build._id) {
 			return true;
-		}
-
-		if (!event.__task) {
-			return false;
 		}
 
 		return event.__task.configurationProperties.problemMatchers === undefined || event.__task.configurationProperties.problemMatchers.length === 0;
@@ -369,7 +365,7 @@ class UserTasksGlobalActionContribution extends Disposable implements IWorkbench
 			},
 			when: TaskExecutionSupportedContext,
 			group: '2_configuration',
-			order: 4
+			order: 6
 		}));
 		this._register(MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			command: {
@@ -378,7 +374,7 @@ class UserTasksGlobalActionContribution extends Disposable implements IWorkbench
 			},
 			when: TaskExecutionSupportedContext,
 			group: '2_configuration',
-			order: 4
+			order: 6
 		}));
 	}
 }
@@ -556,6 +552,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
 			],
 			default: 'always',
+		},
+		[TaskSettingId.VerboseLogging]: {
+			type: 'boolean',
+			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
+			default: false
 		},
 	}
 });

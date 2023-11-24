@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 use crate::msgpack_rpc::MsgPackCaller;
 
 use super::{
-	protocol::{ClientRequestMethod, RefServerMessageParams, ToClientRequest},
+	protocol::{ClientRequestMethod, RefServerMessageParams, ServerClosedParams, ToClientRequest},
 	server_multiplexer::ServerMultiplexer,
 };
 
@@ -81,25 +81,43 @@ impl ServerMessageSink {
 		}
 	}
 
+	pub async fn server_closed(&mut self) -> Result<(), mpsc::error::SendError<SocketSignal>> {
+		self.server_message_or_closed(None).await
+	}
+
 	pub async fn server_message(
 		&mut self,
 		body: &[u8],
 	) -> Result<(), mpsc::error::SendError<SocketSignal>> {
-		let id = self.id;
+		self.server_message_or_closed(Some(body)).await
+	}
+
+	async fn server_message_or_closed(
+		&mut self,
+		body: Option<&[u8]>,
+	) -> Result<(), mpsc::error::SendError<SocketSignal>> {
+		let i = self.id;
 		let mut tx = self.tx.take().unwrap();
-		let body = self.get_server_msg_content(body);
-		let msg = RefServerMessageParams { i: id, body };
+		let msg = body
+			.map(|b| self.get_server_msg_content(b))
+			.map(|body| RefServerMessageParams { i, body });
 
 		let r = match &mut tx {
 			ServerMessageDestination::Channel(tx) => {
 				tx.send(SocketSignal::from_message(&ToClientRequest {
 					id: None,
-					params: ClientRequestMethod::servermsg(msg),
+					params: match msg {
+						Some(msg) => ClientRequestMethod::servermsg(msg),
+						None => ClientRequestMethod::serverclose(ServerClosedParams { i }),
+					},
 				}))
 				.await
 			}
 			ServerMessageDestination::Rpc(caller) => {
-				caller.notify("servermsg", msg);
+				match msg {
+					Some(msg) => caller.notify("servermsg", msg),
+					None => caller.notify("serverclose", ServerClosedParams { i }),
+				};
 				Ok(())
 			}
 		};

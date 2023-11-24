@@ -18,7 +18,7 @@ import {
 	IExtensionsControlManifest, StatisticType, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode,
 	InstallOptions, InstallVSIXOptions, UninstallOptions, Metadata, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, IExtensionManagementService, InstallExtensionInfo, EXTENSION_INSTALL_DEP_PACK_CONTEXT
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { adoptToGalleryExtensionId, areSameExtensions, ExtensionKey, getGalleryExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest, isApplicationScopedExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -206,7 +206,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const results: InstallExtensionResult[] = [];
 		await Promise.allSettled(extensions.map(async e => {
 			try {
-				const result = await this.installExtension(e);
+				const result = await this.installExtension(e, (taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask): boolean => {
+					if (extensions.some(e => adoptToGalleryExtensionId(taskToWaitFor.identifier.id) === getGalleryExtensionId(e.manifest.publisher, e.manifest.name))) {
+						return false;
+					}
+					return this.canWaitForTask(taskToWait, taskToWaitFor);
+				});
 				results.push(...result);
 			} catch (error) {
 				results.push({ identifier: { id: getGalleryExtensionId(e.manifest.publisher, e.manifest.name) }, operation: InstallOperation.Install, source: e.extension, error });
@@ -216,7 +221,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		return results;
 	}
 
-	private async installExtension({ manifest, extension, options }: InstallableExtension): Promise<InstallExtensionResult[]> {
+	private async installExtension({ manifest, extension, options }: InstallableExtension, shouldWait: (taskToWait: IInstallExtensionTask, taskToWaitFor: IInstallExtensionTask) => boolean): Promise<InstallExtensionResult[]> {
 
 		const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
 		const installExtensionTaskOptions: InstallExtensionTaskOptions = {
@@ -262,7 +267,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 						const key = getInstallExtensionTaskKey(gallery);
 						const existingInstallingExtension = this.installingExtensions.get(key);
 						if (existingInstallingExtension) {
-							if (this.canWaitForTask(installExtensionTask, existingInstallingExtension.task)) {
+							if (shouldWait(installExtensionTask, existingInstallingExtension.task)) {
 								const identifier = existingInstallingExtension.task.identifier;
 								this.logService.info('Waiting for already requested installing extension', identifier.id, installExtensionTask.identifier.id);
 								existingInstallingExtension.waitingTasks.push(installExtensionTask);

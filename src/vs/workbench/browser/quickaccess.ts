@@ -24,6 +24,7 @@ export interface IWorkbenchQuickAccessConfiguration {
 			readonly experimental: {
 				readonly suggestCommands: boolean;
 				readonly enableNaturalLanguageSearch: boolean;
+				readonly askChatLocation: 'quickChat' | 'chatView';
 			};
 		};
 		readonly quickOpen: {

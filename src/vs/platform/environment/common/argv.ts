@@ -91,7 +91,7 @@ export interface NativeParsedArgs {
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
-	'disable-keytar'?: boolean;
+	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;

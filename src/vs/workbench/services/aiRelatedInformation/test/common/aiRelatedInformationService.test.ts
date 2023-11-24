@@ -4,21 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { AiRelatedInformationService } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CommandInformationResult, IAiRelatedInformationProvider, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('AiRelatedInformationService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: AiRelatedInformationService;
 
 	setup(() => {
-		service = new AiRelatedInformationService(new NullLogService());
+		service = new AiRelatedInformationService(store.add(new NullLogService()));
 	});
 
 	test('should check if providers are registered', () => {
 		assert.equal(service.isEnabled(), false);
-		service.registerAiRelatedInformationProvider(RelatedInformationType.CommandInformation, { provideAiRelatedInformation: () => Promise.resolve([]) });
+		store.add(service.registerAiRelatedInformationProvider(RelatedInformationType.CommandInformation, { provideAiRelatedInformation: () => Promise.resolve([]) }));
 		assert.equal(service.isEnabled(), true);
 	});
 
@@ -39,5 +42,53 @@ suite('AiRelatedInformationService', () => {
 		const result = await service.getRelatedInformation('query', [RelatedInformationType.CommandInformation], CancellationToken.None);
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual((result[0] as CommandInformationResult).command, command);
+	});
+
+	test('should get different types of related information', async () => {
+		const command = 'command';
+		const commandProvider: IAiRelatedInformationProvider = {
+			provideAiRelatedInformation: () => Promise.resolve([{ type: RelatedInformationType.CommandInformation, command, weight: 1 }])
+		};
+		service.registerAiRelatedInformationProvider(RelatedInformationType.CommandInformation, commandProvider);
+		const setting = 'setting';
+		const settingProvider: IAiRelatedInformationProvider = {
+			provideAiRelatedInformation: () => Promise.resolve([{ type: RelatedInformationType.SettingInformation, setting, weight: 1 }])
+		};
+		service.registerAiRelatedInformationProvider(RelatedInformationType.SettingInformation, settingProvider);
+		const result = await service.getRelatedInformation(
+			'query',
+			[
+				RelatedInformationType.CommandInformation,
+				RelatedInformationType.SettingInformation
+			],
+			CancellationToken.None
+		);
+		assert.strictEqual(result.length, 2);
+		assert.strictEqual((result[0] as CommandInformationResult).command, command);
+		assert.strictEqual((result[1] as SettingInformationResult).setting, setting);
+	});
+
+	test('should return empty array on timeout', async () => {
+		const clock = sinon.useFakeTimers({
+			shouldAdvanceTime: true,
+		});
+		const provider: IAiRelatedInformationProvider = {
+			provideAiRelatedInformation: () => new Promise((resolve) => {
+				setTimeout(() => {
+					resolve([{ type: RelatedInformationType.CommandInformation, command: 'command', weight: 1 }]);
+				}, AiRelatedInformationService.DEFAULT_TIMEOUT + 100);
+			})
+		};
+
+		service.registerAiRelatedInformationProvider(RelatedInformationType.CommandInformation, provider);
+
+		try {
+			const promise = service.getRelatedInformation('query', [RelatedInformationType.CommandInformation], CancellationToken.None);
+			clock.tick(AiRelatedInformationService.DEFAULT_TIMEOUT + 200);
+			const result = await promise;
+			assert.strictEqual(result.length, 0);
+		} finally {
+			clock.restore();
+		}
 	});
 });

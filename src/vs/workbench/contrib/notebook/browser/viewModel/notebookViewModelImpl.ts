@@ -152,7 +152,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
 	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
 
-	private _selectionCollection = new NotebookCellSelectionCollection();
+	private _selectionCollection = this._register(new NotebookCellSelectionCollection());
 
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();
@@ -1045,7 +1045,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 }
 
-export type CellViewModel = CodeCellViewModel | MarkupCellViewModel;
+export type CellViewModel = (CodeCellViewModel | MarkupCellViewModel) & ICellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel, viewContext: ViewContext) {
 	if (cell.cellKind === CellKind.Code) {

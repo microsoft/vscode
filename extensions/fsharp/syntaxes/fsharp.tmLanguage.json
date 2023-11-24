@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/8740e610a367c5e3f15be716acc7207655ced4cf",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/078bbf85225b82de3ae4c2db7ee74d9239b249ce",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -590,8 +590,8 @@
 				},
 				{
 					"name": "comment.line.markdown.fsharp",
-					"begin": "///",
-					"while": "///",
+					"begin": "(?<![!%&+-.<=>?@^|/])///(?!/)",
+					"while": "(?<![!%&+-.<=>?@^|/])///(?!/)",
 					"patterns": [
 						{
 							"include": "text.html.markdown"
@@ -600,7 +600,7 @@
 				},
 				{
 					"name": "comment.line.double-slash.fsharp",
-					"match": "//.*$"
+					"match": "(?<![!%&+-.<=>?@^|/])//(?![!%&+-.<=>?@^|]).*$"
 				}
 			]
 		},
@@ -1125,7 +1125,7 @@
 				},
 				{
 					"name": "keyword.symbol.fsharp",
-					"match": "(&&&|\\|\\|\\||\\^\\^\\^|~~~|<<<|>>>|\\|>|:>|:\\?>|:|\\[|\\]|\\;|<>|=|@|\\|\\||&&|{|}|\\||_|\\.\\.|\\,|\\+|\\-|\\*|\\/|\\^|\\!|\\>|\\>\\=|\\>\\>|\\<|\\<\\=|\\(|\\)|\\<\\<)"
+					"match": "(&&&|\\|\\|\\||\\^\\^\\^|~~~|~\\+|~\\-|<<<|>>>|\\|>|:>|:\\?>|:|\\[|\\]|\\;|<>|=|@|\\|\\||&&|&|%|{|}|\\||_|\\.\\.|\\,|\\+|\\-|\\*|\\/|\\^|\\!|\\>|\\>\\=|\\>\\>|\\<|\\<\\=|\\(|\\)|\\<\\<)"
 				}
 			]
 		},
@@ -1133,7 +1133,7 @@
 			"patterns": [
 				{
 					"name": "entity.name.section.fsharp",
-					"begin": "\\b(namespace global)|\\b(namespace|module)\\s*(public|internal|private|rec)?\\s+([[:alpha:]][[:alpha:]0-9'_. ]*)",
+					"begin": "\\b(namespace global)|\\b(namespace|module)\\s*(public|internal|private|rec)?\\s+([[:alpha:]|``][[:alpha:]0-9'_. ]*)",
 					"end": "(\\s?=|\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -1171,7 +1171,7 @@
 				},
 				{
 					"name": "namespace.open.fsharp",
-					"begin": "\\b(open type|open)\\s+([[:alpha:]][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
+					"begin": "\\b(open type|open)\\s+([[:alpha:]|``][[:alpha:]0-9'_]*)(?=(\\.[A-Z][[:alpha:]0-9_]*)*)",
 					"end": "(\\s|$)",
 					"beginCaptures": {
 						"1": {
@@ -1331,7 +1331,7 @@
 					"match": "\\(\\)"
 				},
 				{
-					"match": "(\\?{0,1})(``[[:alpha:]0-9'`^:,._ ]+``|(?!private\\b)\\b[\\w[:alpha:]0-9'`<>^._ ]+)",
+					"match": "(\\?{0,1})(``[[:alpha:]0-9'`^:,._ ]+``|(?!private|struct\\b)\\b[\\w[:alpha:]0-9'`<>^._ ]+)",
 					"captures": {
 						"1": {
 							"name": "keyword.symbol.fsharp"

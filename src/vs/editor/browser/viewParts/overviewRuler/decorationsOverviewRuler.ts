@@ -347,7 +347,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		}
 
 		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
-		decorations.sort(OverviewRulerDecorationsGroup.cmp);
+		decorations.sort(OverviewRulerDecorationsGroup.compareByRenderingProps);
 
 		if (this._actualShouldRender === ShouldRenderValue.Maybe && !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations)) {
 			this._actualShouldRender = ShouldRenderValue.Needed;

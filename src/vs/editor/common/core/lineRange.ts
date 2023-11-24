@@ -16,6 +16,10 @@ export class LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber);
 	}
 
+	public static fromRangeInclusive(range: Range): LineRange {
+		return new LineRange(range.startLineNumber, range.endLineNumber + 1);
+	}
+
 	public static subtract(a: LineRange, b: LineRange | undefined): LineRange[] {
 		if (!b) {
 			return [a];
@@ -238,6 +242,11 @@ export class LineRangeSet {
 			const joinRange = this._normalizedRanges[joinRangeStartIdx].join(this._normalizedRanges[joinRangeEndIdxExclusive - 1]).join(range);
 			this._normalizedRanges.splice(joinRangeStartIdx, joinRangeEndIdxExclusive - joinRangeStartIdx, joinRange);
 		}
+	}
+
+	contains(lineNumber: number): boolean {
+		const rangeThatStartsBeforeEnd = findLastMonotonous(this._normalizedRanges, r => r.startLineNumber <= lineNumber);
+		return !!rangeThatStartsBeforeEnd && rangeThatStartsBeforeEnd.endLineNumberExclusive > lineNumber;
 	}
 
 	intersects(range: LineRange): boolean {

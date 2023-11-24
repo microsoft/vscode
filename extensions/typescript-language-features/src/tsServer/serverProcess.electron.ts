@@ -15,6 +15,7 @@ import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 
 const defaultSize: number = 8192;
@@ -134,10 +135,12 @@ class Reader<T> extends Disposable {
 	}
 }
 
-function generatePatchedEnv(env: any, modulePath: string): any {
+function generatePatchedEnv(env: any, modulePath: string, hasExecPath: boolean): any {
 	const newEnv = Object.assign({}, env);
 
-	newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	if (!hasExecPath) {
+		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+	}
 	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
 
 	// Ensure we always have a PATH set
@@ -253,6 +256,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		nodeVersionManager: NodeVersionManager,
 		_tsserverLog: TsServerLog | undefined,
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
@@ -263,20 +267,30 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 			tsServerPath = versionManager.currentVersion.tsServerPath;
 		}
 
-		const useIpc = version.apiVersion?.gte(API.v460);
+		const execPath = nodeVersionManager.currentVersion;
 
+		const env = generatePatchedEnv(process.env, tsServerPath, !!execPath);
 		const runtimeArgs = [...args];
+		const execArgv = getExecArgv(kind, configuration);
+		const useIpc = !execPath && version.apiVersion?.gte(API.v460);
 		if (useIpc) {
 			runtimeArgs.push('--useNodeIpc');
 		}
 
-		const childProcess = child_process.fork(tsServerPath, runtimeArgs, {
-			silent: true,
-			cwd: undefined,
-			env: generatePatchedEnv(process.env, tsServerPath),
-			execArgv: getExecArgv(kind, configuration),
-			stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
-		});
+		const childProcess = execPath ?
+			child_process.spawn(execPath, [...execArgv, tsServerPath, ...runtimeArgs], {
+				shell: true,
+				windowsHide: true,
+				cwd: undefined,
+				env,
+			}) :
+			child_process.fork(tsServerPath, runtimeArgs, {
+				silent: true,
+				cwd: undefined,
+				env,
+				execArgv,
+				stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
+			});
 
 		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
 	}

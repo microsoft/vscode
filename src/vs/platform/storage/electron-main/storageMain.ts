@@ -98,6 +98,11 @@ export interface IStorageMain extends IDisposable {
 	isInMemory(): boolean;
 
 	/**
+	 * Attempts to reduce the DB size via optimization commands if supported.
+	 */
+	optimize(): Promise<void>;
+
+	/**
 	 * Close the storage connection.
 	 */
 	close(): Promise<void>;
@@ -117,7 +122,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private _storage = new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY }); // storage is in-memory until initialized
+	private _storage = this._register(new Storage(new InMemoryStorageDatabase(), { hint: StorageHint.STORAGE_IN_MEMORY })); // storage is in-memory until initialized
 	get storage(): IStorage { return this._storage; }
 
 	abstract get path(): string | undefined;
@@ -150,7 +155,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				try {
 
 					// Create storage via subclasses
-					const storage = await this.doCreate();
+					const storage = this._register(await this.doCreate());
 
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
@@ -214,6 +219,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	delete(key: string): Promise<void> {
 		return this._storage.delete(key);
+	}
+
+	optimize(): Promise<void> {
+		return this._storage.optimize();
 	}
 
 	async close(): Promise<void> {

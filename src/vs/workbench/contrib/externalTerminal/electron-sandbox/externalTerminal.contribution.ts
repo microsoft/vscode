@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/path';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalService, IExternalTerminalSettings } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalSettings } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalMainService';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/electron-sandbox/externalTerminalService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -84,7 +84,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 export class ExternalTerminalContribution implements IWorkbenchContribution {
 
 	public _serviceBrand: undefined;
-	constructor(@IExternalTerminalMainService private readonly _externalTerminalService: IExternalTerminalMainService) {
+	constructor(@IExternalTerminalService private readonly _externalTerminalService: IExternalTerminalService) {
 		this._updateConfiguration();
 	}
 

@@ -269,6 +269,7 @@
 				"keyword.operator.new.cpp",
 				"keyword.operator.delete.cpp",
 				"keyword.other.using",
+				"keyword.other.directive.using",
 				"keyword.other.operator"
 			],
 			"settings": {

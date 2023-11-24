@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
-import { FocusedViewContext, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
+import { FocusedViewContext, getVisbileViewContextKey } from 'vs/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -32,6 +32,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -49,6 +50,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly _onDidChangeFocusedView = this._register(new Emitter<void>());
 	readonly onDidChangeFocusedView = this._onDidChangeFocusedView.event;
 
+	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly focusedViewContextKey: IContextKey<string>;
 
@@ -56,11 +58,13 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
+		this.enabledViewContainersContextKeys = new Map<string, IContextKey<boolean>>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
 
@@ -124,6 +128,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
+		this.updateViewContainerEnablementContextKey(viewContainer);
+		this._register(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.updateViewContainerEnablementContextKey(viewContainer)));
 		this._register(this.registerOpenViewContainerAction(viewContainer));
 	}
 
@@ -138,11 +144,10 @@ export class ViewsService extends Disposable implements IViewsService {
 			return;
 		}
 
-		const composite = this.getComposite(container.id, location);
 		for (const viewDescriptor of views) {
 			const disposables = new DisposableStore();
 			disposables.add(this.registerOpenViewAction(viewDescriptor));
-			disposables.add(this.registerFocusViewAction(viewDescriptor, composite?.name && composite.name !== composite.id ? composite.name : Categories.View));
+			disposables.add(this.registerFocusViewAction(viewDescriptor, container.title));
 			disposables.add(this.registerResetViewLocationAction(viewDescriptor));
 			this.viewDisposable.set(viewDescriptor, disposables);
 		}
@@ -156,6 +161,15 @@ export class ViewsService extends Disposable implements IViewsService {
 				this.viewDisposable.delete(view);
 			}
 		}
+	}
+
+	private updateViewContainerEnablementContextKey(viewContainer: ViewContainer): void {
+		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+		if (!contextKey) {
+			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
+			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+		}
+		contextKey.set(!(viewContainer.hideIfEmpty && this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length === 0));
 	}
 
 	private async openComposite(compositeId: string, location: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
@@ -240,7 +254,8 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getFocusedViewName(): string {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? '';
+		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -485,10 +500,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
-				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name);
+				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name} View`, value: title },
+					title: { original: `Focus on ${viewDescriptor.name.original} View`, value: title },
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,
@@ -503,7 +518,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						mac: viewDescriptor.focusCommand?.keybindings?.mac,
 						win: viewDescriptor.focusCommand?.keybindings?.win
 					},
-					description: {
+					metadata: {
 						description: title,
 						args: [
 							{
@@ -559,10 +574,10 @@ export class ViewsService extends Disposable implements IViewsService {
 				// The default container is hidden so we should try to reset its location first
 				if (defaultContainer.hideIfEmpty && containerModel.visibleViewDescriptors.length === 0) {
 					const defaultLocation = viewDescriptorService.getDefaultViewContainerLocation(defaultContainer)!;
-					viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation);
+					viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation, undefined, this.desc.id);
 				}
 
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!);
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!, undefined, this.desc.id);
 				accessor.get(IViewsService).openView(viewDescriptor.id, true);
 			}
 		});
@@ -640,6 +655,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		return viewPaneContainer;
 	}
 }
+
+function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation): string {
 	switch (viewContainerLocation) {

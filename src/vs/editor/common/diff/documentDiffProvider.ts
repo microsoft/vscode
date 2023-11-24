@@ -11,6 +11,7 @@ import { ITextModel } from 'vs/editor/common/model';
 
 /**
  * A document diff provider computes the diff between two text models.
+ * @internal
  */
 export interface IDocumentDiffProvider {
 	/**
@@ -27,6 +28,7 @@ export interface IDocumentDiffProvider {
 
 /**
  * Options for the diff computation.
+ * @internal
  */
 export interface IDocumentDiffProviderOptions {
 	/**
@@ -47,6 +49,7 @@ export interface IDocumentDiffProviderOptions {
 
 /**
  * Represents a diff between two text models.
+ * @internal
  */
 export interface IDocumentDiff {
 	/**

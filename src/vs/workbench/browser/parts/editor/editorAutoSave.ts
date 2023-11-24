@@ -49,6 +49,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 	private registerListeners(): void {
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChange()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
 
@@ -63,6 +64,10 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		if (!focused) {
 			this.maybeTriggerAutoSave(SaveReason.WINDOW_CHANGE);
 		}
+	}
+
+	private onActiveWindowChange(): void {
+		this.maybeTriggerAutoSave(SaveReason.WINDOW_CHANGE);
 	}
 
 	private onDidActiveEditorChange(): void {
@@ -191,12 +196,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		const handle = setTimeout(() => {
 
 			// Clear disposable
-			this.pendingAutoSavesAfterDelay.delete(workingCopy);
+			this.discardAutoSave(workingCopy);
 
 			// Save if dirty
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
 		}, this.autoSaveAfterDelay);

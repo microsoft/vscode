@@ -23,6 +23,13 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		private readonly language: LanguageDescription
 	) {
 		super(client, _cachedResponse);
+		this._register(
+			vscode.workspace.onDidChangeConfiguration(evt => {
+				if (evt.affectsConfiguration(`${language.id}.referencesCodeLens.showOnAllFunctions`)) {
+					this.changeEmitter.fire();
+				}
+			})
+		);
 	}
 
 	public async resolveCodeLens(codeLens: ReferencesCodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
@@ -70,7 +77,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		switch (item.kind) {
 			case PConst.Kind.function: {
 				const showOnAllFunctions = vscode.workspace.getConfiguration(this.language.id).get<boolean>('referencesCodeLens.showOnAllFunctions');
-				if (showOnAllFunctions) {
+				if (showOnAllFunctions && item.nameSpan) {
 					return getSymbolRange(document, item);
 				}
 			}

@@ -301,7 +301,7 @@ export class DefineKeybindingOverlayWidget extends Disposable implements IOverla
 	) {
 		super();
 
-		this._widget = instantiationService.createInstance(DefineKeybindingWidget, null);
+		this._widget = this._register(instantiationService.createInstance(DefineKeybindingWidget, null));
 		this._editor.addOverlayWidget(this);
 	}
 

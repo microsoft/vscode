@@ -13,11 +13,14 @@ import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/li
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Workbench - TerminalUriLinkDetector', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let detector: TerminalUriLinkDetector;
 	let xterm: Terminal;
@@ -25,7 +28,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
@@ -38,7 +41,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 		});
 		validResources = [];
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
 		detector = instantiationService.createInstance(TerminalUriLinkDetector, xterm, {
 			initialCwd: '/parent/cwd',

@@ -236,8 +236,8 @@ export class ConfigureSnippetsAction extends SnippetsAction {
 			},
 			f1: true,
 			menu: [
-				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 4 },
-				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 4 },
+				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 5 },
+				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 5 },
 			]
 		});
 	}

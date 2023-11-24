@@ -7,15 +7,12 @@ import * as assert from 'assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mockObject } from 'vs/base/test/common/mock';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('DebugModel', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
 			const fbp = new FunctionBreakpoint('function', true, 'hit condition', 'condition', 'log message');
@@ -41,6 +38,8 @@ suite('DebugModel', () => {
 			const wholeStackDeferred = new DeferredPromise<void>();
 			const fakeThread = mockObject<Thread>()({
 				session: { capabilities: { supportsDelayedStackTraceLoading: true } } as any,
+				getCallStack: () => [],
+				getStaleCallStack: () => [],
 			});
 			fakeThread.fetchCallStack.callsFake((levels: number) => {
 				return levels === 1 ? topFrameDeferred.p : wholeStackDeferred.p;

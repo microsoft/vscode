@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 
 interface ITestLink {
@@ -142,6 +143,8 @@ const testLinks: ITestLink[] = [
 const testLinksWithSuffix = testLinks.filter(e => !!e.suffix);
 
 suite('TerminalLinkParsing', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('removeLinkSuffix', () => {
 		for (const testLink of testLinks) {
 			test('`' + testLink.link + '`', () => {

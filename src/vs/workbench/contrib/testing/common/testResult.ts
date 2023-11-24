@@ -5,14 +5,16 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -22,7 +24,7 @@ export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
-	readonly coverage: IObservableValue<TestCoverage | undefined>;
+	readonly coverage: IObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>;
 
 	/**
 	 * Messages from the task not associated with any specific test.
@@ -274,11 +276,11 @@ export type TestResultItemChange = { item: TestResultItem; result: ITestResult }
  * Results of a test. These are created when the test initially started running
  * and marked as "complete" when the run finishes.
  */
-export class LiveTestResult implements ITestResult {
-	private readonly completeEmitter = new Emitter<void>();
-	private readonly newTaskEmitter = new Emitter<number>();
-	private readonly endTaskEmitter = new Emitter<number>();
-	private readonly changeEmitter = new Emitter<TestResultItemChange>();
+export class LiveTestResult extends Disposable implements ITestResult {
+	private readonly completeEmitter = this._register(new Emitter<void>());
+	private readonly newTaskEmitter = this._register(new Emitter<number>());
+	private readonly endTaskEmitter = this._register(new Emitter<number>());
+	private readonly changeEmitter = this._register(new Emitter<TestResultItemChange>());
 	/** todo@connor4312: convert to a WellDefinedPrefixTree */
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
 	private testMarkerCounter = 0;
@@ -334,6 +336,7 @@ export class LiveTestResult implements ITestResult {
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
 	) {
+		super();
 	}
 
 	/**
@@ -382,7 +385,7 @@ export class LiveTestResult implements ITestResult {
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
-		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [], output: new TaskRawOutput() });
+		this.tasks.push({ ...task, coverage: observableValue(this, undefined), otherMessages: [], output: new TaskRawOutput() });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -652,7 +655,7 @@ export class HydratedTestResult implements ITestResult {
 			id: task.id,
 			name: task.name,
 			running: false,
-			coverage: staticObservableValue(undefined),
+			coverage: observableValue(this, undefined),
 			output: emptyRawOutput,
 			otherMessages: []
 		}));

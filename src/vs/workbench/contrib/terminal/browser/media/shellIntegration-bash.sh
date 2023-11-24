@@ -95,9 +95,22 @@ __vsc_get_trap() {
 	builtin printf '%s' "${terms[2]:-}"
 }
 
+__vsc_escape_value_fast() {
+	builtin local LC_ALL=C out
+	out=${1//\\/\\\\}
+	out=${out//;/\\x3b}
+	builtin printf '%s\n' "${out}"
+}
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
+	# If the input being too large, switch to the faster function
+	if [ "${#1}" -ge 2000 ]; then
+		__vsc_escape_value_fast "$1"
+		builtin return
+	fi
+
 	# Process text byte by byte, not by codepoint.
 	builtin local LC_ALL=C str="${1}" i byte token out=''
 

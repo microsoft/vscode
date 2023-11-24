@@ -19,12 +19,14 @@ export const enum TestingConfigKeys {
 	AlwaysRevealTestOnStateChange = 'testing.alwaysRevealTestOnStateChange',
 	CountBadge = 'testing.countBadge',
 	ShowAllMessages = 'testing.showAllMessages',
+	CoveragePercent = 'testing.displayedCoveragePercent',
 }
 
 export const enum AutoOpenTesting {
 	NeverOpen = 'neverOpen',
 	OpenOnTestStart = 'openOnTestStart',
 	OpenOnTestFailure = 'openOnTestFailure',
+	OpenExplorerOnTestStart = 'openExplorerOnTestStart',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -44,6 +46,12 @@ export const enum TestingCountBadge {
 	Off = 'off',
 	Passed = 'passed',
 	Skipped = 'skipped',
+}
+
+export const enum TestingDisplayedCoveragePercent {
+	TotalCoverage = 'totalCoverage',
+	Statement = 'statement',
+	Minimum = 'minimum',
 }
 
 export const testingConfiguration: IConfigurationNode = {
@@ -132,11 +140,13 @@ export const testingConfiguration: IConfigurationNode = {
 				AutoOpenTesting.NeverOpen,
 				AutoOpenTesting.OpenOnTestStart,
 				AutoOpenTesting.OpenOnTestFailure,
+				AutoOpenTesting.OpenExplorerOnTestStart,
 			],
 			enumDescriptions: [
-				localize('testing.openTesting.neverOpen', 'Never automatically open the testing view'),
-				localize('testing.openTesting.openOnTestStart', 'Open the testing view when tests start'),
-				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
+				localize('testing.openTesting.neverOpen', 'Never automatically open the testing views'),
+				localize('testing.openTesting.openOnTestStart', 'Open the test results view when tests start'),
+				localize('testing.openTesting.openOnTestFailure', 'Open the test result view on any test failure'),
+				localize('testing.openTesting.openExplorerOnTestStart', 'Open the test explorer when tests start'),
 			],
 			default: 'openOnTestStart',
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
@@ -145,6 +155,20 @@ export const testingConfiguration: IConfigurationNode = {
 			markdownDescription: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the executed test when `#testing.followRunningTest#` is on. If this setting is turned off, only failed tests will be revealed."),
 			type: 'boolean',
 			default: false,
+		},
+		[TestingConfigKeys.CoveragePercent]: {
+			markdownDescription: localize('testing.displayedCoveragePercent', "Configures what percentage is displayed by default for test coverage."),
+			default: TestingDisplayedCoveragePercent.TotalCoverage,
+			enum: [
+				TestingDisplayedCoveragePercent.TotalCoverage,
+				TestingDisplayedCoveragePercent.Statement,
+				TestingDisplayedCoveragePercent.Minimum,
+			],
+			enumDescriptions: [
+				localize('testing.displayedCoveragePercent.totalCoverage', 'A calculation of the combined statement, function, and branch coverage.'),
+				localize('testing.displayedCoveragePercent.statement', 'The statement coverage.'),
+				localize('testing.displayedCoveragePercent.minimum', 'The minimum of statement, function, and branch coverage.'),
+			],
 		},
 	}
 };
@@ -161,6 +185,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
 	[TestingConfigKeys.ShowAllMessages]: boolean;
+	[TestingConfigKeys.CoveragePercent]: TestingDisplayedCoveragePercent;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

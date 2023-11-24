@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { findLastIndex } from 'vs/base/common/arrays';
+import { findLastIdx } from 'vs/base/common/arraysFind';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -447,7 +447,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _attachModel() {
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 		const updateInsets = () => {
-			DOM.scheduleAtNextAnimationFrame(() => {
+			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._listViewContainer), () => {
 				if (this._isDisposed) {
 					return;
 				}
@@ -761,7 +761,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 
-		DOM.scheduleAtNextAnimationFrame(() => {
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._listViewContainer), () => {
 			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
 		}, 10);
 	}
@@ -779,7 +779,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._listViewContainer), () => {
 			this.pendingLayouts.delete(cell);
 
 			relayout(cell, height);
@@ -825,7 +825,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(prevChangeIndex);
 		} else {
 			// go to the last one
-			const index = findLastIndex(this._diffElementViewModels, vm => vm.type !== 'unchanged');
+			const index = findLastIdx(this._diffElementViewModels, vm => vm.type !== 'unchanged');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -965,10 +965,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
-	}
-
-	override focus() {
-		super.focus();
 	}
 
 	override clearInput(): void {

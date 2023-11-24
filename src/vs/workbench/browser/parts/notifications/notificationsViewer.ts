@@ -171,11 +171,11 @@ class NotificationMessageRenderer {
 					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.CLICK)).event;
 
 					const onKeydown = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.KEY_DOWN)).event;
-					const onSpaceOrEnter = actionHandler.toDispose.add(Event.chain(onKeydown)).filter(e => {
+					const onSpaceOrEnter = Event.chain(onKeydown, $ => $.filter(e => {
 						const event = new StandardKeyboardEvent(e);
 
 						return event.equals(KeyCode.Space) || event.equals(KeyCode.Enter);
-					}).event;
+					}));
 
 					actionHandler.toDispose.add(Gesture.addTarget(anchor));
 					const onTap = actionHandler.toDispose.add(new DomEmitter(anchor, GestureEventType.Tap)).event;

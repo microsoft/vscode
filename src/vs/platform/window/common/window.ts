@@ -24,6 +24,16 @@ export const WindowMinimumSize = {
 	HEIGHT: 270
 };
 
+export interface IPoint {
+	readonly x: number;
+	readonly y: number;
+}
+
+export interface IRectangle extends IPoint {
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface IBaseOpenWindowsOptions {
 
 	/**
@@ -63,12 +73,23 @@ export interface IAddFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
 }
 
-export interface IOpenedWindow {
+interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
+}
+
+export interface IOpenedMainWindow extends IOpenedWindow {
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+}
+
+export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
+	readonly parentId: number;
+}
+
+export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAuxiliaryWindow): candidate is IOpenedAuxiliaryWindow {
+	return typeof (candidate as IOpenedAuxiliaryWindow).parentId === 'number';
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
@@ -137,6 +158,11 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly density: IDensitySettings;
+}
+
+export interface IDensitySettings {
+	readonly editorTabHeight: 'default' | 'compact';
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -177,6 +203,20 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 	// Default to true.
 	return true;
 }
+
+export function useNativeFullScreen(configurationService: IConfigurationService): boolean {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+		return true; // default
+	}
+
+	if (windowConfig.nativeTabs) {
+		return true; // https://github.com/electron/electron/issues/16142
+	}
+
+	return windowConfig.nativeFullScreen !== false;
+}
+
 
 export interface IPath<T = IEditorOptions> extends IPathData<T> {
 
@@ -275,6 +315,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	mainPid: number;
 
 	machineId: string;
+	sqmId: string;
 
 	execPath: string;
 	backupPath?: string;

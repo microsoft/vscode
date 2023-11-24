@@ -5,6 +5,8 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/treeProjection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
@@ -19,9 +21,17 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	let harness: TestTreeTestHarness<TestHierarchicalByLocationProjection>;
 	let onTestChanged: Emitter<TestResultItemChange>;
 	let resultsService: any;
+	let ds: DisposableStore;
+
+	teardown(() => {
+		ds.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		onTestChanged = new Emitter();
+		ds = new DisposableStore();
+		onTestChanged = ds.add(new Emitter());
 		resultsService = {
 			results: [],
 			onResultsChanged: () => undefined,
@@ -29,11 +39,7 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService as any));
-	});
-
-	teardown(() => {
-		harness.dispose();
+		harness = ds.add(new TestTreeTestHarness(l => new TestHierarchicalByLocationProjection({}, l, resultsService as any)));
 	});
 
 	test('renders initial tree', async () => {

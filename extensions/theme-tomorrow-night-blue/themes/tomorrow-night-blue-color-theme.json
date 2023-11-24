@@ -36,7 +36,6 @@
 		"statusBar.noFolderBackground": "#001126",
 		"statusBar.debuggingBackground": "#001126",
 		"activityBar.background": "#001733",
-		"activityBarItem.profilesBackground": "#003271",
 		"progressBar.background": "#bbdaffcc",
 		"badge.background": "#bbdaffcc",
 		"badge.foreground": "#001733",
@@ -141,7 +140,10 @@
 		},
 		{
 			"name": "Keyword, Storage",
-			"scope": "keyword, storage, storage.type, entity.name.tag.css",
+			"scope": [
+				"keyword, storage, storage.type, entity.name.tag.css",
+				"entity.name.tag.less"
+			],
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#EBBBFF"

@@ -414,7 +414,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
-		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getAdvanced() : linesDiffComputers.getLegacy();
+		const diffAlgorithm: ILinesDiffComputer = algorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy();
 
 		const originalLines = originalTextModel.getLinesContent();
 		const modifiedLines = modifiedTextModel.getLinesContent();
@@ -511,6 +511,19 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return aRng - bRng;
 		});
 
+		// merge adjacent edits
+		let writeIndex = 0;
+		for (let readIndex = 1; readIndex < edits.length; readIndex++) {
+			if (Range.getEndPosition(edits[writeIndex].range).equals(Range.getStartPosition(edits[readIndex].range))) {
+				edits[writeIndex].range = Range.fromPositions(Range.getStartPosition(edits[writeIndex].range), Range.getEndPosition(edits[readIndex].range));
+				edits[writeIndex].text += edits[readIndex].text;
+			} else {
+				writeIndex++;
+				edits[writeIndex] = edits[readIndex];
+			}
+		}
+		edits.length = writeIndex + 1;
+
 		for (let { range, text, eol } of edits) {
 
 			if (typeof eol === 'number') {
@@ -561,7 +574,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
+	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;
@@ -610,7 +623,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			const originalLines = original.split(/\r\n|\n|\r/);
 			const modifiedLines = text.split(/\r\n|\n|\r/);
 
-			const diff = linesDiffComputers.getAdvanced().computeDiff(originalLines, modifiedLines, options);
+			const diff = linesDiffComputers.getDefault().computeDiff(originalLines, modifiedLines, options);
 
 			const start = Range.lift(range).getStartPosition();
 
