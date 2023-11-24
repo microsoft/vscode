@@ -67,6 +67,7 @@ import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorH
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
 import { EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ICommandAction } from 'vs/platform/action/common/action';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 //#region Editor Registrations
 
@@ -566,7 +567,9 @@ appendEditorToolItem(
 		icon: previousChangeIcon
 	},
 	TextCompareEditorActiveContext,
-	10
+	10,
+	undefined,
+	EditorContextKeys.hasChanges,
 );
 
 // Diff Editor Title Menu: Next Change
@@ -577,7 +580,9 @@ appendEditorToolItem(
 		icon: nextChangeIcon
 	},
 	TextCompareEditorActiveContext,
-	11
+	11,
+	undefined,
+	EditorContextKeys.hasChanges,
 );
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
