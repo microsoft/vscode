@@ -19,6 +19,8 @@ parts:
   code:
     plugin: dump
     source: .
+    build-packages:
+      - patchelf
     stage-packages:
       - ca-certificates
       - libasound2
