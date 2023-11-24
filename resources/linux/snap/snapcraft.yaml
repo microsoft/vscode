@@ -51,8 +51,11 @@ parts:
       - libxss1
       - locales-all
       - packagekit-gtk3-module
+      - gnome-settings-daemon-common
       - xdg-utils
     prime:
+      - -lib/udev
+      - -usr/lib/systemd
       - -usr/share/doc
       - -usr/share/fonts
       - -usr/share/icons
