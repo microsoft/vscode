@@ -76,10 +76,11 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 	}
 
 	registerWindow(webContents: WebContents): void {
-		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents);
-		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
-
 		const disposables = new DisposableStore();
+
+		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents);
+
+		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
 		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.id)));
 
 		disposables.add(auxiliaryWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(auxiliaryWindow)));

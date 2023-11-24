@@ -77,6 +77,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Events
 
 	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+
 	readonly onDidTriggerWindowSystemContextMenu = Event.any(
 		Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId)),
 		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
