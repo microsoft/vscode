@@ -1542,24 +1542,32 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 
-		const autoUpdateExtensions = this.getSelectedExtensionsToAutoUpdate();
 		let update = false;
+		const autoUpdateExtensions = this.getSelectedExtensionsToAutoUpdate();
 		if (isString(extensionOrPublisher)) {
 			if (EXTENSION_IDENTIFIER_REGEX.test(extensionOrPublisher)) {
 				throw new Error('Expected publisher string, found extension identifier');
 			}
 			extensionOrPublisher = extensionOrPublisher.toLowerCase();
-			if (autoUpdateExtensions.includes(extensionOrPublisher) !== enable) {
+			if (this.isAutoUpdateEnabledFor(extensionOrPublisher) !== enable) {
 				update = true;
 				if (enable) {
 					autoUpdateExtensions.push(extensionOrPublisher);
 				} else {
-					autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(extensionOrPublisher), 1);
+					if (autoUpdateExtensions.includes(extensionOrPublisher)) {
+						autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(extensionOrPublisher), 1);
+					}
+					const publisherOrganization = this.organizationByPublisher.get(extensionOrPublisher);
+					if (publisherOrganization) {
+						for (const publisher of this.productService.publishersByOrganisation?.[publisherOrganization] ?? []) {
+							autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(publisher), 1);
+						}
+					}
 				}
 			}
 		} else {
 			const extensionId = extensionOrPublisher.identifier.id.toLowerCase();
-			const enableAutoUpdatesForPublisher = autoUpdateExtensions.includes(extensionOrPublisher.publisher.toLowerCase());
+			const enableAutoUpdatesForPublisher = this.isAutoUpdateEnabledFor(extensionOrPublisher.publisher.toLowerCase());
 			const enableAutoUpdatesForExtension = autoUpdateExtensions.includes(extensionId);
 			const disableAutoUpdatesForExtension = autoUpdateExtensions.includes(`-${extensionId}`);
 
