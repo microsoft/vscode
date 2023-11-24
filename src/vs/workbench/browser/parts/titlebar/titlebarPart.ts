@@ -726,9 +726,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		const noMenubar = this.currentMenubarVisibility === 'hidden' || (!isWeb && isMacintosh);
 		const noCommandCenter = !this.isCommandCenterVisible;
-		const noLayoutControls = !this.layoutControlEnabled;
+		const noToolBarActions = !this.layoutControlEnabled && !this.editorActionsEnabled && !this.activityActionsEnabled;
 
-		return zoomFactor < 1 || (noMenubar && noCommandCenter && noLayoutControls);
+		return zoomFactor < 1 || (noMenubar && noCommandCenter && noToolBarActions);
 	}
 
 	override layout(width: number, height: number): void {
