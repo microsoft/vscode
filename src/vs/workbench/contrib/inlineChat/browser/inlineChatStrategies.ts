@@ -10,27 +10,27 @@ import { equals, tail } from 'vs/base/common/arrays';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
-import { IWorkbenchButtonBarOptions, WorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -44,9 +44,18 @@ import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineCha
 
 export abstract class EditModeStrategy {
 
+	protected readonly _onDidAccept = new Emitter<void>();
+	protected readonly _onDidDiscard = new Emitter<void>();
+
+	readonly onDidAccept: Event<void> = this._onDidAccept.event;
+	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
+
 	constructor(protected readonly _zone: InlineChatZoneWidget) { }
 
-	abstract dispose(): void;
+	dispose(): void {
+		this._onDidAccept.dispose();
+		this._onDidDiscard.dispose();
+	}
 
 	abstract apply(): Promise<void>;
 
@@ -58,7 +67,7 @@ export abstract class EditModeStrategy {
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
-	abstract renderChanges(response: ReplyResponse): Promise<void>;
+	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
 
 	abstract hasFocus(): boolean;
 
@@ -88,6 +97,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	override dispose(): void {
 		this._listener.dispose();
 		this._ctxDocumentChanged.reset();
+		super.dispose();
 	}
 
 	async apply() {
@@ -128,7 +138,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async renderChanges(response: ReplyResponse): Promise<void> {
+	override async renderChanges(response: ReplyResponse): Promise<undefined> {
 		if (response.allLocalEdits.length > 0) {
 			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
 			await this._zone.widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
@@ -259,6 +269,7 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	override dispose(): void {
+		super.dispose();
 		this._inlineDiffDecorations.clear();
 		this._store.dispose();
 	}
@@ -327,7 +338,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async renderChanges(response: ReplyResponse) {
+	override async renderChanges(response: ReplyResponse): Promise<undefined> {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		this._updateSummaryMessage(diff?.changes ?? []);
 		this._inlineDiffDecorations.update();
@@ -494,7 +505,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async renderChanges(response: ReplyResponse) {
+	override async renderChanges(response: ReplyResponse): Promise<undefined> {
 
 		await this._updateDiffZones();
 
@@ -596,7 +607,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
 	private readonly _modifiedRangesDecorations: IEditorDecorationsCollection;
-	private readonly _modifiedRangesAccepted: number[] = [];
+	private readonly _modifiedRangesThatHaveBeenInteractedWith: string[] = [];
 
 	private _editCount: number = 0;
 
@@ -618,12 +629,14 @@ export class LiveStrategy3 extends EditModeStrategy {
 		this._modifiedRangesDecorations.clear();
 		this._sessionStore.dispose();
 		this._store.dispose();
+		super.dispose();
 	}
 
 
 	async apply() {
 		this._sessionStore.clear();
 		this._modifiedRangesDecorations.clear();
+		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
@@ -639,6 +652,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	async cancel() {
 		this._sessionStore.clear();
 		this._modifiedRangesDecorations.clear();
+		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
 		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
 		if (modelN.isDisposed()) {
 			return;
@@ -676,7 +690,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 
 		const listener = this._session.textModelN.onDidChangeContent(async () => {
-			await this._showDiff(false);
+			await this._showDiff(false, false);
 		});
 
 		try {
@@ -692,25 +706,12 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 	}
 
-	private async _showDiff(isFinalChanges: boolean): Promise<boolean> {
-
-		this._sessionStore.clear();
-
+	private async _computeDiff(): Promise<IDocumentDiff> {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		this._updateSummaryMessage(diff?.changes ?? []);
 
-		if (!diff || diff.identical || diff.changes.length === 0) {
-			return false;
+		if (!diff || diff.changes.length === 0) {
+			return { identical: false, quitEarly: false, changes: [], moves: [] };
 		}
-
-		let viewZoneIds: string[] = [];
-		const newViewZones: IViewZone[] = [];
-		const newDecorations: IModelDeltaDecoration[] = [];
-		const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
-		const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
-		const renderOptions = RenderOptions.fromEditor(this._editor);
-
-		const newModifiedRangeDecorations: IModelDeltaDecoration[] = [];
 
 		// merge changes neighboring changes
 		const mergedChanges = [diff.changes[0]];
@@ -728,14 +729,54 @@ export class LiveStrategy3 extends EditModeStrategy {
 			}
 		}
 
-		for (const { modified, original, innerChanges } of mergedChanges) {
+		return {
+			identical: diff.identical,
+			quitEarly: diff.quitEarly,
+			changes: mergedChanges,
+			moves: []
+		};
+	}
 
-			const isAccepted = this._modifiedRangesAccepted.some(idx => {
-				const range = this._modifiedRangesDecorations.getRange(idx);
-				return range && LineRange.fromRange(range).intersect(modified);
+
+	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({ description: 'inline-chat-modified-interacted-with', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges });
+
+	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean): Promise<Position | undefined> {
+
+		const diff = await this._computeDiff();
+
+		this._sessionStore.clear();
+
+		this._updateSummaryMessage(diff.changes);
+
+		if (diff.identical || diff.changes.length === 0) {
+
+			if (isAfterManualInteraction) {
+				this._sessionStore.clear();
+				this._onDidDiscard.fire();
+			}
+			return undefined;
+		}
+
+		const viewZoneIds = new Set<string>();
+		const newDecorations: IModelDeltaDecoration[] = [];
+		const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
+		const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
+		const renderOptions = RenderOptions.fromEditor(this._editor);
+
+		let widgetData: { distance: number; position: Position; actions: IAction[] } | undefined;
+
+		for (const { original, modified, innerChanges } of diff.changes) {
+
+			const modifiedRange: Range = modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._session.textModelN.getLineLength(modified.startLineNumber))
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._session.textModelN.getLineLength(modified.endLineNumberExclusive - 1));
+
+			const hasBeenInteractedWith = this._modifiedRangesThatHaveBeenInteractedWith.some(id => {
+				const range = this._session.textModelN.getDecorationRange(id);
+				return range && Range.areIntersecting(range, modifiedRange);
 			});
 
-			if (isAccepted) {
+			if (hasBeenInteractedWith) {
 				continue;
 			}
 
@@ -771,106 +812,112 @@ export class LiveStrategy3 extends EditModeStrategy {
 			domNode.className = 'inline-chat-original-zone2';
 			const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(original.startLineNumber, 1, original.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
 
-			newViewZones.push({
-				afterLineNumber: modified.startLineNumber - 1,
+			let myViewZoneId: string = '';
+			const myViewZone: IViewZone = {
+				afterLineNumber: modifiedRange.startLineNumber - 1,
 				heightInLines: result.heightInLines,
 				domNode,
-			});
+			};
 
 			if (isFinalChanges) {
 
-				const idx = -1 + newModifiedRangeDecorations.push({
-					range: new Range(original.startLineNumber, 1, original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER),
-					options: {
-						description: 'inline-original-range',
-						stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-					}
-				});
+				const [id] = this._modifiedRangesDecorations.append([{ range: modifiedRange, options: this._decoModifiedInteractedWith }]);
 
 				const actions = [
 					toAction({
 						id: 'accept',
-						label: 'Accept',
+						label: localize('accept', "Accept"),
 						class: ThemeIcon.asClassName(Codicon.check),
 						run: () => {
-							this._modifiedRangesAccepted.push(idx);
-							this._showDiff(true);
+							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
+							return this._showDiff(true, true);
 						}
 					}),
 					toAction({
 						id: 'discard',
-						label: 'Discard',
+						label: localize('discard', "Discard"),
 						class: ThemeIcon.asClassName(Codicon.discard),
 						run: () => {
-							const originalValue = this._session.textModel0.getValueInRange(new Range(original.startLineNumber, 1, original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER));
-							const edit = EditOperation.replace(new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive, 1), originalValue + '\n');
-							this._session.textModelN.pushEditOperations(null, [edit], () => null);
-							this._showDiff(true);
-						}
-					}),
-					toAction({
-						id: 'diff',
-						label: 'Compare',
-						checked: false,
-						class: ThemeIcon.asClassName(Codicon.diff),
-						run: () => {
-							const scrollState = StableEditorScrollState.capture(this._editor);
-							if (viewZoneIds.length === 0) {
-								this._editor.changeViewZones(accessor => viewZoneIds = newViewZones.map(accessor.addZone, accessor));
-							} else {
-								this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
-								viewZoneIds.length = 0;
+							const edits: ISingleEditOperation[] = [];
+							for (const innerChange of innerChanges!) {
+								const originalValue = this._session.textModel0.getValueInRange(innerChange.originalRange);
+								edits.push(EditOperation.replace(innerChange.modifiedRange, originalValue));
 							}
-							scrollState.restore(this._editor);
+							this._session.textModelN.pushEditOperations(null, edits, () => null);
+							return this._showDiff(true, true);
 						}
 					}),
 				];
 
+				if (!original.isEmpty) {
+					actions.push(toAction({
+						id: 'diff',
+						label: localize('compare', "Compare"),
+						checked: false,
+						class: ThemeIcon.asClassName(Codicon.diff),
+						run: () => {
+							const scrollState = StableEditorScrollState.capture(this._editor);
+							if (!viewZoneIds.has(myViewZoneId)) {
+								this._editor.changeViewZones(accessor => {
+									myViewZoneId = accessor.addZone(myViewZone);
+									viewZoneIds.add(myViewZoneId);
+								});
+							} else {
+								this._editor.changeViewZones(accessor => {
+									accessor.removeZone(myViewZoneId);
+									viewZoneIds.delete(myViewZoneId);
+								});
+							}
+							scrollState.restore(this._editor);
+						}
+					}));
+				}
+
 				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
 
-					let needsUpdate = false;
-					const allRanges = e.changes.map(c => c.range).flat();
-					const ranges = this._modifiedRangesDecorations.getRanges();
-
-					for (let i = 0; i < ranges.length; i++) {
-						const editRange = ranges[i];
-
-						const overlapsWithEdit = allRanges.some(r => Range.areIntersecting(r, editRange));
-						if (overlapsWithEdit) {
-							// mark this as accepted
-							this._modifiedRangesAccepted.push(i);
-							needsUpdate = true;
+					for (const editRange of e.changes.map(c => c.range).flat()) {
+						if (Range.areIntersectingOrTouching(modifiedRange, editRange)) {
+							// implicit accepted
+							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
 						}
 					}
-
-					if (needsUpdate) {
-						this._showDiff(true);
-					}
+					this._showDiff(true, true);
 				}));
 
 
-				const toolbar = this._instaService.createInstance(FloatingEditorButtonBar, this._editor, actions, {
-					telemetrySource: 'inline-diff-toolbar',
-					// buttonConfigProvider: action => {
-					// 	const isCompare = action.id === compareAction.id;
-					// 	return { showLabel: !isCompare, showIcon: isCompare };
-					// }
-				}, () => this._modifiedRangesDecorations.getRange(idx)?.startLineNumber ?? original.startLineNumber);
-				this._sessionStore.add(toolbar);
+				const zoneLineNumber = this._zone.position!.lineNumber;
+				const myDistance = zoneLineNumber <= modifiedRange.startLineNumber
+					? modifiedRange.startLineNumber - zoneLineNumber
+					: zoneLineNumber - modifiedRange.endLineNumber;
+
+				if (!widgetData || widgetData.distance > myDistance) {
+					widgetData = { distance: myDistance, position: modifiedRange.getStartPosition().delta(-1), actions };
+				}
 			}
 		}
 
-		this._modifiedRangesDecorations.set(newModifiedRangeDecorations);
+		if (widgetData) {
+			this._zone.widget.setExtraButtons(widgetData.actions);
+			this._zone.updatePositionAndHeight(widgetData.position);
+			this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+		}
 
 		const decorations = this._editor.createDecorationsCollection(newDecorations);
 
 		this._sessionStore.add(toDisposable(() => {
 			decorations.clear();
 			this._editor.changeViewZones(accessor => viewZoneIds.forEach(accessor.removeZone, accessor));
-			viewZoneIds.length = 0;
+			viewZoneIds.clear();
+			this._zone.widget.setExtraButtons([]);
 		}));
 
-		return true;
+		if (isAfterManualInteraction && newDecorations.length === 0) {
+			this._sessionStore.clear();
+			this._onDidAccept.fire();
+		} else {
+			// reveal input at change
+		}
+		return widgetData?.position;
 	}
 
 	override async renderChanges(response: ReplyResponse) {
@@ -881,9 +928,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._zone.widget.hideCreatePreview();
 		}
 
-		await this._showDiff(true);
+		return await this._showDiff(true, false);
 
-		this._zone.widget.updateToolbar(false);
+		// this._zone.widget.updateToolbar(false);
 	}
 
 	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
@@ -914,46 +961,5 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
-	}
-}
-
-class FloatingEditorButtonBar implements IDisposable {
-
-	dispose: () => void;
-
-	constructor(
-		editor: ICodeEditor,
-		actions: IAction[],
-		buttonConfig: IWorkbenchButtonBarOptions,
-		line: () => number,
-		@IInstantiationService instaService: IInstantiationService,
-	) {
-
-		const store = new DisposableStore();
-		this.dispose = store.dispose.bind(store);
-
-		const overlayWidget = document.createElement('div');
-		overlayWidget.classList.add('inline-chat-toolbar');
-		const widget: IOverlayWidget = {
-			getId: () => `inline-chat-toolbar}`,
-			getDomNode: () => overlayWidget,
-			getPosition: () => null
-		};
-
-		store.add(toDisposable(() => editor.removeOverlayWidget(widget)));
-		editor.addOverlayWidget(widget);
-
-		const layoutOverlay = () => {
-			overlayWidget.style.top = `${editor.getTopForLineNumber(line()) - editor.getScrollTop() + 4}px`;
-			overlayWidget.style.right = `${editor.getLayoutInfo().minimap.minimapWidth + editor.getLayoutInfo().verticalScrollbarWidth + 4}px`;
-		};
-		store.add(editor.onDidScrollChange(layoutOverlay));
-		store.add(editor.onDidLayoutChange(layoutOverlay));
-		layoutOverlay();
-
-		const buttons = store.add(instaService.createInstance(WorkbenchButtonBar, overlayWidget, {
-			...buttonConfig,
-		}));
-		buttons.update(actions);
 	}
 }
