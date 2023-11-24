@@ -27,6 +27,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { $window } from 'vs/base/browser/window';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -439,7 +440,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const visibility = layoutService.isVisible(Parts.STATUSBAR_PART);
+		const visibility = layoutService.isVisible(Parts.STATUSBAR_PART, $window);
 		const newVisibilityValue = !visibility;
 
 		return configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue);
@@ -764,6 +765,7 @@ if (isWindows || isLinux || isWeb) {
 			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 		},
+		when: IsAuxiliaryWindowFocusedContext.toNegated(),
 		order: 0
 	});
 }

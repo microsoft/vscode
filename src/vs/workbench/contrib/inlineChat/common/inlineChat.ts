@@ -152,7 +152,7 @@ export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineC
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
 export const CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING = new RawContextKey<boolean>('inlineChatSupportIssueReporting', false, localize('inlineChatSupportIssueReporting', "Whether the interactive editor supports issue reporting"));
 export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inlineChatDocumentChanged', false, localize('inlineChatDocumentChanged', "Whether the document has changed concurrently"));
-export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.editMode', EditMode.Live);
+export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.mode', EditMode.Live);
 export const CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED = new RawContextKey<boolean>('inlineChatToolbarIconEnabled', false, localize('inlineChatToolbarIconEnabled', "Whether the toolbar icon spawning inline chat is enabled."));
 
 // --- (select) action identifier
@@ -189,6 +189,7 @@ export const inlineChatDiffRemoved = registerColor('inlineChatDiff.removed', { d
 
 export const enum EditMode {
 	Live = 'live',
+	Live3 = 'live3',
 	LivePreview = 'livePreview',
 	Preview = 'preview'
 }

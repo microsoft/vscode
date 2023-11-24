@@ -1177,9 +1177,19 @@ export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
+	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
+	$unregisterAgentCompletionsProvider(handle: number): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, responsePartHandle?: number): Promise<number | void>;
+}
+
+export interface IChatAgentCompletionItem {
+	insertText?: string;
+	label: string | languages.CompletionItemLabel;
+	values: IChatRequestVariableValue[];
+	detail?: string;
+	documentation?: string | IMarkdownString;
 }
 
 export interface ExtHostChatAgentsShape2 {
@@ -1188,6 +1198,7 @@ export interface ExtHostChatAgentsShape2 {
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
+	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$releaseSession(sessionId: string): void;
 }
 
@@ -1492,7 +1503,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
 
-	$registerSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number, label: string, icon?: ThemeIcon | UriComponents | { light: UriComponents; dark: UriComponents }): void;
+	$registerSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number, sourceControlId: string, label: string, icon?: ThemeIcon | UriComponents | { light: UriComponents; dark: UriComponents }): void;
 	$unregisterSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number): void;
 }
 
@@ -2208,7 +2219,7 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
-	$provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: any): Promise<string | undefined>;
+	$provideInputBoxValue(inputBoxValueProviderHandle: number, rootUri: UriComponents, context: any, token: CancellationToken): Promise<string | undefined>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;

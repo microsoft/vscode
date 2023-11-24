@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -826,15 +826,61 @@ export class UpdateAction extends AbstractUpdateAction {
 	}
 }
 
-export class SkipUpdateAction extends AbstractUpdateAction {
+export class ToggleAutoUpdateForExtensionAction extends AbstractUpdateAction {
 
-	static readonly ID = 'workbench.extensions.action.ignoreUpdates';
-	static readonly LABEL = localize('ignoreUpdates', "Ignore Updates");
+	static readonly ID = 'workbench.extensions.action.toggleAutoUpdateForExtension';
+	static readonly LABEL = localize('enableAutoUpdateLabel', "Auto Update");
 
 	constructor(
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(SkipUpdateAction.ID, SkipUpdateAction.LABEL, extensionsWorkbenchService);
+		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL, extensionsWorkbenchService);
+	}
+
+	override update() {
+		this.enabled = false;
+		if (!this.extension) {
+			return;
+		}
+		if (this.extension.isBuiltin) {
+			return;
+		}
+		if (!this.extensionsWorkbenchService.isAutoUpdateEnabled()) {
+			return;
+		}
+		super.update();
+		this._checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+	}
+
+	override async run(): Promise<any> {
+		if (!this.extension) {
+			return;
+		}
+
+		const enableAutoUpdate = !this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+		await this.extensionsWorkbenchService.updateAutoUpdateEnablementFor(this.extension, enableAutoUpdate);
+
+		if (enableAutoUpdate) {
+			alert(localize('enableAutoUpdate', "Enabled auto updates for", this.extension.displayName));
+		} else {
+			alert(localize('disableAutoUpdate', "Disabled auto updates for", this.extension.displayName));
+		}
+	}
+}
+
+export class ToggleAutoUpdatesForPublisherAction extends AbstractUpdateAction {
+
+	static readonly ID = 'workbench.extensions.action.toggleAutoUpdatesForPublisher';
+	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "Auto Update (Publisher)");
+
+	static getLabel(extension: IExtension): string {
+		return localize('toggleAutoUpdatesForPublisherLabel2', "Auto Update All from {0} (Publisher)", extension.publisherDisplayName);
+	}
+
+	constructor(
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(ToggleAutoUpdatesForPublisherAction.ID, ToggleAutoUpdatesForPublisherAction.LABEL, extensionsWorkbenchService);
 	}
 
 	override update() {
@@ -845,17 +891,27 @@ export class SkipUpdateAction extends AbstractUpdateAction {
 			this.enabled = false;
 			return;
 		}
+		if (this.extensionsWorkbenchService.getAutoUpdateValue() !== 'onlySelectedExtensions') {
+			this.enabled = false;
+			return;
+		}
 		super.update();
-		this._checked = this.extension.pinned;
+		this._checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
+		this.label = ToggleAutoUpdatesForPublisherAction.getLabel(this.extension);
 	}
 
 	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
-		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
-		const newIgnoresAutoUpdates = !this.extension.pinned;
-		await this.extensionsWorkbenchService.pinExtension(this.extension, newIgnoresAutoUpdates);
+		alert(localize('ignoreExtensionUpdatePublisher', "Ignoring updates published by {0}.", this.extension.publisherDisplayName));
+		const enableAutoUpdate = !this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
+		await this.extensionsWorkbenchService.updateAutoUpdateEnablementFor(this.extension.publisher, enableAutoUpdate);
+		if (enableAutoUpdate) {
+			alert(localize('enableAutoUpdate', "Enabled auto updates for", this.extension.displayName));
+		} else {
+			alert(localize('disableAutoUpdate', "Disabled auto updates for", this.extension.displayName));
+		}
 	}
 }
 
@@ -1013,7 +1069,6 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['galleryExtensionIsPreReleaseVersion', !!extension.gallery?.properties.isPreReleaseVersion]);
 			cksOverlay.push(['extensionHasPreReleaseVersion', extension.hasPreReleaseVersion]);
 			cksOverlay.push(['extensionHasReleaseVersion', extension.hasReleaseVersion]);
-			cksOverlay.push(['isExtensionPinned', extension.pinned]);
 
 			const [colorThemes, fileIconThemes, productIconThemes] = await Promise.all([workbenchThemeService.getColorThemes(), workbenchThemeService.getFileIconThemes(), workbenchThemeService.getProductIconThemes()]);
 			cksOverlay.push(['extensionHasColorThemes', colorThemes.some(theme => isThemeFromExtension(theme, extension))]);
@@ -1073,10 +1128,12 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 	async getActionGroups(): Promise<IAction[][]> {
 		const groups: IAction[][] = [];
 		const contextMenuActionsGroups = await getContextMenuActionsGroups(this.extension, this.contextKeyService, this.instantiationService);
-		const themeActions: IAction[] = [], installActions: IAction[] = [], otherActionGroups: IAction[][] = [];
+		const themeActions: IAction[] = [], installActions: IAction[] = [], updateActions: IAction[] = [], otherActionGroups: IAction[][] = [];
 		for (const [group, actions] of contextMenuActionsGroups) {
 			if (group === INSTALL_ACTIONS_GROUP) {
 				installActions.push(...toActions([[group, actions]], this.instantiationService)[0]);
+			} else if (group === UPDATE_ACTIONS_GROUP) {
+				updateActions.push(...toActions([[group, actions]], this.instantiationService)[0]);
 			} else if (group === THEME_ACTIONS_GROUP) {
 				themeActions.push(...toActions([[group, actions]], this.instantiationService)[0]);
 			} else {
@@ -1096,6 +1153,9 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.instantiationService.createInstance(DisableGloballyAction),
 			this.instantiationService.createInstance(DisableForWorkspaceAction)
 		]);
+		if (updateActions.length) {
+			groups.push(updateActions);
+		}
 		groups.push([
 			...(installActions.length ? installActions : []),
 			this.instantiationService.createInstance(InstallAnotherVersionAction),
@@ -1169,6 +1229,11 @@ export class MenuItemExtensionAction extends ExtensionAction {
 		}
 		if (this.action.id === TOGGLE_IGNORE_EXTENSION_ACTION_ID) {
 			this.checked = !this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
+		} else if (this.action.id === ToggleAutoUpdateForExtensionAction.ID) {
+			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+		} else if (this.action.id === ToggleAutoUpdatesForPublisherAction.ID) {
+			this.label = ToggleAutoUpdatesForPublisherAction.getLabel(this.extension);
+			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
 		} else {
 			this.checked = this.action.checked;
 		}

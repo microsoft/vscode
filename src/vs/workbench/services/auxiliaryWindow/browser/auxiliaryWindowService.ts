@@ -19,6 +19,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -36,8 +37,6 @@ export interface IAuxiliaryWindowService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
-
-	hasWindow(windowId: number): boolean;
 
 	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 }
@@ -147,7 +146,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -187,6 +187,16 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		this._onDidOpenAuxiliaryWindow.fire({ window: auxiliaryWindow, disposables: eventDisposables });
 
 		mark('code/auxiliaryWindow/didOpen');
+
+		type AuxiliaryWindowClassification = {
+			owner: 'bpasero';
+			comment: 'An event that fires when an auxiliary window is opened';
+			bounds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Has window bounds provided.' };
+		};
+		type AuxiliaryWindowOpenEvent = {
+			bounds: boolean;
+		};
+		this.telemetryService.publicLog2<AuxiliaryWindowOpenEvent, AuxiliaryWindowClassification>('auxiliaryWindowOpen', { bounds: !!options?.bounds });
 
 		return auxiliaryWindow;
 	}
@@ -347,10 +357,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
-	}
-
-	hasWindow(windowId: number): boolean {
-		return this.windows.has(windowId);
 	}
 }
 

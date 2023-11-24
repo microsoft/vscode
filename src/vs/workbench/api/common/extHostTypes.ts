@@ -4104,7 +4104,7 @@ export class ChatEditorTabInput {
 }
 //#endregion
 
-//#region Interactive session
+//#region Chat
 
 export enum InteractiveSessionVoteDirection {
 	Down = 0,
@@ -4114,6 +4114,25 @@ export enum InteractiveSessionVoteDirection {
 export enum InteractiveSessionCopyKind {
 	Action = 1,
 	Toolbar = 2
+}
+
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
+export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+	label: string | CompletionItemLabel;
+	insertText?: string;
+	values: vscode.ChatVariableValue[];
+	detail?: string;
+	documentation?: string | MarkdownString;
+
+	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.label = label;
+		this.values = values;
+	}
 }
 
 //#endregion
@@ -4133,12 +4152,6 @@ export enum ChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	Function = 3,
-}
-
-export enum ChatVariableLevel {
-	Short = 1,
-	Medium = 2,
-	Full = 3
 }
 
 export class ChatMessage implements vscode.ChatMessage {

@@ -63,8 +63,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		useShadows: false,
 	}, this._scrollable));
 
-	private readonly _scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
-	private readonly _scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
+	public readonly scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
+	public readonly scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
 
 	private readonly _viewItems = derivedWithStore<readonly VirtualizedViewItem[]>(this,
 		(reader, store) => {
@@ -73,7 +73,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return [];
 			}
 			const items = vm.items.read(reader);
-			return items.map(d => store.add(new VirtualizedViewItem(d, this._objectPool, this._scrollLeft)));
+			return items.map(d => store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft)));
 		}
 	);
 
@@ -121,16 +121,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			const totalHeight = this._totalHeight.read(reader);
 			this._elements.content.style.height = `${totalHeight}px`;
 
-			let scrollWidth = _element.clientWidth;
+			const width = this._sizeObserver.width.read(reader);
+
+			let scrollWidth = width;
 			const viewItems = this._viewItems.read(reader);
 			const max = findFirstMaxBy(viewItems, i => i.maxScroll.read(reader).maxScroll);
 			if (max) {
 				const maxScroll = max.maxScroll.read(reader);
-				scrollWidth = _element.clientWidth + maxScroll.maxScroll;
+				scrollWidth = width + maxScroll.maxScroll;
 			}
 
 			this._scrollableElement.setScrollDimensions({
-				width: _element.clientWidth,
+				width: width,
 				height: height,
 				scrollHeight: totalHeight,
 				scrollWidth,
@@ -150,8 +152,12 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		})));
 	}
 
+	public setScrollState(scrollState: { top?: number; left?: number }): void {
+		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	}
+
 	private render(reader: IReader | undefined) {
-		const scrollTop = this._scrollTop.read(reader);
+		const scrollTop = this.scrollTop.read(reader);
 		let contentScrollOffsetToScrollOffset = 0;
 		let itemHeightSumBefore = 0;
 		let itemContentHeightSumBefore = 0;

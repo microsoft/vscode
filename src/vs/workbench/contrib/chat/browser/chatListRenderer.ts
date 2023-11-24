@@ -294,13 +294,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
 		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
-		templateData.rowContainer.classList.toggle('show-progress', isResponseVM(element) && !element.isComplete);
+		templateData.rowContainer.classList.toggle('show-detail-progress', isResponseVM(element) && !element.isComplete && !element.progressMessages.length);
 		templateData.username.textContent = element.username;
 		if (!this.rendererOptions.noHeader) {
 			this.renderAvatar(element, templateData);
 		}
 
 		dom.clearNode(templateData.detail);
+		dom.clearNode(templateData.progressSteps);
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
 			this.renderProgressSteps(element, templateData);
@@ -369,8 +370,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderProgressSteps(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		dom.clearNode(templateData.progressSteps);
-		if (element.response.value.length) {
+		if (element.response.value.length || element.isComplete) {
 			return;
 		}
 
@@ -845,7 +845,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			},
-			asyncRenderCallback: () => this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight })
+			asyncRenderCallback: () => this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight }),
 		});
 
 		if (isResponseVM(element)) {

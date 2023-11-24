@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { safeStringify } from 'vs/base/common/objects';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
-import { isCI, isMacintosh } from 'vs/base/common/platform';
+import { isBigSurOrNewer, isCI, isMacintosh } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/workbench/services/files/electron-sandbox/diskFileSystemProvider';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
@@ -140,10 +140,8 @@ export class DesktopMain extends Disposable {
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh) {
-			if (this.configuration.os.release > '20.0.0') {
-				return ['macos-bigsur-or-newer'];
-			}
+		if (isMacintosh && isBigSurOrNewer(this.configuration.os.release)) {
+			return ['macos-bigsur-or-newer'];
 		}
 
 		return [];
