@@ -2504,7 +2504,7 @@
             "warn",
             "off"
           ],
-          "default": "warn",
+          "default": "off",
           "description": "%config.inputValidation%"
         },
         "git.inputValidationLength": {
