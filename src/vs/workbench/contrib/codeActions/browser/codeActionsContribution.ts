@@ -64,7 +64,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 const triggerAiCodeActionsOnEmptyLines: IConfigurationPropertySchema = {
 	markdownDescription: nls.localize('editor.triggerAiCodeActionsOnEmptyLines', 'Trigger AI code actions on empty lines.'),
 	type: 'boolean',
-	default: true
+	default: false
 };
 
 export const editorConfiguration = Object.freeze<IConfigurationNode>({

@@ -2743,7 +2743,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: false };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
