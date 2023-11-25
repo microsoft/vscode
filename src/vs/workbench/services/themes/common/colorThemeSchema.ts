@@ -285,6 +285,7 @@ function generateColorThemeSchemas() {
 						type: 'string',
 						description: nls.localize('schema.colorPalette.color', 'Color in the palette'),
 						format: 'color-hex',
+						defaultSnippets: [{ body: '#${1:ff0000}' }]
 					}
 				},
 				defaultSnippets: [
