@@ -1830,6 +1830,16 @@
           "command": "git.generateCommitMessage1",
           "when": "config.git.enabled && !git.missing",
           "group": "navigation@1"
+        },
+        {
+          "command": "git.generateCommitMessage2",
+          "when": "config.git.enabled && !git.missing",
+          "group": "navigation@2"
+        },
+        {
+          "command": "git.generateCommitMessage3",
+          "when": "config.git.enabled && !git.missing",
+          "group": "navigation@3"
         }
       ],
       "timeline/item/context": [

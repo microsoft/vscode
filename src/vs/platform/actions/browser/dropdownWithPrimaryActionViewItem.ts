@@ -50,16 +50,16 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, primaryAction);
 		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
+		if (_options?.actionRunner) {
+			this._primaryAction.actionRunner = _options.actionRunner;
+		}
+
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
+			actionRunner: this._options?.actionRunner,
 			keybindingProvider: this._options?.getKeyBinding
 		});
-
-		if (_options?.actionRunner) {
-			this._primaryAction.actionRunner = _options.actionRunner;
-			this._dropdown.actionRunner = _options.actionRunner;
-		}
 	}
 
 	override setActionContext(newContext: unknown): void {
