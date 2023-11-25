@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -826,30 +826,48 @@ export class UpdateAction extends AbstractUpdateAction {
 	}
 }
 
-export class ToggleAutoUpdateForExtensionAction extends AbstractUpdateAction {
+export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.toggleAutoUpdateForExtension';
 	static readonly LABEL = localize('enableAutoUpdateLabel', "Auto Update");
 
+	private static readonly EnabledClass = `${ExtensionAction.EXTENSION_ACTION_CLASS} auto-update`;
+	private static readonly DisabledClass = `${ToggleAutoUpdateForExtensionAction.EnabledClass} hide`;
+
 	constructor(
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		private readonly enableWhenOutdated: boolean,
+		private readonly enableWhenAutoUpdateValue: AutoUpdateConfigurationValue[],
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService configurationService: IConfigurationService,
+
 	) {
-		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL, extensionsWorkbenchService);
+		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL, ToggleAutoUpdateForExtensionAction.DisabledClass);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.update();
+			}
+		}));
+		this.update();
 	}
 
 	override update() {
 		this.enabled = false;
+		this.class = ToggleAutoUpdateForExtensionAction.DisabledClass;
 		if (!this.extension) {
 			return;
 		}
 		if (this.extension.isBuiltin) {
 			return;
 		}
-		if (!this.extensionsWorkbenchService.isAutoUpdateEnabled()) {
+		if (this.enableWhenOutdated && !this.extension.outdated) {
 			return;
 		}
-		super.update();
-		this._checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+		if (!this.enableWhenAutoUpdateValue.includes(this.extensionsWorkbenchService.getAutoUpdateValue())) {
+			return;
+		}
+		this.enabled = true;
+		this.class = ToggleAutoUpdateForExtensionAction.EnabledClass;
+		this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
 	}
 
 	override async run(): Promise<any> {
@@ -868,7 +886,7 @@ export class ToggleAutoUpdateForExtensionAction extends AbstractUpdateAction {
 	}
 }
 
-export class ToggleAutoUpdatesForPublisherAction extends AbstractUpdateAction {
+export class ToggleAutoUpdatesForPublisherAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.toggleAutoUpdatesForPublisher';
 	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "Auto Update (Publisher)");
@@ -878,27 +896,12 @@ export class ToggleAutoUpdatesForPublisherAction extends AbstractUpdateAction {
 	}
 
 	constructor(
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super(ToggleAutoUpdatesForPublisherAction.ID, ToggleAutoUpdatesForPublisherAction.LABEL, extensionsWorkbenchService);
+		super(ToggleAutoUpdatesForPublisherAction.ID, ToggleAutoUpdatesForPublisherAction.LABEL);
 	}
 
-	override update() {
-		if (!this.extension) {
-			return;
-		}
-		if (this.extension.isBuiltin) {
-			this.enabled = false;
-			return;
-		}
-		if (this.extensionsWorkbenchService.getAutoUpdateValue() !== 'onlySelectedExtensions') {
-			this.enabled = false;
-			return;
-		}
-		super.update();
-		this._checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
-		this.label = ToggleAutoUpdatesForPublisherAction.getLabel(this.extension);
-	}
+	override update() { }
 
 	override async run(): Promise<any> {
 		if (!this.extension) {
