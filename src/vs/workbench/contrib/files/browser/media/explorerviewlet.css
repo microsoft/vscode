@@ -93,17 +93,6 @@
 	height: 20px;
 }
 
-.explorer-item-with-test-coverage {
-	display: flex;
-}
-
-.explorer-item-with-test-coverage .explorer-item {
-	flex-grow: 1;
-}
-.explorer-item-with-test-coverage .monaco-icon-label::after {
-	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
-}
-
 /* High Contrast Theming */
 .monaco-workbench.hc-black .explorer-folders-view .explorer-item,
 .monaco-workbench.hc-light .explorer-folders-view .explorer-item {
