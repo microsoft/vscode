@@ -774,9 +774,21 @@
         "category": "Git"
       },
       {
-        "command": "git.generateCommitMessage",
-        "title": "Generate Commit Message (Test)",
+        "command": "git.generateCommitMessage1",
+        "title": "Generate Commit Message (Test 1)",
         "icon": "$(rocket)",
+        "category": "Git"
+      },
+      {
+        "command": "git.generateCommitMessage2",
+        "title": "Generate Commit Message (Test 2)",
+        "icon": "$(squirrel)",
+        "category": "Git"
+      },
+      {
+        "command": "git.generateCommitMessage3",
+        "title": "Generate Commit Message (Test 3)",
+        "icon": "$(github-alt)",
         "category": "Git"
       }
     ],
@@ -1815,8 +1827,9 @@
       ],
       "scm/inputBox": [
         {
-          "command": "git.generateCommitMessage",
-          "when": "config.git.enabled && !git.missing"
+          "command": "git.generateCommitMessage1",
+          "when": "config.git.enabled && !git.missing",
+          "group": "navigation@1"
         }
       ],
       "timeline/item/context": [

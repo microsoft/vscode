@@ -75,7 +75,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -102,8 +102,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { ICommandAction } from 'vs/platform/action/common/action';
+import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1775,49 +1774,67 @@ class HistoryItemViewChangesAction extends Action2 {
 
 registerAction2(HistoryItemViewChangesAction);
 
-export const enum SCMInputCommandId {
-	ProvideValue = 'scm.input.provideValue'
+const enum SCMInputCommandId {
+	CancelAction = 'scm.input.cancelAction',
+	SelectDefaultAction = 'scm.input.selectDefaultAction'
 }
 
-// registerAction2(class extends Action2 {
-// 	constructor() {
-// 		super(
-// 			{
-// 				id: 'scm.input.provideValue',
-// 				title: 'SCM Input: Provide Value',
-// 				icon: Codicon.squirrel,
-// 				// toggled: {
-// 				// 	icon: Codicon.debugStop,
-// 				// 	tooltip: 'Cancel',
-// 				// 	condition: ContextKeyExpr.equals('scmInputActionIsRunning', true)
-// 				// },
-// 				menu: {
-// 					id: MenuId.SCMInputBox
-// 				}
-// 			});
-// 	}
+const SCMInputContextKeys = {
+	ActionCount: new RawContextKey<number>('scmInputActionCount', 0),
+	ActionIsEnabled: new RawContextKey<boolean>('scmInputActionIsEnabled', false),
+	ActionIsRunning: new RawContextKey<boolean>('scmInputActionIsRunning', false),
+};
 
-// 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-// 		return new Promise((resolve, reject) => setTimeout(() => resolve(), 5000));
-// 	}
-// });
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: SCMInputCommandId.SelectDefaultAction,
+				title: 'Select Default Action',
+				icon: Codicon.gear,
+				menu: {
+					id: MenuId.SCMInputBox,
+					when: ContextKeyExpr.greater(SCMInputContextKeys.ActionCount.key, 1),
+					group: 'settings@1',
+				}
+			});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		console.log('set default action');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: SCMInputCommandId.CancelAction,
+				title: 'Cancel',
+				icon: Codicon.debugStop,
+				menu: {
+					id: MenuId.SCMInputBox,
+					when: SCMInputContextKeys.ActionIsRunning.isEqualTo(true),
+					group: 'navigation@0',
+				}
+			});
+	}
+
+	override async run(_: ServicesAccessor): Promise<void> { }
+});
 
 class SCMInputWidgetActionRunner extends ActionRunner {
 
 	private _cts: CancellationTokenSource | undefined;
 	private _ctxIsActionRunning: IContextKey<boolean>;
 
-	// private _isActionRunning: boolean = false;
-	// get isActionRunning(): boolean { return this._isActionRunning; }
-
 	constructor(
 		private readonly input: ISCMInput,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@IProgressService private readonly progressService: IProgressService
+		@IContextKeyService readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
-		this._ctxIsActionRunning = contextKeyService.createKey('scmInputActionIsRunning', false);
+		this._ctxIsActionRunning = SCMInputContextKeys.ActionIsRunning.bindTo(contextKeyService);
 	}
 
 	// 	override async run(action: IAction, context?: unknown): Promise<void> {
@@ -1847,71 +1864,50 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			if (this._ctxIsActionRunning.get() === true) {
 				this._cts?.cancel();
 
-				// Cancel button was clicked
-				if (action instanceof MenuItemAction) {
+				if (action.id === SCMInputCommandId.CancelAction) {
 					return;
 				}
 			}
 
 			this._ctxIsActionRunning.set(true);
 
-			await this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
-				const context: ISCMInputValueProviderContext[] = [];
-				for (const group of this.input.repository.provider.groups) {
-					context.push({
-						resourceGroupId: group.id,
-						resources: [...group.resources.map(r => r.sourceUri)]
-					});
-				}
+			const context: ISCMInputValueProviderContext[] = [];
+			for (const group of this.input.repository.provider.groups) {
+				context.push({
+					resourceGroupId: group.id,
+					resources: [...group.resources.map(r => r.sourceUri)]
+				});
+			}
 
-				this._cts = new CancellationTokenSource();
-				await action.run(...[this.input.repository.provider.rootUri!, context, this._cts.token]);
-			});
+			this._cts = new CancellationTokenSource();
+			await action.run(...[this.input.repository.provider.rootUri!, context, this._cts.token]);
 		} finally {
-			// this._isActionRunning = false;
 			this._ctxIsActionRunning.set(false);
 		}
 	}
 
 }
 
-class SCMInputWidgetPrimaryAction extends MenuItemAction {
-	constructor(
-		action: MenuItemAction,
-		options: IMenuWorkbenchToolBarOptions | undefined,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-	) {
-		const commandActionWithToggle: ICommandAction = {
-			...action.item,
-			precondition: action.item.precondition ?
-				ContextKeyExpr.or(action.item.precondition, ContextKeyExpr.equals('scmInputActionIsEnabled', true)) :
-				ContextKeyExpr.equals('scmInputActionIsEnabled', true),
-			toggled: {
-				icon: Codicon.debugStop,
-				tooltip: 'Cancel',
-				condition: ContextKeyExpr.equals('scmInputActionIsRunning', true),
-			}
-		};
-
-		super(commandActionWithToggle, undefined, options?.menuOptions, undefined, contextKeyService, commandService);
-	}
-}
-
 class SCMInputWidgetToolbar extends WorkbenchToolBar {
+
+	private _dropdownActions: IAction[] = [];
+	get dropdownActions(): IAction[] { return this._dropdownActions; }
+
+	private readonly _ctxActionCount: IContextKey<number>;
 
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
 		options: IMenuWorkbenchToolBarOptions | undefined,
 		@IMenuService menuService: IMenuService,
-		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+
+		this._ctxActionCount = SCMInputContextKeys.ActionCount.bindTo(contextKeyService);
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const updateToolbar = () => {
@@ -1925,21 +1921,35 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 				options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
 
-			const primary: IAction[] = [];
-			if (actions.length !== 0 && actions[0] instanceof MenuItemAction) {
-				primary.push(new SCMInputWidgetPrimaryAction(actions[0], options, commandService, contextKeyService));
+			let primaryAction: IAction | undefined = undefined;
+			const cancelMenuItemAction = actions.find(a => a.id === SCMInputCommandId.CancelAction);
+			const menuItemActions = actions.filter(a => a instanceof MenuItemAction && a.id !== SCMInputCommandId.CancelAction);
+
+			if (menuItemActions.length === 1) {
+				primaryAction = cancelMenuItemAction ?? menuItemActions[0];
+			} else if (menuItemActions.length > 1) {
+				const defaultCommandId: string | undefined = undefined;
+				const defaultMenuItemAction = actions.find(a => a.id === defaultCommandId);
+				const selectActionMenuItemAction = actions.find(a => a.id === SCMInputCommandId.SelectDefaultAction);
+
+				primaryAction = cancelMenuItemAction ?? defaultMenuItemAction ?? selectActionMenuItemAction;
 			}
 
-			container.classList.toggle('has-no-actions', primary.length === 0);
-			super.setActions(primary, []);
-		};
+			// Add actions to dropdown
+			if (menuItemActions.length > 1) {
+				this._dropdownActions = actions;
+			}
 
-		const contextKeys = new Set(['scmInputActionIsEnabled', 'scmInputActionIsRunning']);
-		this._store.add(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(contextKeys))(updateToolbar));
+			this._ctxActionCount.set(menuItemActions.length);
+			container.classList.toggle('has-no-actions', menuItemActions.length === 0);
+
+			super.setActions(primaryAction ? [primaryAction] : [], []);
+		};
 
 		this._store.add(menu.onDidChange(() => updateToolbar()));
 
-		updateToolbar();
+		// Delay update to finish class initialization
+		setTimeout(() => updateToolbar(), 0);
 	}
 
 }
@@ -2163,19 +2173,26 @@ class SCMInputWidget {
 		const actionRunner = instantiationService2.createInstance(SCMInputWidgetActionRunner, input);
 		this.repositoryDisposables.add(actionRunner);
 
-		const toolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, MenuId.SCMInputBox, {
+		const toolbar: SCMInputWidgetToolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, MenuId.SCMInputBox, {
 			actionRunner,
-			// actionViewItemProvider: action => {
-			// 	return createActionViewItem(instantiationService2, action);
-			// },
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction && toolbar.dropdownActions.length > 1) {
+					// const scmInputActionIsEnabled = contextKeyService2.getContextKeyValue<boolean>('scmInputActionIsEnabled') === true;
+					const dropdownAction = new Action('scmInputMoreActions', localize('scmInputMoreActions', 'More Actions...'), 'codicon-chevron-down', true);
+
+					return instantiationService2.createInstance(DropdownWithPrimaryActionViewItem, action, dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, {});
+				}
+
+				return createActionViewItem(instantiationService2, action);
+			},
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		});
 		this.repositoryDisposables.add(toolbar);
 
-		const ctxIsActionEnebled = contextKeyService2.createKey<boolean>('scmInputActionIsEnabled', true);
-		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => ctxIsActionEnebled.set(input.repository.provider.groups.some(r => r.resources.length > 0))));
+		const ctxIsActionEnabled = SCMInputContextKeys.ActionIsEnabled.bindTo(contextKeyService2);
+		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => ctxIsActionEnabled.set(input.repository.provider.groups.some(r => r.resources.length > 0))));
 
 		// 	actionRunner,
 		// 	actionViewItemProvider: action => {
@@ -2244,7 +2261,8 @@ class SCMInputWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));

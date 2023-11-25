@@ -3631,30 +3631,70 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.generateCommitMessage', { repository: true })
-	async generateCommitMessage(repository: Repository, _: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<void> {
+	@command('git.generateCommitMessage1', { repository: true })
+	async generateCommitMessage1(repository: Repository, _: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<void> {
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		return new Promise<void>(resolve => {
-			token.onCancellationRequested(() => resolve());
+		return window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+			return new Promise<void>(resolve => {
+				const id = setTimeout(() => {
+					repository.inputBox.value = 'Hello World! (1)';
+					resolve();
+				}, 5000);
 
-			setTimeout(() => {
-				repository.inputBox.value = 'Hello World!';
-				resolve();
-			}, 5000);
+				token.onCancellationRequested(() => {
+					clearTimeout(id);
+					resolve();
+				});
+			});
 		});
-
-		// await new Promise(c => setTimeout(c, 5000));
-		// if (!repository || !this.model.commitMessageProvider) {
-		// 	return;
-		// }
-
-		// await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
-		// 	await repository.generateCommitMessage();
-		// });
 	}
+
+	@command('git.generateCommitMessage2', { repository: true })
+	async generateCommitMessage2(repository: Repository, _: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		return window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+			return new Promise<void>(resolve => {
+				const id = setTimeout(() => {
+					repository.inputBox.value = 'Hello World! (2)';
+					resolve();
+				}, 5000);
+
+				token.onCancellationRequested(() => {
+					clearTimeout(id);
+					resolve();
+				});
+			});
+		});
+	}
+
+	@command('git.generateCommitMessage3', { repository: true })
+	async generateCommitMessage3(repository: Repository, _: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		return window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+			return new Promise<void>(resolve => {
+				const id = setTimeout(() => {
+					repository.inputBox.value = 'Hello World! (3)';
+					resolve();
+				}, 5000);
+
+				token.onCancellationRequested(() => {
+					clearTimeout(id);
+					resolve();
+				});
+			});
+		});
+	}
+
+
 
 	@command('git.generateCommitMessageCancel', { repository: true })
 	generateCommitMessageCancel(repository: Repository): void {
