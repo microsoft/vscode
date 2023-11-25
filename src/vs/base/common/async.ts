@@ -28,7 +28,6 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
-			source.dispose();
 			reject(new CancellationError());
 		});
 		Promise.resolve(thenable).then(value => {
@@ -45,6 +44,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	return <CancelablePromise<T>>new class {
 		cancel() {
 			source.cancel();
+			source.dispose();
 		}
 		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 			return promise.then(resolve, reject);
