@@ -230,20 +230,22 @@ function generateColorThemeSchemas() {
 	const originalWorkbenchColorsSchema = schemaRegistry.getSchemaContributions().schemas[workbenchColorsSchemaId];
 
 	const workbenchColorSchemaForTheme = JSON.parse(JSON.stringify(originalWorkbenchColorsSchema));
+	const themePaletteEnumSchema = schemaRegistry.getSchemaContributions().schemas[themePaletteEnumSchemaId];
 
-	for (const key in workbenchColorSchemaForTheme.properties) {
-		const property = workbenchColorSchemaForTheme.properties[key];
+	if (themePaletteEnumSchema?.enum !== undefined && themePaletteEnumSchema.enum.length > 0) {
+		for (const key in workbenchColorSchemaForTheme.properties) {
+			const property = workbenchColorSchemaForTheme.properties[key];
 
-		delete property.format;
+			delete property.format;
 
-		property.anyOf = [
-			{ $ref: themePaletteEnumSchemaId, errorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)") },
-			{ format: 'color-hex' },
-			// 	NOTE: the error message include both message for var and hex
-			// 	because when using anyOf, whenever there is error, only the first message will be used });
-		];
+			property.anyOf = [
+				{ $ref: themePaletteEnumSchemaId, errorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)") },
+				{ format: 'color-hex' },
+				// 	NOTE: the error message include both message for var and hex
+				// 	because when using anyOf, whenever there is error, only the first message will be used });
+			];
+		}
 	}
-
 	schemaRegistry.registerSchema(workbenchColorsSchemaForThemeId, workbenchColorSchemaForTheme);
 
 	const colorThemeSchema: IJSONSchema = {
