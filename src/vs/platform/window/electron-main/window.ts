@@ -15,6 +15,8 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export interface IBaseWindow extends IDisposable {
 
+	readonly onDidMaximize: Event<void>;
+	readonly onDidUnmaximize: Event<void>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
 	readonly onDidClose: Event<void>;
 

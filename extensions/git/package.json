@@ -763,13 +763,13 @@
       },
       {
         "command": "git.viewChanges",
-        "title": "View Changes",
+        "title": "%command.viewChanges%",
         "icon": "$(tasklist)",
         "category": "Git"
       },
       {
         "command": "git.viewStagedChanges",
-        "title": "View Staged Changes",
+        "title": "%command.viewStagedChanges%",
         "icon": "$(tasklist)",
         "category": "Git"
       }
@@ -2504,7 +2504,7 @@
             "warn",
             "off"
           ],
-          "default": "warn",
+          "default": "off",
           "description": "%config.inputValidation%"
         },
         "git.inputValidationLength": {

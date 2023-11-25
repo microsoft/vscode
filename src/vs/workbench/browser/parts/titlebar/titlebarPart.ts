@@ -5,21 +5,21 @@
 
 import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
-import { Part } from 'vs/workbench/browser/part';
+import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getActiveWindow } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getActiveWindow, getWindowId } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -74,7 +74,7 @@ export interface ITitlebarPart extends IDisposable {
 	updateProperties(properties: ITitleProperties): void;
 }
 
-export class BrowserTitleService extends Disposable implements ITitleService {
+export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> implements ITitleService {
 
 	declare _serviceBrand: undefined;
 
@@ -85,7 +85,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 	) {
 		super();
 
-		this._register(this.registerTitlebarPart(this.mainPart));
+		this._register(this.registerPart(this.mainPart));
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
@@ -104,7 +104,7 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 		const disposables = new DisposableStore();
 
 		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer);
-		disposables.add(this.registerTitlebarPart(titlebarPart));
+		disposables.add(this.registerPart(titlebarPart));
 
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
 		titlebarPart.create(titlebarPartContainer);
@@ -120,40 +120,6 @@ export class BrowserTitleService extends Disposable implements ITitleService {
 
 	//#endregion
 
-	//#region Registration
-
-	private readonly parts = new Set<BrowserTitlebarPart>();
-
-	private registerTitlebarPart(part: BrowserTitlebarPart): IDisposable {
-		this.parts.add(part);
-
-		const disposables = this._register(new DisposableStore());
-		disposables.add(toDisposable(() => this.parts.delete(part)));
-
-		return disposables;
-	}
-
-	//#endregion
-
-	//#region Helpers
-
-	getPart(container: HTMLElement): ITitlebarPart {
-		return this.getPartByDocument(container.ownerDocument);
-	}
-
-	private getPartByDocument(document: Document): ITitlebarPart {
-		if (this.parts.size > 1) {
-			for (const part of this.parts) {
-				if (part.element?.ownerDocument === document) {
-					return part;
-				}
-			}
-		}
-
-		return this.mainPart;
-	}
-
-	//#endregion
 
 	//#region Service Implementation
 
@@ -283,12 +249,12 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, targetWindow, editorGroupsContainer));
 
-		this.registerListeners();
+		this.registerListeners(getWindowId(targetWindow));
 	}
 
-	private registerListeners(): void {
+	private registerListeners(targetWindowId: number): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.hostService.onDidChangeActiveWindow(() => getActiveWindow() === getWindow(this.element) ? this.onFocus() : this.onBlur()));
+		this._register(this.hostService.onDidChangeActiveWindow(() => getActiveWindow().vscodeWindowId === targetWindowId ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 	}
 
@@ -726,9 +692,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		const noMenubar = this.currentMenubarVisibility === 'hidden' || (!isWeb && isMacintosh);
 		const noCommandCenter = !this.isCommandCenterVisible;
-		const noLayoutControls = !this.layoutControlEnabled;
+		const noToolBarActions = !this.layoutControlEnabled && !this.editorActionsEnabled && !this.activityActionsEnabled;
 
-		return zoomFactor < 1 || (noMenubar && noCommandCenter && noLayoutControls);
+		return zoomFactor < 1 || (noMenubar && noCommandCenter && noToolBarActions);
 	}
 
 	override layout(width: number, height: number): void {

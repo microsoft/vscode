@@ -127,6 +127,10 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			reader => this._options.couldShowInlineViewBecauseOfSize.read(reader)
 		));
 
+		this._register(bindContextKey(EditorContextKeys.hasChanges, this._contextKeyService,
+			reader => (this._diffModel.read(reader)?.diff.read(reader)?.mappings.length ?? 0) > 0
+		));
+
 		this._editors = this._register(this._instantiationService.createInstance(
 			DiffEditorEditors,
 			this.elements.original,
@@ -321,8 +325,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this.elements.modified.style.width = modifiedWidth + 'px';
 		this.elements.modified.style.left = originalWidth + 'px';
 
-		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height });
-		this._editors.modified.layout({ width: modifiedWidth, height });
+		this._editors.original.layout({ width: originalWidthWithoutMovedBlockLines, height }, true);
+		this._editors.modified.layout({ width: modifiedWidth, height }, true);
 
 		return {
 			modifiedEditor: this._editors.modified.getLayoutInfo(),

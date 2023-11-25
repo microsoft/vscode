@@ -90,7 +90,7 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label));
-		disposables.add(this.editorPartsView.registerEditorPart(editorPart));
+		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer, { restorePreviousState: false });
 
 		// Titlebar

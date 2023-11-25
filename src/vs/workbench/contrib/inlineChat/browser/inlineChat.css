@@ -310,7 +310,34 @@
 	display: none;
 }
 
+.monaco-editor .inline-chat-toolbar {
+	display: flex;
+}
+
+.monaco-editor .inline-chat-toolbar > .monaco-button{
+	margin-right: 6px;
+}
+
+.monaco-editor .inline-chat-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
 /* decoration styles */
+
+.monaco-editor .inline-chat-inserted-range {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-editor .inline-chat-inserted-range-linehighlight {
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.monaco-editor .inline-chat-original-zone2 {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	opacity: 0.8;
+}
 
 .monaco-editor .inline-chat-lines-deleted-range-inline {
 	text-decoration: line-through;
