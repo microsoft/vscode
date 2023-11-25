@@ -154,7 +154,8 @@ append_dir LOCPATH "$SNAP/usr/lib/locale"
 # Applications that don't support wayland natively may define DISABLE_WAYLAND
 # (to any non-empty value) to skip that logic entirely.
 wayland_available=false
-if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
+if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]] && \
+   [[ "$(snapctl get wayland-native)" == "true" ]]; then
     wdisplay="wayland-0"
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
