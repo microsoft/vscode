@@ -462,7 +462,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const source = new CancellationTokenSource();
 		const token = source.token;
-		const rawResponsePromise = (async () => {
+		const sendRequestInternal = async () => {
 			const progressCallback = (progress: IChatProgress) => {
 				if (token.isCancellationRequested) {
 					return;
@@ -600,7 +600,8 @@ export class ChatService extends Disposable implements IChatService {
 			} finally {
 				listener.dispose();
 			}
-		})();
+		};
+		const rawResponsePromise = sendRequestInternal();
 		this._pendingRequests.set(model.sessionId, source);
 		rawResponsePromise.finally(() => {
 			this._pendingRequests.deleteAndDispose(model.sessionId);
