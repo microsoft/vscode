@@ -11,7 +11,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
+import { parse, revive } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
@@ -1020,6 +1020,19 @@ export namespace DocumentHighlight {
 	}
 	export function to(occurrence: languages.DocumentHighlight): types.DocumentHighlight {
 		return new types.DocumentHighlight(Range.to(occurrence.range), occurrence.kind);
+	}
+}
+
+export namespace MultiDocumentHighlight {
+	export function from(multiDocumentHighlight: vscode.MultiDocumentHighlight): languages.MultiDocumentHighlight {
+		return {
+			uri: multiDocumentHighlight.uri,
+			highlights: multiDocumentHighlight.highlights.map(DocumentHighlight.from)
+		};
+	}
+
+	export function to(multiDocumentHighlight: languages.MultiDocumentHighlight): types.MultiDocumentHighlight {
+		return new types.MultiDocumentHighlight(URI.revive(multiDocumentHighlight.uri), multiDocumentHighlight.highlights.map(DocumentHighlight.to));
 	}
 }
 
@@ -2240,7 +2253,8 @@ export namespace ChatVariable {
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
-			value: variable.value,
+			kind: variable.kind,
+			value: revive(variable.value),
 			description: variable.description
 		};
 	}
@@ -2248,6 +2262,7 @@ export namespace ChatVariable {
 	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
 		return {
 			level: ChatVariableLevel.from(variable.level),
+			kind: variable.kind,
 			value: variable.value,
 			description: variable.description
 		};
@@ -2352,6 +2367,18 @@ export namespace ChatResponseProgress {
 		} else {
 			return undefined;
 		}
+	}
+}
+
+export namespace ChatAgentCompletionItem {
+	export function from(item: vscode.ChatAgentCompletionItem): extHostProtocol.IChatAgentCompletionItem {
+		return {
+			label: item.label,
+			values: item.values.map(ChatVariable.from),
+			insertText: item.insertText,
+			detail: item.detail,
+			documentation: item.documentation,
+		};
 	}
 }
 

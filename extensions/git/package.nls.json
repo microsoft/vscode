@@ -111,6 +111,8 @@
 	"command.timelineCompareWithSelected": "Compare with Selected",
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
 	"command.openRepositoriesInParentFolders": "Open Repositories In Parent Folders",
+	"command.viewChanges": "View Changes",
+	"command.viewStagedChanges": "View Staged Changes",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
