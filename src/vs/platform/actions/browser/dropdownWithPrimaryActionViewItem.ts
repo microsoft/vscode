@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
@@ -21,6 +21,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export interface IDropdownWithPrimaryActionViewItemOptions {
+	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 }
 
@@ -54,6 +55,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			keybindingProvider: this._options?.getKeyBinding
 		});
+
+		if (_options?.actionRunner) {
+			this._primaryAction.actionRunner = _options.actionRunner;
+			this._dropdown.actionRunner = _options.actionRunner;
+		}
 	}
 
 	override setActionContext(newContext: unknown): void {

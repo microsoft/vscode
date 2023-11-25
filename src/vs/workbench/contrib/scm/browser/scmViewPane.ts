@@ -1792,6 +1792,7 @@ registerAction2(class extends Action2 {
 				id: SCMInputCommandId.SelectDefaultAction,
 				title: 'Select Default Action',
 				icon: Codicon.gear,
+				precondition: SCMInputContextKeys.ActionIsEnabled,
 				menu: {
 					id: MenuId.SCMInputBox,
 					when: ContextKeyExpr.greater(SCMInputContextKeys.ActionCount.key, 1),
@@ -1820,7 +1821,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	override async run(_: ServicesAccessor): Promise<void> { }
+	override async run(): Promise<void> { }
 });
 
 class SCMInputWidgetActionRunner extends ActionRunner {
@@ -1830,7 +1831,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 	constructor(
 		private readonly input: ISCMInput,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -1860,6 +1861,11 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 	protected override async runAction(action: IAction): Promise<void> {
 		try {
+			// Check if toolbar is disabled
+			if (this.contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) === false) {
+				return;
+			}
+
 			// Cancel previous action
 			if (this._ctxIsActionRunning.get() === true) {
 				this._cts?.cancel();
@@ -1925,14 +1931,16 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			const cancelMenuItemAction = actions.find(a => a.id === SCMInputCommandId.CancelAction);
 			const menuItemActions = actions.filter(a => a instanceof MenuItemAction && a.id !== SCMInputCommandId.CancelAction);
 
-			if (menuItemActions.length === 1) {
-				primaryAction = cancelMenuItemAction ?? menuItemActions[0];
+			if (cancelMenuItemAction) {
+				primaryAction = cancelMenuItemAction;
+			} else if (menuItemActions.length === 1) {
+				primaryAction = menuItemActions[0];
 			} else if (menuItemActions.length > 1) {
 				const defaultCommandId: string | undefined = undefined;
 				const defaultMenuItemAction = actions.find(a => a.id === defaultCommandId);
 				const selectActionMenuItemAction = actions.find(a => a.id === SCMInputCommandId.SelectDefaultAction);
 
-				primaryAction = cancelMenuItemAction ?? defaultMenuItemAction ?? selectActionMenuItemAction;
+				primaryAction = defaultMenuItemAction ?? selectActionMenuItemAction;
 			}
 
 			// Add actions to dropdown
@@ -1942,6 +1950,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 			this._ctxActionCount.set(menuItemActions.length);
 			container.classList.toggle('has-no-actions', menuItemActions.length === 0);
+			container.classList.toggle('disabled', contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) !== true);
 
 			super.setActions(primaryAction ? [primaryAction] : [], []);
 		};
@@ -2180,7 +2189,7 @@ class SCMInputWidget {
 					// const scmInputActionIsEnabled = contextKeyService2.getContextKeyValue<boolean>('scmInputActionIsEnabled') === true;
 					const dropdownAction = new Action('scmInputMoreActions', localize('scmInputMoreActions', 'More Actions...'), 'codicon-chevron-down', true);
 
-					return instantiationService2.createInstance(DropdownWithPrimaryActionViewItem, action, dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, {});
+					return instantiationService2.createInstance(DropdownWithPrimaryActionViewItem, action, dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, { actionRunner });
 				}
 
 				return createActionViewItem(instantiationService2, action);
