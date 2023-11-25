@@ -1668,6 +1668,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async deleteRemoteBranch(name: string, force?: boolean): Promise<void> {
+		const args = ['branch', force ? '-D' : '-d', name];
+		await this.exec(args);
+	}
+
 	async renameBranch(name: string): Promise<void> {
 		const args = ['branch', '-m', name];
 		await this.exec(args);

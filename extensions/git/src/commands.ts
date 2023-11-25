@@ -2454,7 +2454,7 @@ export class CommandCenter {
 	async deleteRemoteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
 		if (typeof name === 'string') {
-			run = force => repository.deleteBranch(name, force);
+			run = force => repository.deleteRemoteBranch(name, force);
 		} else {
 			const getBranchPicks = async () => {
 				const refs = await repository.getRefs({ pattern: 'refs/heads' });

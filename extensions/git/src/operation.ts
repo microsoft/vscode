@@ -18,6 +18,7 @@ export const enum OperationKind {
 	Commit = 'Commit',
 	Config = 'Config',
 	DeleteBranch = 'DeleteBranch',
+	DeleteRemoteBranch = 'DeleteRemoteBranch',
 	DeleteRef = 'DeleteRef',
 	DeleteRemoteTag = 'DeleteRemoteTag',
 	DeleteTag = 'DeleteTag',
@@ -63,7 +64,7 @@ export const enum OperationKind {
 }
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
-	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation |
+	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation | DeleteRemoteBranchOperation |
 	DeleteRefOperation | DeleteRemoteTagOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
 	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
@@ -85,6 +86,7 @@ export type CleanOperation = BaseOperation & { kind: OperationKind.Clean };
 export type CommitOperation = BaseOperation & { kind: OperationKind.Commit };
 export type ConfigOperation = BaseOperation & { kind: OperationKind.Config };
 export type DeleteBranchOperation = BaseOperation & { kind: OperationKind.DeleteBranch };
+export type DeleteRemoteBranchOperation = BaseOperation & { kind: OperationKind.DeleteRemoteBranch };
 export type DeleteRefOperation = BaseOperation & { kind: OperationKind.DeleteRef };
 export type DeleteRemoteTagOperation = BaseOperation & { kind: OperationKind.DeleteRemoteTag };
 export type DeleteTagOperation = BaseOperation & { kind: OperationKind.DeleteTag };
@@ -141,6 +143,7 @@ export const Operation = {
 	Commit: { kind: OperationKind.Commit, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
 	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as ConfigOperation),
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
+	DeleteRemoteBranch: { kind: OperationKind.DeleteRemoteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRemoteBranchOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
