@@ -61,6 +61,7 @@
 	"command.branch": "Create Branch...",
 	"command.branchFrom": "Create Branch From...",
 	"command.deleteBranch": "Delete Branch...",
+	"command.deleteRemoteBranch": "Delete Remote Branch...",
 	"command.renameBranch": "Rename Branch...",
 	"command.cherryPick": "Cherry Pick...",
 	"command.merge": "Merge Branch...",

@@ -2450,6 +2450,46 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.deleteRemoteBranch', { repository: true })
+	async deleteRemoteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
+		let run: (force?: boolean) => Promise<void>;
+		if (typeof name === 'string') {
+			run = force => repository.deleteBranch(name, force);
+		} else {
+			const getBranchPicks = async () => {
+				const refs = await repository.getRefs({ pattern: 'refs/heads' });
+				const currentHead = repository.HEAD && repository.HEAD.name;
+
+				return refs.filter(ref => ref.name !== currentHead).map(ref => new BranchDeleteItem(ref));
+			};
+
+			const placeHolder = l10n.t('Select a branch to delete');
+			const choice = await window.showQuickPick<BranchDeleteItem>(getBranchPicks(), { placeHolder });
+
+			if (!choice || !choice.branchName) {
+				return;
+			}
+			name = choice.branchName;
+			run = force => choice.run(repository, force);
+		}
+
+		try {
+			await run(force);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.BranchNotFullyMerged) {
+				throw err;
+			}
+
+			const message = l10n.t('The branch "{0}" is not fully merged. Delete anyway?', name);
+			const yes = l10n.t('Delete Branch');
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick === yes) {
+				await run(true);
+			}
+		}
+	}
+
 	@command('git.renameBranch', { repository: true })
 	async renameBranch(repository: Repository): Promise<void> {
 		const currentBranchName = repository.HEAD && repository.HEAD.name;
