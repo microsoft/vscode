@@ -1335,14 +1335,14 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
 				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'),)
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'),)
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
 				if (extension) {
-					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
+					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, []);
 					action.extension = extension;
 					return action.run();
 				}
