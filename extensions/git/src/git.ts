@@ -1669,8 +1669,8 @@ export class Repository {
 	}
 
 	async deleteRemoteBranch(name: string): Promise<void> {
-		const nameSplited = name.split('/');
-		const args = ['push', nameSplited[0], '--delete', nameSplited[1]];
+		const firstSlashIndex = name.indexOf('/');
+		const args = ['push', name.slice(0, firstSlashIndex), '--delete', name.slice(firstSlashIndex + 1, name.length)];
 		await this.exec(args);
 	}
 
