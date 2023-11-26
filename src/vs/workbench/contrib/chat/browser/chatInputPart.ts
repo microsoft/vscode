@@ -5,15 +5,21 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,20 +29,18 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { IChatExecuteActionContext, SubmitAction, SubmitSecondaryAgentAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isMacintosh } from 'vs/base/common/platform';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 
 const $ = dom.$;
 
@@ -254,10 +258,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
 			menuOptions: {
 				shouldForwardArgs: true
+			},
+			actionViewItemProvider: (action, options) => {
+				if (action.id === SubmitAction.ID) {
+					return this.instantiationService.createInstance(SubmitButtonActionViewItem, { widget } satisfies IChatExecuteActionContext, action, options);
+				}
+
+				return undefined;
 			}
 		}));
 		this.toolbar.getElement().classList.add('interactive-execute-toolbar');
-		this.toolbar.context = <IChatExecuteActionContext>{ widget };
+		this.toolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.toolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.toolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
@@ -271,7 +282,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}));
 			toolbarSide.getElement().classList.add('chat-side-toolbar');
-			toolbarSide.context = <IChatExecuteActionContext>{ widget };
+			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
 		}
 
 		this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
@@ -332,5 +343,39 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
 		this.historyService.saveHistory(this.providerId!, inputHistory);
+	}
+}
+
+class SubmitButtonActionViewItem extends ActionViewItem {
+	private readonly _tooltip: string;
+
+	constructor(
+		context: unknown,
+		action: IAction,
+		options: IActionViewItemOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		super(context, action, options);
+
+		const primaryKeybinding = keybindingService.lookupKeybinding(SubmitAction.ID)?.getLabel();
+		let tooltip = action.label;
+		if (primaryKeybinding) {
+			tooltip += ` (${primaryKeybinding})`;
+		}
+
+		const secondaryAgent = chatAgentService.getSecondaryAgent();
+		if (secondaryAgent) {
+			const secondaryKeybinding = keybindingService.lookupKeybinding(SubmitSecondaryAgentAction.ID)?.getLabel();
+			if (secondaryKeybinding) {
+				tooltip += `\n${chatAgentLeader}${secondaryAgent.id} (${secondaryKeybinding})`;
+			}
+		}
+
+		this._tooltip = tooltip;
+	}
+
+	protected override getTooltip(): string | undefined {
+		return this._tooltip;
 	}
 }
