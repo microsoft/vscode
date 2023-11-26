@@ -20,7 +20,7 @@ import { IContextViewService, IContextMenuService } from 'vs/platform/contextvie
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu, isIMenuItem } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
@@ -1782,76 +1782,9 @@ const enum SCMInputCommandId {
 }
 
 const SCMInputContextKeys = {
-	ActionCount: new RawContextKey<number>('scmInputActionCount', 0),
 	ActionIsEnabled: new RawContextKey<boolean>('scmInputActionIsEnabled', false),
 	ActionIsRunning: new RawContextKey<boolean>('scmInputActionIsRunning', false),
 };
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super(
-			{
-				id: SCMInputCommandId.SelectDefaultAction,
-				title: 'Select Default Action',
-				icon: Codicon.gear,
-				precondition: SCMInputContextKeys.ActionIsEnabled,
-				menu: {
-					id: MenuId.SCMInputBox,
-					when: ContextKeyExpr.greater(SCMInputContextKeys.ActionCount.key, 1),
-					group: 'settings@1',
-				}
-			});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const quickInputService = accessor.get(IQuickInputService);
-
-		const items: { label: string; description?: string; command: ICommandAction }[] = [];
-		for (const action of MenuRegistry.getMenuItems(MenuId.SCMInputBox)) {
-			if (isIMenuItem(action) && action.command.id !== SCMInputCommandId.SelectDefaultAction && action.command.id !== SCMInputCommandId.CancelAction) {
-				items.push({
-					label: typeof (action.command.title) === 'string' ? action.command.title : action.command.title.value,
-					description: action.command.source?.title,
-					command: action.command
-				});
-			}
-		}
-
-		if (items.length === 0) {
-			return;
-		}
-
-		const result = await quickInputService.pick(items, {
-			canPickMany: false,
-			placeHolder: localize('selectDefaultAction', "Select the default action")
-		});
-
-		if (!result) {
-			return;
-		}
-
-		configurationService.updateValue('scm.inputDefaultAction', `${result.command.source?.id ?? ''}:${result.command.id}`, ConfigurationTarget.USER);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super(
-			{
-				id: SCMInputCommandId.CancelAction,
-				title: 'Cancel',
-				icon: Codicon.debugStop,
-				menu: {
-					id: MenuId.SCMInputBox,
-					when: SCMInputContextKeys.ActionIsRunning.isEqualTo(true),
-					group: 'navigation@0',
-				}
-			});
-	}
-
-	override async run(): Promise<void> { }
-});
 
 class SCMInputWidgetActionRunner extends ActionRunner {
 
@@ -1885,7 +1818,9 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			}
 
 			this._runningActions.add(action);
-			this._ctxIsActionRunning.set(true);
+			if (action.id !== SCMInputCommandId.SelectDefaultAction) {
+				this._ctxIsActionRunning.set(true);
+			}
 
 			const context: ISCMInputValueProviderContext[] = [];
 			for (const group of this.input.repository.provider.groups) {
@@ -1908,12 +1843,72 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 }
 
+class SCMInputWidgetSelectDefaultActionMenuItemAction extends MenuItemAction {
+
+	constructor(
+		private readonly actions: IAction[],
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+	) {
+		super({
+			id: SCMInputCommandId.SelectDefaultAction,
+			title: localize('scmInputSelectDefaultAction', "Select Default Action"),
+			icon: Codicon.gear,
+			precondition: SCMInputContextKeys.ActionIsEnabled
+		}, undefined, undefined, undefined, contextKeyService, commandService);
+	}
+
+	override async run(): Promise<void> {
+		const items: { label: string; description?: string; command: ICommandAction }[] = [];
+		for (const action of this.actions) {
+			if (action instanceof MenuItemAction) {
+				items.push({
+					label: typeof (action.item.title) === 'string' ? action.item.title : action.item.title.value,
+					description: action.item.source?.title,
+					command: action.item
+				});
+			}
+		}
+
+		if (items.length === 0) {
+			return;
+		}
+
+		const result = await this.quickInputService.pick(items, {
+			canPickMany: false,
+			placeHolder: localize('selectDefaultAction', "Select the default action")
+		});
+
+		if (!result) {
+			return;
+		}
+
+		this.configurationService.updateValue('scm.inputDefaultAction', `${result.command.source?.id ?? ''}:${result.command.id}`, ConfigurationTarget.USER);
+	}
+
+}
+
+class SCMInputWidgetCancelMenuItemAction extends MenuItemAction {
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super({
+			id: SCMInputCommandId.CancelAction,
+			title: localize('scmInputCancelAction', "Cancel"),
+			icon: Codicon.debugStop,
+		}, undefined, undefined, undefined, contextKeyService, commandService);
+	}
+
+}
+
 class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 	private _dropdownActions: IAction[] = [];
 	get dropdownActions(): IAction[] { return this._dropdownActions; }
-
-	private readonly _ctxActionCount: IContextKey<number>;
 
 	constructor(
 		container: HTMLElement,
@@ -1925,42 +1920,38 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
-		this._ctxActionCount = SCMInputContextKeys.ActionCount.bindTo(contextKeyService);
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
+		const cancelAction = new SCMInputWidgetCancelMenuItemAction(contextKeyService, commandService);
+
 		const updateToolbar = () => {
+			this._dropdownActions = [];
+
 			const actions: IAction[] = [];
-			createAndFillInActionBarActions(
-				menu,
-				options?.menuOptions,
-				actions,
-				options?.toolbarOptions?.primaryGroup,
-				options?.toolbarOptions?.shouldInlineSubmenu,
-				options?.toolbarOptions?.useSeparatorsInPrimaryActions
-			);
+			createAndFillInActionBarActions(menu, options?.menuOptions, actions);
 
 			let primaryAction: IAction | undefined = undefined;
 
-			const defaultMenuItemAction = this._getDefaultMenuItemAction(actions);
-			const menuItemActions = actions.filter(a => a.id !== SCMInputCommandId.CancelAction);
-			const cancelMenuItemAction = actions.find(a => a.id === SCMInputCommandId.CancelAction);
+			const selectDefaultAction = new SCMInputWidgetSelectDefaultActionMenuItemAction(
+				actions, configurationService, contextKeyService, commandService, quickInputService
+			);
 
-			if (cancelMenuItemAction) {
-				primaryAction = cancelMenuItemAction;
-			} else if (menuItemActions.length === 1) {
-				primaryAction = menuItemActions[0];
-			} else if (menuItemActions.length > 1) {
-				primaryAction = defaultMenuItemAction ?? actions.find(a => a.id === SCMInputCommandId.SelectDefaultAction);
+			const defaultMenuItemAction = this._getDefaultMenuItemAction(actions);
+
+			if (contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsRunning.key) === true) {
+				primaryAction = cancelAction;
+			} else if (actions.length === 1) {
+				primaryAction = actions[0];
+			} else if (actions.length > 1) {
+				primaryAction = defaultMenuItemAction ?? selectDefaultAction;
 			}
 
-			// Add actions to dropdown
-			if (menuItemActions.length > 1) {
-				this._dropdownActions.splice(0, this._dropdownActions.length);
-
+			if (actions.length > 1) {
 				for (const action of actions) {
 					if (action instanceof MenuItemAction && action === defaultMenuItemAction) {
 						const actionTitle = typeof (action.item.title) === 'string' ? action.item.title : action.item.title.value;
@@ -1972,10 +1963,11 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 						this._dropdownActions.push(action);
 					}
 				}
+
+				this._dropdownActions.push(...[new Separator(), selectDefaultAction]);
 			}
 
-			this._ctxActionCount.set(menuItemActions.length);
-			container.classList.toggle('has-no-actions', menuItemActions.length === 0);
+			container.classList.toggle('has-no-actions', actions.length === 0);
 			container.classList.toggle('disabled', contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) !== true);
 
 			super.setActions(primaryAction ? [primaryAction] : [], []);
@@ -1983,6 +1975,9 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 		this._store.add(menu.onDidChange(() => updateToolbar()));
 		this._store.add(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputDefaultAction'))(() => updateToolbar()));
+
+		const ctxKeys = new Set<string>([SCMInputContextKeys.ActionIsEnabled.key, SCMInputContextKeys.ActionIsRunning.key]);
+		Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ctxKeys))(() => updateToolbar());
 
 		// Delay initial update to finish class initialization
 		setTimeout(() => updateToolbar(), 0);
