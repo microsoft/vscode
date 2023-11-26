@@ -5,6 +5,7 @@
 
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { deepClone } from 'vs/base/common/objects';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -24,9 +25,9 @@ export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
 	public static readonly ID = 'chatDynamicVariableModel';
 
-	private readonly _variables: IDynamicVariable[] = [];
+	private _variables: IDynamicVariable[] = [];
 	get variables(): ReadonlyArray<IDynamicVariable> {
-		return [...this._variables];
+		return deepClone(this._variables);
 	}
 
 	get id() {
@@ -56,16 +57,25 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 				});
 			});
 
-			this.updateReferences();
+			this.updateDecorations();
 		}));
+	}
+
+	getInputState(): any {
+		return this.variables;
+	}
+
+	setInputState(s: any): void {
+		this._variables = deepClone(s);
+		this.updateDecorations();
 	}
 
 	addReference(ref: IDynamicVariable): void {
 		this._variables.push(ref);
-		this.updateReferences();
+		this.updateDecorations();
 	}
 
-	private updateReferences(): void {
+	private updateDecorations(): void {
 		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map(r => (<IDecorationOptions>{
 			range: r.range,
 			hoverMessage: this.getHoverForReference(r)
