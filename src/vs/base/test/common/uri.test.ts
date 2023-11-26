@@ -626,4 +626,8 @@ suite('URI', () => {
 		assert.strictEqual(URI.parse('http://user@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://user@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 		assert.strictEqual(URI.parse('http://us[er@[FEDC:BA98:7654:3210:FEDC:BA98:7654:3210]:80/index.html').toString(), 'http://us%5Ber@[fedc:ba98:7654:3210:fedc:ba98:7654:3210]:80/index.html');
 	});
+
+	test('vscode-uri: URI.toString() wrongly encode absolute paths', function () {
+		assert.strictEqual(URI.parse('http://example.com/@scope/foo').toString(), 'http://example.com/@scope/foo');
+	});
 });

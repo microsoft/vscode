@@ -546,6 +546,7 @@ function encodeURIComponentFast(uriComponent: string, isPath: boolean, isAuthori
 			|| code === CharCode.Underline
 			|| code === CharCode.Tilde
 			|| (isPath && code === CharCode.Slash)
+			|| (isPath && code === CharCode.AtSign)
 			|| (isAuthority && code === CharCode.OpenSquareBracket)
 			|| (isAuthority && code === CharCode.CloseSquareBracket)
 			|| (isAuthority && code === CharCode.Colon)
