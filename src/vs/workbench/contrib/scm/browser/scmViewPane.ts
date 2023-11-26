@@ -1896,7 +1896,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			}
 
 			this._cts = new CancellationTokenSource();
-			await action.run(...[this.input.repository.provider.rootUri!, context, this._cts.token]);
+			await action.run(...[this.input.repository.provider.rootUri, context, this._cts.token]);
 		} finally {
 			this._runningActions.delete(action);
 
