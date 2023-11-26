@@ -308,7 +308,7 @@
 	opacity: 0.6;
 }
 
-.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item > .action-label:hover {
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-label:hover {
 	outline: unset;
 	outline-offset: unset;
 	background-color: unset;

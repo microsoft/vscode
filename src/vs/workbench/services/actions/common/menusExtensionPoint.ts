@@ -147,7 +147,8 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'scm/inputBox',
 		id: MenuId.SCMInputBox,
-		description: localize('menus.input', "The Source Control input box menu")
+		description: localize('menus.input', "The Source Control input box menu"),
+		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
 		key: 'statusBar/remoteIndicator',
