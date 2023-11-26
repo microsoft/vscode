@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { deepClone } from 'vs/base/common/objects';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -27,7 +27,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	private _variables: IDynamicVariable[] = [];
 	get variables(): ReadonlyArray<IDynamicVariable> {
-		return deepClone(this._variables);
+		return [...this._variables];
 	}
 
 	get id() {
@@ -36,25 +36,32 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	constructor(
 		private readonly widget: IChatWidget,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
-				this._variables.forEach((ref, i) => {
+				// Don't mutate entries in _variables, since they will be returned from the getter
+				this._variables = coalesce(this._variables.map(ref => {
 					if (Range.areIntersecting(ref.range, c.range)) {
 						// The reference text was changed, it's broken
-						this._variables.splice(i, 1);
+						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						ref.range = {
-							startLineNumber: ref.range.startLineNumber,
-							startColumn: ref.range.startColumn + delta,
-							endLineNumber: ref.range.endLineNumber,
-							endColumn: ref.range.endColumn + delta
+						return {
+							...ref,
+							range: {
+								startLineNumber: ref.range.startLineNumber,
+								startColumn: ref.range.startColumn + delta,
+								endLineNumber: ref.range.endLineNumber,
+								endColumn: ref.range.endColumn + delta
+							}
 						};
 					}
-				});
+
+					return ref;
+				}));
 			});
 
 			this.updateDecorations();
@@ -66,7 +73,13 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	setInputState(s: any): void {
-		this._variables = deepClone(s);
+		if (!Array.isArray(s)) {
+			// Something went wrong
+			this.logService.warn('ChatDynamicVariableModel.setInputState called with invalid state: ' + JSON.stringify(s));
+			return;
+		}
+
+		this._variables = s;
 		this.updateDecorations();
 	}
 
