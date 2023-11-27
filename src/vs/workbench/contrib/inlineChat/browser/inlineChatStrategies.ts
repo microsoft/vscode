@@ -605,6 +605,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	private readonly _modifiedRangesDecorations: IEditorDecorationsCollection;
 	private readonly _modifiedRangesThatHaveBeenInteractedWith: string[] = [];
@@ -623,6 +624,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 		super(zone);
 
 		this._modifiedRangesDecorations = this._editor.createDecorationsCollection();
+		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, _editor));
+
 	}
 
 	override dispose(): void {
@@ -926,10 +929,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	override async renderChanges(response: ReplyResponse) {
 
-		if (response.untitledTextModel) {
-			this._zone.widget.showCreatePreview(response.untitledTextModel);
+		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
+			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._zone.widget.hideCreatePreview();
+			this._previewZone.value.hide();
 		}
 
 		return await this._showDiff(true, false);
