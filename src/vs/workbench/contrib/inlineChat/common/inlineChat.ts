@@ -240,7 +240,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		'inlineChat.showToolbarIcon': {
 			description: localize('showToolbarIcon', "Controls whether the toolbar icon spawning the inline chat is enabled."),
-			default: true,
+			default: false,
 			type: 'boolean'
 		}
 	}
