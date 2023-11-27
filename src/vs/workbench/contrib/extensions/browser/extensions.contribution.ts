@@ -992,7 +992,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			order: 1,
 		});
 
-		EXTENSION_CATEGORIES.map((category, index) => {
+		EXTENSION_CATEGORIES.forEach((category, index) => {
 			this.registerExtensionAction({
 				id: `extensions.actions.searchByCategory.${category}`,
 				title: category,
