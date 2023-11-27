@@ -791,6 +791,12 @@ export enum SelectionDirection {
 	RTL = 1
 }
 
+export enum ShowAiIconMode {
+	Never = 'never',
+	OnCode = 'onCode',
+	Always = 'always'
+}
+
 export enum SignatureHelpTriggerKind {
 	Invoke = 1,
 	TriggerCharacter = 2,

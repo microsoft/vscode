@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -91,7 +91,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			};
 
 			if (
-				this._editor.getOption(EditorOption.lightbulb).showAiIcon
+				(this._editor.getOption(EditorOption.lightbulb).showAiIcon !== ShowAiIconMode.Never)
 				&& this.state.actions.allAIFixes
 				&& this.state.actions.validActions.length === 1
 			) {
@@ -247,8 +247,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
-		const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).showAiIcon;
-		if (highlightAIActions) {
+		if (this._editor.getOption(EditorOption.lightbulb).showAiIcon !== ShowAiIconMode.Never) {
 			if (this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
 				if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {

@@ -2720,6 +2720,12 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 
 //#region lightbulb
 
+export enum ShowAiIconMode {
+	Never = 'never',
+	OnCode = 'onCode',
+	Always = 'always'
+}
+
 /**
  * Configuration options for editor lightbulb
  */
@@ -2732,11 +2738,7 @@ export interface IEditorLightbulbOptions {
 	/**
 	 * Highlight AI code actions with AI icon
 	 */
-	showAiIcon?: boolean;
-	/**
-	 * Controls whether to suggest AI code actions on empty lines
-	 */
-	suggestAiCodeActionsEmptyLines?: boolean;
+	showAiIcon?: ShowAiIconMode;
 }
 
 /**
@@ -2747,7 +2749,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: false, suggestAiCodeActionsEmptyLines: false };
+		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: ShowAiIconMode.Never };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2757,14 +2759,15 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
 				'editor.lightbulb.showAiIcon': {
-					type: 'boolean',
+					type: 'string',
+					enum: [ShowAiIconMode.Never, ShowAiIconMode.OnCode, ShowAiIconMode.Always],
 					default: defaults.showAiIcon,
+					enumDescriptions: [
+						nls.localize('editor.lightbulb.showAiIcon.never', 'Never show an AI icon instead of the light-bulb icon.'),
+						nls.localize('editor.lightbulb.showAiIcon.onCode', 'Show an AI icon when the code action menu contains an AI action.'),
+						nls.localize('editor.lightbulb.showAiIcon.always', 'Show an AI icon when the code action menu contains an AI action. Also show an AI icon on empty lines when there is an AI action.'),
+					],
 					description: nls.localize('showAiIcons', "Show AI icon instead of lightbulb icon when the menu contains AI code actions.")
-				},
-				'editor.lightbulb.suggestAiCodeActionsEmptyLines': {
-					type: 'boolean',
-					default: defaults.suggestAiCodeActionsEmptyLines,
-					description: nls.localize('suggestAiCodeActionsEmptyLines', "Suggest AI code actions on empty lines.")
 				},
 			}
 		);
@@ -2777,8 +2780,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		const input = _input as IEditorLightbulbOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			showAiIcon: boolean(input.showAiIcon, this.defaultValue.showAiIcon),
-			suggestAiCodeActionsEmptyLines: boolean(input.suggestAiCodeActionsEmptyLines, this.defaultValue.suggestAiCodeActionsEmptyLines)
+			showAiIcon: input.showAiIcon ?? this.defaultValue.showAiIcon,
 		};
 	}
 }

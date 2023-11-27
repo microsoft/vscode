@@ -10,7 +10,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -74,8 +74,8 @@ class CodeActionOracle extends Disposable {
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const suggestAiCodeActionsEmptyLines = !!this._editor.getOption(EditorOption.lightbulb).suggestAiCodeActionsEmptyLines;
-				if (!suggestAiCodeActionsEmptyLines) {
+				const showAiIconOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).showAiIcon === ShowAiIconMode.Always;
+				if (showAiIconOnEmptyLines) {
 					return undefined;
 				}
 			} else if (column === 1) {
