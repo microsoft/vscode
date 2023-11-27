@@ -2756,12 +2756,12 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
-				'editor.experimental.showAiIcon': {
+				'editor.lightbulb.showAiIcon': {
 					type: 'boolean',
 					default: defaults.showAiIcon,
 					description: nls.localize('showAiIcons', "Show AI icon instead of lightbulb icon when the menu contains AI code actions.")
 				},
-				'editor.experimental.suggestAiCodeActionsEmptyLines': {
+				'editor.lightbulb.suggestAiCodeActionsEmptyLines': {
 					type: 'boolean',
 					default: defaults.suggestAiCodeActionsEmptyLines,
 					description: nls.localize('suggestAiCodeActionsEmptyLines', "Suggest AI code actions on empty lines.")

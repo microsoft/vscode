@@ -38,7 +38,6 @@ class CodeActionOracle extends Disposable {
 		private readonly _markerService: IMarkerService,
 		private readonly _signalChange: (triggered: TriggeredCodeAction | undefined) => void,
 		private readonly _delay: number = 250,
-		private readonly _configurationService?: IConfigurationService,
 	) {
 		super();
 		this._register(this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)));
@@ -75,8 +74,8 @@ class CodeActionOracle extends Disposable {
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const triggerOnEmptyLines = !!this._configurationService?.getValue<boolean>('editor.experimental.suggestAiCodeActionsEmptyLines');
-				if (!triggerOnEmptyLines) {
+				const suggestAiCodeActionsEmptyLines = !!this._editor.getOption(EditorOption.lightbulb).suggestAiCodeActionsEmptyLines;
+				if (!suggestAiCodeActionsEmptyLines) {
 					return undefined;
 				}
 			} else if (column === 1) {
@@ -301,7 +300,7 @@ export class CodeActionModel extends Disposable {
 					this._progressService?.showWhile(actions, 250);
 				}
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, startPosition, actions));
-			}, undefined, this._configurationService);
+			}, undefined);
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
