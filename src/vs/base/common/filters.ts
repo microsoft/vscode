@@ -136,13 +136,24 @@ function charactersMatch(codeA: number, codeB: number): boolean {
 }
 
 const alternateCharsCache: Map<number, ArrayLike<number> | undefined> = new Map();
+/**
+ * Gets alternative codes to the character code passed in. This comes in the
+ * form of an array of character codes, all of which must match _in order_ to
+ * successfully match.
+ *
+ * @param code The character code to check.
+ */
 function getAlternateCodes(code: number): ArrayLike<number> | undefined {
 	if (alternateCharsCache.has(code)) {
 		return alternateCharsCache.get(code);
 	}
 
-	const codes = getKoreanAltChars(code);
+	// NOTE: This function is written in such a way that it can be extended in
+	// the future, but right now the return type takes into account it's only
+	// supported by a single "alt codes provider".
+	// `ArrayLike<ArrayLike<number>>` is a more appropriate type if changed.
 	let result: ArrayLike<number> | undefined;
+	const codes = getKoreanAltChars(code);
 	if (codes) {
 		result = codes;
 	}
