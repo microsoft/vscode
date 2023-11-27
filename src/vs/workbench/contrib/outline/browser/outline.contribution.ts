@@ -65,17 +65,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'alwaysExpand'
 		},
 		[OutlineConfigKeys.problemsEnabled]: {
-			'markdownDescription': localize('outline.showProblem', "Show errors and warnings on Outline elements. Overwritten by `#editor.renderValidationDecorations#` when `{0}` is off.", `editor.renderValidationDecorations`),
+			'markdownDescription': localize('outline.showProblem', "Show errors and warnings on Outline elements. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsColors]: {
-			'markdownDescription': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements. Overwritten by `#editor.renderValidationDecorations#` when `{0}` is off.", `editor.renderValidationDecorations`),
+			'markdownDescription': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsBadges]: {
-			'markdownDescription': localize('outline.problems.badges', "Use badges for errors and warnings on Outline elements. Overwritten by `#editor.renderValidationDecorations#` when `{0}` is off.", `editor.renderValidationDecorations`),
+			'markdownDescription': localize('outline.problems.badges', "Use badges for errors and warnings on Outline elements. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
 			'type': 'boolean',
 			'default': true
 		},

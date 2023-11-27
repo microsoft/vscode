@@ -24,7 +24,6 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -170,22 +169,22 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
+		const problem = this._configurationService.getValue('workbench.editor.showProblems');
 		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 
-		if (problem.renderValidationDecorations === 'off' || !configProblems) {
+		if (!problem || !configProblems) {
 			template.container.style.removeProperty('--outline-element-color');
 		} else {
 			template.container.style.setProperty('--outline-element-color', cssColor);
 		}
 
 		// badge with color/rollup
-		if (problem.renderValidationDecorations === undefined) {
+		if (problem === undefined) {
 			return;
 		}
 
 		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
-		if (!configBadges || problem.renderValidationDecorations === 'off') {
+		if (!configBadges || !problem) {
 			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);

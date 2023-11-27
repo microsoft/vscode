@@ -38,7 +38,6 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { mainWindow } from 'vs/base/browser/window';
 import { WindowIdleValue } from 'vs/base/browser/dom';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 class NotebookOutlineTemplate {
 
@@ -94,10 +93,10 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';
 		if (markerInfo) {
-			const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
+			const problem = this._configurationService.getValue('workbench.editor.showProblems');
 			const useBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 
-			if (!useBadges || problem.renderValidationDecorations === 'off') {
+			if (!useBadges || !problem) {
 				template.decoration.classList.remove('bubble');
 				template.decoration.innerText = '';
 			} else if (markerInfo.count === 0) {
@@ -108,11 +107,11 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 				template.decoration.innerText = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
 			}
 			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
-			if (problem.renderValidationDecorations === undefined) {
+			if (problem === undefined) {
 				return;
 			}
 			const useColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-			if (!useColors || problem.renderValidationDecorations === 'off') {
+			if (!useColors || !problem) {
 				template.container.style.removeProperty('--outline-element-color');
 				template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
 			} else {

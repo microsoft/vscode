@@ -15,7 +15,6 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -67,7 +66,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('problems') || e.affectsConfiguration('editor')) {
+				if (e.affectsConfiguration('problems') || e.affectsConfiguration('workbench.editor.showProblems')) {
 					this._updateEnablement();
 				}
 			}),
@@ -81,15 +80,15 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		const problem = this._configurationService.getValue<ICodeEditorOptions>('editor');
+		const problem = this._configurationService.getValue('workbench.editor.showProblems');
 		if (problem === undefined) {
 			return;
 		}
 		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
-		const shouldEnable = ((problem.renderValidationDecorations === 'on' || problem.renderValidationDecorations === 'editable') && value.decorations.enabled);
+		const shouldEnable = (problem && value.decorations.enabled);
 
 		if (shouldEnable === this._enabled) {
-			if (problem.renderValidationDecorations === 'off' || !value.decorations.enabled) {
+			if (!problem || !value.decorations.enabled) {
 				this._provider?.dispose();
 				this._provider = undefined;
 			}

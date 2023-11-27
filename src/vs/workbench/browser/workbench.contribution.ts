@@ -154,6 +154,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					}
 				}
 			},
+			'workbench.editor.showProblems': {
+				type: 'boolean',
+				default: true,
+				tags: ['experimental'],
+				description: localize('workbench.editor.showProblems', "Controls whether the problems are visible throughout the editor and workbench."),
+			},
 			'workbench.editor.tabActionLocation': {
 				type: 'string',
 				enum: ['left', 'right'],

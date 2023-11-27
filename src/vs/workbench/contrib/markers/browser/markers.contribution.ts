@@ -34,7 +34,6 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -569,7 +568,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor')) {
+			if (e.affectsConfiguration('workbench.editor.showProblems')) {
 				this.markersStatusItem.update(this.getMarkersItem());
 				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 			}
@@ -589,14 +588,14 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
-		const config = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		if (config.renderValidationDecorations !== 'off') {
+		const config = this.configurationService.getValue('workbench.editor.showProblems');
+		if (config) {
 			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
 		}
 
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = 'editor.renderValidationDecorations';
-		const tooltip = config.renderValidationDecorations === 'off' ? localize('problemsOff', "Problems have been turned off.") : '';
+		const configureSettingsLabel = 'workbench.editor.showProblems';
+		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
 		return {
 			name: localize('status.problems.off', "Problems"),
 			text: '$(whole-word)',

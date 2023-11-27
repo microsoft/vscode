@@ -5701,16 +5701,7 @@ export const EditorOptions = {
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',
 		'editable' as 'editable' | 'on' | 'off',
-		['editable', 'on', 'off'] as const,
-		{
-			description: nls.localize('renderValidationDecorations', "Controls if the workbench will show error decorations for problems."),
-			enumDescriptions: [
-				nls.localize('renderValidationDecorations.editable', "Validation decorations are rendered only for editable models."),
-				nls.localize('renderValidationDecorations.on', "Validation decorations are always rendered."),
-				nls.localize('renderValidationDecorations.off', "Validation decorations are never rendered."),
-			],
-			default: 'editable'
-		}
+		['editable', 'on', 'off'] as const
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
