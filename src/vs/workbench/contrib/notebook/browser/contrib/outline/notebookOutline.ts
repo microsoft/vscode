@@ -93,7 +93,7 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';
 		if (markerInfo) {
-			const problem = this._configurationService.getValue('workbench.editor.showProblems');
+			const problem = this._configurationService.getValue('problems.visibility');
 			const useBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 
 			if (!useBadges || !problem) {

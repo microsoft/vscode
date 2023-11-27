@@ -324,8 +324,8 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				}
 			}));
 			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('workbench.editor.showProblems')) {
-					const problem = this._configurationService.getValue('workbench.editor.showProblems');
+				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('problems.visibility')) {
+					const problem = this._configurationService.getValue('problems.visibility');
 					const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
 
 					if (!problem || !config) {
@@ -376,7 +376,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	private _applyMarkersToOutline(model: OutlineModel | undefined): void {
-		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const problem = this._configurationService.getValue('problems.visibility');
 		const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
 		if (!model || !problem || !config) {
 			return;

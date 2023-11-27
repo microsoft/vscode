@@ -121,6 +121,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
+		'problems.visibility': {
+			type: 'boolean',
+			default: true,
+			tags: ['experimental'],
+			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
+		}
 	}
 });
 
@@ -568,7 +574,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.showProblems')) {
+			if (e.affectsConfiguration('problems.visibility')) {
 				this.markersStatusItem.update(this.getMarkersItem());
 				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 			}
@@ -588,13 +594,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
-		const config = this.configurationService.getValue('workbench.editor.showProblems');
+		const config = this.configurationService.getValue('problems.visibility');
 		if (config) {
 			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
 		}
 
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = 'workbench.editor.showProblems';
+		const configureSettingsLabel = 'problems.visibility';
 		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
 		return {
 			name: localize('status.problems.off', "Problems"),

@@ -102,7 +102,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
-		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'workbench.editor.showProblems');
+		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'problems');
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
@@ -155,7 +155,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected getConfigurationOverrides(): ICodeEditorOptions {
-		const config = this.textResourceConfigurationService.getValue(this.getActiveResource(), 'workbench.editor.showProblems');
+		const config = this.textResourceConfigurationService.getValue(this.getActiveResource(), 'problems.visibility');
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,

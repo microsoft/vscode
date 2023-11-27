@@ -66,7 +66,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		this._disposables = [
 			this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('problems') || e.affectsConfiguration('workbench.editor.showProblems')) {
+				if (e.affectsConfiguration('problems')) {
 					this._updateEnablement();
 				}
 			}),
@@ -80,7 +80,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const problem = this._configurationService.getValue('problems.visibility');
 		if (problem === undefined) {
 			return;
 		}
@@ -111,7 +111,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#problems.visibility#` when `{0}` is off.", `problems.visibility`),
 			'type': 'boolean',
 			'default': true
 		}

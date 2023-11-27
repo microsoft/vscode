@@ -169,7 +169,7 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		const problem = this._configurationService.getValue('workbench.editor.showProblems');
+		const problem = this._configurationService.getValue('problems.visibility');
 		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
 
 		if (!problem || !configProblems) {

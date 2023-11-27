@@ -202,7 +202,7 @@ export class NotebookCellOutlineProvider {
 					}
 				}
 			};
-			const problem = this._configurationService.getValue('workbench.editor.showProblems');
+			const problem = this._configurationService.getValue('problems.visibility');
 			if (problem === undefined) {
 				return;
 			}
@@ -229,7 +229,7 @@ export class NotebookCellOutlineProvider {
 		};
 		updateMarkerUpdater();
 		this._entriesDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.showProblems') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
+			if (e.affectsConfiguration('problems.visibility') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
 				updateMarkerUpdater();
 				this._onDidChange.fire({});
 			}
