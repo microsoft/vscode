@@ -232,6 +232,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		const onBlur = () => hideHover(true, true);
 		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.BLUR, onBlur, true));
 		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
+		hoverPreparation = toDispose;
 	};
 	const focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
 	const hover: ICustomHover = {
