@@ -208,7 +208,11 @@ suite('Workbench - Test Results Service', () => {
 
 		setup(() => {
 			storage = ds.add(new InMemoryResultStorage(ds.add(new TestStorageService()), new NullLogService()));
-			results = ds.add(new TestTestResultService(new MockContextKeyService(), storage, ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService())))));
+			results = ds.add(new TestTestResultService(
+				new MockContextKeyService(),
+				storage,
+				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+			));
 		});
 
 		test('pushes new result', () => {

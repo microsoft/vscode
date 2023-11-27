@@ -10,7 +10,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -74,7 +74,10 @@ class CodeActionOracle extends Disposable {
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				return undefined;
+				const showAiIconOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).experimental?.showAiIcon === ShowAiIconMode.On;
+				if (!showAiIconOnEmptyLines) {
+					return undefined;
+				}
 			} else if (column === 1) {
 				// look only right
 				if (/\s/.test(line[0])) {
@@ -133,7 +136,9 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	validActions: [],
 	dispose: () => { },
 	documentation: [],
-	hasAutoFix: false
+	hasAutoFix: false,
+	hasAIFix: false,
+	allAIFixes: false,
 });
 
 
@@ -284,7 +289,7 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
 							}
 						}
 					}
