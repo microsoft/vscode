@@ -792,9 +792,9 @@ export enum SelectionDirection {
 }
 
 export enum ShowAiIconMode {
-	Never = 'never',
+	Off = 'off',
 	OnCode = 'onCode',
-	Always = 'always'
+	On = 'on'
 }
 
 export enum SignatureHelpTriggerKind {

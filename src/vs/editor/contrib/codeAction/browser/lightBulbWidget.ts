@@ -90,8 +90,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				e.preventDefault();
 			};
 
+			const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 			if (
-				(this._editor.getOption(EditorOption.lightbulb).showAiIcon !== ShowAiIconMode.Never)
+				(option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode)
 				&& this.state.actions.allAIFixes
 				&& this.state.actions.validActions.length === 1
 			) {
@@ -247,8 +248,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
-		if (this._editor.getOption(EditorOption.lightbulb).showAiIcon !== ShowAiIconMode.Never) {
-			if (this.state.actions.allAIFixes) {
+		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
+		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
+			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
 				if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
 					if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {

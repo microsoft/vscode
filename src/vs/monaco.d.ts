@@ -4132,9 +4132,9 @@ declare namespace monaco.editor {
 	}
 
 	export enum ShowAiIconMode {
-		Never = 'never',
+		Off = 'off',
 		OnCode = 'onCode',
-		Always = 'always'
+		On = 'on'
 	}
 
 	/**
@@ -4146,10 +4146,12 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
-		/**
-		 * Highlight AI code actions with AI icon
-		 */
-		showAiIcon?: ShowAiIconMode;
+		experimental?: {
+			/**
+			 * Highlight AI code actions with AI icon
+			 */
+			showAiIcon?: ShowAiIconMode;
+		};
 	}
 
 	export interface IEditorStickyScrollOptions {
