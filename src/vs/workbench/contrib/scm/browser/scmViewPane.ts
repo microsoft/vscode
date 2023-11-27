@@ -1786,6 +1786,11 @@ const SCMInputContextKeys = {
 	ActionIsRunning: new RawContextKey<boolean>('scmInputActionIsRunning', false),
 };
 
+type SCMInputDefaultActionConfig = {
+	readonly extensionId?: string;
+	readonly commandId: string;
+};
+
 class SCMInputWidgetActionRunner extends ActionRunner {
 
 	private _runningActions = new Set<IAction>();
@@ -1885,7 +1890,10 @@ class SCMInputWidgetSelectDefaultActionMenuItemAction extends MenuItemAction {
 			return;
 		}
 
-		this.configurationService.updateValue('scm.inputDefaultAction', `${result.command.source?.id ?? ''}:${result.command.id}`, ConfigurationTarget.USER);
+		this.configurationService.updateValue('scm.inputDefaultAction', {
+			extensionId: result.command.source?.id ?? '',
+			commandId: result.command.id
+		}, ConfigurationTarget.USER);
 	}
 
 }
@@ -1984,13 +1992,12 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	}
 
 	private _getDefaultMenuItemAction(actions: IAction[]): MenuItemAction | undefined {
-		const defaultActionConfig = this.configurationService.getValue<string | null>('scm.inputDefaultAction');
-		const [defaultActionSourceId, defaultActionCommandId] = defaultActionConfig?.split(':') ?? [undefined, undefined];
+		const defaultActionConfig = this.configurationService.getValue<SCMInputDefaultActionConfig | null>('scm.inputDefaultAction');
 
 		return actions
 			.find(a => a instanceof MenuItemAction &&
-				a.item.source?.id === defaultActionSourceId &&
-				a.id === defaultActionCommandId) as MenuItemAction;
+				a.item.source?.id === defaultActionConfig?.extensionId &&
+				a.id === defaultActionConfig?.commandId) as MenuItemAction;
 	}
 
 }

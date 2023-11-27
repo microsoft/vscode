@@ -261,7 +261,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 10
 		},
 		'scm.inputDefaultAction': {
-			type: ['string', 'null'],
+			type: ['object', 'null'],
 			markdownDescription: localize('inputDefaultAction', "Controls the default action for the the Source Control input box menu."),
 			default: null,
 		},
