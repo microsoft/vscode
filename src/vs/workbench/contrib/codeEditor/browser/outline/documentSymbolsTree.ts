@@ -134,12 +134,14 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 	renderElement(node: ITreeNode<OutlineElement, FuzzyScore>, _index: number, template: DocumentSymbolTemplate): void {
 		const { element } = node;
 		const extraClasses = ['nowrap'];
+		const title = localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind]);
 		const options: IIconLabelValueOptions = {
 			matches: createMatches(node.filterData),
 			labelEscapeNewLines: true,
 			extraClasses,
-			title: localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind])
+			title
 		};
+		template.container.title = title;
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
