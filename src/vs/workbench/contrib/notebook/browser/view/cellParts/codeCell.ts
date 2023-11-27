@@ -485,7 +485,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private layoutEditor(dimension: IDimension): void {
-		this.templateData.editor?.layout(dimension);
+		this.templateData.editor?.layout(dimension, true);
 	}
 
 	private onCellWidthChange(): void {
