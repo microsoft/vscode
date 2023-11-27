@@ -5,7 +5,6 @@
 
 import { h } from 'vs/base/browser/dom';
 import { assertNever } from 'vs/base/common/assert';
-import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
@@ -15,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { asCssVariableName, chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
+import { IExplorerFileContribution } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { AbstractFileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
@@ -63,16 +63,15 @@ export class ManagedTestCoverageBars extends Disposable {
 		}
 	});
 
-	private readonly changeEmitter = this._register(new Emitter<void>());
 	private readonly visibleStore = this._register(new DisposableStore());
 
-	/**
-	 * Event that fires whenver the displayed coverage is shown.
-	 */
-	public readonly onDidChange = this.changeEmitter.event;
+	/** Gets whether coverage is currently visible for the resource. */
+	public get visible() {
+		return !!this._coverage;
+	}
 
 	constructor(
-		private readonly options: TestCoverageBarsOptions,
+		protected readonly options: TestCoverageBarsOptions,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
@@ -111,7 +110,6 @@ export class ManagedTestCoverageBars extends Disposable {
 			if (this._coverage) {
 				this._coverage = undefined;
 				ds.clear();
-				this.changeEmitter.fire();
 			}
 			return;
 		}
@@ -134,9 +132,9 @@ export class ManagedTestCoverageBars extends Disposable {
 	private doRender(coverage: AbstractFileCoverage) {
 		const el = this.el.value;
 
+		const precision = this.options.compact ? 0 : 2;
 		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
-		el.overall.textContent = displayPercent(overallStat);
-
+		el.overall.textContent = displayPercent(overallStat, precision);
 		if ('tpcBar' in el) { // compact mode
 			renderBar(el.tpcBar, overallStat);
 		} else {
@@ -144,13 +142,10 @@ export class ManagedTestCoverageBars extends Disposable {
 			renderBar(el.function, coverage.function && percent(coverage.function));
 			renderBar(el.branch, coverage.branch && percent(coverage.branch));
 		}
-
-		this.changeEmitter.fire();
 	}
 }
 
 const percent = (cc: ICoveredCount) => cc.total === 0 ? 1 : cc.covered / cc.total;
-const precision = 2;
 const epsilon = 10e-8;
 
 const renderBar = (bar: HTMLElement, pct: number | undefined) => {
@@ -181,12 +176,12 @@ const calculateDisplayedStat = (coverage: AbstractFileCoverage, method: TestingD
 
 };
 
-const displayPercent = (value: number) => {
+const displayPercent = (value: number, precision = 2) => {
 	const display = (value * 100).toFixed(precision);
 
 	// avoid showing 100% coverage if it just rounds up:
 	if (value < 1 - epsilon && display === '100') {
-		return '99.99%';
+		return `${100 - (10 ** -precision)}%`;
 	}
 
 	return `${display}%`;
@@ -206,7 +201,7 @@ const getOverallHoverText = (coverage: AbstractFileCoverage) => new MarkdownStri
  * Renders test coverage bars for a resource in the given container. It will
  * not render anything unless a test coverage report has been opened.
  */
-export class TestCoverageBars extends ManagedTestCoverageBars {
+export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements IExplorerFileContribution {
 	private readonly resource = observableValue<URI | undefined>(this, undefined);
 
 	constructor(
@@ -223,7 +218,7 @@ export class TestCoverageBars extends ManagedTestCoverageBars {
 			if (coverage) {
 				const resource = this.resource.read(reader);
 				if (resource) {
-					info = coverage.getUri(resource);
+					info = coverage.getComputedForUri(resource);
 				}
 			}
 
@@ -231,11 +226,13 @@ export class TestCoverageBars extends ManagedTestCoverageBars {
 		}));
 	}
 
-	/**
-	 * Sets the resource for which coverage bars will be rendered. May immediately
-	 * cause the rendering of coverage bars.
-	 */
-	public setResource(resource: URI, transaction?: ITransaction) {
+	/** @inheritdoc */
+	public setResource(resource: URI | undefined, transaction?: ITransaction) {
 		this.resource.set(resource, transaction);
+	}
+
+	public override setCoverageInfo(coverage: AbstractFileCoverage | undefined) {
+		super.setCoverageInfo(coverage);
+		this.options.container?.classList.toggle('explorer-item-with-test-coverage', this.visible);
 	}
 }
