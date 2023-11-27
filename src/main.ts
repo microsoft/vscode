@@ -56,6 +56,14 @@ if (args['sandbox'] &&
 	app.commandLine.appendSwitch('disable-gpu-sandbox');
 }
 
+if (process.platform === 'linux') {
+	if (args['enable-native-wayland-client'] ||
+		argvConfig['enable-native-wayland-client']) {
+		app.commandLine.appendSwitch('ozone-platform-hint', 'auto');
+		app.commandLine.appendSwitch('enable-features', 'WaylandWindowDecorations');
+	}
+}
+
 // Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
 if (process.platform === 'win32') {
@@ -564,7 +572,9 @@ function parseCLIArgs(): NativeParsedArgs {
 		],
 		boolean: [
 			'disable-chromium-sandbox',
-		],
+		] + process.platform === 'linux' ? [
+			'enable-native-wayland-client',
+		] : [],
 		default: {
 			'sandbox': true
 		},
