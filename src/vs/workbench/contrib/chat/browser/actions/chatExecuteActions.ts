@@ -35,22 +35,21 @@ export class SubmitAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
 				group: 'navigation',
-			}
+			},
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]) {
-		const context: IChatExecuteActionContext = args[0];
+		const context: IChatExecuteActionContext | undefined = args[0];
 
 		const widgetService = accessor.get(IChatWidgetService);
-		const widget = context.widget ?? widgetService.lastFocusedWidget;
-		widget?.acceptInput(context.inputValue);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		widget?.acceptInput(context?.inputValue);
 	}
 }
 
 export function registerChatExecuteActions() {
 	registerAction2(SubmitAction);
-
 	registerAction2(class CancelAction extends Action2 {
 		constructor() {
 			super({

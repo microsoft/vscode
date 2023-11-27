@@ -559,7 +559,6 @@ export class InlineChatWidget {
 	}
 
 	updateToolbar(show: boolean) {
-		this._elements.extraToolbar.classList.toggle('hidden', !show);
 		this._elements.statusToolbar.classList.toggle('hidden', !show);
 		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
 		this._elements.status.classList.toggle('actions', show);
@@ -572,6 +571,7 @@ export class InlineChatWidget {
 	setExtraButtons(buttons: IAction[]) {
 		const bar = this._instantiationService.createInstance(WorkbenchButtonBar, this._elements.extraToolbar, { telemetrySource: 'inlineChat' });
 		bar.update(buttons);
+		this._elements.extraToolbar.classList.toggle('hidden', buttons.length === 0);
 		this._extraButtonsCleanup.value = bar;
 	}
 

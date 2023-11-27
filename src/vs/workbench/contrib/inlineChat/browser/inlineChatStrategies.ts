@@ -40,7 +40,7 @@ import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWord
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export abstract class EditModeStrategy {
 
@@ -49,6 +49,8 @@ export abstract class EditModeStrategy {
 
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
+
+	toggleDiff?: () => any;
 
 	constructor(protected readonly _zone: InlineChatZoneWidget) { }
 
@@ -605,6 +607,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
+	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
+
+	private readonly _ctxCurrentChangeHasDiff: IContextKey<boolean>;
+	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _modifiedRangesDecorations: IEditorDecorationsCollection;
 	private readonly _modifiedRangesThatHaveBeenInteractedWith: string[] = [];
@@ -615,17 +621,24 @@ export class LiveStrategy3 extends EditModeStrategy {
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super(zone);
+		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
+		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
 		this._modifiedRangesDecorations = this._editor.createDecorationsCollection();
+		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, _editor));
+
 	}
 
 	override dispose(): void {
+		this._ctxCurrentChangeHasDiff.reset();
+		this._ctxCurrentChangeShowsDiff.reset();
 		this._modifiedRangesDecorations.clear();
 		this._sessionStore.dispose();
 		this._store.dispose();
@@ -634,6 +647,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 
 	async apply() {
+		this._ctxCurrentChangeHasDiff.reset();
+		this._ctxCurrentChangeShowsDiff.reset();
 		this._sessionStore.clear();
 		this._modifiedRangesDecorations.clear();
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
@@ -650,6 +665,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	async cancel() {
+		this._ctxCurrentChangeHasDiff.reset();
+		this._ctxCurrentChangeShowsDiff.reset();
 		this._sessionStore.clear();
 		this._modifiedRangesDecorations.clear();
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
@@ -711,7 +728,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	private async _computeDiff(): Promise<IDocumentDiff> {
-		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			return { identical: false, quitEarly: false, changes: [], moves: [] };
@@ -750,8 +767,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 		this._sessionStore.clear();
 
-		this._updateSummaryMessage(diff.changes);
-
 		if (diff.identical || diff.changes.length === 0) {
 
 			if (isAfterManualInteraction) {
@@ -767,9 +782,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 		const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
 		const renderOptions = RenderOptions.fromEditor(this._editor);
 
-		let widgetData: { distance: number; position: Position; actions: IAction[] } | undefined;
+		let widgetData: { distance: number; position: Position; actions: IAction[]; index: number; toggleDiff?: () => any } | undefined;
 
-		for (const { original, modified, innerChanges } of diff.changes) {
+		for (let i = 0; i < diff.changes.length; i++) {
+			const { original, modified, innerChanges } = diff.changes[i];
 
 			const modifiedRange: Range = modified.isEmpty
 				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._session.textModelN.getLineLength(modified.startLineNumber))
@@ -852,30 +868,26 @@ export class LiveStrategy3 extends EditModeStrategy {
 						}
 					}),
 				];
-
-				if (!original.isEmpty) {
-					actions.push(toAction({
-						id: 'diff',
-						label: localize('compare', "Compare"),
-						checked: false,
-						class: ThemeIcon.asClassName(Codicon.diff),
-						run: () => {
-							const scrollState = StableEditorScrollState.capture(this._editor);
-							if (!viewZoneIds.has(myViewZoneId)) {
-								this._editor.changeViewZones(accessor => {
-									myViewZoneId = accessor.addZone(myViewZone);
-									viewZoneIds.add(myViewZoneId);
-								});
-							} else {
-								this._editor.changeViewZones(accessor => {
-									accessor.removeZone(myViewZoneId);
-									viewZoneIds.delete(myViewZoneId);
-								});
-							}
-							scrollState.restore(this._editor);
+				const toggleDiff = !original.isEmpty
+					? () => {
+						const scrollState = StableEditorScrollState.capture(this._editor);
+						if (!viewZoneIds.has(myViewZoneId)) {
+							this._editor.changeViewZones(accessor => {
+								myViewZoneId = accessor.addZone(myViewZone);
+								viewZoneIds.add(myViewZoneId);
+							});
+							this._ctxCurrentChangeShowsDiff.set(true);
+						} else {
+							this._editor.changeViewZones(accessor => {
+								accessor.removeZone(myViewZoneId);
+								viewZoneIds.delete(myViewZoneId);
+							});
+							this._ctxCurrentChangeShowsDiff.set(false);
 						}
-					}));
-				}
+						scrollState.restore(this._editor);
+					}
+					: undefined;
+
 
 				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
 
@@ -895,7 +907,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 					: zoneLineNumber - modifiedRange.endLineNumber;
 
 				if (!widgetData || widgetData.distance > myDistance) {
-					widgetData = { distance: myDistance, position: modifiedRange.getStartPosition().delta(-1), actions };
+					widgetData = { distance: myDistance, position: modifiedRange.getStartPosition().delta(-1), index: i, actions, toggleDiff };
 				}
 			}
 		}
@@ -904,6 +916,11 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._zone.widget.setExtraButtons(widgetData.actions);
 			this._zone.updatePositionAndHeight(widgetData.position);
 			this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+
+			this._updateSummaryMessage(diff.changes, widgetData.index);
+
+			this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
+			this.toggleDiff = widgetData.toggleDiff;
 		}
 
 		const decorations = this._editor.createDecorationsCollection(newDecorations);
@@ -925,10 +942,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	override async renderChanges(response: ReplyResponse) {
 
-		if (response.untitledTextModel) {
-			this._zone.widget.showCreatePreview(response.untitledTextModel);
+		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
+			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._zone.widget.hideCreatePreview();
+			this._previewZone.value.hide();
 		}
 
 		return await this._showDiff(true, false);
@@ -940,18 +957,16 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 	}
 
-	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[]) {
-		let linesChanged = 0;
-		for (const change of mappings) {
-			linesChanged += change.changedLineCount;
-		}
+	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[], index: number) {
+		const changesCount = mappings.length;
 		let message: string;
-		if (linesChanged === 0) {
-			message = localize('lines.0', "Nothing changed");
-		} else if (linesChanged === 1) {
-			message = localize('lines.1', "Changed 1 line");
+		if (changesCount === 0) {
+			message = localize('change.0', "Nothing changed");
+		} else if (changesCount === 1) {
+			message = localize('change.1', "1 change");
 		} else {
-			message = localize('lines.N', "Changed {0} lines", linesChanged);
+			// message = localize('lines.NM', "{0} of {1} changes", index + 1, changesCount);
+			message = localize('lines.NM', "{1} changes", index + 1, changesCount);
 		}
 		this._zone.widget.updateStatus(message);
 	}

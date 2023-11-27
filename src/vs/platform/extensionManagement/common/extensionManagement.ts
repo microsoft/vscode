@@ -423,6 +423,7 @@ export type InstallOptions = {
 	isBuiltin?: boolean;
 	isMachineScoped?: boolean;
 	isApplicationScoped?: boolean;
+	pinned?: boolean;
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;
