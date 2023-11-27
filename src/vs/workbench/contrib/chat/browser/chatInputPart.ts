@@ -42,6 +42,7 @@ import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatVie
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { IPosition } from 'vs/editor/common/core/position';
 
 const $ = dom.$;
 
@@ -79,7 +80,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private history: HistoryNavigator<string>;
-	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
+	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
+	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private providerId: string | undefined;
@@ -123,7 +125,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setState(providerId: string, inputValue: string | undefined): void {
 		this.providerId = providerId;
-		const history = this.historyService.getHistory(providerId);
+		const history = this.historyService.getHistory(providerId).map(h => typeof h === 'object' ? (h as any).text : h);
 		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
@@ -150,7 +152,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		aria.status(historyInput);
 		this.setValue(historyInput);
-		this.setHistoryNavigationEnablement(true);
+		if (previous) {
+			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
+		} else {
+			const model = this._inputEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			this._inputEditor.setPosition(getLastPosition(model));
+		}
 	}
 
 	setValue(value: string): void {
@@ -209,10 +220,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService]));
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
-		this.setHistoryNavigationEnablement = enabled => {
-			historyNavigationBackwardsEnablement.set(enabled);
-			historyNavigationForwardsEnablement.set(enabled);
-		};
+		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
+		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
 		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = false;
@@ -243,7 +252,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// (If this model change happened as a result of a history navigation, this is canceled out by a call in this.navigateHistory)
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValueLength() > 0;
-			this.setHistoryNavigationEnablement(!inputHasText);
 			this.inputEditorHasText.set(inputHasText);
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
@@ -254,6 +262,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			inputContainer.classList.toggle('focused', false);
 
 			this._onDidBlur.fire();
+		}));
+		this._register(this._inputEditor.onDidChangeCursorPosition(e => {
+			const model = this._inputEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			this.historyNavigationBackwardsEnablement.set(e.position.column === 1 && e.position.lineNumber === 1);
+			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
 		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
@@ -379,4 +396,8 @@ class SubmitButtonActionViewItem extends ActionViewItem {
 	protected override getTooltip(): string | undefined {
 		return this._tooltip;
 	}
+}
+
+function getLastPosition(model: ITextModel): IPosition {
+	return { lineNumber: model.getLineCount(), column: model.getLineLength(model.getLineCount()) + 1 };
 }
