@@ -1027,11 +1027,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		for (const entry of storedTasks.entries()) {
-			const key = entry[0];
-			const task = JSON.parse(entry[1]);
-			const folderInfo = this._getFolderFromTaskKey(key);
-			this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
-			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			try {
+				const key = entry[0];
+				const task = JSON.parse(entry[1]);
+				const folderInfo = this._getFolderFromTaskKey(key);
+				this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
+				addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			} catch (error) {
+				this._log(nls.localize('taskService.getSavedTasks.error', 'Fetching a task from task storage failed: {0}.', error), true);
+			}
 		}
 
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();

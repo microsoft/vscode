@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
@@ -135,7 +134,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _providers = new Map<string, IChatProvider>();
 
 	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
-	private readonly _pendingRequests = new Map<string, CancelablePromise<void>>();
+	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
 	private readonly _persistedSessions: ISerializableChatsData;
 	private readonly _hasProvider: IContextKey<boolean>;
 
@@ -461,7 +460,9 @@ export class ChatService extends Disposable implements IChatService {
 		let gotProgress = false;
 		const requestType = commandPart ? 'slashCommand' : 'string';
 
-		const rawResponsePromise = createCancelablePromise<void>(async token => {
+		const source = new CancellationTokenSource();
+		const token = source.token;
+		const sendRequestInternal = async () => {
 			const progressCallback = (progress: IChatProgress) => {
 				if (token.isCancellationRequested) {
 					return;
@@ -599,10 +600,11 @@ export class ChatService extends Disposable implements IChatService {
 			} finally {
 				listener.dispose();
 			}
-		});
-		this._pendingRequests.set(model.sessionId, rawResponsePromise);
+		};
+		const rawResponsePromise = sendRequestInternal();
+		this._pendingRequests.set(model.sessionId, source);
 		rawResponsePromise.finally(() => {
-			this._pendingRequests.delete(model.sessionId);
+			this._pendingRequests.deleteAndDispose(model.sessionId);
 		});
 		return rawResponsePromise;
 	}
@@ -662,6 +664,7 @@ export class ChatService extends Disposable implements IChatService {
 	cancelCurrentRequestForSession(sessionId: string): void {
 		this.trace('cancelCurrentRequestForSession', `sessionId: ${sessionId}`);
 		this._pendingRequests.get(sessionId)?.cancel();
+		this._pendingRequests.deleteAndDispose(sessionId);
 	}
 
 	clearSession(sessionId: string): void {
@@ -675,6 +678,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._sessionModels.deleteAndDispose(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
+		this._pendingRequests.deleteAndDispose(sessionId);
 		this._onDidDisposeSession.fire({ sessionId, providerId: model.providerId, reason: 'cleared' });
 	}
 

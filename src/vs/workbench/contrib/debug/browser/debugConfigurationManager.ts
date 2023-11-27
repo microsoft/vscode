@@ -244,6 +244,7 @@ export class ConfigurationManager implements IConfigurationManager {
 							await this.selectConfiguration(launch, config.name);
 							this.removeRecentDynamicConfigurations(config.name, config.type);
 						}));
+						disposables.add(input.onDidHide(() => resolve(undefined)));
 					});
 
 					const nestedPicks = await Promise.all(picks);

@@ -1534,6 +1534,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async triggerSearch(query: string): Promise<void> {
+		const progressRunner = this.editorProgressService.show(true);
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
@@ -1592,6 +1593,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.splitView.setViewVisible(0, true);
 			}
 		}
+		progressRunner.done();
 	}
 
 	/**
@@ -1663,17 +1665,13 @@ export class SettingsEditor2 extends EditorPane {
 		const searchInProgress = this.searchInProgress = new CancellationTokenSource();
 		return this.localSearchDelayer.trigger(async () => {
 			if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-				const progressRunner = this.editorProgressService.show(true);
 				const result = await this.localFilterPreferences(query);
 				if (result && !result.exactMatch) {
 					this.remoteSearchThrottle.trigger(async () => {
 						if (searchInProgress && !searchInProgress.token.isCancellationRequested) {
-							await this.remoteSearchPreferences(query, this.searchInProgress!.token);
+							await this.remoteSearchPreferences(query, this.searchInProgress?.token);
 						}
-						progressRunner.done();
 					});
-				} else {
-					progressRunner.done();
 				}
 			}
 		});

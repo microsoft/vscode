@@ -20,6 +20,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { TfIdfCalculator, TfIdfDocument } from 'vs/base/common/tfIdf';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -282,11 +283,17 @@ export class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		const descriptionRange = setting.descriptionRanges[lineIndex];
+		if (!descriptionRange) {
+			// This case occurs with added settings such as the
+			// manage extension setting.
+			return nullRange;
+		}
 		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
-			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
-			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+			startLineNumber: descriptionRange.startLineNumber,
+			startColumn: descriptionRange.startColumn + match.start,
+			endLineNumber: descriptionRange.endLineNumber,
+			endColumn: descriptionRange.startColumn + match.end
 		};
 	}
 

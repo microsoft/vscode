@@ -12,7 +12,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./toggle';
-import { isActiveElement } from 'vs/base/browser/dom';
+import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
@@ -219,6 +219,10 @@ export class Toggle extends Widget {
 }
 
 export class Checkbox extends Widget {
+
+	private readonly _onChange = this._register(new Emitter<boolean>());
+	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+
 	private checkbox: Toggle;
 	private styles: ICheckboxStyles;
 
@@ -235,7 +239,10 @@ export class Checkbox extends Widget {
 
 		this.applyStyles();
 
-		this._register(this.checkbox.onChange(() => this.applyStyles()));
+		this._register(this.checkbox.onChange(keyboard => {
+			this.applyStyles();
+			this._onChange.fire(keyboard);
+		}));
 	}
 
 	get checked(): boolean {
@@ -256,9 +263,100 @@ export class Checkbox extends Widget {
 		return isActiveElement(this.domNode);
 	}
 
+	enable(): void {
+		this.checkbox.enable();
+	}
+
+	disable(): void {
+		this.checkbox.disable();
+	}
+
 	protected applyStyles(): void {
 		this.domNode.style.color = this.styles.checkboxForeground || '';
 		this.domNode.style.backgroundColor = this.styles.checkboxBackground || '';
 		this.domNode.style.borderColor = this.styles.checkboxBorder || '';
 	}
+}
+
+export interface ICheckboxActionViewItemOptions extends IActionViewItemOptions {
+	checkboxStyles: ICheckboxStyles;
+}
+
+export class CheckboxActionViewItem extends BaseActionViewItem {
+
+	protected readonly toggle: Checkbox;
+	private cssClass?: string;
+
+	constructor(context: any, action: IAction, options: ICheckboxActionViewItemOptions) {
+		super(context, action, options);
+
+		this.toggle = this._register(new Checkbox(this._action.label, !!this._action.checked, options.checkboxStyles));
+		this._register(this.toggle.onChange(() => this.onChange()));
+	}
+
+	override render(container: HTMLElement): void {
+		this.element = container;
+		this.element.classList.add('checkbox-action-item');
+		this.element.appendChild(this.toggle.domNode);
+		if ((<IActionViewItemOptions>this.options).label && this._action.label) {
+			const label = this.element.appendChild($('span.checkbox-label', undefined, this._action.label));
+			this._register(addDisposableListener(label, EventType.CLICK, (e: MouseEvent) => {
+				this.toggle.checked = !this.toggle.checked;
+				e.stopPropagation();
+				e.preventDefault();
+				this.onChange();
+			}));
+		}
+
+		this.updateEnabled();
+		this.updateClass();
+		this.updateChecked();
+	}
+
+	private onChange(): void {
+		this._action.checked = !!this.toggle && this.toggle.checked;
+		this.actionRunner.run(this._action, this._context);
+	}
+
+	protected override updateEnabled(): void {
+		if (this.isEnabled()) {
+			this.toggle.enable();
+		} else {
+			this.toggle.disable();
+		}
+		if (this.action.enabled) {
+			this.element?.classList.remove('disabled');
+		} else {
+			this.element?.classList.add('disabled');
+		}
+	}
+
+	protected override updateChecked(): void {
+		this.toggle.checked = !!this._action.checked;
+	}
+
+	protected override updateClass(): void {
+		if (this.cssClass) {
+			this.toggle.domNode.classList.remove(...this.cssClass.split(' '));
+		}
+		this.cssClass = this.getClass();
+		if (this.cssClass) {
+			this.toggle.domNode.classList.add(...this.cssClass.split(' '));
+		}
+	}
+
+	override focus(): void {
+		this.toggle.domNode.tabIndex = 0;
+		this.toggle.focus();
+	}
+
+	override blur(): void {
+		this.toggle.domNode.tabIndex = -1;
+		this.toggle.domNode.blur();
+	}
+
+	override setFocusable(focusable: boolean): void {
+		this.toggle.domNode.tabIndex = focusable ? 0 : -1;
+	}
+
 }

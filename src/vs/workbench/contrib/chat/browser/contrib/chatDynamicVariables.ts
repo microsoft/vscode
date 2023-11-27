@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { coalesce } from 'vs/base/common/arrays';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -17,67 +18,97 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
-import { IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatRequestVariableValue, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-export const dynamicReferenceDecorationType = 'chat-dynamic-reference';
+export const dynamicVariableDecorationType = 'chat-dynamic-variable';
 
-export class ChatDynamicReferenceModel extends Disposable implements IChatWidgetContrib {
-	public static readonly ID = 'chatDynamicReferenceModel';
+export class ChatDynamicVariableModel extends Disposable implements IChatWidgetContrib {
+	public static readonly ID = 'chatDynamicVariableModel';
 
-	private readonly _references: IDynamicReference[] = [];
-	get references(): ReadonlyArray<IDynamicReference> {
-		return [...this._references];
+	private _variables: IDynamicVariable[] = [];
+	get variables(): ReadonlyArray<IDynamicVariable> {
+		return [...this._variables];
 	}
 
 	get id() {
-		return ChatDynamicReferenceModel.ID;
+		return ChatDynamicVariableModel.ID;
 	}
 
 	constructor(
 		private readonly widget: IChatWidget,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
-				this._references.forEach((ref, i) => {
+				// Don't mutate entries in _variables, since they will be returned from the getter
+				this._variables = coalesce(this._variables.map(ref => {
 					if (Range.areIntersecting(ref.range, c.range)) {
 						// The reference text was changed, it's broken
-						this._references.splice(i, 1);
+						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
-						ref.range = {
-							startLineNumber: ref.range.startLineNumber,
-							startColumn: ref.range.startColumn + delta,
-							endLineNumber: ref.range.endLineNumber,
-							endColumn: ref.range.endColumn + delta
+						return {
+							...ref,
+							range: {
+								startLineNumber: ref.range.startLineNumber,
+								startColumn: ref.range.startColumn + delta,
+								endLineNumber: ref.range.endLineNumber,
+								endColumn: ref.range.endColumn + delta
+							}
 						};
 					}
-				});
+
+					return ref;
+				}));
 			});
 
-			this.updateReferences();
+			this.updateDecorations();
 		}));
 	}
 
-	addReference(ref: IDynamicReference): void {
-		this._references.push(ref);
-		this.updateReferences();
+	getInputState(): any {
+		return this.variables;
 	}
 
-	private updateReferences(): void {
-		this.widget.inputEditor.setDecorationsByType('chat', dynamicReferenceDecorationType, this._references.map(r => (<IDecorationOptions>{
+	setInputState(s: any): void {
+		if (!Array.isArray(s)) {
+			// Something went wrong
+			this.logService.warn('ChatDynamicVariableModel.setInputState called with invalid state: ' + JSON.stringify(s));
+			return;
+		}
+
+		this._variables = s;
+		this.updateDecorations();
+	}
+
+	addReference(ref: IDynamicVariable): void {
+		this._variables.push(ref);
+		this.updateDecorations();
+	}
+
+	private updateDecorations(): void {
+		this.widget.inputEditor.setDecorationsByType('chat', dynamicVariableDecorationType, this._variables.map(r => (<IDecorationOptions>{
 			range: r.range,
-			hoverMessage: new MarkdownString(this.labelService.getUriLabel(r.data, { relative: true }))
+			hoverMessage: this.getHoverForReference(r)
 		})));
+	}
+
+	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
+		const value = ref.data[0];
+		if (URI.isUri(value.value)) {
+			return new MarkdownString(this.labelService.getUriLabel(value.value, { relative: true }));
+		} else {
+			return value.value.toString();
+		}
 	}
 }
 
-ChatWidget.CONTRIBS.push(ChatDynamicReferenceModel);
-
+ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
 
 interface SelectAndInsertFileActionContext {
-	widget: ChatWidget;
+	widget: IChatWidget;
 	range: IRange;
 }
 
@@ -135,10 +166,46 @@ export class SelectAndInsertFileAction extends Action2 {
 			return;
 		}
 
-		context.widget.getContrib<ChatDynamicReferenceModel>(ChatDynamicReferenceModel.ID)?.addReference({
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: resource
+			data: [{ level: 'full', value: resource }]
 		});
 	}
 }
 registerAction2(SelectAndInsertFileAction);
+
+export interface IAddDynamicVariableContext {
+	widget: IChatWidget;
+	range: IRange;
+	variableData: IChatRequestVariableValue[];
+}
+
+function isAddDynamicVariableContext(context: any): context is IAddDynamicVariableContext {
+	return 'widget' in context &&
+		'range' in context &&
+		'variableData' in context;
+}
+
+export class AddDynamicVariableAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.addDynamicVariable';
+
+	constructor() {
+		super({
+			id: AddDynamicVariableAction.ID,
+			title: '' // not displayed
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const context = args[0];
+		if (!isAddDynamicVariableContext(context)) {
+			return;
+		}
+
+		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			range: context.range,
+			data: context.variableData
+		});
+	}
+}
+registerAction2(AddDynamicVariableAction);

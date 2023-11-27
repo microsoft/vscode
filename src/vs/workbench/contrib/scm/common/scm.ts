@@ -14,6 +14,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -89,7 +90,7 @@ export interface ISCMInputValueProviderContext {
 export interface ISCMInputValueProvider {
 	readonly label: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined>;
+	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined>;
 }
 
 export const enum InputValidationType {
@@ -186,9 +187,9 @@ export interface ISCMService {
 	getRepository(id: string): ISCMRepository | undefined;
 
 	readonly onDidChangeInputValueProviders: Event<void>;
-	readonly inputValueProviders: Iterable<ISCMInputValueProvider>;
 
-	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
+	getDefaultInputValueProvider(repository: ISCMRepository): ISCMInputValueProvider | undefined;
+	registerSCMInputValueProvider(sourceControlId: string, provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {

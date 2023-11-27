@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -2487,7 +2487,7 @@ export class ReOpenInTextEditorAction extends Action2 {
 }
 
 
-abstract class BaseMoveCopyEditorToNewDetachedWindowAction extends Action2 {
+abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	constructor(
 		id: string,
@@ -2524,37 +2524,37 @@ abstract class BaseMoveCopyEditorToNewDetachedWindowAction extends Action2 {
 	}
 }
 
-export class MoveEditorToNewDetachedWindowAction extends BaseMoveCopyEditorToNewDetachedWindowAction {
+export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.moveEditorToNewDetachedWindow',
+			MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				value: localize('moveEditorToNewDetachedWindow', "Move Editor into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Detached Window"),
-				original: 'Move Editor into New Detached Window'
+				value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
+				original: 'Move Editor into New Window'
 			},
 			true
 		);
 	}
 }
 
-export class CopyEditorToNewDetachedWindowAction extends BaseMoveCopyEditorToNewDetachedWindowAction {
+export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.copyEditorToNewDetachedWindow',
+			COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
 			{
-				value: localize('copyEditorToNewDetachedWindow', "Copy Editor into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Detached Window"),
-				original: 'Copy Editor into New Detached Window'
+				value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
+				original: 'Copy Editor into New Window'
 			},
 			false
 		);
 	}
 }
 
-abstract class BaseMoveCopyEditorGroupToNewDetachedWindowAction extends Action2 {
+abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
 
 	constructor(
 		id: string,
@@ -2583,30 +2583,30 @@ abstract class BaseMoveCopyEditorGroupToNewDetachedWindowAction extends Action2 
 	}
 }
 
-export class MoveEditorGroupToNewDetachedWindowAction extends BaseMoveCopyEditorGroupToNewDetachedWindowAction {
+export class MoveEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.moveEditorGroupToNewDetachedWindow',
+			'workbench.action.moveEditorGroupToNewWindow',
 			{
-				value: localize('moveEditorGroupToNewDetachedWindow', "Move Editor Group into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Detached Window"),
-				original: 'Move Editor Group into New Detached Window'
+				value: localize('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Window"),
+				original: 'Move Editor Group into New Window'
 			},
 			true
 		);
 	}
 }
 
-export class CopyEditorGroupToNewDetachedWindowAction extends BaseMoveCopyEditorGroupToNewDetachedWindowAction {
+export class CopyEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
 
 	constructor() {
 		super(
-			'workbench.action.copyEditorGroupToNewDetachedWindow',
+			'workbench.action.copyEditorGroupToNewWindow',
 			{
-				value: localize('copyEditorGroupToNewDetachedWindow', "Copy Editor Group into New Detached Window"),
-				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewDetachedWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Detached Window"),
-				original: 'Copy Editor Group into New Detached Window'
+				value: localize('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Window"),
+				original: 'Copy Editor Group into New Window'
 			},
 			false
 		);
@@ -2617,11 +2617,11 @@ export class RestoreEditorsToMainWindowAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.restoreDetachedEditorsToMainWindow',
+			id: 'workbench.action.restoreEditorsToMainWindow',
 			title: {
-				value: localize('restoreDetachedEditorsToMainWindow', "Restore Detached Editors into Main Window"),
-				mnemonicTitle: localize({ key: 'miRestoreDetachedEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Detached Editors into Main Window"),
-				original: 'Restore Detached Editors into Main Window'
+				value: localize('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
+				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Editors into Main Window"),
+				original: 'Restore Editors into Main Window'
 			},
 			f1: true,
 			precondition: IsAuxiliaryWindowFocusedContext,

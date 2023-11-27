@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
@@ -217,6 +217,16 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 		agent.acceptAction(Object.freeze({ action: action.action, result }));
 	}
+
+	async $invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return [];
+		}
+
+		const items = await agent.invokeCompletionProvider(query, token);
+		return items.map(typeConvert.ChatAgentCompletionItem.from);
+	}
 }
 
 class ExtHostChatAgent {
@@ -235,6 +245,7 @@ class ExtHostChatAgent {
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
+	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -250,6 +261,14 @@ class ExtHostChatAgent {
 
 	acceptAction(event: vscode.ChatAgentUserActionEvent) {
 		this._onDidPerformAction.fire(event);
+	}
+
+	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatAgentCompletionItem[]> {
+		if (!this._agentVariableProvider) {
+			return [];
+		}
+
+		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
 	}
 
 	async validateSlashCommand(command: string) {
@@ -433,6 +452,21 @@ class ExtHostChatAgent {
 			},
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
+			},
+			set agentVariableProvider(v) {
+				that._agentVariableProvider = v;
+				if (v) {
+					if (!v.triggerCharacters.length) {
+						throw new Error('triggerCharacters are required');
+					}
+
+					that._proxy.$registerAgentCompletionsProvider(that._handle, v.triggerCharacters);
+				} else {
+					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
+				}
+			},
+			get agentVariableProvider() {
+				return that._agentVariableProvider;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
 				? undefined!
