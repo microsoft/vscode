@@ -188,7 +188,7 @@ class TestCoverageDataSource implements IAsyncDataSource<TestCoverageInput, Cove
 
 class TestCoverageCompressionDelegate implements ITreeCompressionDelegate<CoverageTreeElement> {
 	isIncompressible(element: CoverageTreeElement): boolean {
-		return isFunctionCoverage(element);
+		return isFunctionCoverage(element) || !element.children?.size;
 	}
 }
 
@@ -241,9 +241,7 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 
 	/** @inheritdoc */
 	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
-		const chain = node.element.elements;
-		const lastElement = chain[chain.length - 1];
-		this.doRender(lastElement as TestCoverageFileNode, templateData, node.filterData);
+		this.doRender(node.element.elements, templateData, node.filterData);
 	}
 
 	public disposeTemplate(templateData: TemplateData) {
@@ -251,15 +249,16 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 	}
 
 	/** @inheritdoc */
-	private doRender(element: TestCoverageFileNode, templateData: TemplateData, filterData: FuzzyScore | undefined) {
-		const file = element.value!;
+	private doRender(element: CoverageTreeElement | CoverageTreeElement[], templateData: TemplateData, filterData: FuzzyScore | undefined) {
+		const stat = (element instanceof Array ? element[element.length - 1] : element) as TestCoverageFileNode;
+		const file = stat.value!;
+		const name = element instanceof Array ? element.map(e => basenameOrAuthority((e as TestCoverageFileNode).value!.uri)) : basenameOrAuthority(file.uri);
 
 		templateData.bars.setCoverageInfo(file);
-		templateData.label.setFile(file.uri, {
-			fileKind: element.children?.size ? FileKind.FOLDER : FileKind.FILE,
+		templateData.label.setResource({ resource: file.uri, name }, {
+			fileKind: stat.children?.size ? FileKind.FOLDER : FileKind.FILE,
 			matches: createMatches(filterData),
 			separator: this.labelService.getSeparator(file.uri.scheme, file.uri.authority),
-			hidePath: true,
 			extraClasses: ['test-coverage-list-item-label'],
 		});
 	}

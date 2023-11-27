@@ -20,6 +20,7 @@ export const enum TestingConfigKeys {
 	CountBadge = 'testing.countBadge',
 	ShowAllMessages = 'testing.showAllMessages',
 	CoveragePercent = 'testing.displayedCoveragePercent',
+	ShowCoverageInExplorer = 'testing.showCoverageInExplorer',
 }
 
 export const enum AutoOpenTesting {
@@ -156,6 +157,11 @@ export const testingConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 		},
+		[TestingConfigKeys.ShowCoverageInExplorer]: {
+			description: localize('testing.ShowCoverageInExplorer', "Whether test coverage should be down in the File Explorer view."),
+			type: 'boolean',
+			default: true,
+		},
 		[TestingConfigKeys.CoveragePercent]: {
 			markdownDescription: localize('testing.displayedCoveragePercent', "Configures what percentage is displayed by default for test coverage."),
 			default: TestingDisplayedCoveragePercent.TotalCoverage,
@@ -186,6 +192,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
 	[TestingConfigKeys.ShowAllMessages]: boolean;
 	[TestingConfigKeys.CoveragePercent]: TestingDisplayedCoveragePercent;
+	[TestingConfigKeys.ShowCoverageInExplorer]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

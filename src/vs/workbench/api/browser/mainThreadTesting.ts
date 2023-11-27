@@ -131,7 +131,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 				return;
 			}
 
-			const fn = available ? ((token: CancellationToken) => TestCoverage.load({
+			const fn = available ? ((token: CancellationToken) => TestCoverage.load(taskId, {
 				provideFileCoverage: async token => await this.proxy.$provideFileCoverage(runId, taskId, token)
 					.then(c => c.map(IFileCoverage.deserialize)),
 				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token)

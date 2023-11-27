@@ -58,6 +58,7 @@ export const enum TestCommandId {
 	CollapseAllAction = 'testing.collapseAll',
 	ConfigureTestProfilesAction = 'testing.configureProfile',
 	ContinousRunUsingForTest = 'testing.continuousRunUsingForTest',
+	CoverageClose = 'testing.coverage.close',
 	DebugAction = 'testing.debug',
 	DebugAllAction = 'testing.debugAll',
 	DebugAtCursor = 'testing.debugAtCursor',

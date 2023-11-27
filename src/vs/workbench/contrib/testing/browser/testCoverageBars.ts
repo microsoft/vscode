@@ -8,7 +8,7 @@ import { assertNever } from 'vs/base/common/assert';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, observableValue } from 'vs/base/common/observable';
+import { ITransaction, autorun, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -212,10 +212,13 @@ export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements
 	) {
 		super(options, hoverService, configurationService);
 
+		const isEnabled = observableFromEvent(configurationService.onDidChangeConfiguration, () =>
+			getTestingConfiguration(configurationService, TestingConfigKeys.ShowCoverageInExplorer));
+
 		this._register(autorun(async reader => {
 			let info: AbstractFileCoverage | undefined;
 			const coverage = testCoverageService.selected.read(reader);
-			if (coverage) {
+			if (coverage && isEnabled.read(reader)) {
 				const resource = this.resource.read(reader);
 				if (resource) {
 					info = coverage.getComputedForUri(resource);

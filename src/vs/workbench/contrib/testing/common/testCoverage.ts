@@ -20,13 +20,13 @@ export interface ICoverageAccessor {
 export class TestCoverage {
 	private _tree?: WellDefinedPrefixTree<ComputedFileCoverage>;
 
-	public static async load(accessor: ICoverageAccessor, token: CancellationToken) {
+	public static async load(taskId: string, accessor: ICoverageAccessor, token: CancellationToken) {
 		const files = await accessor.provideFileCoverage(token);
 		const map = new ResourceMap<FileCoverage>();
 		for (const [i, file] of files.entries()) {
 			map.set(file.uri, new FileCoverage(file, i, accessor));
 		}
-		return new TestCoverage(map);
+		return new TestCoverage(taskId, map);
 	}
 
 	public get tree() {
@@ -34,6 +34,7 @@ export class TestCoverage {
 	}
 
 	constructor(
+		public readonly fromTaskId: string,
 		private readonly fileCoverage: ResourceMap<FileCoverage>,
 	) { }
 
