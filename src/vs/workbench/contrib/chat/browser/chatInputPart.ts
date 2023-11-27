@@ -51,6 +51,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
 
+	private _onDidLoadInputState = this._register(new Emitter<any>());
+	readonly onDidLoadInputState = this._onDidLoadInputState.event;
+
 	private _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
@@ -78,7 +81,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
-	private history: HistoryNavigator<string>;
+	private history: HistoryNavigator<{ text: string; state?: any }>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
@@ -124,7 +127,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setState(providerId: string, inputValue: string | undefined): void {
 		this.providerId = providerId;
-		const history = this.historyService.getHistory(providerId).map(h => typeof h === 'object' ? (h as any).text : h);
+		const history = this.historyService.getHistory(providerId);
 		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
@@ -147,10 +150,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private navigateHistory(previous: boolean): void {
 		const historyInput = (previous ?
 			(this.history.previous() ?? this.history.first()) : this.history.next())
-			?? '';
+			?? { text: '' };
 
-		aria.status(historyInput);
-		this.setValue(historyInput);
+		aria.status(historyInput.text);
+		this.setValue(historyInput.text);
+		this._onDidLoadInputState.fire(historyInput.state);
 		if (previous) {
 			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
 		} else {
@@ -181,9 +185,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(userQuery?: string): Promise<void> {
+	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
 		if (userQuery) {
-			this.history.add(userQuery);
+			this.history.add({ text: userQuery, state: inputState });
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
