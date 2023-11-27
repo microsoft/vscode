@@ -41,28 +41,35 @@ function hygiene(some, linting = true) {
 	const unicode = es.through(function (file) {
 		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
-		const skipAll = lines.some(line => /allow-any-unicode-file/.test(line));
-		if (!skipAll) {
-			let skipNext = false;
-			lines.forEach((line, i) => {
-				if (/allow-any-unicode-next-line/.test(line)) {
-					skipNext = true;
-					return;
+		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
+		let skipNext = false;
+		lines.forEach((line, i) => {
+			if (/allow-any-unicode-next-line/.test(line)) {
+				skipNext = true;
+				return;
+			}
+			if (skipNext) {
+				skipNext = false;
+				return;
+			}
+			// If unicode is allowed in comments, trim the comment from the line
+			if (allowInComments) {
+				if (line.match(/\s+(\*)/)) { // Naive multi-line comment check
+					line = '';
+				} else {
+					const index = line.indexOf('\/\/');
+					line = index === -1 ? line : line.substring(0, index);
 				}
-				if (skipNext) {
-					skipNext = false;
-					return;
-				}
-				// Please do not add symbols that resemble ASCII letters!
-				const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
-				if (m) {
-					console.error(
-						file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}" (charCode: ${m[0].charCodeAt(0)}). To suppress, use // allow-any-unicode-next-line`
-					);
-					errorCount++;
-				}
-			});
-		}
+			}
+			// Please do not add symbols that resemble ASCII letters!
+			const m = /([^\t\n\r\x20-\x7E⊃⊇✔︎✓🎯⚠️🛑🔴🚗🚙🚕🎉✨❗⇧⌥⌘×÷¦⋯…↑↓￫→←↔⟷·•●◆▼⟪⟫┌└├⏎↩√φ]+)/g.exec(line);
+			if (m) {
+				console.error(
+					file.relative + `(${i + 1},${m.index + 1}): Unexpected unicode character: "${m[0]}" (charCode: ${m[0].charCodeAt(0)}). To suppress, use // allow-any-unicode-next-line`
+				);
+				errorCount++;
+			}
+		});
 
 		this.emit('data', file);
 	});

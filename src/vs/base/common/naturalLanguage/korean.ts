@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// allow-any-unicode-file
+// allow-any-unicode-comment-file
 
 /**
  * Gets alternative Korean characters for the character code. This will return the ascii
