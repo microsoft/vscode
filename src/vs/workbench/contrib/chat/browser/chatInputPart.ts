@@ -31,7 +31,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { IChatExecuteActionContext, SubmitAction, SubmitSecondaryAgentAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -41,6 +41,7 @@ import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IPosition } from 'vs/editor/common/core/position';
 
 const $ = dom.$;
@@ -379,7 +380,7 @@ class SubmitButtonActionViewItem extends ActionViewItem {
 	) {
 		super(context, action, options);
 
-		const primaryKeybinding = keybindingService.lookupKeybinding(SubmitAction.ID)?.getLabel();
+		const primaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitEditorAction.ID)?.getLabel();
 		let tooltip = action.label;
 		if (primaryKeybinding) {
 			tooltip += ` (${primaryKeybinding})`;
@@ -387,7 +388,7 @@ class SubmitButtonActionViewItem extends ActionViewItem {
 
 		const secondaryAgent = chatAgentService.getSecondaryAgent();
 		if (secondaryAgent) {
-			const secondaryKeybinding = keybindingService.lookupKeybinding(SubmitSecondaryAgentAction.ID)?.getLabel();
+			const secondaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitSecondaryAgentEditorAction.ID)?.getLabel();
 			if (secondaryKeybinding) {
 				tooltip += `\n${chatAgentLeader}${secondaryAgent.id} (${secondaryKeybinding})`;
 			}
