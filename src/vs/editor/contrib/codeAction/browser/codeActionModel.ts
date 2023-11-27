@@ -75,7 +75,7 @@ class CodeActionOracle extends Disposable {
 			if (line.length === 0) {
 				// empty line
 				const showAiIconOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).showAiIcon === ShowAiIconMode.Always;
-				if (showAiIconOnEmptyLines) {
+				if (!showAiIconOnEmptyLines) {
 					return undefined;
 				}
 			} else if (column === 1) {
