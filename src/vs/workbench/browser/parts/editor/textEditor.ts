@@ -120,6 +120,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
+
 		return editorConfiguration;
 	}
 
