@@ -14,5 +14,6 @@ Keywords=vscode;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window
+Name[es]=Nueva ventana vacía
 Exec=@@EXEC@@ --new-window %F
 Icon=@@ICON@@
