@@ -2129,7 +2129,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return;
 		}
 
-		this.state.runtime.maximized.add(targetWindowId);
+		if (maximized) {
+			this.state.runtime.maximized.add(targetWindowId);
+		} else {
+			this.state.runtime.maximized.delete(targetWindowId);
+		}
 
 		this.updateWindowBorder(targetWindowId);
 		this._onDidChangeWindowMaximized.fire({ windowId: targetWindowId, maximized });

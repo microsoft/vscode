@@ -23,6 +23,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 class MultiDiffEditorResolverContribution extends Disposable {
 
@@ -51,9 +52,11 @@ class MultiDiffEditorResolverContribution extends Disposable {
 								return new MultiDiffEditorInputData(
 									resource.resource,
 									resource.original.resource,
-									resource.modified.resource
+									resource.modified.resource,
 								);
-							}))
+							}),
+							undefined,
+						),
 					};
 				}
 			}
@@ -72,13 +75,13 @@ class MultiDiffEditorSerializer implements IEditorSerializer {
 	}
 
 	serialize(editor: MultiDiffEditorInput): string | undefined {
-		return JSON.stringify({ label: editor.label, resources: editor.resources });
+		return JSON.stringify({ label: editor.label, resources: editor.resources, id: editor.id });
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
-			const data = parse(serializedEditor) as { label: string | undefined; resources: MultiDiffEditorInputData[] };
-			return instantiationService.createInstance(MultiDiffEditorInput, data.label, data.resources);
+			const data = parse(serializedEditor) as { label: string | undefined; resources: MultiDiffEditorInputData[]; id: string };
+			return instantiationService.createInstance(MultiDiffEditorInput, data.label, data.resources, data.id);
 		} catch (err) {
 			onUnexpectedError(err);
 			return undefined;
@@ -126,3 +129,13 @@ export class GoToFileAction extends Action2 {
 }
 
 registerAction2(GoToFileAction);
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	properties: {
+		'multiDiffEditor.experimental.enabled': {
+			type: 'boolean',
+			default: false,
+			description: 'Enable experimental multi diff editor.',
+		},
+	}
+});

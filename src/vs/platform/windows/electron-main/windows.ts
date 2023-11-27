@@ -30,6 +30,8 @@ export interface IWindowsMainService {
 
 	readonly onDidOpenWindow: Event<ICodeWindow>;
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidMaximizeWindow: Event<ICodeWindow>;
+	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 

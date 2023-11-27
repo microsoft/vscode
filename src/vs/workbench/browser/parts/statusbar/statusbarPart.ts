@@ -6,7 +6,7 @@
 import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
 import { Disposable, DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Part } from 'vs/workbench/browser/part';
+import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation, isStatusbarEntryPriority, IStatusbarEntryPriority } from 'vs/workbench/services/statusbar/browser/statusbar';
@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow, getActiveDocument } from 'vs/base/browser/dom';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -701,7 +701,7 @@ export class AuxiliaryStatusbarPart extends StatusbarPart implements IAuxiliaryS
 	}
 }
 
-export class StatusbarService extends Disposable implements IStatusbarService {
+export class StatusbarService extends MultiWindowParts<StatusbarPart> implements IStatusbarService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -712,7 +712,7 @@ export class StatusbarService extends Disposable implements IStatusbarService {
 	) {
 		super();
 
-		this._register(this.registerStatusbarPart(this.mainPart));
+		this._register(this.registerPart(this.mainPart));
 	}
 
 	//#region Auxiliary Statusbar Parts
@@ -727,7 +727,7 @@ export class StatusbarService extends Disposable implements IStatusbarService {
 		container.appendChild(statusbarPartContainer);
 
 		const statusbarPart = this.instantiationService.createInstance(AuxiliaryStatusbarPart, statusbarPartContainer);
-		const disposable = this.registerStatusbarPart(statusbarPart);
+		const disposable = this.registerPart(statusbarPart);
 
 		statusbarPart.create(statusbarPartContainer);
 
@@ -738,45 +738,6 @@ export class StatusbarService extends Disposable implements IStatusbarService {
 
 	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService {
 		return disposables.add(this.instantiationService.createInstance(ScopedStatusbarService, statusbarEntryContainer));
-	}
-
-	//#endregion
-
-	//#region Registration
-
-	private readonly parts = new Set<StatusbarPart>();
-
-	private registerStatusbarPart(part: StatusbarPart): IDisposable {
-		this.parts.add(part);
-
-		const disposables = this._register(new DisposableStore());
-		disposables.add(toDisposable(() => this.parts.delete(part)));
-
-		return disposables;
-	}
-
-	//#endregion
-
-	//#region Helpers
-
-	getPart(container: HTMLElement): IStatusbarEntryContainer {
-		return this.getPartByDocument(container.ownerDocument);
-	}
-
-	private get activePart(): StatusbarPart {
-		return this.getPartByDocument(getActiveDocument());
-	}
-
-	private getPartByDocument(document: Document): StatusbarPart {
-		if (this.parts.size > 1) {
-			for (const part of this.parts) {
-				if (part.element?.ownerDocument === document) {
-					return part;
-				}
-			}
-		}
-
-		return this.mainPart;
 	}
 
 	//#endregion

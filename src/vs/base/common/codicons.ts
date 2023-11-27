@@ -581,6 +581,7 @@ export const Codicon = {
 	gitFetch: register('git-fetch', 0xec1d),
 	copilot: register('copilot', 0xec1e),
 	lightbulbSparkle: register('lightbulb-sparkle', 0xec1f),
+	robot: register('robot', 0xec20),
 
 	// derived icons, that could become separate icons
 

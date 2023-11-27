@@ -297,8 +297,25 @@
 	padding: 1px 3px 1px 1px;
 }
 
-.scm-view .scm-input .scm-editor .scm-editor-toolbar.hidden {
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.hidden,
+.scm-view .scm-input .scm-editor .scm-editor-toolbar .monaco-action-bar.hidden,
+.scm-view .scm-input .scm-editor .scm-editor-toolbar .monaco-toolbar.hidden {
 	display: none;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item {
+	cursor: default;
+	opacity: 0.6;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-label:hover {
+	outline: unset;
+	outline-offset: unset;
+	background-color: unset;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item.monaco-dropdown-with-primary:hover {
+	background-color: unset;
 }
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar.scroll-decoration {
