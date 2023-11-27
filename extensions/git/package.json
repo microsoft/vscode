@@ -773,24 +773,6 @@
         "title": "%command.viewStagedChanges%",
         "icon": "$(tasklist)",
         "category": "Git"
-      },
-      {
-        "command": "git.generateCommitMessage1",
-        "title": "Generate Commit Message (Test 1)",
-        "icon": "$(rocket)",
-        "category": "Git"
-      },
-      {
-        "command": "git.generateCommitMessage2",
-        "title": "Generate Commit Message (Test 2)",
-        "icon": "$(squirrel)",
-        "category": "Git"
-      },
-      {
-        "command": "git.generateCommitMessage3",
-        "title": "Generate Commit Message (Test 3)",
-        "icon": "$(github-alt)",
-        "category": "Git"
       }
     ],
     "continueEditSession": [
