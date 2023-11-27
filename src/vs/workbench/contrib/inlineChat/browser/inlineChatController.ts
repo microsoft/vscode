@@ -1025,6 +1025,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	toggleDiff() {
+		this._strategy?.toggleDiff?.();
+	}
+
 	feedbackLast(kind: InlineChatResponseFeedbackKind) {
 		if (this._activeSession?.lastExchange && this._activeSession.lastExchange.response instanceof ReplyResponse) {
 			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);

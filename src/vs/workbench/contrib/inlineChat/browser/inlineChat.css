@@ -119,7 +119,7 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
 	align-self: baseline;
-	display: flex;
+	display: inline-flex;
 }
 
 .monaco-editor .inline-chat .status .label.hidden {
@@ -141,7 +141,6 @@
 	padding-left: 10px;
 	padding-right: 4px;
 	margin-left: auto;
-	align-self: center;
 }
 
 .monaco-editor .inline-chat .status .label .slash-command-pill CODE {
