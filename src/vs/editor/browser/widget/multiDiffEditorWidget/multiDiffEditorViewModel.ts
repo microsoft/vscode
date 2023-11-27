@@ -28,9 +28,11 @@ export class MultiDiffEditorViewModel extends Disposable {
 	}
 
 	public collapseAll(): void {
-		for (const d of this.items.get()) {
-			d.collapsed.set(true, undefined);
-		}
+                transaction(tx => {
+		    for (const d of this.items.get()) {
+			    d.collapsed.set(true, tx);
+		    }
+		});
 	}
 
 	constructor(
