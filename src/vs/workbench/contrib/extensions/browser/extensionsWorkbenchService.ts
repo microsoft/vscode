@@ -1314,6 +1314,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.updateExtensionsPinnedState();
 		if (this.isAutoUpdateEnabled()) {
 			this.checkForUpdates();
+		} else {
+			this.setSelectedExtensionsToAutoUpdate([]);
 		}
 	}
 
