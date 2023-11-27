@@ -150,15 +150,8 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
-.monaco-editor .inline-chat .markdownMessage {
-	padding: 10px 5px;
-}
 
-.monaco-editor .inline-chat .markdownMessage.hidden {
-	display: none;
-}
-
-.monaco-editor .inline-chat .markdownMessage .message * {
+/* .monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;
 }
 
@@ -169,13 +162,10 @@
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
-}
+} */
 
-.monaco-editor .inline-chat .markdownMessage .message .interactive-result-code-block {
-	margin: 16px 0;
-}
 
-.monaco-editor .inline-chat .markdownMessage .message {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent .value {
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
@@ -184,11 +174,11 @@
 	user-select: text;
 }
 
-.monaco-editor .inline-chat .markdownMessage .message[state="cropped"] {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="cropped"] .value {
 	-webkit-line-clamp: var(--vscode-inline-chat-cropped, 3);
 }
 
-.monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="expanded"] .value {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
