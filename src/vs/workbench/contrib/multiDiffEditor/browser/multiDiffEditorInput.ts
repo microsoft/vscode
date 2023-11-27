@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
-import { isObject } from 'vs/base/common/types';
+import { isDefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
@@ -21,6 +22,7 @@ import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities } from 'vs/workbenc
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
 
+/* hot-reload:patch-prototype-methods */
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	static readonly ID: string = 'workbench.input.multiDiffEditor';
 
@@ -83,13 +85,22 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const store = new DisposableStore();
-		const rs = await Promise.all(this.resources.map(async r => ({
-			originalRef: r.original ? store.add(await this._textModelService.createModelReference(r.original)) : undefined,
-			originalModel: !r.original ? store.add(this._modelService.createModel('', null)) : undefined,
-			modifiedRef: r.modified ? store.add(await this._textModelService.createModelReference(r.modified)) : undefined,
-			modifiedModel: !r.modified ? store.add(this._modelService.createModel('', null)) : undefined,
-			title: r.resource.fsPath,
-		})));
+		const rs = (await Promise.all(this.resources.map(async r => {
+			try {
+				return {
+					originalRef: r.original ? store.add(await this._textModelService.createModelReference(r.original)) : undefined,
+					originalModel: !r.original ? store.add(this._modelService.createModel('', null)) : undefined,
+					modifiedRef: r.modified ? store.add(await this._textModelService.createModelReference(r.modified)) : undefined,
+					modifiedModel: !r.modified ? store.add(this._modelService.createModel('', null)) : undefined,
+					title: r.resource.fsPath,
+				};
+			} catch (e) {
+				// e.g. "File seems to be binary and cannot be opened as text"
+				console.error(e);
+				onUnexpectedError(e);
+				return undefined;
+			}
+		}))).filter(isDefined);
 
 		const textResourceConfigurationService = this._textResourceConfigurationService;
 

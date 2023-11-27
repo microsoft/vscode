@@ -2163,6 +2163,34 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
 		updateEnablement(input.enabled);
 
+		// Toolbar
+		const onDidChangeActionButton = () => {
+			this.actionBar.clear();
+
+			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
+
+			if (input.actionButton && defaultProvider === undefined) {
+				const action = new Action(
+					input.actionButton.command.id,
+					input.actionButton.command.title,
+					ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
+					input.actionButton.enabled,
+					() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
+
+				this.actionBar.push(action, { icon: true, label: false });
+			}
+
+			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
+			this.actionBar.domNode.classList.toggle('hidden', !showInputActionButton || this.actionBar.isEmpty());
+
+			this.layout();
+		};
+
+		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
+		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeActionButton, this));
+		this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(onDidChangeActionButton, this));
+		onDidChangeActionButton();
+
 		// Toolbar (new)
 		this.createToolbar(input);
 	}
@@ -2235,10 +2263,12 @@ class SCMInputWidget {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
