@@ -1775,8 +1775,7 @@ class HistoryItemViewChangesAction extends Action2 {
 registerAction2(HistoryItemViewChangesAction);
 
 const enum SCMInputCommandId {
-	CancelAction = 'scm.input.cancelAction',
-	SelectDefaultAction = 'scm.input.selectDefaultAction'
+	CancelAction = 'scm.input.cancelAction'
 }
 
 const SCMInputContextKeys = {
@@ -1817,9 +1816,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			}
 
 			this._runningActions.add(action);
-			if (action.id !== SCMInputCommandId.SelectDefaultAction) {
-				this._ctxIsActionRunning.set(true);
-			}
+			this._ctxIsActionRunning.set(true);
 
 			const context: ISCMInputValueProviderContext[] = [];
 			for (const group of this.input.repository.provider.groups) {
