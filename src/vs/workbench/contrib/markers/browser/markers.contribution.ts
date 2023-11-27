@@ -568,12 +568,12 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			this.markersStatusItem.update(this.getMarkersItem());
 			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 		}));
-		this.configurationService.onDidChangeConfiguration(e => {
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
 				this.markersStatusItem.update(this.getMarkersItem());
 				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 			}
-		});
+		}));
 	}
 
 	private getMarkersItem(): IStatusbarEntry {
