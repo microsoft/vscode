@@ -231,7 +231,6 @@ export class NotebookCellOutlineProvider {
 		updateMarkerUpdater();
 		this._entriesDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
-				console.log('changing');
 				updateMarkerUpdater();
 				this._onDidChange.fire({});
 			}

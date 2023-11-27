@@ -564,8 +564,10 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'error-kind', StatusbarAlignment.LEFT, 49));
-		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
-		this.markerService.onMarkerChanged(() => this.markersStatusItemOff.update(this.getMarkersItemTurnedOff()));
+		this._register(this.markerService.onMarkerChanged(() => {
+			this.markersStatusItem.update(this.getMarkersItem());
+			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
+		}));
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
 				this.markersStatusItem.update(this.getMarkersItem());
@@ -588,36 +590,21 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
 		const config = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		if (config.renderValidationDecorations === 'on' || config.renderValidationDecorations === 'editable') {
+		if (config.renderValidationDecorations !== 'off') {
 			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
 		}
 
 		const openSettingsCommand = 'workbench.action.openSettings';
 		const configureSettingsLabel = 'editor.renderValidationDecorations';
-		const tooltip = this.getMarkersTurnedOffTooltip();
+		const tooltip = config.renderValidationDecorations === 'off' ? localize('problemsOff', "Problems have been turned off.") : '';
 		return {
 			name: localize('status.problems.off', "Problems"),
-			text: this.markersOffText(),
+			text: '$(whole-word)',
 			ariaLabel: tooltip,
 			tooltip,
 			kind: 'warning',
 			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
 		};
-	}
-
-	private getMarkersTurnedOffTooltip(): string {
-		const config = this.configurationService.getValue<ICodeEditorOptions>('editor');
-		if (config.renderValidationDecorations === 'off') {
-			return localize('problemsOff', "Problems have been turned off.");
-		}
-		return '';
-	}
-
-	private markersOffText(): string {
-		const problemsText: string[] = [];
-		// Highlighted Codicon to indicate `renderValidationDecorations` is off
-		problemsText.push('$(whole-word)');
-		return problemsText.join(' ');
 	}
 
 	private getMarkersTooltip(stats: MarkerStatistics): string {
