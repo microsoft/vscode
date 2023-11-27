@@ -6,7 +6,7 @@
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 
@@ -135,7 +135,7 @@ export namespace IRichLocation {
 		uri: UriComponents;
 	}
 
-	export const serialize = (location: IRichLocation): Serialize => ({
+	export const serialize = (location: Readonly<IRichLocation>): Serialize => ({
 		range: location.range.toJSON(),
 		uri: location.uri.toJSON(),
 	});
@@ -170,7 +170,7 @@ export namespace ITestErrorMessage {
 		location: IRichLocation.Serialize | undefined;
 	}
 
-	export const serialize = (message: ITestErrorMessage): Serialized => ({
+	export const serialize = (message: Readonly<ITestErrorMessage>): Serialized => ({
 		message: message.message,
 		type: TestMessageType.Error,
 		expected: message.expected,
@@ -213,7 +213,7 @@ export namespace ITestOutputMessage {
 		location: IRichLocation.Serialize | undefined;
 	}
 
-	export const serialize = (message: ITestOutputMessage): Serialized => ({
+	export const serialize = (message: Readonly<ITestOutputMessage>): Serialized => ({
 		message: message.message,
 		type: TestMessageType.Output,
 		offset: message.offset,
@@ -235,7 +235,7 @@ export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
 export namespace ITestMessage {
 	export type Serialized = ITestErrorMessage.Serialized | ITestOutputMessage.Serialized;
 
-	export const serialize = (message: ITestMessage): Serialized =>
+	export const serialize = (message: Readonly<ITestMessage>): Serialized =>
 		message.type === TestMessageType.Error ? ITestErrorMessage.serialize(message) : ITestOutputMessage.serialize(message);
 
 	export const deserialize = (message: Serialized): ITestMessage =>
@@ -261,7 +261,7 @@ export namespace ITestTaskState {
 		messages: [],
 	});
 
-	export const serialize = (state: ITestTaskState): Serialized => ({
+	export const serialize = (state: Readonly<ITestTaskState>): Serialized => ({
 		state: state.state,
 		duration: state.duration,
 		messages: state.messages.map(ITestMessage.serialize),
@@ -329,7 +329,7 @@ export namespace ITestItem {
 		sortText: string | null;
 	}
 
-	export const serialize = (item: ITestItem): Serialized => ({
+	export const serialize = (item: Readonly<ITestItem>): Serialized => ({
 		extId: item.extId,
 		label: item.label,
 		tags: item.tags,
@@ -381,7 +381,7 @@ export namespace InternalTestItem {
 		item: ITestItem.Serialized;
 	}
 
-	export const serialize = (item: InternalTestItem): Serialized => ({
+	export const serialize = (item: Readonly<InternalTestItem>): Serialized => ({
 		expand: item.expand,
 		item: ITestItem.serialize(item.item)
 	});
@@ -412,7 +412,7 @@ export namespace ITestItemUpdate {
 		item?: Partial<ITestItem.Serialized>;
 	}
 
-	export const serialize = (u: ITestItemUpdate): Serialized => {
+	export const serialize = (u: Readonly<ITestItemUpdate>): Serialized => {
 		let item: Partial<ITestItem.Serialized> | undefined;
 		if (u.item) {
 			item = {};
@@ -490,7 +490,7 @@ export namespace TestResultItem {
 		tasks: original.tasks.map(ITestTaskState.serializeWithoutMessages),
 	});
 
-	export const serialize = (original: TestResultItem): Serialized => ({
+	export const serialize = (original: Readonly<TestResultItem>): Serialized => ({
 		...InternalTestItem.serialize(original),
 		ownComputedState: original.ownComputedState,
 		computedState: original.computedState,
@@ -530,6 +530,14 @@ export interface ICoveredCount {
 	total: number;
 }
 
+export namespace ICoveredCount {
+	export const empty = (): ICoveredCount => ({ covered: 0, total: 0 });
+	export const sum = (target: ICoveredCount, src: Readonly<ICoveredCount>) => {
+		target.covered += src.covered;
+		target.total += src.total;
+	};
+}
+
 export interface IFileCoverage {
 	uri: URI;
 	statement: ICoveredCount;
@@ -538,6 +546,48 @@ export interface IFileCoverage {
 	details?: CoverageDetails[];
 }
 
+
+export namespace IFileCoverage {
+	export interface Serialized {
+		uri: UriComponents;
+		statement: ICoveredCount;
+		branch?: ICoveredCount;
+		function?: ICoveredCount;
+		details?: CoverageDetails.Serialized[];
+	}
+
+	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({
+		statement: original.statement,
+		branch: original.branch,
+		function: original.function,
+		details: original.details?.map(CoverageDetails.serialize),
+		uri: original.uri.toJSON(),
+	});
+
+	export const deserialize = (serialized: Serialized): IFileCoverage => ({
+		statement: serialized.statement,
+		branch: serialized.branch,
+		function: serialized.function,
+		details: serialized.details?.map(CoverageDetails.deserialize),
+		uri: URI.from(serialized.uri),
+	});
+}
+
+function serializeThingWithLocation<T extends { location?: Range | Position }>(serialized: T): T & { location?: IRange | IPosition } {
+	return {
+		...serialized,
+		location: serialized.location?.toJSON(),
+	};
+}
+
+function deserializeThingWithLocation<T extends { location?: IRange | IPosition }>(serialized: T): T & { location?: Range | Position } {
+	serialized.location = serialized.location ? (Position.isIPosition(serialized.location) ? Position.lift(serialized.location) : Range.lift(serialized.location)) : undefined;
+	return serialized as T & { location?: Range | Position };
+}
+
+/** Number of recent runs in which coverage reports should be retained. */
+export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
+
 export const enum DetailType {
 	Function,
 	Statement,
@@ -545,22 +595,74 @@ export const enum DetailType {
 
 export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
 
+export namespace CoverageDetails {
+	export type Serialized = IFunctionCoverage.Serialized | IStatementCoverage.Serialized;
+
+	export const serialize = (original: Readonly<CoverageDetails>): Serialized =>
+		original.type === DetailType.Function ? IFunctionCoverage.serialize(original) : IStatementCoverage.serialize(original);
+
+	export const deserialize = (serialized: Serialized): CoverageDetails =>
+		serialized.type === DetailType.Function ? IFunctionCoverage.deserialize(serialized) : IStatementCoverage.deserialize(serialized);
+}
+
 export interface IBranchCoverage {
 	count: number;
-	location?: IRange | IPosition;
+	location?: Range | Position;
+}
+
+export namespace IBranchCoverage {
+	export interface Serialized {
+		count: number;
+		location?: IRange | IPosition;
+	}
+
+	export const serialize: (original: IBranchCoverage) => Serialized = serializeThingWithLocation;
+	export const deserialize: (original: Serialized) => IBranchCoverage = deserializeThingWithLocation;
 }
 
 export interface IFunctionCoverage {
 	type: DetailType.Function;
+	name: string;
 	count: number;
-	location?: IRange | IPosition;
+	location?: Range | Position;
+}
+
+export namespace IFunctionCoverage {
+	export interface Serialized {
+		type: DetailType.Function;
+		name: string;
+		count: number;
+		location?: IRange | IPosition;
+	}
+
+	export const serialize: (original: IFunctionCoverage) => Serialized = serializeThingWithLocation;
+	export const deserialize: (original: Serialized) => IFunctionCoverage = deserializeThingWithLocation;
 }
 
 export interface IStatementCoverage {
 	type: DetailType.Statement;
 	count: number;
-	location: IRange | IPosition;
+	location: Range | Position;
 	branches?: IBranchCoverage[];
+}
+
+export namespace IStatementCoverage {
+	export interface Serialized {
+		type: DetailType.Statement;
+		count: number;
+		location: IRange | IPosition;
+		branches?: IBranchCoverage.Serialized[];
+	}
+
+	export const serialize = (original: Readonly<IStatementCoverage>): Serialized => ({
+		...serializeThingWithLocation(original),
+		branches: original.branches?.map(IBranchCoverage.serialize),
+	});
+
+	export const deserialize = (serialized: Serialized): IStatementCoverage => ({
+		...deserializeThingWithLocation(serialized),
+		branches: serialized.branches?.map(IBranchCoverage.deserialize),
+	});
 }
 
 export const enum TestDiffOpType {
@@ -615,7 +717,7 @@ export namespace TestsDiffOp {
 		}
 	};
 
-	export const serialize = (u: TestsDiffOp): Serialized => {
+	export const serialize = (u: Readonly<TestsDiffOp>): Serialized => {
 		if (u.op === TestDiffOpType.Add) {
 			return { op: u.op, item: InternalTestItem.serialize(u.item) };
 		} else if (u.op === TestDiffOpType.Update) {

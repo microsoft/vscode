@@ -180,6 +180,7 @@
 		"--vscode-editorCodeLens-foreground",
 		"--vscode-editorCommentsWidget-rangeActiveBackground",
 		"--vscode-editorCommentsWidget-rangeBackground",
+		"--vscode-editorCommentsWidget-replyInputBackground",
 		"--vscode-editorCommentsWidget-resolvedBorder",
 		"--vscode-editorCommentsWidget-unresolvedBorder",
 		"--vscode-editorCursor-background",
@@ -418,6 +419,7 @@
 		"--vscode-minimapSlider-activeBackground",
 		"--vscode-minimapSlider-background",
 		"--vscode-minimapSlider-hoverBackground",
+		"--vscode-multiDiffEditor-headerBackground",
 		"--vscode-notebook-cellBorderColor",
 		"--vscode-notebook-cellEditorBackground",
 		"--vscode-notebook-cellHoverBackground",
@@ -497,6 +499,10 @@
 		"--vscode-quickInputList-focusIconForeground",
 		"--vscode-quickInputTitle-background",
 		"--vscode-sash-hoverBorder",
+		"--vscode-scm-historyItemAdditionsForeground",
+		"--vscode-scm-historyItemDeletionsForeground",
+		"--vscode-scm-historyItemSelectedStatisticsBorder",
+		"--vscode-scm-historyItemStatisticsBorder",
 		"--vscode-scrollbar-shadow",
 		"--vscode-scrollbarSlider-activeBackground",
 		"--vscode-scrollbarSlider-background",
@@ -666,6 +672,8 @@
 		"--vscode-terminalCursor-foreground",
 		"--vscode-terminalOverviewRuler-cursorForeground",
 		"--vscode-terminalOverviewRuler-findMatchForeground",
+		"--vscode-terminalStickyScroll-background",
+		"--vscode-terminalStickyScrollHover-background",
 		"--vscode-testing-iconErrored",
 		"--vscode-testing-iconFailed",
 		"--vscode-testing-iconPassed",
@@ -783,6 +791,7 @@
 		"--z-index-notebook-scrollbar",
 		"--z-index-run-button-container",
 		"--z-index-notebook-sticky-scroll",
-		"--zoom-factor"
+		"--zoom-factor",
+		"--test-bar-width"
 	]
 }

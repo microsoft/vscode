@@ -170,7 +170,10 @@ const ModulesToLookFor = [
 	'@azure/web-pubsub',
 	'@azure/web-pubsub-client',
 	'@azure/web-pubsub-client-protobuf',
-	'@azure/web-pubsub-express'
+	'@azure/web-pubsub-express',
+	'@azure/openai',
+	'@azure/arm-hybridkubernetes',
+	'@azure/arm-kubernetesconfiguration'
 ];
 
 const PyMetaModulesToLookFor = [
@@ -206,6 +209,7 @@ const PyModulesToLookFor = [
 	'azure-cognitiveservices-nspkg',
 	'azure-cognitiveservices-language-nspkg',
 	'azure-cognitiveservices-knowledge-nspkg',
+	'azure-containerregistry',
 	'azure-communication-identity',
 	'azure-communication-phonenumbers',
 	'azure-communication-email',
@@ -288,6 +292,8 @@ const PyModulesToLookFor = [
 	'azure-iothub-device-client',
 	'azure-shell',
 	'azure-translator',
+	'azure-mgmt-hybridkubernetes',
+	'azure-mgmt-kubernetesconfiguration',
 	'adal',
 	'pydocumentdb',
 	'botbuilder-core',
@@ -538,6 +544,9 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/web-pubsub-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/web-pubsub-client-protobuf" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/web-pubsub-express" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/openai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/arm-hybridkubernetes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/arm-kubernetesconfiguration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native-macos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -650,6 +659,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.azure-shell" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-storage" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-translator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-mgmt-hybridkubernetes" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-mgmt-kubernetesconfiguration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.adal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.pydocumentdb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

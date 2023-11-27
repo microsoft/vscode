@@ -20,7 +20,8 @@ declare module 'vscode' {
 		onDidChangeActionButton: Event<void>;
 
 		/**
-		 * Fires when the current history item group changes (ex: checkout)
+		 * Fires when the current history item group changes after
+		 * a user action (ex: commit, checkout, fetch, pull, push)
 		 */
 		onDidChangeCurrentHistoryItemGroup: Event<void>;
 
@@ -52,6 +53,12 @@ declare module 'vscode' {
 		readonly label: string;
 	}
 
+	export interface SourceControlHistoryItemStatistics {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	}
+
 	export interface SourceControlHistoryItem {
 		readonly id: string;
 		readonly parentIds: string[];
@@ -59,6 +66,7 @@ declare module 'vscode' {
 		readonly description?: string;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
+		readonly statistics?: SourceControlHistoryItemStatistics;
 	}
 
 	export interface SourceControlHistoryItemChange {

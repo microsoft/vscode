@@ -243,6 +243,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
 			},
+			'workbench.editor.dragToOpenWindow': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new window. Press and hold `Alt`-key while dragging to toggle this dynamically.")
+			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
 				'description': localize('focusRecentEditorAfterClose', "Controls whether editors are closed in most recently used order or from left to right."),
@@ -731,7 +736,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': (isWeb && !isStandalone()) ? 'keyboardOnly' : 'never', // on by default in web, unless PWA, never on desktop
 				'markdownDescription': isWeb ?
 					localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases.") :
-					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing the window or quitting the application."),
+					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing a window or quitting the application."),
 				'scope': ConfigurationScope.APPLICATION
 			}
 		}
@@ -811,17 +816,21 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'workbench.editor.doubleClickTabToToggleEditorGroupSizes', migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
 			if (typeof value === 'boolean') {
 				value = value ? 'expand' : 'off';
+				results.push(['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value }]);
 			}
-			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: value }]];
+			return results;
 		}
 	}, {
 		key: LayoutSettings.EDITOR_TABS_MODE, migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
 			if (typeof value === 'boolean') {
 				value = value ? EditorTabsMode.MULTIPLE : EditorTabsMode.SINGLE;
+				results.push([LayoutSettings.EDITOR_TABS_MODE, { value }]);
 			}
-			return [[LayoutSettings.EDITOR_TABS_MODE, { value }]];
+			return results;
 		}
 	}, {
 		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {

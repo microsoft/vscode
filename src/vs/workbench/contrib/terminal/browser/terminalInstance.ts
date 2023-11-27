@@ -52,13 +52,13 @@ import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShell
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -88,7 +88,6 @@ import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser
 import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { $window } from 'vs/base/browser/window';
 
 const enum Constants {
 	/**
@@ -202,7 +201,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	get target(): TerminalLocation | undefined { return this._target; }
-	set target(value: TerminalLocation | undefined) { this._target = value; }
+	set target(value: TerminalLocation | undefined) {
+		this._target = value;
+		this._onDidChangeTarget.fire(value);
+	}
 
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI { return this._resource; }
@@ -323,6 +325,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidRunText = this._register(new Emitter<void>());
 	readonly onDidRunText = this._onDidRunText.event;
+	private readonly _onDidChangeTarget = this._register(new Emitter<TerminalLocation | undefined>());
+	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -638,8 +642,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return null;
 		}
 
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
-		const newRC = getXtermScaledDimensions(font, dimension.width, dimension.height);
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
+		const newRC = getXtermScaledDimensions(dom.getWindow(this.domElement), font, dimension.width, dimension.height);
 		if (!newRC) {
 			this._setLastKnownColsAndRows();
 			return null;
@@ -668,7 +672,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getDimension(width: number, height: number): ICanvasDimensions | undefined {
 		// The font needs to have been initialized
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
 		if (!font || !font.charWidth || !font.charHeight) {
 			return undefined;
 		}
@@ -719,22 +723,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._configHelper,
 			this._cols,
 			this._rows,
-			{
-				getBackgroundColor: (theme) => {
-					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
-					if (terminalBackground) {
-						return terminalBackground;
-					}
-					if (this.target === TerminalLocation.Editor) {
-						return theme.getColor(editorBackground);
-					}
-					const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-					if (location === ViewContainerLocation.Panel) {
-						return theme.getColor(PANEL_BACKGROUND);
-					}
-					return theme.getColor(SIDE_BAR_BACKGROUND);
-				}
-			},
+			this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this),
 			this.capabilities,
 			this._processManager.shellIntegrationNonce,
 			this._terminalSuggestWidgetVisibleContextKey,
@@ -830,7 +819,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		xterm.raw.loadAddon(this._lineDataEventAddon!);
 	}
 
-	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
+	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
@@ -841,7 +830,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await timeout(100);
 		}
 		// Use bracketed paste mode only when not running the command
-		await this.sendText(commandLine, addNewLine, !addNewLine);
+		await this.sendText(commandLine, shouldExecute, !shouldExecute);
 	}
 
 	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
@@ -902,6 +891,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.xterm = xterm.raw;
 
 		const screenElement = xterm.attachToElement(xtermElement);
+
+		// Fire xtermOpen on all contributions
+		for (const contribution of this._contributions.values()) {
+			if (!this.xterm) {
+				this._xtermReadyPromise.then(xterm => contribution.xtermOpen?.(xterm));
+			} else {
+				contribution.xtermOpen?.(this.xterm);
+			}
+		}
 
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
@@ -1211,7 +1209,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		if (force || !$window.getSelection()?.toString()) {
+		if (force || !dom.getActiveWindow().getSelection()?.toString()) {
 			this.xterm.raw.focus();
 			this._onDidRequestFocus.fire();
 		}
@@ -1251,7 +1249,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm.raw.paste(currentText);
 	}
 
-	async sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void> {
+	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
 		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
 		// the text from triggering keybindings and ensure new lines are handled properly
 		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
@@ -1260,7 +1258,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && !text.endsWith('\r')) {
+		if (shouldExecute && !text.endsWith('\r')) {
 			text += '\r';
 		}
 
@@ -1272,8 +1270,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidRunText.fire();
 	}
 
-	async sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void> {
-		return this.sendText(await this.preparePathForShell(originalPath), addNewLine);
+	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
+		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
 	}
 
 	async preparePathForShell(originalPath: string | URI): Promise<string> {
@@ -1635,9 +1633,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		let retries = 0;
 		return new Promise<void>(r => {
-			const interval = setInterval(() => {
+			const interval = dom.disposableWindowInterval(dom.getActiveWindow().window, () => {
 				if (this._latestXtermWriteData === this._latestXtermParseData || ++retries === 5) {
-					clearInterval(interval);
+					interval.dispose();
 					r();
 				}
 			}, 20);
@@ -2038,7 +2036,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _addScrollbar(): Promise<void> {
-		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont()).charWidth;
+		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement))).charWidth;
 		if (!this.xterm?.raw.element || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}
@@ -2178,7 +2176,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async changeIcon() {
+	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
+		if (icon) {
+			this._icon = icon;
+			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return icon;
+		}
 		type Item = IQuickPickItem & { icon: TerminalIcon };
 		const items: Item[] = [];
 		for (const icon of getAllCodicons()) {
@@ -2191,10 +2194,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (result) {
 			this._icon = result.icon;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return this._icon;
 		}
+		return;
 	}
 
-	async changeColor() {
+	async changeColor(color?: string): Promise<string | undefined> {
+		if (color) {
+			this.shellLaunchConfig.color = color;
+			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return color;
+		}
 		const icon = this._getIcon();
 		if (!icon) {
 			return;
@@ -2232,6 +2242,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		quickPick.hide();
 		colorStyleDisposable.dispose();
+		return result?.id;
 	}
 
 	selectPreviousSuggestion(): void {
@@ -2565,4 +2576,28 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+
+export class TerminalInstanceColorProvider implements IXtermColorProvider {
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+	) {
+	}
+
+	getBackgroundColor(theme: IColorTheme) {
+		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+		if (terminalBackground) {
+			return terminalBackground;
+		}
+		if (this._instance.target === TerminalLocation.Editor) {
+			return theme.getColor(editorBackground);
+		}
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+		if (location === ViewContainerLocation.Panel) {
+			return theme.getColor(PANEL_BACKGROUND);
+		}
+		return theme.getColor(SIDE_BAR_BACKGROUND);
+	}
 }

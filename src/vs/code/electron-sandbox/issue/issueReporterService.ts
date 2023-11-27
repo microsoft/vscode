@@ -278,6 +278,16 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private async getReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
+		try {
+			const data = await this.issueMainService.$getReporterStatus(extension.id, extension.name);
+			return data;
+		} catch (e) {
+			console.error(e);
+			return [false, false];
+		}
+	}
+
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
@@ -1132,6 +1142,15 @@ export class IssueReporter extends Disposable {
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
+
+					// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
+					if (!matches[0].hasIssueDataProviders && !matches[0].hasIssueUriRequestHandler) {
+						const toActivate = await this.getReporterStatus(matches[0]);
+						matches[0].hasIssueDataProviders = toActivate[0];
+						matches[0].hasIssueUriRequestHandler = toActivate[1];
+						this.renderBlocks();
+					}
+
 					if (matches[0].hasIssueUriRequestHandler) {
 						this.updateIssueReporterUri(matches[0]);
 					} else if (matches[0].hasIssueDataProviders) {
@@ -1208,6 +1227,8 @@ export class IssueReporter extends Disposable {
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		showLoading.append(element);
+
+		this.renderBlocks();
 	}
 
 	private removeLoading(element: HTMLElement) {

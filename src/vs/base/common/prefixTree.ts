@@ -3,7 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Iterable } from 'vs/base/common/iterator';
+
 const unset = Symbol('unset');
+
+export interface IPrefixTreeNode<T> {
+	/** Possible children of the node. */
+	children?: ReadonlyMap<string, Node<T>>;
+
+	/** The value if data exists for this node in the tree. Mutable. */
+	value: T | undefined;
+}
 
 /**
  * A simple prefix tree implementation where a value is stored based on
@@ -17,14 +27,19 @@ export class WellDefinedPrefixTree<V> {
 		return this._size;
 	}
 
+	/** Gets the top-level nodes of the tree */
+	public get nodes(): Iterable<IPrefixTreeNode<V>> {
+		return this.root.children?.values() || Iterable.empty();
+	}
+
 	/** Inserts a new value in the prefix tree. */
 	insert(key: Iterable<string>, value: V): void {
-		this.opNode(key, n => n.value = value);
+		this.opNode(key, n => n._value = value);
 	}
 
 	/** Mutates a value in the prefix tree. */
 	mutate(key: Iterable<string>, mutate: (value?: V) => V): void {
-		this.opNode(key, n => n.value = mutate(n.value === unset ? undefined : n.value));
+		this.opNode(key, n => n._value = mutate(n._value === unset ? undefined : n._value));
 	}
 
 	/** Deletes a node from the prefix tree, returning the value it contained. */
@@ -41,7 +56,7 @@ export class WellDefinedPrefixTree<V> {
 			i++;
 		}
 
-		const value = path[i].node.value;
+		const value = path[i].node._value;
 		if (value === unset) {
 			return; // not actually a real node
 		}
@@ -50,7 +65,7 @@ export class WellDefinedPrefixTree<V> {
 		for (; i > 0; i--) {
 			const parent = path[i - 1];
 			parent.node.children!.delete(path[i].part);
-			if (parent.node.children!.size > 0 || parent.node.value !== unset) {
+			if (parent.node.children!.size > 0 || parent.node._value !== unset) {
 				break;
 			}
 		}
@@ -70,7 +85,7 @@ export class WellDefinedPrefixTree<V> {
 			node = next;
 		}
 
-		return node.value === unset ? undefined : node.value;
+		return node._value === unset ? undefined : node._value;
 	}
 
 	/** Gets whether the tree has the key, or a parent of the key, already inserted. */
@@ -81,7 +96,7 @@ export class WellDefinedPrefixTree<V> {
 			if (!next) {
 				return false;
 			}
-			if (next.value !== unset) {
+			if (next._value !== unset) {
 				return true;
 			}
 
@@ -118,7 +133,7 @@ export class WellDefinedPrefixTree<V> {
 			node = next;
 		}
 
-		return node.value !== unset;
+		return node._value !== unset;
 	}
 
 	private opNode(key: Iterable<string>, fn: (node: Node<V>) => void): void {
@@ -137,7 +152,7 @@ export class WellDefinedPrefixTree<V> {
 			}
 		}
 
-		if (node.value === unset) {
+		if (node._value === unset) {
 			this._size++;
 		}
 
@@ -149,8 +164,8 @@ export class WellDefinedPrefixTree<V> {
 		const stack = [this.root];
 		while (stack.length > 0) {
 			const node = stack.pop()!;
-			if (node.value !== unset) {
-				yield node.value;
+			if (node._value !== unset) {
+				yield node._value;
 			}
 
 			if (node.children) {
@@ -162,7 +177,16 @@ export class WellDefinedPrefixTree<V> {
 	}
 }
 
-class Node<T> {
+class Node<T> implements IPrefixTreeNode<T>  {
 	public children?: Map<string, Node<T>>;
-	public value: T | typeof unset = unset;
+
+	public get value() {
+		return this._value === unset ? undefined : this._value;
+	}
+
+	public set value(value: T | undefined) {
+		this._value = value === undefined ? unset : value;
+	}
+
+	public _value: T | typeof unset = unset;
 }

@@ -210,6 +210,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		// implement in subclass
 	}
 
+	protected getClass(): string | undefined {
+		return this.action.class;
+	}
+
 	protected getTooltip(): string | undefined {
 		return this.action.tooltip;
 	}
@@ -369,9 +373,8 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
-
 		if (this.options.icon) {
-			this.cssClass = this.action.class;
+			this.cssClass = this.getClass();
 
 			if (this.label) {
 				this.label.classList.add('codicon');
@@ -419,7 +422,7 @@ export class ActionViewItem extends BaseActionViewItem {
 				this.label.setAttribute('role', 'checkbox');
 			} else {
 				this.label.classList.remove('checked');
-				this.label.setAttribute('aria-checked', '');
+				this.label.removeAttribute('aria-checked');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

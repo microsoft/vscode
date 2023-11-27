@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { CancellationError } from 'vs/base/common/errors';
+import { BugIndicatingError, CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { MicrotaskDelay } from './symbols';
+import { Lazy } from 'vs/base/common/lazy';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -519,20 +520,6 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 		store?.deleteAndLeak(disposable);
 	});
 	store?.add(disposable);
-	return disposable;
-}
-
-export function disposableInterval(context: typeof globalThis, handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
-	let iteration = 0;
-	const timer = context.setInterval(() => {
-		iteration++;
-		if (iteration >= iterations || handler()) {
-			disposable.dispose();
-		}
-	}, interval);
-	const disposable = toDisposable(() => {
-		context.clearInterval(timer);
-	});
 	return disposable;
 }
 
@@ -1219,6 +1206,9 @@ export interface IdleDeadline {
 	timeRemaining(): number;
 }
 
+type IdleApi = Pick<typeof globalThis, 'requestIdleCallback' | 'cancelIdleCallback'>;
+
+
 /**
  * Execute the callback the next time the browser is idle, returning an
  * {@link IDisposable} that will cancel the callback when disposed. This wraps
@@ -1236,31 +1226,29 @@ export interface IdleDeadline {
  * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
  * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
  * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
+ *
+ * **Note** that there is `dom.ts#runWhenWindowIdle` which is better suited when running inside a browser
+ * context
  */
-export let runWhenIdle: (targetWindow: typeof globalThis, callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+export let runWhenGlobalIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
-/**
- * @deprecated use `runWhenIdle` instead passing in the target window
- */
-export let globalRunWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
-
-declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
-declare function cancelIdleCallback(handle: number): void;
+export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
 (function () {
-	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		runWhenIdle = (targetWindow, runner) => {
+	if (typeof globalThis.requestIdleCallback !== 'function' || typeof globalThis.cancelIdleCallback !== 'function') {
+		_runWhenIdle = (_targetWindow, runner) => {
 			setTimeout0(() => {
 				if (disposed) {
 					return;
 				}
 				const end = Date.now() + 15; // one frame at 64fps
-				runner(Object.freeze({
+				const deadline: IdleDeadline = {
 					didTimeout: true,
 					timeRemaining() {
 						return Math.max(0, end - Date.now());
 					}
-				}));
+				};
+				runner(Object.freeze(deadline));
 			});
 			let disposed = false;
 			return {
@@ -1273,7 +1261,7 @@ declare function cancelIdleCallback(handle: number): void;
 			};
 		};
 	} else {
-		runWhenIdle = (targetWindow: any, runner, timeout?) => {
+		_runWhenIdle = (targetWindow: IdleApi, runner, timeout?) => {
 			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
@@ -1287,14 +1275,10 @@ declare function cancelIdleCallback(handle: number): void;
 			};
 		};
 	}
-	globalRunWhenIdle = (runner) => runWhenIdle(globalThis, runner);
+	runWhenGlobalIdle = (runner) => _runWhenIdle(globalThis, runner);
 })();
 
-/**
- * An implementation of the "idle-until-urgent"-strategy as introduced
- * here: https://philipwalton.com/articles/idle-until-urgent/
- */
-export class IdleValue<T> {
+export abstract class AbstractIdleValue<T> {
 
 	private readonly _executor: () => void;
 	private readonly _handle: IDisposable;
@@ -1303,7 +1287,7 @@ export class IdleValue<T> {
 	private _value?: T;
 	private _error: unknown;
 
-	constructor(targetWindow: typeof globalThis, executor: () => T) {
+	constructor(targetWindow: IdleApi, executor: () => T) {
 		this._executor = () => {
 			try {
 				this._value = executor();
@@ -1313,7 +1297,7 @@ export class IdleValue<T> {
 				this._didRun = true;
 			}
 		};
-		this._handle = runWhenIdle(targetWindow, () => this._executor());
+		this._handle = _runWhenIdle(targetWindow, () => this._executor());
 	}
 
 	dispose(): void {
@@ -1337,9 +1321,12 @@ export class IdleValue<T> {
 }
 
 /**
- * @deprecated use `IdleValue` instead passing in the target window
+ * An `IdleValue` that always uses the current window (which might be throttled or inactive)
+ *
+ * **Note** that there is `dom.ts#WindowIdleValue` which is better suited when running inside a browser
+ * context
  */
-export class GlobalIdleValue<T> extends IdleValue<T> {
+export class GlobalIdleValue<T> extends AbstractIdleValue<T> {
 
 	constructor(executor: () => T) {
 		super(globalThis, executor);
@@ -1635,6 +1622,67 @@ export namespace Promises {
 				reject(error);
 			}
 		});
+	}
+}
+
+export class StatefulPromise<T> {
+	private _value: T | undefined = undefined;
+	get value(): T | undefined { return this._value; }
+
+	private _error: unknown = undefined;
+	get error(): unknown { return this._error; }
+
+	private _isResolved = false;
+	get isResolved() { return this._isResolved; }
+
+	public readonly promise: Promise<T>;
+
+	constructor(promise: Promise<T>) {
+		this.promise = promise.then(
+			value => {
+				this._value = value;
+				this._isResolved = true;
+				return value;
+			},
+			error => {
+				this._error = error;
+				this._isResolved = true;
+				throw error;
+			}
+		);
+	}
+
+	public requireValue(): T {
+		if (!this._isResolved) {
+			throw new BugIndicatingError('Promise is not resolved yet');
+		}
+		if (this._error) {
+			throw this._error;
+		}
+		return this._value!;
+	}
+}
+
+export class LazyStatefulPromise<T> {
+	private _promise = new Lazy(() => new StatefulPromise(this._compute()));
+
+	constructor(
+		private readonly _compute: () => Promise<T>,
+	) { }
+
+	/**
+	 * Returns the resolved value.
+	 * Crashes if the promise is not resolved yet.
+	 */
+	public requireValue(): T {
+		return this._promise.value.requireValue();
+	}
+
+	/**
+	 * Returns the promise (and triggers a computation of the promise if not yet done so).
+	 */
+	public getPromise(): Promise<T> {
+		return this._promise.value.promise;
 	}
 }
 

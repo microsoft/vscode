@@ -28,6 +28,7 @@ export class DiffEditorSash extends Disposable {
 		private readonly _options: DiffEditorOptions,
 		private readonly _domNode: HTMLElement,
 		private readonly _dimensions: { height: IObservable<number>; width: IObservable<number> },
+		private readonly _sashes: IObservable<IBoundarySashes | undefined, void>,
 	) {
 		super();
 
@@ -43,6 +44,13 @@ export class DiffEditorSash extends Disposable {
 		this._register(this._sash.onDidReset(() => this._sashRatio.set(undefined, undefined)));
 
 		this._register(autorun(reader => {
+			const sashes = this._sashes.read(reader);
+			if (sashes) {
+				this._sash.orthogonalEndSash = sashes.bottom;
+			}
+		}));
+
+		this._register(autorun(reader => {
 			/** @description DiffEditorSash.layoutSash */
 			const enabled = this._options.enableSplitViewResizing.read(reader);
 			this._sash.state = enabled ? SashState.Enabled : SashState.Disabled;
@@ -50,10 +58,6 @@ export class DiffEditorSash extends Disposable {
 			this._dimensions.height.read(reader);
 			this._sash.layout();
 		}));
-	}
-
-	setBoundarySashes(sashes: IBoundarySashes): void {
-		this._sash.orthogonalEndSash = sashes.bottom;
 	}
 
 	/** @pure */
