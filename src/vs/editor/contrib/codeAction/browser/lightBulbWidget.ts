@@ -250,7 +250,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const highlightAIActions = this._editor.getOption(EditorOption.lightbulb).showAiIcon;
 		if (highlightAIActions) {
 			if (this.state.actions.allAIFixes) {
-				icon = Codicon.sparkleOpaque;
+				icon = Codicon.sparkleFilled;
 			} else if (this.state.actions.hasAutoFix) {
 				if (this.state.actions.hasAIFix) {
 					icon = Codicon.lightbulbSparkleAutofix;

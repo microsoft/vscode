@@ -583,7 +583,7 @@ export const Codicon = {
 	lightbulbSparkle: register('lightbulb-sparkle', 0xec1f),
 	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
 	robot: register('robot', 0xec20),
-	sparkleOpaque: register('sparkle-opaque', 0xec21),
+	sparkleFilled: register('sparkle-filled', 0xec21),
 
 	// derived icons, that could become separate icons
 
