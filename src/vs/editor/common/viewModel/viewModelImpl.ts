@@ -257,6 +257,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
+		if (e.hasChanged(EditorOption.renderValidationDecorations)) {
+			this._decorations.reset();
+			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+		}
+
 		eventsCollector.emitViewEvent(new viewEvents.ViewConfigurationChangedEvent(e));
 		this.viewLayout.onConfigurationChanged(e);
 
