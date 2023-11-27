@@ -640,6 +640,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		this._ctxCurrentChangeHasDiff.reset();
 		this._ctxCurrentChangeShowsDiff.reset();
 		this._modifiedRangesDecorations.clear();
+		this._previewZone.rawValue?.dispose();
 		this._sessionStore.dispose();
 		this._store.dispose();
 		super.dispose();
