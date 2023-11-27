@@ -102,7 +102,7 @@ stages:
               $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
               mkdir "$nodeGypDir"
               npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
-              $env:npm_config_node_gyp = "${nodeGypDir}/node-gyp.ps1"
+              $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
               $env:npm_config_arch = "$(NPM_ARCH)"
               retry { exec { yarn --frozen-lockfile --check-files } }
             env:
