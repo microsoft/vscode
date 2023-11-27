@@ -2116,11 +2116,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getSelectedExtensionsToAutoUpdateValue(): string {
-		return this.storageService.get(EXTENSIONS_AUTO_UPDATE_KEY, StorageScope.PROFILE, '[]');
+		return this.storageService.get(EXTENSIONS_AUTO_UPDATE_KEY, StorageScope.APPLICATION, '[]');
 	}
 
 	private setSelectedExtensionsToAutoUpdateValue(value: string): void {
-		this.storageService.store(EXTENSIONS_AUTO_UPDATE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(EXTENSIONS_AUTO_UPDATE_KEY, value, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 }
