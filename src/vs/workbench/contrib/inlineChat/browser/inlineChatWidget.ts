@@ -232,6 +232,8 @@ export class InlineChatWidget {
 	private _chatMessageDisposables = this._store.add(new DisposableStore());
 	private _followUpDisposables = this._store.add(new DisposableStore());
 
+	private _chatMessage: MarkdownString | undefined;
+
 	constructor(
 		private readonly parentEditor: ICodeEditor,
 		_options: IInlineChatWidgetConstructionOptions,
@@ -582,7 +584,7 @@ export class InlineChatWidget {
 	}
 
 	get responseContent(): string | undefined {
-		return this._elements.chatMessageContent.textContent ?? undefined;
+		return this._chatMessage?.value;
 	}
 
 	updateChatMessage(message: IInlineChatMessage, isIncomplete: true): IInlineChatMessageAppender;
@@ -590,6 +592,7 @@ export class InlineChatWidget {
 	updateChatMessage(message: IInlineChatMessage | undefined, isIncomplete?: boolean): IInlineChatMessageAppender | undefined {
 		let expansionState: ExpansionState;
 		this._chatMessageDisposables.clear();
+		this._chatMessage = message ? new MarkdownString(message.message.value) : undefined;
 		const hasMessage = message?.message.value;
 		this._elements.chatMessage.classList.toggle('hidden', !hasMessage);
 		reset(this._elements.chatMessageContent);
@@ -618,14 +621,18 @@ export class InlineChatWidget {
 				expansionState = this._preferredExpansionState;
 				this._preferredExpansionState = undefined;
 			} else {
-				expansionState = this._elements.chatMessageContent.scrollHeight > this._elements.chatMessageContent.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
+				this._updateLineClamp(ExpansionState.CROPPED);
+				expansionState = template.value.scrollHeight > template.value.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
 			this._ctxMessageCropState.set(expansionState);
 			this._updateLineClamp(expansionState);
 			resultingAppender = isIncomplete ? {
 				cancel: () => responseModel.cancel(),
 				complete: () => responseModel.complete(),
-				appendContent: (fragment: string) => responseModel.updateContent({ kind: 'markdownContent', content: new MarkdownString(fragment) }),
+				appendContent: (fragment: string) => {
+					responseModel.updateContent({ kind: 'markdownContent', content: new MarkdownString(fragment) });
+					this._chatMessage?.appendMarkdown(fragment);
+				}
 			} : undefined;
 		}
 		this._expansionState = expansionState;
