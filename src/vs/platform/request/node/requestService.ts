@@ -154,7 +154,7 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 					followRedirects: followRedirects - 1
 				};
 				if (res.statusCode === 303) {
-					newRequest.type = "GET";
+					newRequest.type = 'GET';
 				}
 				nodeRequest(newRequest, token).then(resolve, reject);
 			} else {
