@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { derivedWithStore, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
@@ -28,10 +28,10 @@ export class MultiDiffEditorViewModel extends Disposable {
 	}
 
 	public collapseAll(): void {
-                transaction(tx => {
-		    for (const d of this.items.get()) {
-			    d.collapsed.set(true, tx);
-		    }
+		transaction(tx => {
+			for (const d of this.items.get()) {
+				d.collapsed.set(true, tx);
+			}
 		});
 	}
 
