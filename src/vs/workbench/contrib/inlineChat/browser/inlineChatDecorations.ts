@@ -87,6 +87,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
 		}));
+		this._editor.onDidBlurEditorText(() => this._onEnablementOrModelChanged());
+		this._editor.onDidFocusEditorText(() => this._onEnablementOrModelChanged());
 		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
 	}
@@ -122,7 +124,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (!this._editor.hasModel() || !this._editor.hasTextFocus() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
