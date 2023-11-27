@@ -260,11 +260,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
 			default: 10
 		},
-		'scm.inputDefaultAction': {
-			type: ['object', 'null'],
-			markdownDescription: localize('inputDefaultAction', "Controls the default action for the the Source Control input box menu."),
-			default: null,
-		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),

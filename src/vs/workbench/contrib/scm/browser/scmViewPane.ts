@@ -103,8 +103,6 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ICommandAction } from 'vs/platform/action/common/action';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1786,11 +1784,6 @@ const SCMInputContextKeys = {
 	ActionIsRunning: new RawContextKey<boolean>('scmInputActionIsRunning', false),
 };
 
-type SCMInputDefaultActionConfig = {
-	readonly extensionId?: string;
-	readonly commandId: string;
-};
-
 class SCMInputWidgetActionRunner extends ActionRunner {
 
 	private _runningActions = new Set<IAction>();
@@ -1799,7 +1792,8 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 	constructor(
 		private readonly input: ISCMInput,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -1837,6 +1831,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			this._cts = new CancellationTokenSource();
 			await action.run(...[this.input.repository.provider.rootUri, context, this._cts.token]);
+			this.storageService.store('scm.input.lastActionId', action.id, StorageScope.PROFILE, StorageTarget.USER);
 		} finally {
 			this._runningActions.delete(action);
 
@@ -1844,71 +1839,6 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 				this._ctxIsActionRunning.set(false);
 			}
 		}
-	}
-
-}
-
-class SCMInputWidgetSelectDefaultActionMenuItemAction extends MenuItemAction {
-
-	constructor(
-		private readonly actions: IAction[],
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-	) {
-		super({
-			id: SCMInputCommandId.SelectDefaultAction,
-			title: localize('scmInputSelectDefaultAction', "Select Default Action"),
-			icon: Codicon.gear,
-			precondition: SCMInputContextKeys.ActionIsEnabled
-		}, undefined, undefined, undefined, contextKeyService, commandService);
-	}
-
-	override async run(): Promise<void> {
-		const items: { label: string; description?: string; command: ICommandAction }[] = [];
-		for (const action of this.actions) {
-			if (action instanceof MenuItemAction) {
-				items.push({
-					label: typeof (action.item.title) === 'string' ? action.item.title : action.item.title.value,
-					description: action.item.source?.title,
-					command: action.item
-				});
-			}
-		}
-
-		if (items.length === 0) {
-			return;
-		}
-
-		const result = await this.quickInputService.pick(items, {
-			canPickMany: false,
-			placeHolder: localize('selectDefaultAction', "Select the default action")
-		});
-
-		if (!result) {
-			return;
-		}
-
-		this.configurationService.updateValue('scm.inputDefaultAction', {
-			extensionId: result.command.source?.id ?? '',
-			commandId: result.command.id
-		}, ConfigurationTarget.USER);
-	}
-
-}
-
-class SCMInputWidgetCancelMenuItemAction extends MenuItemAction {
-
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService
-	) {
-		super({
-			id: SCMInputCommandId.CancelAction,
-			title: localize('scmInputCancelAction', "Cancel"),
-			icon: Codicon.debugStop,
-		}, undefined, undefined, undefined, contextKeyService, commandService);
 	}
 
 }
@@ -1923,19 +1853,22 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		menuId: MenuId,
 		options: IMenuWorkbenchToolBarOptions | undefined,
 		@IMenuService menuService: IMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IQuickInputService quickInputService: IQuickInputService,
+		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
-		const cancelAction = new SCMInputWidgetCancelMenuItemAction(contextKeyService, commandService);
+		const cancelAction = new MenuItemAction({
+			id: SCMInputCommandId.CancelAction,
+			title: localize('scmInputCancelAction', "Cancel"),
+			icon: Codicon.debugStop,
+		}, undefined, undefined, undefined, contextKeyService, commandService);
 
 		const updateToolbar = () => {
 			this._dropdownActions = [];
@@ -1945,34 +1878,19 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 			let primaryAction: IAction | undefined = undefined;
 
-			const selectDefaultAction = new SCMInputWidgetSelectDefaultActionMenuItemAction(
-				actions, configurationService, contextKeyService, commandService, quickInputService
-			);
-
-			const defaultMenuItemAction = this._getDefaultMenuItemAction(actions);
-
 			if (contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsRunning.key) === true) {
 				primaryAction = cancelAction;
 			} else if (actions.length === 1) {
 				primaryAction = actions[0];
 			} else if (actions.length > 1) {
-				primaryAction = defaultMenuItemAction ?? selectDefaultAction;
+				const lastActionId = storageService.get('scm.input.lastActionId', StorageScope.PROFILE, '');
+				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
 			if (actions.length > 1) {
 				for (const action of actions) {
-					if (action instanceof MenuItemAction && action === defaultMenuItemAction) {
-						const actionTitle = typeof (action.item.title) === 'string' ? action.item.title : action.item.title.value;
-
-						this._dropdownActions.push(new MenuItemAction(
-							{ ...action.item, title: localize('scmInputDefaultAction', "{0} (Default)", actionTitle) },
-							action.alt?.item, { shouldForwardArgs: true }, action.hideActions, contextKeyService, commandService));
-					} else {
-						this._dropdownActions.push(action);
-					}
+					this._dropdownActions.push(action);
 				}
-
-				this._dropdownActions.push(...[new Separator(), selectDefaultAction]);
 			}
 
 			container.classList.toggle('has-no-actions', actions.length === 0);
@@ -1982,22 +1900,12 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		};
 
 		this._store.add(menu.onDidChange(() => updateToolbar()));
-		this._store.add(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputDefaultAction'))(() => updateToolbar()));
 
 		const ctxKeys = new Set<string>([SCMInputContextKeys.ActionIsEnabled.key, SCMInputContextKeys.ActionIsRunning.key]);
 		Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ctxKeys))(() => updateToolbar());
 
 		// Delay initial update to finish class initialization
 		setTimeout(() => updateToolbar(), 0);
-	}
-
-	private _getDefaultMenuItemAction(actions: IAction[]): MenuItemAction | undefined {
-		const defaultActionConfig = this.configurationService.getValue<SCMInputDefaultActionConfig | null>('scm.inputDefaultAction');
-
-		return actions
-			.find(a => a instanceof MenuItemAction &&
-				a.item.source?.id === defaultActionConfig?.extensionId &&
-				a.id === defaultActionConfig?.commandId) as MenuItemAction;
 	}
 
 }
