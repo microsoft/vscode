@@ -20,7 +20,6 @@ import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { AbstractRequestService, IRequestService } from 'vs/platform/request/common/request';
 import { Agent, getProxyAgent } from 'vs/platform/request/node/proxy';
 import { createGunzip } from 'zlib';
-import { loadSystemCertificates } from '@vscode/proxy-agent';
 
 interface IHTTPConfiguration {
 	proxy?: string;
@@ -112,7 +111,8 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	}
 
 	async loadCertificates(): Promise<string[]> {
-		return loadSystemCertificates({ log: this.logService });
+		const proxyAgent = await import('@vscode/proxy-agent');
+		return proxyAgent.loadSystemCertificates({ log: this.logService });
 	}
 }
 

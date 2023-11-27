@@ -16,6 +16,10 @@ export class LineRange {
 		return new LineRange(range.startLineNumber, range.endLineNumber);
 	}
 
+	public static fromRangeInclusive(range: Range): LineRange {
+		return new LineRange(range.startLineNumber, range.endLineNumber + 1);
+	}
+
 	public static subtract(a: LineRange, b: LineRange | undefined): LineRange[] {
 		if (!b) {
 			return [a];

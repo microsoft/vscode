@@ -7,7 +7,7 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/195474
 
 	export namespace scm {
-		export function registerSourceControlInputBoxValueProvider(provider: SourceControlInputBoxValueProvider): Disposable;
+		export function registerSourceControlInputBoxValueProvider(sourceControlId: string, provider: SourceControlInputBoxValueProvider): Disposable;
 	}
 
 	export interface SourceControlInputBoxValueProviderContext {
@@ -19,7 +19,7 @@ declare module 'vscode' {
 		readonly label: string;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 
-		provideValue(sourceControlId: string, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): ProviderResult<string | undefined>;
+		provideValue(rootUri: Uri, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): ProviderResult<string | undefined>;
 	}
 
 }

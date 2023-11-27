@@ -26,9 +26,9 @@ export interface ISCMHistoryProvider {
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
 	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
 }
 
 export interface ISCMHistoryProviderCacheEntry {
@@ -61,15 +61,13 @@ export interface ISCMHistoryItemGroupDetails {
 export interface ISCMHistoryItemGroupEntry {
 	readonly id: string;
 	readonly label: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly description?: string;
 	readonly ancestor?: string;
 	readonly count?: number;
 }
 
-export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
-	readonly description?: string;
-	readonly ancestor?: string;
-	readonly count?: number;
+export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroupEntry {
 	readonly repository: ISCMRepository;
 	readonly type: 'historyItemGroup';
 }

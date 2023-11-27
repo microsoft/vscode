@@ -85,6 +85,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		}));
 
+		// React to terminal location changes
+		this._register(this._instance.onDidChangeTarget(() => this._syncOptions()));
+
 		// Eagerly create the overlay
 		xtermCtor.then(ctor => {
 			this._stickyScrollOverlay = this._register(new ctor({

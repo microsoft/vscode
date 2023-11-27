@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
@@ -75,13 +74,4 @@ export const diffWholeLineDeleteDecoration = ModelDecorationOptions.register({
 export const diffDeleteDecorationEmpty = ModelDecorationOptions.register({
 	className: 'char-delete diff-range-empty',
 	description: 'char-delete diff-range-empty',
-});
-
-
-export const arrowRevertChange = ModelDecorationOptions.register({
-	description: 'diff-editor-arrow-revert-change',
-	glyphMarginHoverMessage: new MarkdownString(undefined, { isTrusted: true, supportThemeIcons: true })
-		.appendMarkdown(localize('revertChangeHoverMessage', 'Click to revert change')),
-	glyphMarginClassName: 'arrow-revert-change ' + ThemeIcon.asClassName(Codicon.arrowRight),
-	zIndex: 10001,
 });

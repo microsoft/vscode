@@ -21,12 +21,13 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { $window } from 'vs/base/browser/window';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -81,6 +82,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleCenteredLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered Layout"),
 				original: 'Toggle Centered Layout'
 			},
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
 			f1: true,
 			toggled: IsCenteredLayoutContext,
@@ -95,7 +97,7 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		layoutService.centerEditorLayout(!layoutService.isEditorLayoutCentered());
+		layoutService.centerMainEditorLayout(!layoutService.isMainEditorLayoutCentered());
 	}
 });
 
@@ -438,7 +440,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		const visibility = layoutService.isVisible(Parts.STATUSBAR_PART);
+		const visibility = layoutService.isVisible(Parts.STATUSBAR_PART, $window);
 		const newVisibilityValue = !visibility;
 
 		return configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue);
@@ -692,6 +694,7 @@ registerAction2(class extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleZenMode', comment: ['&& denotes a mnemonic'] }, "Zen Mode"),
 				original: 'Toggle Zen Mode'
 			},
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			category: Categories.View,
 			f1: true,
 			keybinding: {
@@ -762,6 +765,7 @@ if (isWindows || isLinux || isWeb) {
 			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 		},
+		when: IsAuxiliaryWindowFocusedContext.toNegated(),
 		order: 0
 	});
 }

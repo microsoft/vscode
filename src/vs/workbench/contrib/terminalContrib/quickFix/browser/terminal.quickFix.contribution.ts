@@ -51,7 +51,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		xterm.raw.loadAddon(this._addon);
 
 		// Hook up listeners
-		this.add(this._addon.onDidRequestRerunCommand((e) => this._instance.runCommand(e.command, e.addNewLine || false)));
+		this.add(this._addon.onDidRequestRerunCommand((e) => this._instance.runCommand(e.command, e.shouldExecute || false)));
 
 		// Register quick fixes
 		for (const actionOption of [

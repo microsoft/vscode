@@ -140,7 +140,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 
 		this.overlay.style.borderColor = activeContrastBorderColor || '';
-		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderStyle = 'solid';
 		this.overlay.style.borderWidth = '0px';
 	}
 
@@ -1070,7 +1070,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		} else {
 			if (this.paneItems.length === 1) {
 				this.paneItems[0].pane.headerVisible = true;
-				this.paneItems[0].pane.setExpanded(true);
+				if (this.paneItems[0].pane === this.lastMergedCollapsedPane) {
+					this.paneItems[0].pane.setExpanded(false);
+				}
 				this.paneItems[0].pane.collapsible = false;
 			} else {
 				this.paneItems.forEach(i => {

@@ -8,7 +8,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, getWindow } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -34,7 +34,7 @@ import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -910,16 +910,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return targetView;
 	}
 
-	mergeAllGroups(target = this.activeGroup): IEditorGroupView {
+	mergeAllGroups(target: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+		const targetView = this.assertGroupView(target);
+
 		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-			if (group === target) {
+			if (group === targetView) {
 				continue; // keep target
 			}
 
-			this.mergeGroup(group, target);
+			this.mergeGroup(group, targetView);
 		}
 
-		return target;
+		return targetView;
 	}
 
 	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
@@ -946,9 +948,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	//#region Part
 
 	// TODO @sbatten @joao find something better to prevent editor taking over #79897
-	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions().width); }
+	get minimumWidth(): number { return Math.min(this.centeredLayoutWidget.minimumWidth, this.layoutService.getMaximumEditorDimensions(this.layoutService.getContainer(getWindow(this.container))).width); }
 	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
-	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
+	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions(this.layoutService.getContainer(getWindow(this.container))).height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
 	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }
@@ -990,7 +992,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.doCreateGridControl(options);
 
 		// Centered layout widget
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY], this._partOptions.centeredLayoutFixedWidth));
 		this._register(this.onDidChangeEditorPartOptions(e => this.centeredLayoutWidget.setFixedWidth(e.newPartOptions.centeredLayoutFixedWidth ?? false)));
 
 		// Drag & Drop support
@@ -1012,6 +1014,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private handleContextKeys(contextKeyService: IContextKeyService): void {
+		const isAuxiliaryEditorPartContext = IsAuxiliaryEditorPartContext.bindTo(contextKeyService);
+		isAuxiliaryEditorPartContext.set(this.isAuxiliary);
+
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
 
@@ -1387,58 +1392,5 @@ export class MainEditorPart extends EditorPart {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
-	}
-}
-
-export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorPart {
-
-	private static COUNTER = 1;
-
-	private readonly _onWillClose = this._register(new Emitter<void>());
-	readonly onWillClose = this._onWillClose.event;
-
-	constructor(
-		editorPartsView: IEditorPartsView,
-		groupsLabel: string,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IHostService hostService: IHostService,
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
-	}
-
-	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean | undefined): void {
-
-		// Close aux window when last group removed
-		const groupView = this.assertGroupView(group);
-		if (this.count === 1 && this.activeGroup === groupView) {
-			this.doClose(false /* do not merge any groups to main part */);
-		}
-
-		// Otherwise delegate to parent implementation
-		else {
-			super.removeGroup(group, preserveFocus);
-		}
-	}
-
-	protected override saveState(): void {
-		return; // TODO support auxiliary editor state
-	}
-
-	close(): void {
-		this.doClose(true /* merge all groups to main part */);
-	}
-
-	private doClose(mergeGroupsToMainPart: boolean): void {
-		if (mergeGroupsToMainPart) {
-			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
-		}
-
-		this._onWillClose.fire();
 	}
 }

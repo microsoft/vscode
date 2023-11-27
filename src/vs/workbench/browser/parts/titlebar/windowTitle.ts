@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties } from 'vs/workbench/services/title/common/titleService';
+import { ITitleProperties } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';

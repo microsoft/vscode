@@ -77,7 +77,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		switch (item.kind) {
 			case PConst.Kind.function: {
 				const showOnAllFunctions = vscode.workspace.getConfiguration(this.language.id).get<boolean>('referencesCodeLens.showOnAllFunctions');
-				if (showOnAllFunctions) {
+				if (showOnAllFunctions && item.nameSpan) {
 					return getSymbolRange(document, item);
 				}
 			}

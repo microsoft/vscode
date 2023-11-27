@@ -47,8 +47,8 @@ export interface ICommonNativeHostService {
 	// Events
 	readonly onDidOpenMainWindow: Event<number>;
 
-	readonly onDidMaximizeMainWindow: Event<number>;
-	readonly onDidUnmaximizeMainWindow: Event<number>;
+	readonly onDidMaximizeWindow: Event<number>;
+	readonly onDidUnmaximizeWindow: Event<number>;
 
 	readonly onDidFocusMainWindow: Event<number>;
 	readonly onDidBlurMainWindow: Event<number>;
@@ -62,9 +62,9 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string; account: string }>;
+	readonly onDidChangePassword: Event<{ readonly service: string; readonly account: string }>;
 
-	readonly onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ readonly windowId: number; readonly x: number; readonly y: number }>;
 
 	// Window
 	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
@@ -77,14 +77,14 @@ export interface ICommonNativeHostService {
 
 	toggleFullScreen(options?: INativeOptions): Promise<void>;
 
-	handleTitleDoubleClick(): Promise<void>;
+	handleTitleDoubleClick(options?: INativeOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
-	isMaximized(): Promise<boolean>;
-	maximizeWindow(): Promise<void>;
-	unmaximizeWindow(): Promise<void>;
-	minimizeWindow(): Promise<void>;
+	isMaximized(options?: INativeOptions): Promise<boolean>;
+	maximizeWindow(options?: INativeOptions): Promise<void>;
+	unmaximizeWindow(options?: INativeOptions): Promise<void>;
+	minimizeWindow(options?: INativeOptions): Promise<void>;
 	moveWindowTop(options?: INativeOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeOptions): Promise<void>;
 
@@ -93,7 +93,7 @@ export interface ICommonNativeHostService {
 	 *
 	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
 	 */
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: INativeOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
@@ -167,8 +167,7 @@ export interface ICommonNativeHostService {
 	notifyReady(): Promise<void>;
 	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
-	closeWindow(): Promise<void>;
-	closeWindowById(windowId: number): Promise<void>;
+	closeWindow(options?: INativeOptions): Promise<void>;
 	quit(): Promise<void>;
 	exit(code: number): Promise<void>;
 

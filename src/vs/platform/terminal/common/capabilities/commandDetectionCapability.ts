@@ -32,7 +32,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 
-
 	private _commitCommandFinished?: RunOnceScheduler;
 
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
@@ -99,6 +98,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
+			commitCommandFinished() {
+				that._commitCommandFinished?.flush();
+				that._commitCommandFinished = undefined;
+			}
 		};
 		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
@@ -172,6 +175,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
 					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
+					commitCommandFinished() {
+						that._commitCommandFinished?.flush();
+						that._commitCommandFinished = undefined;
+					}
 				},
 				this._logService
 			);
@@ -235,8 +242,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#handlePromptStart adjusted commandFinished', `${lastCommand.endMarker.line} -> ${lastCommand.executedMarker.line + 1}`);
 			lastCommand.endMarker = cloneMarker(this._terminal, lastCommand.executedMarker, 1);
 		}
-		this._commitCommandFinished?.flush();
-		this._commitCommandFinished = undefined;
 
 		this._currentCommand.promptStartMarker = options?.marker || (lastCommand?.endMarker ? cloneMarker(this._terminal, lastCommand.endMarker) : this._terminal.registerMarker(0));
 
@@ -408,6 +413,7 @@ interface ICommandDetectionHeuristicsHooks {
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
+	commitCommandFinished(): void;
 }
 
 type IPtyHeuristics = (
@@ -439,6 +445,8 @@ class UnixPtyHeuristics extends Disposable {
 	}
 
 	async handleCommandStart(options?: IHandleCommandOptions) {
+		this._hooks.commitCommandFinished();
+
 		const currentCommand = this._capability.currentCommand;
 		currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
@@ -506,6 +514,10 @@ class WindowsPtyHeuristics extends Disposable {
 	private _onCursorMoveListener = this._register(new MutableDisposable());
 
 	private _recentlyPerformedCsiJ = false;
+
+	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
+	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;
+	private _tryAdjustCommandStartMarkerPollCount: number = 0;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -592,10 +604,6 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
-	private _tryAdjustCommandStartMarkerScheduler?: RunOnceScheduler;
-	private _tryAdjustCommandStartMarkerScannedLineCount: number = 0;
-	private _tryAdjustCommandStartMarkerPollCount: number = 0;
-
 	async handleCommandStart() {
 		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
@@ -661,6 +669,13 @@ class WindowsPtyHeuristics extends Disposable {
 						this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
 						this._capability.currentCommand.promptStartMarker?.dispose();
 						this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+						// Adjust the last command if it's not in the same position as the following
+						// prompt start marker
+						const lastCommand = this._capability.commands.at(-1);
+						if (lastCommand && this._capability.currentCommand.commandStartMarker.line !== lastCommand.endMarker?.line) {
+							lastCommand.endMarker?.dispose();
+							lastCommand.endMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+						}
 					}
 					// use the regex to set the position as it's possible input has occurred
 					this._capability.currentCommand.commandStartX = adjustedPrompt.length;
@@ -691,6 +706,8 @@ class WindowsPtyHeuristics extends Disposable {
 			this._tryAdjustCommandStartMarkerScheduler.flush();
 			this._tryAdjustCommandStartMarkerScheduler = undefined;
 		}
+
+		this._hooks.commitCommandFinished();
 
 		if (!this._capability.currentCommand.commandExecutedMarker) {
 			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => {

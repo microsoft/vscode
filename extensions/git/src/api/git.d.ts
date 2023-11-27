@@ -223,6 +223,8 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 
+	getDiff(): Promise<string[]>;
+
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;

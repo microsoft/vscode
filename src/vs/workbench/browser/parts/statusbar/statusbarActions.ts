@@ -15,6 +15,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class ToggleStatusbarEntryVisibilityAction extends Action {
 
@@ -121,7 +122,7 @@ class FocusStatusBarAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.focusPart(Parts.STATUSBAR_PART);
+		layoutService.focusPart(Parts.STATUSBAR_PART, getActiveWindow());
 	}
 }
 

@@ -114,11 +114,10 @@
 		{
 			"scope": [
 				"entity.other.attribute-name.class.css",
-				"source.css entity.other.attribute-name.class",
+				"entity.other.attribute-name.class.mixin.css",
 				"entity.other.attribute-name.id.css",
 				"entity.other.attribute-name.parent-selector.css",
-				"entity.other.attribute-name.parent.less",
-				"source.css entity.other.attribute-name.pseudo-class",
+				"entity.other.attribute-name.pseudo-class.css",
 				"entity.other.attribute-name.pseudo-element.css",
 				"source.css.less entity.other.attribute-name.id",
 				"entity.other.attribute-name.scss"
@@ -330,7 +329,7 @@
 				"support.type.property-name",
 				"variable.css",
 				"variable.scss",
-				"source.css.less variable.other",
+				"variable.other.less",
 				"source.coffee.embedded"
 			],
 			"settings": {

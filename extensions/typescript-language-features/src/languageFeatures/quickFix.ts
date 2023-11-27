@@ -223,7 +223,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new ApplyCodeActionCommand(client, diagnosticsManager, telemetryReporter));
 		commandManager.register(new ApplyFixAllCodeAction(client, telemetryReporter));
-		commandManager.register(new EditorChatFollowUp(client));
+		commandManager.register(new EditorChatFollowUp(client, telemetryReporter));
 
 		this.supportedCodeActionProvider = new SupportedCodeActionProvider(client);
 	}
@@ -349,7 +349,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 					arguments: [<EditorChatFollowUp_Args>{
 						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
 						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
-						document
+						document,
+						action: { type: 'quickfix', quickfix: action }
 					}],
 					title: ''
 				};
