@@ -45,6 +45,7 @@ registerAction2(InlineChatActions.ExpandMessageAction);
 registerAction2(InlineChatActions.ContractMessageAction);
 
 registerAction2(InlineChatActions.ToggleInlineDiff);
+registerAction2(InlineChatActions.ToggleDiffForChange);
 registerAction2(InlineChatActions.FeebackHelpfulCommand);
 registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
 registerAction2(InlineChatActions.ReportIssueForBugCommand);

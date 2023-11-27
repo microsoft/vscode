@@ -612,7 +612,12 @@
 	opacity: 0.7;
 }
 
-.interactive-item-container .progress-steps .progress-step .codicon-check {
+.interactive-item-container .progress-steps .progress-step .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-item-container .progress-steps .progress-step .codicon.codicon-check {
 	font-size: 14px;
-	color: var(--vscode-debugIcon-startForeground);
+	color: var(--vscode-debugIcon-startForeground) !important;
 }

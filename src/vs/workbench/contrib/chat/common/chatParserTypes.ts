@@ -7,7 +7,7 @@ import { revive } from 'vs/base/common/marshalling';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
 import { IChatAgent, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatSlashData } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -98,7 +98,7 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
 export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	static readonly Kind = 'slash';
 	readonly kind = ChatRequestSlashCommandPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: IChatSlashData) { }
 
 	get text(): string {
 		return `${chatSubcommandLeader}${this.slashCommand.command}`;

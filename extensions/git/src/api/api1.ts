@@ -348,8 +348,8 @@ export class ApiImpl implements API {
 	/**
 	 * @deprecated See https://github.com/microsoft/vscode/issues/195474
 	 */
-	registerCommitMessageProvider(_: CommitMessageProvider): Disposable {
-		return { dispose: () => { } };
+	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable {
+		return this._model.registerCommitMessageProvider(provider);
 	}
 
 	constructor(private _model: Model) { }

@@ -2782,6 +2782,10 @@ declare namespace monaco.editor {
 		 */
 		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
+		 * Append `newDecorations` to this collection.
+		 */
+		append(newDecorations: readonly IModelDeltaDecoration[]): string[];
+		/**
 		 * Remove all previous decorations.
 		 */
 		clear(): void;
