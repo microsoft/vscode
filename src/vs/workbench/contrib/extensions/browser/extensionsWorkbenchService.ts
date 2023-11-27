@@ -826,7 +826,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.initializeAutoUpdate();
 		this.reportInstalledExtensionsTelemetry();
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.reportProgressFromOtherSources()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidAutoUpdateConfigurationChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange(false)));
 	}
 
 	private initializeAutoUpdate(): void {
@@ -1595,15 +1595,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		if (update) {
 			this.setSelectedExtensionsToAutoUpdate(autoUpdateExtensions);
-			await this.onDidPinnedViewContainersStorageValueChange(true);
+			await this.onDidSelectedExtensionToAutoUpdateValueChange(true);
 			if (autoUpdateValue === 'onlySelectedExtensions' && autoUpdateExtensions.length === 0) {
 				await this.configurationService.updateValue(AutoUpdateConfigurationKey, false);
 			}
 		}
 	}
 
-	private async onDidPinnedViewContainersStorageValueChange(force: boolean): Promise<void> {
-		if (force || this.selectedExtensionsToAutoUpdateValue !== this.getSelectedExtensionsToAutoUpdateValue() /* This checks if current window changed the value or not */) {
+	private async onDidSelectedExtensionToAutoUpdateValueChange(forceUpdate: boolean): Promise<void> {
+		if (forceUpdate || this.selectedExtensionsToAutoUpdateValue !== this.getSelectedExtensionsToAutoUpdateValue() /* This checks if current window changed the value or not */) {
 			await this.updateExtensionsPinnedState();
 			this.eventuallyAutoUpdateExtensions();
 		}
