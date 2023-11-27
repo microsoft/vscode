@@ -2733,6 +2733,10 @@ export interface IEditorLightbulbOptions {
 	 * Highlight AI code actions with AI icon
 	 */
 	showAiIcon?: boolean;
+	/**
+	 * Controls whether to suggest AI code actions on empty lines
+	 */
+	suggestAiCodeActionsEmptyLines?: boolean;
 }
 
 /**
@@ -2743,7 +2747,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: false };
+		const defaults: EditorLightbulbOptions = { enabled: true, showAiIcon: false, suggestAiCodeActionsEmptyLines: false };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2752,10 +2756,15 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
 				},
-				'editor.lightbulb.showAiIcon': {
+				'editor.experimental.showAiIcon': {
 					type: 'boolean',
 					default: defaults.showAiIcon,
 					description: nls.localize('showAiIcons', "Show AI icon instead of lightbulb icon when the menu contains AI code actions.")
+				},
+				'editor.experimental.suggestAiCodeActionsEmptyLines': {
+					type: 'boolean',
+					default: defaults.suggestAiCodeActionsEmptyLines,
+					description: nls.localize('suggestAiCodeActionsEmptyLines', "Suggest AI code actions on empty lines.")
 				},
 			}
 		);
@@ -2768,7 +2777,8 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		const input = _input as IEditorLightbulbOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			showAiIcon: boolean(input.showAiIcon, this.defaultValue.showAiIcon)
+			showAiIcon: boolean(input.showAiIcon, this.defaultValue.showAiIcon),
+			suggestAiCodeActionsEmptyLines: boolean(input.suggestAiCodeActionsEmptyLines, this.defaultValue.suggestAiCodeActionsEmptyLines)
 		};
 	}
 }

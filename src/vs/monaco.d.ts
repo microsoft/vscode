@@ -4144,6 +4144,10 @@ declare namespace monaco.editor {
 		 * Highlight AI code actions with AI icon
 		 */
 		showAiIcon?: boolean;
+		/**
+		 * Controls whether to suggest AI code actions on empty lines
+		 */
+		suggestAiCodeActionsEmptyLines?: boolean;
 	}
 
 	export interface IEditorStickyScrollOptions {
