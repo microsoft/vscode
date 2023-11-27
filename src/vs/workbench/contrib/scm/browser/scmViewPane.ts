@@ -1775,8 +1775,7 @@ class HistoryItemViewChangesAction extends Action2 {
 registerAction2(HistoryItemViewChangesAction);
 
 const enum SCMInputCommandId {
-	CancelAction = 'scm.input.cancelAction',
-	SelectDefaultAction = 'scm.input.selectDefaultAction'
+	CancelAction = 'scm.input.cancelAction'
 }
 
 const SCMInputContextKeys = {
@@ -1817,9 +1816,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			}
 
 			this._runningActions.add(action);
-			if (action.id !== SCMInputCommandId.SelectDefaultAction) {
-				this._ctxIsActionRunning.set(true);
-			}
+			this._ctxIsActionRunning.set(true);
 
 			const context: ISCMInputValueProviderContext[] = [];
 			for (const group of this.input.repository.provider.groups) {
@@ -1831,11 +1828,12 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			this._cts = new CancellationTokenSource();
 			await action.run(...[this.input.repository.provider.rootUri, context, this._cts.token]);
-			this.storageService.store('scm.input.lastActionId', action.id, StorageScope.PROFILE, StorageTarget.USER);
 		} finally {
 			this._runningActions.delete(action);
 
 			if (this._runningActions.size === 0) {
+				this.storageService.store('scm.input.lastActionId', action.id, StorageScope.PROFILE, StorageTarget.USER);
+
 				this._ctxIsActionRunning.set(false);
 			}
 		}
@@ -1871,8 +1869,6 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		}, undefined, undefined, undefined, contextKeyService, commandService);
 
 		const updateToolbar = () => {
-			this._dropdownActions = [];
-
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(menu, options?.menuOptions, actions);
 
@@ -1887,11 +1883,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
-			if (actions.length > 1) {
-				for (const action of actions) {
-					this._dropdownActions.push(action);
-				}
-			}
+			this._dropdownActions = actions.length === 1 ? [] : actions;
 
 			container.classList.toggle('has-no-actions', actions.length === 0);
 			container.classList.toggle('disabled', contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) !== true);
