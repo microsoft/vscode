@@ -62,7 +62,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 	) {
 		super();
@@ -141,9 +141,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
-		this._register(Event.runAndSubscribe(keybindingService.onDidUpdateKeybindings, () => {
-			this._preferredKbLabel = keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
-			this._quickFixKbLabel = keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
+		this._register(Event.runAndSubscribe(this._keybindingService.onDidUpdateKeybindings, () => {
+			this._preferredKbLabel = this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
+			this._quickFixKbLabel = this._keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
 
 			this._updateLightBulbTitleAndIcon();
 		}));
@@ -251,6 +251,16 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (highlightAIActions) {
 			if (this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
+				if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+					if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
+						const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
+						this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
+					} else {
+						this.title = nls.localize('codeActionTriggerAiAction', "Trigger AI Action");
+					}
+				} else {
+					updateLightbulbTitle();
+				}
 			} else if (this.state.actions.hasAutoFix) {
 				if (this.state.actions.hasAIFix) {
 					icon = Codicon.lightbulbSparkleAutofix;
@@ -260,6 +270,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				updateAutoFixLightbulbTitle();
 			} else if (this.state.actions.hasAIFix) {
 				icon = Codicon.lightbulbSparkle;
+				updateLightbulbTitle();
 			} else {
 				icon = Codicon.lightBulb;
 				updateLightbulbTitle();
