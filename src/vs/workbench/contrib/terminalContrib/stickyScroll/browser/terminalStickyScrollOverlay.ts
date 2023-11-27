@@ -282,9 +282,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Write content if it differs
 		if (content && this._currentContent !== content) {
-			if (this._stickyScrollOverlay.rows !== stickyScrollLineCount) {
-				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
-			}
+			this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
