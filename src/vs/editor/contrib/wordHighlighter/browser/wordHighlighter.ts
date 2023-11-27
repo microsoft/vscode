@@ -627,9 +627,7 @@ class WordHighlighter {
 			// The selection must be inside a word or surround one word at most
 			if (!word || word.startColumn > startColumn || word.endColumn < endColumn) {
 				// no previous query, nothing to highlight
-				// ! likely need to clear the query here
 				WordHighlighter.query = null;
-
 				this._stopAll();
 				return;
 			}
