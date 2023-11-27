@@ -127,7 +127,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setState(providerId: string, inputValue: string | undefined): void {
 		this.providerId = providerId;
-		const history = this.historyService.getHistory(providerId).map(h => typeof h === 'object' ? (h as any).text : h);
+		const history = this.historyService.getHistory(providerId);
 		this.history = new HistoryNavigator(history, 50);
 
 		if (typeof inputValue === 'string') {
