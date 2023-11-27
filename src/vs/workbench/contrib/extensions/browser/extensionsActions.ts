@@ -889,11 +889,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 export class ToggleAutoUpdatesForPublisherAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.toggleAutoUpdatesForPublisher';
-	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "Auto Update (Publisher)");
-
-	static getLabel(extension: IExtension): string {
-		return localize('toggleAutoUpdatesForPublisherLabel2', "Auto Update All from {0} (Publisher)", extension.publisherDisplayName);
-	}
+	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "Auto Update All (From Publisher)");
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
@@ -1235,7 +1231,6 @@ export class MenuItemExtensionAction extends ExtensionAction {
 		} else if (this.action.id === ToggleAutoUpdateForExtensionAction.ID) {
 			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
 		} else if (this.action.id === ToggleAutoUpdatesForPublisherAction.ID) {
-			this.label = ToggleAutoUpdatesForPublisherAction.getLabel(this.extension);
 			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
 		} else {
 			this.checked = this.action.checked;

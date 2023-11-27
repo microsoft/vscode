@@ -699,7 +699,6 @@ export class InlineChatController implements IEditorContribution {
 		let reply: IInlineChatResponse | null | undefined;
 		try {
 			this._zone.value.widget.updateChatMessage(undefined);
-			this._zone.value.widget.updateMarkdownMessage(undefined);
 			this._zone.value.widget.updateFollowUps(undefined);
 			this._zone.value.widget.updateProgress(true);
 			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
@@ -1020,7 +1019,7 @@ export class InlineChatController implements IEditorContribution {
 	updateExpansionState(expand: boolean) {
 		if (this._activeSession) {
 			const expansionState = expand ? ExpansionState.EXPANDED : ExpansionState.CROPPED;
-			this._zone.value.widget.updateMarkdownMessageExpansionState(expansionState);
+			this._zone.value.widget.updateChatMessageExpansionState(expansionState);
 			this._activeSession.lastExpansionState = expansionState;
 		}
 	}

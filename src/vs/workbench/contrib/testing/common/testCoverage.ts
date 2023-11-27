@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResourceMap } from 'vs/base/common/map';
+import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { CoverageDetails, ICoveredCount, IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
@@ -17,6 +18,8 @@ export interface ICoverageAccessor {
  * Class that exposese coverage information for a run.
  */
 export class TestCoverage {
+	private _tree?: WellDefinedPrefixTree<ComputedFileCoverage>;
+
 	public static async load(accessor: ICoverageAccessor, token: CancellationToken) {
 		const files = await accessor.provideFileCoverage(token);
 		const map = new ResourceMap<FileCoverage>();
@@ -24,6 +27,10 @@ export class TestCoverage {
 			map.set(file.uri, new FileCoverage(file, i, accessor));
 		}
 		return new TestCoverage(map);
+	}
+
+	public get tree() {
+		return this._tree ??= this.buildCoverageTree();
 	}
 
 	constructor(
@@ -42,6 +49,65 @@ export class TestCoverage {
 	 */
 	public getUri(uri: URI) {
 		return this.fileCoverage.get(uri);
+	}
+
+	/**
+	 * Gets computed information for a file, including DFS-computed information
+	 * from child tests.
+	 */
+	public getComputedForUri(uri: URI) {
+		return this.tree.find(this.treePathForUri(uri));
+	}
+
+	private buildCoverageTree() {
+		const tree = new WellDefinedPrefixTree<ComputedFileCoverage>();
+
+		// 1. Initial iteration
+		for (const file of this.fileCoverage.values()) {
+			tree.insert(this.treePathForUri(file.uri), file);
+		}
+
+		// 2. Depth-first iteration to create computed nodes
+		const calculateComputed = (path: string[], node: IPrefixTreeNode<ComputedFileCoverage | FileCoverage>): AbstractFileCoverage => {
+			if (node.value) {
+				return node.value;
+			}
+
+			const fileCoverage: IFileCoverage = {
+				uri: this.treePathToUri(path),
+				statement: ICoveredCount.empty(),
+			};
+
+			if (node.children) {
+				for (const [prefix, child] of node.children) {
+					path.push(prefix);
+					const v = calculateComputed(path, child);
+					path.pop();
+
+					ICoveredCount.sum(fileCoverage.statement, v.statement);
+					if (v.branch) { ICoveredCount.sum(fileCoverage.branch ??= ICoveredCount.empty(), v.branch); }
+					if (v.function) { ICoveredCount.sum(fileCoverage.function ??= ICoveredCount.empty(), v.function); }
+				}
+			}
+
+			return node.value = new ComputedFileCoverage(fileCoverage);
+		};
+
+		for (const node of tree.nodes) {
+			calculateComputed([], node);
+		}
+
+		return tree;
+	}
+
+	private *treePathForUri(uri: URI) {
+		yield uri.scheme;
+		yield uri.authority;
+		yield* uri.path.split('/');
+	}
+
+	private treePathToUri(path: string[]) {
+		return URI.from({ scheme: path[0], authority: path[1], path: path.slice(2).join('/') });
 	}
 }
 

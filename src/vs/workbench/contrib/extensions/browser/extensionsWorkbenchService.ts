@@ -738,8 +738,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	readonly whenInitialized: Promise<void>;
 
-	private readonly organizationByPublisher = new Map<string, string>();
-
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -801,15 +799,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		urlService.registerHandler(this);
 
-		if (this.productService.publishersByOrganisation) {
-			for (const organization of Object.keys(this.productService.publishersByOrganisation)) {
-				for (const publisher of this.productService.publishersByOrganisation[organization]) {
-					this.organizationByPublisher.set(publisher, organization);
-				}
-			}
-		}
-
 		this.whenInitialized = this.initialize();
+
+		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+			telemetryService.publicLog2<{ mode: string }, {
+				owner: 'sandy081';
+				mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Auto Update Mode' };
+				comment: 'This is used to know if extensions are getting auto updated or not';
+			}>('extensions:autoupdate', { mode: `${this.getAutoUpdateValue()}` });
+		});
 	}
 
 	private async initialize(): Promise<void> {
@@ -828,7 +826,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.initializeAutoUpdate();
 		this.reportInstalledExtensionsTelemetry();
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.reportProgressFromOtherSources()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidAutoUpdateConfigurationChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange(false)));
 	}
 
 	private initializeAutoUpdate(): void {
@@ -1316,6 +1314,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.updateExtensionsPinnedState();
 		if (this.isAutoUpdateEnabled()) {
 			this.checkForUpdates();
+		} else {
+			this.setSelectedExtensionsToAutoUpdate([]);
 		}
 	}
 
@@ -1509,24 +1509,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private isAutoUpdateEnabledForPublisher(publisher: string): boolean {
-		publisher = publisher.toLowerCase();
 		const publishersToAutoUpdate = this.getPublishersToAutoUpdate();
-		if (publishersToAutoUpdate.includes(publisher)) {
-			return true;
-		}
-		const publisherOrganization = this.organizationByPublisher.get(publisher);
-		if (publisherOrganization) {
-			return publishersToAutoUpdate.some(p => this.organizationByPublisher.get(publisher) === publisherOrganization);
-		}
-		return false;
+		return publishersToAutoUpdate.includes(publisher.toLowerCase());
 	}
 
 	async updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void> {
 		const autoUpdateValue = this.getAutoUpdateValue();
-
-		if (autoUpdateValue === false) {
-			throw new Error('Auto update is disabled');
-		}
 
 		if (autoUpdateValue === true || autoUpdateValue === 'onlyEnabledExtensions') {
 			if (isString(extensionOrPublisher)) {
@@ -1540,6 +1528,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.eventuallyAutoUpdateExtensions();
 			}
 			return;
+		}
+
+		if (autoUpdateValue === false && enable) {
+			await this.configurationService.updateValue(AutoUpdateConfigurationKey, 'onlySelectedExtensions');
 		}
 
 		let update = false;
@@ -1556,12 +1548,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				} else {
 					if (autoUpdateExtensions.includes(extensionOrPublisher)) {
 						autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(extensionOrPublisher), 1);
-					}
-					const publisherOrganization = this.organizationByPublisher.get(extensionOrPublisher);
-					if (publisherOrganization) {
-						for (const publisher of this.productService.publishersByOrganisation?.[publisherOrganization] ?? []) {
-							autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(publisher), 1);
-						}
 					}
 				}
 			}
@@ -1609,12 +1595,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		if (update) {
 			this.setSelectedExtensionsToAutoUpdate(autoUpdateExtensions);
-			await this.onDidPinnedViewContainersStorageValueChange(true);
+			await this.onDidSelectedExtensionToAutoUpdateValueChange(true);
+			if (autoUpdateValue === 'onlySelectedExtensions' && autoUpdateExtensions.length === 0) {
+				await this.configurationService.updateValue(AutoUpdateConfigurationKey, false);
+			}
 		}
 	}
 
-	private async onDidPinnedViewContainersStorageValueChange(force: boolean): Promise<void> {
-		if (force || this.selectedExtensionsToAutoUpdateValue !== this.getSelectedExtensionsToAutoUpdateValue() /* This checks if current window changed the value or not */) {
+	private async onDidSelectedExtensionToAutoUpdateValueChange(forceUpdate: boolean): Promise<void> {
+		if (forceUpdate || this.selectedExtensionsToAutoUpdateValue !== this.getSelectedExtensionsToAutoUpdateValue() /* This checks if current window changed the value or not */) {
 			await this.updateExtensionsPinnedState();
 			this.eventuallyAutoUpdateExtensions();
 		}
@@ -2129,11 +2118,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getSelectedExtensionsToAutoUpdateValue(): string {
-		return this.storageService.get(EXTENSIONS_AUTO_UPDATE_KEY, StorageScope.PROFILE, '[]');
+		return this.storageService.get(EXTENSIONS_AUTO_UPDATE_KEY, StorageScope.APPLICATION, '[]');
 	}
 
 	private setSelectedExtensionsToAutoUpdateValue(value: string): void {
-		this.storageService.store(EXTENSIONS_AUTO_UPDATE_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
+		this.storageService.store(EXTENSIONS_AUTO_UPDATE_KEY, value, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 }

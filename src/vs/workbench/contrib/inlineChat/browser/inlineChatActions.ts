@@ -66,7 +66,7 @@ export class StartSessionAction extends EditorAction2 {
 		if (arg && InlineChatRunOptions.isInteractiveEditorOptions(arg)) {
 			options = arg;
 		}
-		InlineChatController.get(editor)?.run(options);
+		InlineChatController.get(editor)?.run({ ...options });
 	}
 }
 
