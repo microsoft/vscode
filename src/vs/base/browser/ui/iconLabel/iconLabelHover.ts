@@ -219,6 +219,22 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hoverPreparation = toDispose;
 	};
 	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, onMouseOver, true);
+
+	const onFocus = () => {
+		if (hoverPreparation) {
+			return;
+		}
+		const target: IHoverDelegateTarget = {
+			targetElements: [htmlElement],
+			dispose: () => { }
+		};
+		const toDispose: DisposableStore = new DisposableStore();
+		const onBlur = () => hideHover(true, true);
+		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.BLUR, onBlur, true));
+		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
+		hoverPreparation = toDispose;
+	};
+	const focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
 	const hover: ICustomHover = {
 		show: focus => {
 			hideHover(false, true); // terminate a ongoing mouse over preparation
@@ -233,6 +249,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		},
 		dispose: () => {
 			mouseOverDomEmitter.dispose();
+			focusDomEmitter.dispose();
 			hideHover(true, true);
 		}
 	};
