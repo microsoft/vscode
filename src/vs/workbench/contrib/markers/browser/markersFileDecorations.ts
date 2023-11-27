@@ -111,9 +111,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#editor.renderValidationDecorations#` when `{0}` is off.", `editor.renderValidationDecorations`),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#workbench.editor.showProblems#` when `{0}` is off.", `workbench.editor.showProblems`),
 			'type': 'boolean',
-			'default': true,
+			'default': true
 		}
 	}
 });
