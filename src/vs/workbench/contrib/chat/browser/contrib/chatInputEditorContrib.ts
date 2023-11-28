@@ -178,8 +178,7 @@ class InputEditorDecorations extends Disposable {
 					range: {
 						startLineNumber: agentPart.editorRange.startLineNumber,
 						endLineNumber: agentPart.editorRange.endLineNumber,
-						// startColumn: agentPart.editorRange.endColumn + 1,
-						startColumn: 25,
+						startColumn: agentPart.editorRange.endColumn + 1,
 						endColumn: 1000
 					},
 					renderOptions: {
