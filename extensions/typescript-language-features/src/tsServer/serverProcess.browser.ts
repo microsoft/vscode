@@ -8,26 +8,12 @@ import { ApiService, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { Logger } from '../logging/logger';
-import { FileWatcherManager } from './fileWatchingManager';
+import { BrowserWatchEvent, FileWatcherManager } from './fileWatchingManager';
 import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
 import { NodeVersionManager } from './nodeManager';
-
-type BrowserWatchEvent = {
-	type: 'watchDirectory' | 'watchFile';
-	recursive?: boolean;
-	uri: {
-		scheme: string;
-		authority: string;
-		path: string;
-	};
-	id: number;
-} | {
-	type: 'dispose';
-	id: number;
-};
 
 export class WorkerServerProcessFactory implements TsServerProcessFactory {
 	constructor(
@@ -87,7 +73,7 @@ class WorkerServerProcess implements TsServerProcess {
 	) {
 		this._worker = new Worker(tsServerPath, { name: `TS ${kind} server #${this.id}` });
 
-		this._watches = new FileWatcherManager(logger);
+		this._watches = new FileWatcherManager(logger, msg => this._watcher.postMessage(msg));
 
 		const tsserverChannel = new MessageChannel();
 		const watcherChannel = new MessageChannel();
@@ -107,23 +93,7 @@ class WorkerServerProcess implements TsServerProcess {
 		};
 
 		this._watcher.onmessage = (event: MessageEvent<BrowserWatchEvent>) => {
-			switch (event.data.type) {
-				case 'dispose': {
-					this._watches.delete(event.data.id);
-					break;
-				}
-				case 'watchDirectory':
-				case 'watchFile': {
-					this._watches.create(event.data.id, vscode.Uri.from(event.data.uri), /*watchParentDirs*/ true, !!event.data.recursive, {
-						change: uri => this._watcher.postMessage({ type: 'watch', event: 'change', uri }),
-						create: uri => this._watcher.postMessage({ type: 'watch', event: 'create', uri }),
-						delete: uri => this._watcher.postMessage({ type: 'watch', event: 'delete', uri }),
-					});
-					break;
-				}
-				default:
-					console.error(`unexpected message on watcher channel: ${JSON.stringify(event)}`);
-			}
+			this._watches.onMessage(event.data);
 		};
 
 		this._worker.onmessage = (msg: any) => {

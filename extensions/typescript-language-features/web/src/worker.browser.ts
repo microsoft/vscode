@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 /// <reference lib='webworker' />
 
+// Use direct import as TS server is bundled on web
 import ts from 'typescript/lib/tsserverlibrary';
+
 import { URI } from 'vscode-uri';
 import { FileWatcherManager } from './fileWatcherManager';
 import { Logger, parseLogLevel } from './logging';
 import { PathMapper } from './pathMapper';
-import { createSys } from './serverHost';
-import { findArgument, findArgumentStringArray, hasArgument, parseServerMode } from './util/args';
-import { StartSessionOptions, startWorkerSession } from './workerSession';
+import { createSys } from './serverHost.browser';
+import { parseSessionOptions, startSession } from './session';
+import { findArgument, hasArgument, parseServerMode } from './util/args';
 
 const setSys: (s: ts.System) => void = (ts as any).setSys;
 
@@ -21,13 +23,13 @@ async function initializeSession(
 	ports: { tsserver: MessagePort; sync: MessagePort; watcher: MessagePort },
 ): Promise<void> {
 	const logLevel = parseLogLevel(findArgument(args, '--logVerbosity'));
-	const logger = new Logger(logLevel);
+	const logger = new Logger(logLevel, postMessage);
 
 	const modeOrUnknown = parseServerMode(args);
 	const serverMode = typeof modeOrUnknown === 'number' ? modeOrUnknown : undefined;
 	const unknownServerMode = typeof modeOrUnknown === 'string' ? modeOrUnknown : undefined;
 	logger.tsLogger.info(`Starting TS Server`);
-	logger.tsLogger.info(`Version: 0.0.0`);
+	logger.tsLogger.info(`Version: ${ts.version}`);
 	logger.tsLogger.info(`Arguments: ${args.join(' ')}`);
 	logger.tsLogger.info(`ServerMode: ${serverMode} unknownServerMode: ${unknownServerMode}`);
 	const sessionOptions = parseSessionOptions(args, serverMode);
@@ -35,27 +37,13 @@ async function initializeSession(
 	const enabledExperimentalTypeAcquisition = hasArgument(args, '--enableProjectWideIntelliSenseOnWeb') && hasArgument(args, '--experimentalTypeAcquisition');
 
 	const pathMapper = new PathMapper(extensionUri);
-	const watchManager = new FileWatcherManager(ports.watcher, extensionUri, enabledExperimentalTypeAcquisition, pathMapper, logger);
+	const watchManager = new FileWatcherManager(ports.watcher as any, extensionUri, enabledExperimentalTypeAcquisition, pathMapper, logger);
 
 	const { sys, fs } = await createSys(ts, args, ports.sync, logger, watchManager, pathMapper, () => {
 		removeEventListener('message', listener);
 	});
 	setSys(sys);
-	startWorkerSession(ts, sys, fs, sessionOptions, ports.tsserver, pathMapper, logger);
-}
-
-function parseSessionOptions(args: readonly string[], serverMode: ts.LanguageServiceMode | undefined): StartSessionOptions {
-	return {
-		globalPlugins: findArgumentStringArray(args, '--globalPlugins'),
-		pluginProbeLocations: findArgumentStringArray(args, '--pluginProbeLocations'),
-		allowLocalPluginLoads: hasArgument(args, '--allowLocalPluginLoads'),
-		useSingleInferredProject: hasArgument(args, '--useSingleInferredProject'),
-		useInferredProjectPerProjectRoot: hasArgument(args, '--useInferredProjectPerProjectRoot'),
-		suppressDiagnosticEvents: hasArgument(args, '--suppressDiagnosticEvents'),
-		noGetErrOnBackgroundUpdate: hasArgument(args, '--noGetErrOnBackgroundUpdate'),
-		serverMode,
-		disableAutomaticTypingAcquisition: hasArgument(args, '--disableAutomaticTypingAcquisition'),
-	};
+	startSession(ts, sys, fs, sessionOptions, ports.tsserver as any, pathMapper, logger);
 }
 
 let hasInitialized = false;

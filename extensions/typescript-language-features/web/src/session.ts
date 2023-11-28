@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 import { FileSystem } from '@vscode/sync-api-client';
 import type * as ts from 'typescript/lib/tsserverlibrary';
+import type { MessagePort } from 'worker_threads';
 import { Logger } from './logging';
+import { PathMapper } from './pathMapper';
 import { WebTypingsInstallerClient } from './typingsInstaller/typingsInstaller';
+import { findArgumentStringArray, hasArgument } from './util/args';
 import { hrtime } from './util/hrtime';
 import { WasmCancellationToken } from './wasmCancellationToken';
-import { PathMapper } from './pathMapper';
 
 export interface StartSessionOptions {
 	readonly globalPlugins: ts.server.SessionOptions['globalPlugins'];
@@ -22,7 +24,21 @@ export interface StartSessionOptions {
 	readonly disableAutomaticTypingAcquisition: boolean;
 }
 
-export function startWorkerSession(
+export function parseSessionOptions(args: readonly string[], serverMode: ts.LanguageServiceMode | undefined): StartSessionOptions {
+	return {
+		globalPlugins: findArgumentStringArray(args, '--globalPlugins'),
+		pluginProbeLocations: findArgumentStringArray(args, '--pluginProbeLocations'),
+		allowLocalPluginLoads: hasArgument(args, '--allowLocalPluginLoads'),
+		useSingleInferredProject: hasArgument(args, '--useSingleInferredProject'),
+		useInferredProjectPerProjectRoot: hasArgument(args, '--useInferredProjectPerProjectRoot'),
+		suppressDiagnosticEvents: hasArgument(args, '--suppressDiagnosticEvents'),
+		noGetErrOnBackgroundUpdate: hasArgument(args, '--noGetErrOnBackgroundUpdate'),
+		serverMode,
+		disableAutomaticTypingAcquisition: hasArgument(args, '--disableAutomaticTypingAcquisition'),
+	};
+}
+
+export function startSession(
 	ts: typeof import('typescript/lib/tsserverlibrary'),
 	host: ts.server.ServerHost,
 	fs: FileSystem | undefined,
@@ -33,7 +49,7 @@ export function startWorkerSession(
 ): void {
 	const indent: (str: string) => string = (ts as any).server.indent;
 
-	const worker = new class WorkerSession extends ts.server.Session<{}> {
+	const session = new class WorkerSession extends ts.server.Session<{}> {
 
 		private readonly wasmCancellationToken: WasmCancellationToken;
 		private readonly listener: (message: any) => void;
@@ -57,7 +73,7 @@ export function startWorkerSession(
 			this.listener = (message: any) => {
 				// TEMP fix since Cancellation.retrieveCheck is not correct
 				function retrieveCheck2(data: any) {
-					if (!globalThis.crossOriginIsolated || !(data.$cancellationData instanceof SharedArrayBuffer)) {
+					if (!(globalThis as any).crossOriginIsolated || !(data.$cancellationData instanceof SharedArrayBuffer)) {
 						return () => false;
 					}
 					const typedArray = new Int32Array(data.$cancellationData, 0, 1);
@@ -66,14 +82,14 @@ export function startWorkerSession(
 					};
 				}
 
-				const shouldCancel = retrieveCheck2(message.data);
+				const shouldCancel = retrieveCheck2(message);
 				if (shouldCancel) {
 					this.wasmCancellationToken.shouldCancel = shouldCancel;
 				}
 
 				try {
-					if (message.data.command === 'updateOpen') {
-						const args = message.data.arguments as ts.server.protocol.UpdateOpenRequestArgs;
+					if (message.command === 'updateOpen') {
+						const args = message.arguments as ts.server.protocol.UpdateOpenRequestArgs;
 						for (const open of args.openFiles ?? []) {
 							if (open.projectRootPath) {
 								pathMapper.addProjectRoot(open.projectRootPath);
@@ -84,7 +100,7 @@ export function startWorkerSession(
 					// Noop
 				}
 
-				this.onMessage(message.data);
+				this.onMessage(message);
 			};
 		}
 
@@ -111,16 +127,16 @@ export function startWorkerSession(
 
 		override exit() {
 			this.logger.info('Exiting...');
-			port.removeEventListener('message', this.listener);
+			port.removeListener('message', this.listener);
 			this.projectService.closeLog();
-			close();
+			(globalThis as any)?.close();
 		}
 
 		listen() {
 			this.logger.info(`webServer.ts: tsserver starting to listen for messages on 'message'...`);
-			port.onmessage = this.listener;
+			port.addListener('message', this.listener);
 		}
 	}();
 
-	worker.listen();
+	session.listen();
 }

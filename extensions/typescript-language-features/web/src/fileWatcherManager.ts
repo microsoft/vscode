@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { MessagePort } from 'worker_threads';
 import type * as ts from 'typescript/lib/tsserverlibrary';
 import { URI } from 'vscode-uri';
 import { Logger } from './logging';
@@ -32,7 +33,7 @@ export class FileWatcherManager {
 		private readonly pathMapper: PathMapper,
 		private readonly logger: Logger
 	) {
-		watchPort.onmessage = (e: any) => this.updateWatch(e.data.event, URI.from(e.data.uri), extensionUri);
+		watchPort.addListener('message', (e: any) => this.updateWatch(e.data.event, URI.from(e.data.uri), extensionUri));
 	}
 
 	watchFile(path: string, callback: ts.FileWatcherCallback, pollingInterval?: number, options?: ts.WatchOptions): ts.FileWatcher {

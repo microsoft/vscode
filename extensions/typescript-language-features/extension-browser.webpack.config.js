@@ -65,10 +65,38 @@ module.exports = [withBrowserDefaults({
 }), withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		'typescript/tsserver.web': './web/src/webServer.ts'
+		'typescript/tsserver.web': './web/src/webServer.ts',
 	},
 	module: {
 		exprContextCritical: false,
+	},
+	ignoreWarnings: [/Critical dependency: the request of a dependency is an expression/],
+	output: {
+		// all output goes into `dist`.
+		// packaging depends on that and this must always be like it
+		filename: '[name].js',
+		path: path.join(__dirname, 'dist', 'browser'),
+		libraryTarget: undefined,
+	},
+	externals: {
+		'perf_hooks': 'commonjs perf_hooks',
+	}
+}),
+withBrowserDefaults({
+	context: __dirname,
+	target: 'node',
+	entry: {
+		'typescript/serverProcess.node': './web/src/serverProcess.node.ts',
+		'typescript/worker.node': './web/src/worker.node.ts',
+	},
+	module: {
+		exprContextCritical: false,
+		parser: {
+			javascript: {
+				// Enable magic comments, disable by default for perf reasons
+				commonjsMagicComments: true
+			}
+		}
 	},
 	ignoreWarnings: [/Critical dependency: the request of a dependency is an expression/],
 	output: {

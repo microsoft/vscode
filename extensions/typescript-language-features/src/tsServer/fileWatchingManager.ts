@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
 import { Schemes } from '../configuration/schemes';
 import { Logger } from '../logging/logger';
-import { disposeAll, IDisposable } from '../utils/dispose';
+import { Disposable, disposeAll, IDisposable } from '../utils/dispose';
 import { ResourceMap } from '../utils/resourceMap';
 
 interface DirWatcherEntry {
@@ -15,8 +15,7 @@ interface DirWatcherEntry {
 	readonly listeners: IDisposable[];
 }
 
-
-export class FileWatcherManager implements IDisposable {
+class FileWatcherStore implements IDisposable {
 
 	private readonly _fileWatchers = new Map<number, {
 		readonly uri: vscode.Uri;
@@ -120,5 +119,54 @@ export class FileWatcherManager implements IDisposable {
 		}
 
 		this._fileWatchers.delete(id);
+	}
+}
+
+
+export type BrowserWatchEvent = {
+	type: 'watchDirectory' | 'watchFile';
+	recursive?: boolean;
+	uri: {
+		scheme: string;
+		authority: string;
+		path: string;
+	};
+	id: number;
+} | {
+	type: 'dispose';
+	id: number;
+};
+
+
+export class FileWatcherManager extends Disposable {
+	private readonly _watches: FileWatcherStore;
+
+	constructor(
+		logger: Logger,
+		private readonly postMessage: (message: any) => void,
+	) {
+		super();
+		this._watches = this._register(new FileWatcherStore(logger));
+	}
+
+	onMessage(event: BrowserWatchEvent) {
+		switch (event.type) {
+			case 'dispose': {
+				this._watches.delete(event.id);
+				break;
+			}
+			case 'watchDirectory':
+			case 'watchFile': {
+				this._watches.create(event.id, vscode.Uri.from(event.uri), /*watchParentDirs*/ true, !!event.recursive, {
+					change: uri => this.postMessage({ type: 'watch', event: 'change', uri }),
+					create: uri => this.postMessage({ type: 'watch', event: 'create', uri }),
+					delete: uri => this.postMessage({ type: 'watch', event: 'delete', uri }),
+				});
+				break;
+			}
+			default: {
+				console.error(`unexpected message on watcher channel: ${JSON.stringify(event)}`);
+			}
+		}
 	}
 }

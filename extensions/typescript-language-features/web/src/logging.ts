@@ -17,7 +17,10 @@ export enum LogLevel {
 export class Logger {
 	public readonly tsLogger: ts.server.Logger;
 
-	constructor(logLevel: LogLevel | undefined) {
+	constructor(
+		logLevel: LogLevel | undefined,
+		postMessage: (message: any) => void,
+	) {
 		const doLog = typeof logLevel === 'undefined'
 			? (_message: string) => { }
 			: (message: string) => { postMessage({ type: 'log', body: message }); };

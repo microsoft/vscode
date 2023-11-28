@@ -16,6 +16,8 @@ import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKi
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
 import { NodeVersionManager } from './nodeManager';
+import { FileWatcherManager } from './fileWatchingManager';
+import { Logger } from '../logging/logger';
 
 
 const defaultSize: number = 8192;
@@ -249,7 +251,88 @@ class StdioChildServerProcess extends Disposable implements TsServerProcess {
 	}
 }
 
+
+enum MessageType {
+	Server = 'server',
+	Watcher = 'watcher',
+	Fs = 'fs',
+	Log = 'log',
+}
+
+class ProxyWorkerServerProcess extends Disposable implements TsServerProcess {
+
+	private readonly _id = 0; // TODO
+
+	private readonly _dataHandlers = new Set<(data: Proto.Response) => void>();
+
+	constructor(
+		private readonly _kind: TsServerProcessKind,
+		logger: Logger,
+		private readonly _tsServerLog: TsServerLog | undefined,
+		private readonly _process: child_process.ChildProcess,
+	) {
+		super();
+
+		const watchers = this._register(new FileWatcherManager(logger, msg => {
+			_process.send!({ type: MessageType.Watcher, body: msg });
+		}));
+
+		this._process.on('message', (msg: any) => {
+			switch (msg.type) {
+				case MessageType.Server:
+					this._dataHandlers.forEach(handler => handler(msg.body));
+					break;
+
+				case MessageType.Fs:
+					break;
+
+				case MessageType.Watcher:
+					watchers.onMessage(msg.body);
+					break;
+
+				case MessageType.Log:
+					this.appendLog(msg.body);
+					break;
+
+				default:
+					throw new Error(`Extension received unexpected message from server process: ${JSON.stringify(msg)}`);
+			}
+		});
+	}
+
+	write(serverRequest: Proto.Request): void {
+		this._process.send({ type: 'server', body: serverRequest });
+	}
+
+	onData(handler: (data: Proto.Response) => void): void {
+		this._dataHandlers.add(handler);
+	}
+
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
+		this._process.on('exit', handler);
+	}
+
+	onError(handler: (err: Error) => void): void {
+		this._process.on('error', handler);
+	}
+
+	kill(): void {
+		this._process.kill();
+	}
+
+	private appendLog(msg: string) {
+		if (this._tsServerLog?.type === 'output') {
+			this._tsServerLog.output.appendLine(`(${this._id} - ${this._kind}) ${msg}`);
+		}
+	}
+}
+
 export class ElectronServiceProcessFactory implements TsServerProcessFactory {
+	constructor(
+		private readonly _extensionUri: vscode.Uri,
+		private readonly _logger: Logger,
+	) { }
+
 	fork(
 		version: TypeScriptVersion,
 		args: readonly string[],
@@ -257,7 +340,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
 		nodeVersionManager: NodeVersionManager,
-		_tsserverLog: TsServerLog | undefined,
+		tsserverLog: TsServerLog | undefined,
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
 
@@ -277,20 +360,23 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 			runtimeArgs.push('--useNodeIpc');
 		}
 
+		const spawnerPath = path.resolve(__dirname, '..', '..', 'dist', 'browser', 'typescript', 'serverProcess.node.js');
 		const childProcess = execPath ?
-			child_process.spawn(execPath, [...execArgv, tsServerPath, ...runtimeArgs], {
+			child_process.spawn(execPath, [...execArgv, spawnerPath, tsServerPath, '--extension-uri', this._extensionUri.toString(), ...runtimeArgs], {
 				shell: true,
 				windowsHide: true,
 				cwd: undefined,
 				env,
 			}) :
-			child_process.fork(tsServerPath, runtimeArgs, {
+			child_process.fork(spawnerPath, [tsServerPath, '--extension-uri', this._extensionUri.toString(), ...runtimeArgs], {
 				silent: true,
 				cwd: undefined,
 				env,
 				execArgv,
 				stdio: useIpc ? ['pipe', 'pipe', 'pipe', 'ipc'] : undefined,
 			});
+
+		return new ProxyWorkerServerProcess(kind, this._logger, tsserverLog, childProcess);
 
 		return useIpc ? new IpcChildServerProcess(childProcess) : new StdioChildServerProcess(childProcess);
 	}

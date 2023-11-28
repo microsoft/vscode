@@ -73,7 +73,8 @@ export function fromResource(extensionUri: URI, uri: URI) {
 	if (uri.scheme === extensionUri.scheme
 		&& uri.authority === extensionUri.authority
 		&& uri.path.startsWith(extensionUri.path + '/dist/browser/typescript/lib.')
-		&& uri.path.endsWith('.d.ts')) {
+		&& uri.path.endsWith('.d.ts')
+	) {
 		return uri.path;
 	}
 	return `/${uri.scheme}/${uri.authority}${uri.path}`;

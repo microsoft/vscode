@@ -414,6 +414,7 @@ export async function createSys(
 ) {
 	if (hasArgument(args, '--enableProjectWideIntelliSenseOnWeb')) {
 		const enabledExperimentalTypeAcquisition = hasArgument(args, '--experimentalTypeAcquisition');
+
 		const connection = new ClientConnection<Requests>(fsPort);
 		await connection.serviceReady();
 
@@ -425,4 +426,3 @@ export async function createSys(
 		return { sys: createServerHost(ts, logger, undefined, args, watchManager, pathMapper, false, onExit) };
 	}
 }
-
