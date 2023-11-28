@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { distinct } from 'vs/base/common/arrays';
 import { Queue, RunOnceScheduler } from 'vs/base/common/async';
@@ -40,6 +39,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
@@ -1018,7 +1019,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 										await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 									}
 
-									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
+									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI && !getActiveWindow()) {
 										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
 									}
 								}
