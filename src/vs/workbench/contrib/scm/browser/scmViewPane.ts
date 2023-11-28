@@ -797,7 +797,7 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItemGroup.icon));
 		}
 
-		templateData.label.setLabel(historyItemGroup.label, historyItemGroup.description);
+		templateData.label.setLabel(historyItemGroup.label, historyItemGroup.description, { title: historyItemGroup.ariaLabel });
 		templateData.count.setCount(historyItemGroup.count ?? 0);
 	}
 
@@ -1001,7 +1001,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		return { label, disposables: new DisposableStore() };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		templateData.label.setLabel(element.element.label);
+		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
@@ -3274,6 +3274,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			if (historyItemGroups.length > 0) {
 				children.push({
 					label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
+					ariaLabel: localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes"),
 					repository: inputOrElement,
 					type: 'separator'
 				} as SCMViewSeparatorElement);
@@ -3341,6 +3342,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				(this.showIncomingChanges() === 'auto' && (historyItemGroupDetails.incoming.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.incoming,
+				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", historyItemGroupDetails.incoming.label),
 				repository: element,
 				type: 'historyItemGroup'
 			});
@@ -3352,6 +3354,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				(this.showOutgoingChanges() === 'auto' && (historyItemGroupDetails.outgoing.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.outgoing,
+				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes from {0}", historyItemGroupDetails.outgoing.label),
 				repository: element,
 				type: 'historyItemGroup'
 			});
