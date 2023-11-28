@@ -305,15 +305,9 @@
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item {
 	cursor: default;
-	opacity: 0.6;
 }
 
-.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-label:hover {
-	outline: unset;
-	outline-offset: unset;
-	background-color: unset;
-}
-
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-label:hover,
 .scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item.monaco-dropdown-with-primary:hover {
 	background-color: unset;
 }
