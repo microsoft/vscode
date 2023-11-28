@@ -103,6 +103,7 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { clamp } from 'vs/base/common/numbers';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -2465,7 +2466,8 @@ class SCMInputWidget {
 	}
 
 	private getInputEditorMaxLines(): number {
-		return this.configurationService.getValue<number>('scm.inputMaxLines');
+		const inputMaxLines = this.configurationService.getValue('scm.inputMaxLines');
+		return typeof inputMaxLines === 'number' ? clamp(inputMaxLines, 1, 50) : 10;
 	}
 
 	private getInputEditorMaxHeight(): number {
