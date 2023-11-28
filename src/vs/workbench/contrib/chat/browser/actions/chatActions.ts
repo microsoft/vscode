@@ -217,6 +217,32 @@ export function registerChatActions() {
 	});
 }
 
+registerAction2(class ShowChatViewWithInput extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.showChatViewWithInput',
+			title: localize2('chat.showChatViewWithInput.label', "Show Chat View With Input"),
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const input = args[0];
+		if (typeof input !== 'string') {
+			return;
+		}
+
+		const viewsService = accessor.get(IViewsService);
+		const chatContribService = accessor.get(IChatContributionService);
+		const chatService = accessor.get(IChatService);
+		const providerId = chatService.getProviderInfos()[0].id;
+
+		const viewId = chatContribService.getViewIdForProvider(providerId);
+		const view = await viewsService.openView(viewId) as ChatViewPane;
+		view.widget.updateInput(args[0]);
+	}
+});
+
 export function getOpenChatEditorAction(id: string, label: string, when?: string) {
 	return class OpenChatEditor extends Action2 {
 		constructor() {
