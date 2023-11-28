@@ -151,6 +151,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				Event.map(focusTracker.onDidFocus, () => this.hasFocus, disposables),
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, disposables),
 			), undefined, disposables)(focus => emitter.fire(focus));
 		}, { window: mainWindow, disposables: this._store }));
 

@@ -48,7 +48,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { $window, mainWindow } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 //#region Layout Implementation
 
@@ -57,7 +57,7 @@ interface ILayoutRuntimeState {
 	fullscreen: boolean;
 	maximized: Set<number>;
 	hasFocus: boolean;
-	windowBorder: boolean;
+	mainWindowBorder: boolean;
 	readonly menuBar: {
 		toggled: boolean;
 	};
@@ -96,7 +96,7 @@ interface ILayoutState {
 
 enum LayoutClasses {
 	SIDEBAR_HIDDEN = 'nosidebar',
-	EDITOR_HIDDEN = 'noeditorarea',
+	MAIN_EDITOR_AREA_HIDDEN = 'nomaineditorarea',
 	PANEL_HIDDEN = 'nopanel',
 	AUXILIARYBAR_HIDDEN = 'noauxiliarybar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
@@ -368,10 +368,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Theme changes
-		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowBorder($window.vscodeWindowId)));
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowsBorder()));
 
 		// Window active / focus changes
-		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged($window.vscodeWindowId, focused)));
+		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged(focused)));
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
@@ -449,7 +449,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 
-			this.updateWindowBorder($window.vscodeWindowId, true);
+			this.updateWindowsBorder(true);
 		}
 
 		this._onDidChangeFullscreen.fire(this.state.runtime.fullscreen);
@@ -459,14 +459,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activeContainerId = this.getActiveContainerId();
 		if (this.state.runtime.activeContainerId !== activeContainerId) {
 			this.state.runtime.activeContainerId = activeContainerId;
+
+			// Indicate active window border
+			this.updateWindowsBorder();
+
 			this._onDidChangeActiveContainer.fire();
 		}
 	}
 
-	private onWindowFocusChanged(targetWindowId: number, hasFocus: boolean): void {
+	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
-			this.updateWindowBorder(targetWindowId);
+			this.updateWindowsBorder();
 		}
 	}
 
@@ -520,7 +524,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.adjustPartPositions(position, panelAlignment, panelPosition);
 	}
 
-	private updateWindowBorder(targetWindowId: number, skipLayout: boolean = false) {
+	private updateWindowsBorder(skipLayout = false) {
 		if (
 			isWeb ||
 			isWindows || // not working well with zooming and window control overlays
@@ -534,22 +538,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
 
-		let windowBorder = false;
-		if (!this.state.runtime.fullscreen && !this.state.runtime.maximized.has(targetWindowId) && (activeBorder || inactiveBorder)) {
-			windowBorder = true;
+		for (const container of this.containers) {
+			const isMainContainer = container === this.mainContainer;
+			const isActiveContainer = this.activeContainer === container;
+			const containerWindowId = getWindowId(getWindow(container));
 
-			// If the inactive color is missing, fallback to the active one
-			const borderColor = this.state.runtime.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
-			this.mainContainer.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
+			let windowBorder = false;
+			if (!this.state.runtime.fullscreen && !this.state.runtime.maximized.has(containerWindowId) && (activeBorder || inactiveBorder)) {
+				windowBorder = true;
+
+				// If the inactive color is missing, fallback to the active one
+				const borderColor = isActiveContainer && this.state.runtime.hasFocus ? activeBorder : inactiveBorder ?? activeBorder;
+				container.style.setProperty('--window-border-color', borderColor?.toString() ?? 'transparent');
+			}
+
+			if (isMainContainer) {
+				this.state.runtime.mainWindowBorder = windowBorder;
+			}
+
+			container.classList.toggle(LayoutClasses.WINDOW_BORDER, windowBorder);
 		}
-
-		if (windowBorder === this.state.runtime.windowBorder) {
-			return;
-		}
-
-		this.state.runtime.windowBorder = windowBorder;
-
-		this.mainContainer.classList.toggle(LayoutClasses.WINDOW_BORDER, windowBorder);
 
 		if (!skipLayout) {
 			this.layout();
@@ -614,7 +622,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			fullscreen: isFullscreen(),
 			hasFocus: this.hostService.hasFocus,
 			maximized: new Set<number>(),
-			windowBorder: false,
+			mainWindowBorder: false,
 			menuBar: {
 				toggled: false,
 			},
@@ -676,7 +684,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Window border
-		this.updateWindowBorder(mainWindow.vscodeWindowId, true);
+		this.updateWindowsBorder(true);
 	}
 
 	private getDefaultLayoutViews(environmentService: IBrowserWorkbenchEnvironmentService, storageService: IStorageService): string[] | undefined {
@@ -1153,6 +1161,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	isVisible(part: SINGLE_WINDOW_PARTS): boolean;
 	isVisible(part: Parts, targetWindow?: Window): boolean;
 	isVisible(part: Parts, targetWindow: Window = mainWindow): boolean {
+		if (targetWindow !== mainWindow && part === Parts.EDITOR_PART) {
+			return true; // cannot hide editor part in auxiliary windows
+		}
+
 		if (this.initialized) {
 			switch (part) {
 				case Parts.TITLEBAR_PART:
@@ -1662,9 +1674,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			this.mainContainer.classList.add(LayoutClasses.EDITOR_HIDDEN);
+			this.mainContainer.classList.add(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN);
 		} else {
-			this.mainContainer.classList.remove(LayoutClasses.EDITOR_HIDDEN);
+			this.mainContainer.classList.remove(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -1679,10 +1691,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	getLayoutClasses(): string[] {
 		return coalesce([
 			!this.isVisible(Parts.SIDEBAR_PART) ? LayoutClasses.SIDEBAR_HIDDEN : undefined,
-			!this.isVisible(Parts.EDITOR_PART, $window) ? LayoutClasses.EDITOR_HIDDEN : undefined,
+			!this.isVisible(Parts.EDITOR_PART, mainWindow) ? LayoutClasses.MAIN_EDITOR_AREA_HIDDEN : undefined,
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
-			!this.isVisible(Parts.STATUSBAR_PART, $window) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
+			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
 			this.state.runtime.fullscreen ? LayoutClasses.FULLSCREEN : undefined
 		]);
 	}
@@ -1991,16 +2003,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	hasWindowBorder(): boolean {
-		return this.state.runtime.windowBorder;
+	hasMainWindowBorder(): boolean {
+		return this.state.runtime.mainWindowBorder;
 	}
 
-	getWindowBorderWidth(): number {
-		return this.state.runtime.windowBorder ? 2 : 0;
-	}
-
-	getWindowBorderRadius(): string | undefined {
-		return this.state.runtime.windowBorder && isMacintosh ? '5px' : undefined;
+	getMainWindowBorderRadius(): string | undefined {
+		return this.state.runtime.mainWindowBorder && isMacintosh ? '5px' : undefined;
 	}
 
 	isPanelMaximized(): boolean {
@@ -2135,7 +2143,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.runtime.maximized.delete(targetWindowId);
 		}
 
-		this.updateWindowBorder(targetWindowId);
+		this.updateWindowsBorder();
 		this._onDidChangeWindowMaximized.fire({ windowId: targetWindowId, maximized });
 	}
 

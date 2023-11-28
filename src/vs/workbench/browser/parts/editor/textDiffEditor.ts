@@ -267,9 +267,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 		return editorConfiguration;
 	}
 
-	protected override getConfigurationOverrides(): IDiffEditorOptions {
+	protected override getConfigurationOverrides(configuration: IEditorConfiguration): IDiffEditorOptions {
 		return {
-			...super.getConfigurationOverrides(),
+			...super.getConfigurationOverrides(configuration),
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
 			originalEditable: this.input instanceof DiffEditorInput && !this.input.original.isReadonly(),
 			lineDecorationsWidth: '2ch'

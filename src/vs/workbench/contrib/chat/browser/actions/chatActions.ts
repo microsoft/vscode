@@ -8,32 +8,32 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IViewsService } from 'vs/workbench/common/views';
+import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS, CONTEXT_REQUEST, CONTEXT_RESPONSE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatDetail, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IViewsService } from 'vs/workbench/common/views';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -75,61 +75,67 @@ class QuickChatGlobalAction extends Action2 {
 	}
 }
 
+export class ChatSubmitSecondaryAgentEditorAction extends EditorAction2 {
+	static readonly ID = 'workbench.action.chat.submitSecondaryAgent';
+
+	constructor() {
+		super({
+			id: ChatSubmitSecondaryAgentEditorAction.ID,
+			title: localize2({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
+			precondition: CONTEXT_IN_CHAT_INPUT,
+			keybinding: {
+				when: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		const editorUri = editor.getModel()?.uri;
+		if (editorUri) {
+			const agentService = accessor.get(IChatAgentService);
+			const secondaryAgent = agentService.getSecondaryAgent();
+			if (!secondaryAgent) {
+				return;
+			}
+
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
+		}
+	}
+}
+
+export class ChatSubmitEditorAction extends EditorAction2 {
+	static readonly ID = 'workbench.action.chat.acceptInput';
+
+	constructor() {
+		super({
+			id: ChatSubmitEditorAction.ID,
+			title: localize2({ key: 'actions.chat.submit', comment: ['Apply input from the chat input box'] }, "Submit"),
+			precondition: CONTEXT_IN_CHAT_INPUT,
+			keybinding: {
+				when: EditorContextKeys.textInputFocus,
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		const editorUri = editor.getModel()?.uri;
+		if (editorUri) {
+			const widgetService = accessor.get(IChatWidgetService);
+			widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
+		}
+	}
+}
+
 export function registerChatActions() {
 	registerAction2(QuickChatGlobalAction);
-	registerEditorAction(class ChatAcceptInput extends EditorAction {
-		constructor() {
-			super({
-				id: 'chat.action.acceptInput',
-				label: localize({ key: 'actions.chat.acceptInput', comment: ['Apply input from the chat input box'] }, "Accept Chat Input"),
-				alias: 'Accept Chat Input',
-				precondition: CONTEXT_IN_CHAT_INPUT,
-				kbOpts: {
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyCode.Enter,
-					weight: KeybindingWeight.EditorContrib
-				}
-			});
-		}
+	registerAction2(ChatSubmitEditorAction);
 
-		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-			const editorUri = editor.getModel()?.uri;
-			if (editorUri) {
-				const widgetService = accessor.get(IChatWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
-			}
-		}
-	});
-
-	registerEditorAction(class ChatSubmitSecondaryAgent extends EditorAction {
-		constructor() {
-			super({
-				id: 'chat.action.submitSecondaryAgent',
-				label: localize({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
-				alias: 'Submit to Secondary Agent',
-				precondition: CONTEXT_IN_CHAT_INPUT,
-				kbOpts: {
-					kbExpr: EditorContextKeys.textInputFocus,
-					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-					weight: KeybindingWeight.EditorContrib
-				}
-			});
-		}
-
-		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-			const editorUri = editor.getModel()?.uri;
-			if (editorUri) {
-				const agentService = accessor.get(IChatAgentService);
-				const secondaryAgent = agentService.getSecondaryAgent();
-				if (!secondaryAgent) {
-					return;
-				}
-
-				const widgetService = accessor.get(IChatWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
-			}
-		}
-	});
+	registerAction2(ChatSubmitSecondaryAgentEditorAction);
 
 	registerAction2(class ClearChatHistoryAction extends Action2 {
 		constructor() {

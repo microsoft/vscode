@@ -45,7 +45,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	readonly onDidChangeFocus = Event.latch(
 		Event.any(
 			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store)
+			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => hasWindow(id), this._store), () => this.hasFocus, this._store),
+			Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, this._store)
 		), undefined, this._store
 	);
 

@@ -280,10 +280,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			}
 		}));
 
-		const isDiffUpToDate = this._diffModel.map(this, (m, reader) => /** @description isDiffUpToDate */ m?.isDiffUpToDate.read(reader));
+		const isInitializingDiff = this._diffModel.map(this, (m, reader) => {
+			/** @isInitializingDiff isDiffUpToDate */
+			if (!m) { return undefined; }
+			return m.diff.read(reader) === undefined && !m.isDiffUpToDate.read(reader);
+		});
 		this._register(autorunWithStore((reader, store) => {
 			/** @description DiffEditorWidgetHelper.ShowProgress */
-			if (isDiffUpToDate.read(reader) === false) {
+			if (isInitializingDiff.read(reader) === true) {
 				const r = this._editorProgressService.show(true, 1000);
 				store.add(toDisposable(() => r.done()));
 			}

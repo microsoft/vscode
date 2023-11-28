@@ -24,6 +24,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 class MultiDiffEditorResolverContribution extends Disposable {
 
@@ -156,3 +157,13 @@ export class CollapseAllAction extends Action2 {
 
 registerAction2(GoToFileAction);
 registerAction2(CollapseAllAction);
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	properties: {
+		'multiDiffEditor.experimental.enabled': {
+			type: 'boolean',
+			default: false,
+			description: 'Enable experimental multi diff editor.',
+		},
+	}
+});

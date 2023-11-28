@@ -33,6 +33,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -120,6 +121,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
+		'problems.visibility': {
+			type: 'boolean',
+			default: true,
+			tags: ['experimental'],
+			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
+		}
 	}
 });
 
@@ -552,14 +559,26 @@ registerAction2(class extends Action2 {
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
 	private markersStatusItem: IStatusbarEntryAccessor;
+	private markersStatusItemOff: IStatusbarEntryAccessor;
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'error-kind', StatusbarAlignment.LEFT, 49));
+		this._register(this.markerService.onMarkerChanged(() => {
+			this.markersStatusItem.update(this.getMarkersItem());
+			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('problems.visibility')) {
+				this.markersStatusItem.update(this.getMarkersItem());
+				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
+			}
+		}));
 	}
 
 	private getMarkersItem(): IStatusbarEntry {
@@ -571,6 +590,25 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			ariaLabel: tooltip,
 			tooltip,
 			command: 'workbench.actions.view.toggleProblems'
+		};
+	}
+
+	private getMarkersItemTurnedOff(): IStatusbarEntry {
+		const config = this.configurationService.getValue('problems.visibility');
+		if (config) {
+			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
+		}
+
+		const openSettingsCommand = 'workbench.action.openSettings';
+		const configureSettingsLabel = 'problems.visibility';
+		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
+		return {
+			name: localize('status.problems.off', "Problems"),
+			text: '$(whole-word)',
+			ariaLabel: tooltip,
+			tooltip,
+			kind: 'warning',
+			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
 		};
 	}
 

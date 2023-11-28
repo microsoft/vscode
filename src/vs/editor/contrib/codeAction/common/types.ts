@@ -7,7 +7,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -95,7 +98,7 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 	return true;
 }
 
-export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction): boolean {
+export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction, model: ITextModel, rangeOrSelection: Range | Selection): boolean {
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
 
 	// Filter out actions by kind
@@ -122,6 +125,11 @@ export function filtersAction(filter: CodeActionFilter, action: languages.CodeAc
 		if (!action.isPreferred) {
 			return false;
 		}
+	}
+
+	// On empty lines and selections, show only code AI code actions
+	if (rangeOrSelection.isEmpty() && model.getLineContent(rangeOrSelection.startLineNumber).length === 0) {
+		return !!action.isAI;
 	}
 
 	return true;
