@@ -95,9 +95,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const action = this.state.actions.validActions[0].action;
 				if (action.command?.id) {
 					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+					e.preventDefault();
+					return;
 				}
-				e.preventDefault();
-				return;
 			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
 			this._editor.focus();
