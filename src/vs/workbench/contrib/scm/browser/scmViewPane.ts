@@ -1779,6 +1779,7 @@ const enum SCMInputCommandId {
 }
 
 const SCMInputContextKeys = {
+	ActionCount: new RawContextKey<number>('scmInputActionCount', 0),
 	ActionIsEnabled: new RawContextKey<boolean>('scmInputActionIsEnabled', false),
 	ActionIsRunning: new RawContextKey<boolean>('scmInputActionIsRunning', false),
 };
@@ -1846,6 +1847,8 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	private _dropdownActions: IAction[] = [];
 	get dropdownActions(): IAction[] { return this._dropdownActions; }
 
+	private readonly _ctxActionCount: IContextKey<number>;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -1868,6 +1871,8 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			icon: Codicon.debugStop,
 		}, undefined, undefined, undefined, contextKeyService, commandService);
 
+		this._ctxActionCount = SCMInputContextKeys.ActionCount.bindTo(contextKeyService);
+
 		const updateToolbar = () => {
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(menu, options?.menuOptions, actions);
@@ -1883,6 +1888,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
+			this._ctxActionCount.set(actions.length);
 			this._dropdownActions = actions.length === 1 ? [] : actions;
 
 			container.classList.toggle('has-no-actions', actions.length === 0);
@@ -1917,6 +1923,7 @@ class SCMInputWidget {
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
 	private toolbarContainer: HTMLElement;
+	private toolbarContextKeyService: IContextKeyService;
 	private actionBar: ActionBar;
 	private readonly disposables = new DisposableStore();
 
@@ -2074,9 +2081,9 @@ class SCMInputWidget {
 		const onDidChangeActionButton = () => {
 			this.actionBar.clear();
 
-			const defaultProvider = this.scmService.getDefaultInputValueProvider(input.repository);
+			const actionCount = this.toolbarContextKeyService.getContextKeyValue<number>(SCMInputContextKeys.ActionCount.key) ?? 0;
 
-			if (input.actionButton && defaultProvider === undefined) {
+			if (input.actionButton && actionCount === 0) {
 				const action = new Action(
 					input.actionButton.command.id,
 					input.actionButton.command.title,
@@ -2092,6 +2099,9 @@ class SCMInputWidget {
 
 			this.layout();
 		};
+
+		const ctxKeys = new Set<string>([SCMInputContextKeys.ActionCount.key]);
+		this.repositoryDisposables.add(Event.filter(this.toolbarContextKeyService.onDidChangeContext, e => e.affectsSome(ctxKeys))(onDidChangeActionButton, this));
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
 		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeActionButton, this));
@@ -2113,12 +2123,10 @@ class SCMInputWidget {
 	}
 
 	private createToolbar(input: ISCMInput): void {
-		const contextKeyService2 = this.contextKeyService.createScoped(this.toolbarContainer);
-
-		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
+		const services = new ServiceCollection([IContextKeyService, this.toolbarContextKeyService]);
 		const instantiationService2 = this.instantiationService.createChild(services);
 
-		const ctxIsActionEnabled = SCMInputContextKeys.ActionIsEnabled.bindTo(contextKeyService2);
+		const ctxIsActionEnabled = SCMInputContextKeys.ActionIsEnabled.bindTo(this.toolbarContextKeyService);
 		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => ctxIsActionEnabled.set(input.repository.provider.groups.some(r => r.resources.length > 0))));
 
 		const actionRunner = instantiationService2.createInstance(SCMInputWidgetActionRunner, input);
@@ -2128,7 +2136,7 @@ class SCMInputWidget {
 			actionRunner,
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction && toolbar.dropdownActions.length > 1) {
-					const scmInputActionIsEnabled = contextKeyService2.getContextKeyValue<boolean>('scmInputActionIsEnabled') === true;
+					const scmInputActionIsEnabled = this.toolbarContextKeyService.getContextKeyValue<boolean>('scmInputActionIsEnabled') === true;
 					const dropdownAction = new Action('scmInputMoreActions', localize('scmInputMoreActions', 'More Actions...'), 'codicon-chevron-down', scmInputActionIsEnabled);
 
 					return instantiationService2.createInstance(DropdownWithPrimaryActionViewItem, action, dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, { actionRunner });
@@ -2187,6 +2195,8 @@ class SCMInputWidget {
 		const lineHeight = this.computeLineHeight(fontSize);
 
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
+
+		this.toolbarContextKeyService = this.contextKeyService.createScoped(this.toolbarContainer);
 
 		const contextKeyService2 = contextKeyService.createScoped(this.element);
 		this.repositoryIdContextKey = contextKeyService2.createKey('scmRepository', undefined);
