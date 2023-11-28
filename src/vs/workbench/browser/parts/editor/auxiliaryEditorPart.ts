@@ -114,7 +114,6 @@ export class AuxiliaryEditorPart {
 			}
 		}));
 
-
 		updateStatusbarVisibility(false);
 
 		// Lifecycle

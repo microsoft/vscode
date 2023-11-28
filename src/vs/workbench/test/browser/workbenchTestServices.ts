@@ -618,9 +618,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
-	hasWindowBorder(): boolean { return false; }
-	getWindowBorderWidth(): number { return 0; }
-	getWindowBorderRadius(): string | undefined { return undefined; }
+	hasMainWindowBorder(): boolean { return false; }
+	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getContainer(): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
