@@ -1090,7 +1090,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		const activeElement = document.activeElement;
+		const activeElement = container.ownerDocument.activeElement;
 		if (!activeElement) {
 			return false;
 		}
