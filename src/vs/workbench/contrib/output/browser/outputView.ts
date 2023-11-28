@@ -34,6 +34,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 
 export class OutputViewPane extends ViewPane {
 
@@ -177,8 +178,8 @@ class OutputEditor extends AbstractTextResourceEditor {
 		return nls.localize('output', "Output");
 	}
 
-	protected override getConfigurationOverrides(): ICodeEditorOptions {
-		const options = super.getConfigurationOverrides();
+	protected override getConfigurationOverrides(configuration: IEditorConfiguration): ICodeEditorOptions {
+		const options = super.getConfigurationOverrides(configuration);
 		options.wordWrap = 'on';				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
 		options.glyphMargin = false;
