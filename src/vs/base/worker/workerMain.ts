@@ -103,11 +103,18 @@
 	}
 
 	function configureAMDLoader() {
+		const nlsConfig: any = {};
+		nlsConfig['vs/nls'] = {
+			availableLanguages: {
+				'*': navigator.language.toLowerCase()
+			},
+		};
 		require.config({
 			baseUrl: monacoBaseUrl,
 			catchError: true,
 			trustedTypesPolicy,
-			amdModulesPattern: /^vs\//
+			amdModulesPattern: /^vs\//,
+			...nlsConfig,
 		});
 	}
 
