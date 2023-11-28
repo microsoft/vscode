@@ -11,12 +11,14 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
+import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 
 class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
 
 	declare readonly _serviceBrand: undefined;
+	private readonly cache = new LRUCache<string, string>(100);
 
 	constructor(
 		@IFileService fileService: IFileService,
@@ -37,6 +39,10 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 			return result.value.toString();
 		}
 
+		if (this.cache.get(uri.toString(true))) {
+			return this.cache.get(uri.toString(true))!;
+		}
+
 		const requestInit: RequestInit = {};
 		if (this.isExtensionGalleryResource(uri)) {
 			requestInit.headers = await this.getExtensionGalleryRequestHeaders();
@@ -46,9 +52,13 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 		const response = await fetch(uri.toString(true), requestInit);
 		if (response.status !== 200) {
 			this._logService.info(`Request to '${uri.toString(true)}' failed with status code ${response.status}`);
+			this.cache.delete(uri.toString(true));
 			throw new Error(response.statusText);
 		}
-		return response.text();
+
+		const resp = await response.text();
+		this.cache.set(uri.toString(true), resp);
+		return resp;
 	}
 }
 
