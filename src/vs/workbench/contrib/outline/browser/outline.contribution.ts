@@ -70,7 +70,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': true
 		},
 		[OutlineConfigKeys.problemsColors]: {
-			'markdownDescription': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements.Overwritten by `#problems.visibility#` when it is off."),
+			'markdownDescription': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements. Overwritten by `#problems.visibility#` when it is off."),
 			'type': 'boolean',
 			'default': true
 		},
