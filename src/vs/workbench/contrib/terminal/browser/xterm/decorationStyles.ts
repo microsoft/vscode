@@ -73,12 +73,12 @@ export class TerminalDecorationHoverManager extends Disposable {
 						}
 					} else if (command.exitCode) {
 						if (command.exitCode === -1) {
-							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
+							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} for {1} ms and failed', fromNow(command.timestamp, true), command.duration);
 						} else {
-							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
+							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} for {2} ms and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode, command.duration);
 						}
 					} else {
-						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0} for {1} ms', fromNow(command.timestamp, true), command.duration);
 					}
 					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target: element });
 				});

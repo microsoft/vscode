@@ -242,6 +242,7 @@ interface IBaseTerminalCommand {
 	command: string;
 	isTrusted: boolean;
 	timestamp: number;
+	duration: number;
 
 	// Optional serializable
 	cwd: string | undefined;
