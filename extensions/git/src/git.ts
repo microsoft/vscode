@@ -911,7 +911,7 @@ export function parseGitCommits(data: string): Commit[] {
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
 			refNames: refNames.split(',').map(s => s.trim()),
-			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined
+			shortStat: parseGitDiffShortStat(shortStat ?? '')
 		});
 	} while (true);
 
