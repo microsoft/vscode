@@ -267,6 +267,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._handleCompletionModel(model);
 	}
 
+	private _getTerminalDimensions(): { width: number; height: number } {
+		return {
+			width: (this._terminal as any)._core._renderService.dimensions.css.cell.width,
+			height: (this._terminal as any)._core._renderService.dimensions.css.cell.height,
+		};
+	}
+
 	private _handleCompletionModel(model: SimpleCompletionModel): void {
 		if (model.items.length === 0 || !this._terminal?.element) {
 			return;
@@ -280,10 +287,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		this._additionalInput = undefined;
-		const dimensions = {
-			width: (this._terminal as any)._core._renderService.dimensions.css.cell.width,
-			height: (this._terminal as any)._core._renderService.dimensions.css.cell.height,
-		};
+		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
@@ -449,12 +453,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 
-			// TODO: Share code
 			// TODO: Expose on xterm.js
-			const dimensions = {
-				width: (this._terminal as any)._core._renderService.dimensions.css.cell.width,
-				height: (this._terminal as any)._core._renderService.dimensions.css.cell.height,
-			};
+			const dimensions = this._getTerminalDimensions();
 			if (!dimensions.width || !dimensions.height) {
 				return;
 			}
