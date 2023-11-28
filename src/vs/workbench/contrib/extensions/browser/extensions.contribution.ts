@@ -1510,7 +1510,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
+				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT),
 				order: 4
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
