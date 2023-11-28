@@ -881,38 +881,31 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const historyItem = node.element;
 
 		if (historyItem.statistics) {
-			const statsAriaLabel: string[] = [];
+			const statsAriaLabel: string[] = [
+				historyItem.statistics.files === 1 ?
+					localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
+					localize('filesChanged', "{0} files changed", historyItem.statistics.files),
+				historyItem.statistics.insertions === 1 ? localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
+					historyItem.statistics.insertions > 1 ? localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)') : '',
+				historyItem.statistics.deletions === 1 ? localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
+					historyItem.statistics.deletions > 1 ? localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)') : ''
+			];
 
-			if (historyItem.statistics?.files) {
-				const filesDescription = historyItem.statistics.files === 1 ?
-					localize('fileChanged', "file changed") : localize('filesChanged', "files changed");
-				statsAriaLabel.push(`${historyItem.statistics.files} ${filesDescription}`);
-			}
-
-			if (historyItem.statistics?.insertions) {
-				const insertionsDescription = historyItem.statistics.insertions === 1 ?
-					localize('insertion', "insertion{0}", '(+)') : localize('insertions', "insertions{0}", '(+)');
-				statsAriaLabel.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
-			}
-
-			if (historyItem.statistics?.deletions) {
-				const deletionsDescription = historyItem.statistics.deletions === 1 ?
-					localize('deletion', "deletion{0}", '(-)') : localize('deletions', "deletions{0}", '(-)');
-				statsAriaLabel.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
-			}
-
-			const statsTitle = statsAriaLabel.join(', ');
+			const statsTitle = statsAriaLabel
+				.filter(l => l !== '').join(', ');
 			templateData.statsContainer.title = statsTitle;
 			templateData.statsContainer.setAttribute('aria-label', statsTitle);
 
-			templateData.filesLabel.textContent = historyItem.statistics.files > 0 ? historyItem.statistics.files.toString() : '';
-			templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
-			templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
+			templateData.filesLabel.textContent = historyItem.statistics.files.toString();
 
-			templateData.statsContainer.style.display = '';
-		} else {
-			templateData.statsContainer.style.display = 'none';
+			templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
+			templateData.insertionsLabel.classList.toggle('hidden', historyItem.statistics.insertions === 0);
+
+			templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
+			templateData.deletionsLabel.classList.toggle('hidden', historyItem.statistics.deletions === 0);
 		}
+
+		templateData.statsContainer.classList.toggle('hidden', historyItem.statistics === undefined);
 	}
 
 	disposeElement(element: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
