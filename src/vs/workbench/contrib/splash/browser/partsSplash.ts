@@ -84,8 +84,8 @@ export class PartsSplash {
 				activityBarWidth: this._layoutService.isVisible(Parts.ACTIVITYBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.ACTIVITYBAR_PART))) : 0,
 				sideBarWidth: this._layoutService.isVisible(Parts.SIDEBAR_PART) ? dom.getTotalWidth(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.SIDEBAR_PART))) : 0,
 				statusBarHeight: this._layoutService.isVisible(Parts.STATUSBAR_PART, mainWindow) ? dom.getTotalHeight(assertIsDefined(this._layoutService.getContainer(mainWindow, Parts.STATUSBAR_PART))) : 0,
-				windowBorder: this._layoutService.hasWindowBorder(),
-				windowBorderRadius: this._layoutService.getWindowBorderRadius()
+				windowBorder: this._layoutService.hasMainWindowBorder(),
+				windowBorderRadius: this._layoutService.getMainWindowBorderRadius()
 			}
 		});
 	}
