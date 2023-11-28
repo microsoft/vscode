@@ -16,7 +16,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
-import { CellInternalMetadataChangedEvent, CellKind, compressOutputItemStreams, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, isTextStreamMime, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellDto2, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
@@ -166,17 +166,10 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._textModelDisposables.clear();
 		this._textModel = m;
 		if (this._textModel) {
-			// Init language from text model
-			// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
-			// If so let's not modify the language
-			if (!(this._languageService.isRegisteredLanguageId(this.language) === false && (this._textModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID || this._textModel.getLanguageId() === 'jupyter'))) {
-				this.language = this._textModel.getLanguageId();
-			}
+			this.setRegisteredLanguage(this._languageService, this._textModel.getLanguageId(), this.language);
 
 			// Listen to language changes on the model
-			this._textModelDisposables.add(this._textModel.onDidChangeLanguage(e => {
-				this.language = e.newLanguage;
-			}));
+			this._textModelDisposables.add(this._textModel.onDidChangeLanguage((e) => this.setRegisteredLanguage(this._languageService, e.newLanguage, this.language)));
 			this._textModelDisposables.add(this._textModel.onWillDispose(() => this.textModel = undefined));
 			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
 				if (this._textModel) {
@@ -188,6 +181,18 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 			this._textModel._overwriteVersionId(this._versionId);
 			this._textModel._overwriteAlternativeVersionId(this._versionId);
+		}
+	}
+
+	private setRegisteredLanguage(languageService: ILanguageService, newLanguage: string, currentLanguage: string) {
+		// The language defined in the cell might not be supported in the editor so the text model might be using the default fallback
+		// If so let's not modify the language
+		const isFallBackLanguage = (newLanguage === PLAINTEXT_LANGUAGE_ID || newLanguage === 'jupyter');
+		if (!languageService.isRegisteredLanguageId(currentLanguage) && isFallBackLanguage) {
+			// notify to display warning, but don't change the language
+			this._onDidChangeLanguage.fire(currentLanguage);
+		} else {
+			this.language = newLanguage;
 		}
 	}
 
@@ -298,34 +303,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 	}
 
-	private _optimizeOutputItems(output: ICellOutput) {
-		if (output.outputs.length > 1 && output.outputs.every(item => isTextStreamMime(item.mime))) {
-			// Look for the mimes in the items, and keep track of their order.
-			// Merge the streams into one output item, per mime type.
-			const mimeOutputs = new Map<string, Uint8Array[]>();
-			const mimeTypes: string[] = [];
-			output.outputs.forEach(item => {
-				let items: Uint8Array[];
-				if (mimeOutputs.has(item.mime)) {
-					items = mimeOutputs.get(item.mime)!;
-				} else {
-					items = [];
-					mimeOutputs.set(item.mime, items);
-					mimeTypes.push(item.mime);
-				}
-				items.push(item.data.buffer);
-			});
-			output.outputs.length = 0;
-			mimeTypes.forEach(mime => {
-				const compressed = compressOutputItemStreams(mimeOutputs.get(mime)!);
-				output.outputs.push({
-					mime,
-					data: compressed
-				});
-			});
-		}
-	}
-
 	replaceOutput(outputId: string, newOutputItem: ICellOutput) {
 		const outputIndex = this.outputs.findIndex(output => output.outputId === outputId);
 
@@ -335,7 +312,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 		const output = this.outputs[outputIndex];
 		output.replaceData(newOutputItem);
-		this._optimizeOutputItems(output);
 		this._onDidChangeOutputItems.fire();
 		return true;
 	}
@@ -353,8 +329,6 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		} else {
 			output.replaceData({ outputId: outputId, outputs: items, metadata: output.metadata });
 		}
-
-		this._optimizeOutputItems(output);
 		this._onDidChangeOutputItems.fire();
 		return true;
 	}

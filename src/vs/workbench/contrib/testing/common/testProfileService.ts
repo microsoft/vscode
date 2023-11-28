@@ -13,6 +13,7 @@ import { InternalTestItem, ITestRunProfile, TestRunProfileBitset, testRunProfile
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IMainThreadTestController } from 'vs/workbench/contrib/testing/common/testService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export const ITestProfileService = createDecorator<ITestProfileService>('testProfileService');
 
@@ -100,11 +101,11 @@ export const capabilityContextKeys = (capabilities: number): [key: string, value
 	[TestingContextKeys.hasCoverableTests.key, (capabilities & TestRunProfileBitset.Coverage) !== 0],
 ];
 
-export class TestProfileService implements ITestProfileService {
+export class TestProfileService extends Disposable implements ITestProfileService {
 	declare readonly _serviceBrand: undefined;
 	private readonly preferredDefaults: StoredValue<{ [K in TestRunProfileBitset]?: { controllerId: string; profileId: number }[] }>;
 	private readonly capabilitiesContexts: { [K in TestRunProfileBitset]: IContextKey<boolean> };
-	private readonly changeEmitter = new Emitter<void>();
+	private readonly changeEmitter = this._register(new Emitter<void>());
 	private readonly controllerProfiles = new Map</* controller ID */string, {
 		profiles: ITestRunProfile[];
 		controller: IMainThreadTestController;
@@ -117,11 +118,13 @@ export class TestProfileService implements ITestProfileService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 	) {
-		this.preferredDefaults = new StoredValue({
+		super();
+
+		this.preferredDefaults = this._register(new StoredValue({
 			key: 'testingPreferredProfiles',
 			scope: StorageScope.WORKSPACE,
 			target: StorageTarget.MACHINE,
-		}, storageService);
+		}, storageService));
 
 		this.capabilitiesContexts = {
 			[TestRunProfileBitset.Run]: TestingContextKeys.hasRunnableTests.bindTo(contextKeyService),

@@ -19,7 +19,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 
 suite('Files - NativeTextFileService', function () {
 	const disposables = new DisposableStore();
@@ -31,28 +31,25 @@ suite('Files - NativeTextFileService', function () {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const logService = new NullLogService();
-		const fileService = new FileService(logService);
+		const fileService = disposables.add(new FileService(logService));
 
-		const fileProvider = new InMemoryFileSystemProvider();
+		const fileProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-		disposables.add(fileProvider);
 
 		const collection = new ServiceCollection();
 		collection.set(IFileService, fileService);
+		collection.set(IWorkingCopyFileService, disposables.add(new WorkingCopyFileService(fileService, disposables.add(new WorkingCopyService()), instantiationService, disposables.add(new UriIdentityService(fileService)))));
 
-		collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
-
-		service = instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides);
+		service = disposables.add(instantiationService.createChild(collection).createInstance(TestNativeTextFileServiceWithEncodingOverrides));
+		disposables.add(<TextFileEditorModelManager>service.files);
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>service.files).dispose();
-
 		disposables.clear();
 	});
 
 	test('shutdown joins on pending saves', async function () {
-		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+		const model: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined));
 
 		await model.resolve();
 
@@ -67,4 +64,6 @@ suite('Files - NativeTextFileService', function () {
 
 		assert.strictEqual(pendingSaveAwaited, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

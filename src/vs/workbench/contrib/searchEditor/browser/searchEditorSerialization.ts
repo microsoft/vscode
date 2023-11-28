@@ -113,7 +113,7 @@ function matchesToSearchResultFormat(resource: URI, sortedMatches: Match[], matc
 }
 
 function cellMatchToSearchResultFormat(cellMatch: CellMatch, labelFormatter: (x: URI) => string, shouldUseHeader: boolean): SearchResultSerialization {
-	return matchesToSearchResultFormat(cellMatch.cell.uri, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, shouldUseHeader);
+	return matchesToSearchResultFormat(cellMatch.cell?.uri ?? cellMatch.parent.resource, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, shouldUseHeader);
 }
 
 const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number): SearchConfiguration => {
@@ -129,9 +129,9 @@ const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: stri
 		onlyOpenEditors: !!pattern.onlyOpenEditors,
 		notebookSearchConfig: {
 			includeMarkupInput: !!pattern.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-			includeMarkupPreview: !pattern.contentPattern.notebookInfo?.isInNotebookMarkdownInput,
-			includeCodeInput: !pattern.contentPattern.notebookInfo?.isInNotebookCellInput,
-			includeOutput: !pattern.contentPattern.notebookInfo?.isInNotebookCellOutput,
+			includeMarkupPreview: !!pattern.contentPattern.notebookInfo?.isInNotebookMarkdownPreview,
+			includeCodeInput: !!pattern.contentPattern.notebookInfo?.isInNotebookCellInput,
+			includeOutput: !!pattern.contentPattern.notebookInfo?.isInNotebookCellOutput,
 		}
 	};
 };

@@ -26,12 +26,12 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { joinPath } from 'vs/base/common/resources';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -44,7 +44,7 @@ const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
 suite('KeybindingsEditing', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let fileService: IFileService;
 	let environmentService: IEnvironmentService;
@@ -59,7 +59,6 @@ suite('KeybindingsEditing', () => {
 		fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
-		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, new NullLogService()))));
 
 		const userFolder = joinPath(ROOT, 'User');
 		await fileService.createFolder(userFolder);
@@ -67,8 +66,10 @@ suite('KeybindingsEditing', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('files', { 'eol': '\n' });
 
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), logService);
-		userDataProfileService = new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, new NullLogService()))));
 
 		instantiationService = workbenchInstantiationService({
 			fileService: () => fileService,
@@ -78,8 +79,6 @@ suite('KeybindingsEditing', () => {
 
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditingService));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('errors cases - parse errors', async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.keybindingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));

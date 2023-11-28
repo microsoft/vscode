@@ -40,7 +40,10 @@
           ".eyaml",
           ".eyml",
           ".yaml",
-          ".cff"
+          ".cff",
+          ".yaml-tmlanguage",
+          ".yaml-tmpreferences",
+          ".yaml-tmtheme"
         ],
         "firstLine": "^#cloud-config",
         "configuration": "./language-configuration.json"

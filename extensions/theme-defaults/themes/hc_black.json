@@ -4,21 +4,23 @@
 	"colors": {
 		"editor.background": "#000000",
 		"editor.foreground": "#FFFFFF",
-		"editorIndentGuide.background": "#FFFFFF",
-		"editorIndentGuide.activeBackground": "#FFFFFF",
+		"editorIndentGuide.background1": "#FFFFFF",
+		"editorIndentGuide.activeBackground1": "#FFFFFF",
 		"sideBarTitle.foreground": "#FFFFFF",
 		"selection.background": "#008000",
 		"editor.selectionBackground": "#FFFFFF",
 		"statusBarItem.remoteBackground": "#00000000",
 		"ports.iconRunningProcessForeground": "#FFFFFF",
-		"editorWhitespace.foreground": "#7c7c7c"
+		"editorWhitespace.foreground": "#7c7c7c",
+		"actionBar.toggledBackground": "#383a49"
 	},
 	"tokenColors": [
 		{
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#FFFFFF"
@@ -404,6 +406,7 @@
 				"source.cpp keyword.operator.new",
 				"source.cpp keyword.operator.delete",
 				"keyword.other.using",
+				"keyword.other.directive.using",
 				"keyword.other.operator"
 			],
 			"settings": {

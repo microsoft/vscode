@@ -6,7 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IEditorSerializer, isUntitledWithAssociatedResource } from 'vs/workbench/common/editor';
+import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
@@ -19,11 +19,12 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 interface ISerializedUntitledTextEditorInput {
-	resourceJSON: UriComponents;
-	modeId: string | undefined; // should be `languageId` but is kept for backwards compatibility
-	encoding: string | undefined;
+	readonly resourceJSON: UriComponents;
+	readonly modeId: string | undefined; // should be `languageId` but is kept for backwards compatibility
+	readonly encoding: string | undefined;
 }
 
 export class UntitledTextEditorInputSerializer implements IEditorSerializer {
@@ -89,7 +90,8 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IPathService private readonly pathService: IPathService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService
 	) {
 		super();
 
@@ -113,7 +115,7 @@ export class UntitledTextEditorWorkingCopyEditorHandler extends Disposable imple
 
 		// If the untitled has an associated resource,
 		// ensure to restore the local resource it had
-		if (isUntitledWithAssociatedResource(workingCopy.resource)) {
+		if (this.untitledTextEditorService.isUntitledWithAssociatedResource(workingCopy.resource)) {
 			editorInputResource = toLocalResource(workingCopy.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 		} else {
 			editorInputResource = workingCopy.resource;

@@ -104,7 +104,7 @@ interface NodePosition {
 	 */
 	node: TreeNode;
 	/**
-	 * remainer in current piece.
+	 * remainder in current piece.
 	*/
 	remainder: number;
 	/**

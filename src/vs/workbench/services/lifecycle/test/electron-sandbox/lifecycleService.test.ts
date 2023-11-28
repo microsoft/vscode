@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeLifecycleService } from 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
 import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
@@ -12,7 +13,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbo
 suite('Lifecycleservice', function () {
 
 	let lifecycleService: TestLifecycleService;
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 
 	class TestLifecycleService extends NativeLifecycleService {
 
@@ -26,14 +27,12 @@ suite('Lifecycleservice', function () {
 	}
 
 	setup(async () => {
-		disposables = new DisposableStore();
-
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		lifecycleService = instantiationService.createInstance(TestLifecycleService);
+		lifecycleService = disposables.add(instantiationService.createInstance(TestLifecycleService));
 	});
 
 	teardown(async () => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('onBeforeShutdown - final veto called after other vetos', async function () {
@@ -42,16 +41,16 @@ suite('Lifecycleservice', function () {
 
 		const order: number[] = [];
 
-		lifecycleService.onBeforeShutdown(e => {
+		disposables.add(lifecycleService.onBeforeShutdown(e => {
 			e.veto(new Promise<boolean>(resolve => {
 				vetoCalled = true;
 				order.push(1);
 
 				resolve(false);
 			}), 'test');
-		});
+		}));
 
-		lifecycleService.onBeforeShutdown(e => {
+		disposables.add(lifecycleService.onBeforeShutdown(e => {
 			e.finalVeto(() => {
 				return new Promise<boolean>(resolve => {
 					finalVetoCalled = true;
@@ -60,7 +59,7 @@ suite('Lifecycleservice', function () {
 					resolve(true);
 				});
 			}, 'test');
-		});
+		}));
 
 		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
@@ -75,15 +74,15 @@ suite('Lifecycleservice', function () {
 		let vetoCalled = false;
 		let finalVetoCalled = false;
 
-		lifecycleService.onBeforeShutdown(e => {
+		disposables.add(lifecycleService.onBeforeShutdown(e => {
 			e.veto(new Promise<boolean>(resolve => {
 				vetoCalled = true;
 
 				resolve(true);
 			}), 'test');
-		});
+		}));
 
-		lifecycleService.onBeforeShutdown(e => {
+		disposables.add(lifecycleService.onBeforeShutdown(e => {
 			e.finalVeto(() => {
 				return new Promise<boolean>(resolve => {
 					finalVetoCalled = true;
@@ -91,7 +90,7 @@ suite('Lifecycleservice', function () {
 					resolve(true);
 				});
 			}, 'test');
-		});
+		}));
 
 		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
@@ -101,11 +100,11 @@ suite('Lifecycleservice', function () {
 	});
 
 	test('onBeforeShutdown - veto with error is treated as veto', async function () {
-		lifecycleService.onBeforeShutdown(e => {
+		disposables.add(lifecycleService.onBeforeShutdown(e => {
 			e.veto(new Promise<boolean>((resolve, reject) => {
 				reject(new Error('Fail'));
 			}), 'test');
-		});
+		}));
 
 		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
@@ -113,11 +112,11 @@ suite('Lifecycleservice', function () {
 	});
 
 	test('onBeforeShutdown - final veto with error is treated as veto', async function () {
-		lifecycleService.onBeforeShutdown(e => {
+		disposables.add(lifecycleService.onBeforeShutdown(e => {
 			e.finalVeto(() => new Promise<boolean>((resolve, reject) => {
 				reject(new Error('Fail'));
 			}), 'test');
-		});
+		}));
 
 		const veto = await lifecycleService.testHandleBeforeShutdown(ShutdownReason.QUIT);
 
@@ -127,13 +126,13 @@ suite('Lifecycleservice', function () {
 	test('onWillShutdown - join', async function () {
 		let joinCalled = false;
 
-		lifecycleService.onWillShutdown(e => {
+		disposables.add(lifecycleService.onWillShutdown(e => {
 			e.join(new Promise(resolve => {
 				joinCalled = true;
 
 				resolve();
 			}), { id: 'test', label: 'test' });
-		});
+		}));
 
 		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
 
@@ -143,16 +142,18 @@ suite('Lifecycleservice', function () {
 	test('onWillShutdown - join with error is handled', async function () {
 		let joinCalled = false;
 
-		lifecycleService.onWillShutdown(e => {
+		disposables.add(lifecycleService.onWillShutdown(e => {
 			e.join(new Promise((resolve, reject) => {
 				joinCalled = true;
 
 				reject(new Error('Fail'));
 			}), { id: 'test', label: 'test' });
-		});
+		}));
 
 		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
 
 		assert.strictEqual(joinCalled, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -192,7 +192,7 @@ export class RenameInputField implements IContentWidget {
 			};
 
 			disposeOnDone.add(token.onCancellationRequested(() => this.cancelInput(true)));
-			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!document.hasFocus())));
+			disposeOnDone.add(this._editor.onDidBlurEditorWidget(() => this.cancelInput(!this._domNode?.ownerDocument.hasFocus())));
 
 			this._show();
 

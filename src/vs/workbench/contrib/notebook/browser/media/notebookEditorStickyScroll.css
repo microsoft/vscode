@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .notebook-sticky-scroll-container {
+	display: none;
+	position: absolute;
+	background-color: var(--vscode-notebook-editorBackground);
+	z-index: var(--z-index-notebook-sticky-scroll);
+	width: 100%;
+	font-family: var(--notebook-cell-input-preview-font-family);
+}
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-line {
+	background-color: var(--vscode-notebook-editorBackground);
+	position: relative;
+	z-index: 0;
+	padding-left: 12px;
+	/* transition: margin-top 0.2s ease-in-out; */
+}
+
+.monaco-workbench.hc-light .notebookOverlay .notebook-sticky-scroll-container,
+.monaco-workbench.hc-black .notebookOverlay .notebook-sticky-scroll-container {
+	background-color: var(--vscode-editorStickyScroll-background);
+	border-bottom: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-sticky-scroll-line:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background);
+	cursor: pointer;
+}
+
+.monaco-workbench
+	.notebookOverlay
+	.notebook-sticky-scroll-container
+	.notebook-shadow {
+	display: block;
+	top: 0;
+	left: 3px;
+	height: 3px;
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}

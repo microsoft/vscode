@@ -15,4 +15,5 @@ export interface INotebookEditorWorkerService {
 
 	canComputeDiff(original: URI, modified: URI): boolean;
 	computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult>;
+	canPromptRecommendation(model: URI): Promise<boolean>;
 }

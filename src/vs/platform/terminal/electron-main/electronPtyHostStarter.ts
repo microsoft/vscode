@@ -3,61 +3,122 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IReconnectConstants } from 'vs/platform/terminal/common/terminal';
-import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IReconnectConstants, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IPtyHostConnection, IPtyHostStarter } from 'vs/platform/terminal/node/ptyHost';
-// import { FileAccess } from 'vs/base/common/network';
-// import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
-// import { parsePtyHostDebugPort } from 'vs/platform/environment/node/environmentService';
-// import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
+import { Client as MessagePortClient } from 'vs/base/parts/ipc/electron-main/ipc.mp';
+import { IpcMainEvent } from 'electron';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { deepClone } from 'vs/base/common/objects';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Schemas } from 'vs/base/common/network';
 
-export class ElectronPtyHostStarter implements IPtyHostStarter {
+export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarter {
 
-	// private utilityProcess: UtilityProcess | undefined = undefined;
+	private utilityProcess: UtilityProcess | undefined = undefined;
+
+	private readonly _onRequestConnection = new Emitter<void>();
+	readonly onRequestConnection = this._onRequestConnection.event;
+	private readonly _onWillShutdown = new Emitter<void>();
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	constructor(
 		private readonly _reconnectConstants: IReconnectConstants,
-		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IEnvironmentMainService private readonly _environmentMainService: IEnvironmentMainService,
+		@ILifecycleMainService private readonly _lifecycleMainService: ILifecycleMainService,
+		@ILogService private readonly _logService: ILogService
 	) {
+		super();
+
+		this._lifecycleMainService.onWillShutdown(() => this._onWillShutdown.fire());
+		// Listen for new windows to establish connection directly to pty host
+		validatedIpcMain.on('vscode:createPtyHostMessageChannel', (e, nonce) => this._onWindowConnection(e, nonce));
+		this._register(toDisposable(() => {
+			validatedIpcMain.removeHandler('vscode:createPtyHostMessageChannel');
+		}));
 	}
 
-	start(lastPtyId: number): IPtyHostConnection {
-		return new NodePtyHostStarter(this._reconnectConstants, this._environmentService).start(lastPtyId);
+	start(): IPtyHostConnection {
+		this.utilityProcess = new UtilityProcess(this._logService, NullTelemetryService, this._lifecycleMainService);
 
-		// console.log('use utility proc');
+		const inspectParams = parsePtyHostDebugPort(this._environmentMainService.args, this._environmentMainService.isBuilt);
+		const execArgv = inspectParams.port ? [
+			'--nolazy',
+			`--inspect${inspectParams.break ? '-brk' : ''}=${inspectParams.port}`
+		] : undefined;
 
-		// // TODO: Convert to use utility process
-		// const opts: IIPCOptions = {
-		// 	serverName: 'Pty Host',
-		// 	args: ['--type=ptyHost', '--logsPath', this._environmentService.logsHome.fsPath],
-		// 	env: {
-		// 		VSCODE_LAST_PTY_ID: lastPtyId,
-		// 		VSCODE_PTY_REMOTE: this._isRemote,
-		// 		VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
-		// 		VSCODE_PIPE_LOGGING: 'true',
-		// 		VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
-		// 		VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.graceTime,
-		// 		VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.shortGraceTime,
-		// 		VSCODE_RECONNECT_SCROLLBACK: this._reconnectConstants.scrollback
-		// 	}
-		// };
+		this.utilityProcess.start({
+			type: 'ptyHost',
+			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
+			execArgv,
+			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
+			env: this._createPtyHostConfiguration()
+		});
 
-		// const ptyHostDebug = parsePtyHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
-		// if (ptyHostDebug) {
-		// 	if (ptyHostDebug.break && ptyHostDebug.port) {
-		// 		opts.debugBrk = ptyHostDebug.port;
-		// 	} else if (!ptyHostDebug.break && ptyHostDebug.port) {
-		// 		opts.debug = ptyHostDebug.port;
-		// 	}
-		// }
+		const port = this.utilityProcess.connect();
+		const client = new MessagePortClient(port, 'ptyHost');
 
-		// const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
+		const store = new DisposableStore();
+		store.add(client);
+		store.add(toDisposable(() => {
+			this.utilityProcess?.kill();
+			this.utilityProcess?.dispose();
+			this.utilityProcess = undefined;
+		}));
 
-		// return {
-		// 	client,
-		// 	dispose: client.dispose,
-		// 	onDidProcessExit: client.onDidProcessExit
-		// };
+		return {
+			client,
+			store,
+			onDidProcessExit: this.utilityProcess.onExit
+		};
+	}
+
+	private _createPtyHostConfiguration() {
+		this._environmentMainService.unsetSnapExportedVariables();
+		const config: { [key: string]: string } = {
+			...deepClone(process.env),
+			VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
+			VSCODE_PIPE_LOGGING: 'true',
+			VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
+			VSCODE_RECONNECT_GRACE_TIME: String(this._reconnectConstants.graceTime),
+			VSCODE_RECONNECT_SHORT_GRACE_TIME: String(this._reconnectConstants.shortGraceTime),
+			VSCODE_RECONNECT_SCROLLBACK: String(this._reconnectConstants.scrollback),
+		};
+		const simulatedLatency = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostLatency);
+		if (simulatedLatency && typeof simulatedLatency === 'number') {
+			config.VSCODE_LATENCY = String(simulatedLatency);
+		}
+		const startupDelay = this._configurationService.getValue(TerminalSettingId.DeveloperPtyHostStartupDelay);
+		if (startupDelay && typeof startupDelay === 'number') {
+			config.VSCODE_STARTUP_DELAY = String(startupDelay);
+		}
+		this._environmentMainService.restoreSnapExportedVariables();
+		return config;
+	}
+
+	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
+		this._onRequestConnection.fire();
+
+		const port = this.utilityProcess!.connect();
+
+		// Check back if the requesting window meanwhile closed
+		// Since shared process is delayed on startup there is
+		// a chance that the window close before the shared process
+		// was ready for a connection.
+
+		if (e.sender.isDestroyed()) {
+			port.close();
+			return;
+		}
+
+		e.sender.postMessage('vscode:createPtyHostMessageChannelResult', nonce, [port]);
 	}
 }

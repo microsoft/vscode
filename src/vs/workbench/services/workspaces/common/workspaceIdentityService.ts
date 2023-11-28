@@ -16,7 +16,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 export const IWorkspaceIdentityService = createDecorator<IWorkspaceIdentityService>('IWorkspaceIdentityService');
 export interface IWorkspaceIdentityService {
 	_serviceBrand: undefined;
-	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<(obj: any) => any>;
+	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((obj: any) => any) | false>;
 	getWorkspaceStateFolders(cancellationToken: CancellationToken): Promise<IWorkspaceStateFolder[]>;
 }
 
@@ -40,7 +40,7 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 		return workspaceStateFolders;
 	}
 
-	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<(value: any) => any> {
+	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((value: any) => any) | false> {
 		const incomingToCurrentWorkspaceFolderUris: { [key: string]: string } = {};
 
 		const incomingIdentitiesToIncomingWorkspaceFolders: { [key: string]: string } = {};
@@ -81,7 +81,7 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 				continue;
 			}
 
-			return () => { };
+			return false;
 		}
 
 		const convertUri = (uriToConvert: URI) => {

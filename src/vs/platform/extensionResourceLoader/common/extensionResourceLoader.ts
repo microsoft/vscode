@@ -41,6 +41,11 @@ export interface IExtensionResourceLoaderService {
 	readonly supportsExtensionGalleryResources: boolean;
 
 	/**
+	 * Return true if the given URI is a extension gallery resource.
+	 */
+	isExtensionGalleryResource(uri: URI): boolean;
+
+	/**
 	 * Computes the URL of a extension gallery resource. Returns `undefined` if gallery does not provide extension resources.
 	 */
 	getExtensionGalleryResourceURL(galleryExtension: { publisher: string; name: string; version: string; targetPlatform?: TargetPlatform }, path?: string): URI | undefined;
@@ -104,8 +109,8 @@ export abstract class AbstractExtensionResourceLoaderService implements IExtensi
 
 	public abstract readExtensionResource(uri: URI): Promise<string>;
 
-	protected isExtensionGalleryResource(uri: URI) {
-		return this._extensionGalleryAuthority && this._extensionGalleryAuthority === this._getExtensionGalleryAuthority(uri);
+	isExtensionGalleryResource(uri: URI): boolean {
+		return !!this._extensionGalleryAuthority && this._extensionGalleryAuthority === this._getExtensionGalleryAuthority(uri);
 	}
 
 	protected async getExtensionGalleryRequestHeaders(): Promise<IHeaders> {

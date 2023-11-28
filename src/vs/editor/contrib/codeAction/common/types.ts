@@ -7,7 +7,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export class CodeActionKind {
 	private static readonly sep = '.';
@@ -20,6 +23,7 @@ export class CodeActionKind {
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorMove = CodeActionKind.Refactor.append('move');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Notebook = new CodeActionKind('notebook');
 	public static readonly Source = new CodeActionKind('source');
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
@@ -94,7 +98,7 @@ export function mayIncludeActionsOfKind(filter: CodeActionFilter, providedKind: 
 	return true;
 }
 
-export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction): boolean {
+export function filtersAction(filter: CodeActionFilter, action: languages.CodeAction, model: ITextModel, rangeOrSelection: Range | Selection): boolean {
 	const actionKind = action.kind ? new CodeActionKind(action.kind) : undefined;
 
 	// Filter out actions by kind
@@ -121,6 +125,11 @@ export function filtersAction(filter: CodeActionFilter, action: languages.CodeAc
 		if (!action.isPreferred) {
 			return false;
 		}
+	}
+
+	// On empty lines and selections, show only code AI code actions
+	if (rangeOrSelection.isEmpty() && model.getLineContent(rangeOrSelection.startLineNumber).length === 0) {
+		return !!action.isAI;
 	}
 
 	return true;
@@ -192,6 +201,7 @@ export class CodeActionItem {
 	constructor(
 		public readonly action: languages.CodeAction,
 		public readonly provider: languages.CodeActionProvider | undefined,
+		public highlightRange?: boolean,
 	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {

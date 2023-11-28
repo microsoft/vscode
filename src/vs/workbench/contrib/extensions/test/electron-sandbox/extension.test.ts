@@ -23,6 +23,10 @@ suite('Extension Test', () => {
 		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'insiders' });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('extension is not outdated when there is no local and gallery', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, undefined, undefined);
 		assert.strictEqual(extension.outdated, false);
@@ -60,7 +64,7 @@ suite('Extension Test', () => {
 	});
 
 	test('extension is outdated when local and gallery are on same version but on different target platforms', () => {
-		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_IA32 }), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_X64 }));
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_ARM64 }), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_X64 }));
 		assert.strictEqual(extension.outdated, true);
 	});
 

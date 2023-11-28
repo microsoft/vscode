@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -29,9 +28,7 @@ class TestUserDataAutoSyncService extends UserDataAutoSyncService {
 
 suite('UserDataAutoSyncService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test auto sync with sync resource change triggers sync', async () => {
 		await runWithFakedTimers({}, async () => {
@@ -382,7 +379,7 @@ suite('UserDataAutoSyncService', () => {
 			const errorPromise = Event.toPromise(testObject.onError);
 			await testObject.sync();
 
-			const e = await Promise.race([errorPromise, timeout(0)]);
+			const e = await errorPromise;
 			assert.ok(e instanceof UserDataAutoSyncError);
 			assert.deepStrictEqual((<UserDataAutoSyncError>e).code, UserDataSyncErrorCode.SessionExpired);
 			assert.deepStrictEqual(target.requests, [
