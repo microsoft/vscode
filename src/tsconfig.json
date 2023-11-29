@@ -6,6 +6,7 @@
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
+		"allowSyntheticDefaultImports": true,
 		"outDir": "../out/vs",
 		"module": "ESNext",
 		"types": [

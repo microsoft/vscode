@@ -8,6 +8,9 @@ import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
+
+const root = new URL('../../../', import.meta.url).toString()
+
 export namespace Schemas {
 
 	/**
@@ -218,7 +221,7 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = this.toUri(resourcePath, require);
+		const uri = this.toUri(resourcePath);
 		return this.uriToBrowserUri(uri);
 	}
 
@@ -265,7 +268,7 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(resourcePath: AppResourcePath | ''): URI {
-		const uri = this.toUri(resourcePath, require);
+		const uri = this.toUri(resourcePath,);
 		return this.uriToFileUri(uri);
 	}
 
@@ -290,12 +293,13 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
-
-		return URI.parse(moduleIdToUrl.toUrl(uriOrModule));
+		console.log(uriOrModule)
+		const resolved = `${root}${uriOrModule}`;
+		return URI.parse(resolved);
 	}
 }
 

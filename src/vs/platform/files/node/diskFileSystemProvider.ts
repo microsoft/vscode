@@ -38,7 +38,7 @@ const { gracefulify } = (gracefulFs as any).default;
 	try {
 		gracefulify(fs);
 	} catch (error) {
-		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
+		// console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
 	}
 })();
 
