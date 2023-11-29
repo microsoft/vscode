@@ -41,10 +41,10 @@ const getNewContentTop = (lines) => {
 	const newLinesTop = []
 	const newCssImports = []
 	for (const line of lines) {
-		if (!isImportLine(line)) {
-			newLinesTop.push(line)
-		} else if (hasCssImport(line)) {
+		if (hasCssImport(line)) {
 			newCssImports.push(line)
+		} else {
+			newLinesTop.push(line)
 		}
 	}
 	return {
