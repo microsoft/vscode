@@ -68,7 +68,7 @@ class OutputFileNameOracle {
     }
 }
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
-const fixEsmImportLine = (line) => {
+const fixEsmImportLine = (relative, line) => {
     if (!line.startsWith('import ')) {
         return line;
     }
@@ -80,17 +80,23 @@ const fixEsmImportLine = (line) => {
     const quote1 = importMatch[2];
     const path = importMatch[3];
     const quote2 = importMatch[4];
-    if (path.endsWith('.js')) {
+    if (!path.startsWith('vs') || path.endsWith('.js')) {
         return line;
     }
-    return `import${imports}${quote1}${path}.js${quote2}`;
+    const slashCount = relative.split('/').length;
+    const prefix = '../'.repeat(slashCount - 1);
+    return `import${imports}${quote1}${prefix}${path}.js${quote2}`;
 };
-function fixEsmImportLines(lines) {
-    return lines.map(fixEsmImportLine);
+function fixEsmImportLines(relative, lines) {
+    const newLines = [];
+    for (const line of lines) {
+        newLines.push(fixEsmImportLine(relative, line));
+    }
+    return newLines;
 }
-function fixEsmImports(content) {
+function fixEsmImports(relative, content) {
     const lines = content.split('\n');
-    const newLines = fixEsmImportLines(lines);
+    const newLines = fixEsmImportLines(relative, lines);
     return newLines.join('\n');
 }
 class TranspileWorker {
@@ -136,7 +142,7 @@ class TranspileWorker {
                 outFiles.push(new Vinyl({
                     path: outPath,
                     base: outBase,
-                    contents: Buffer.from(fixEsmImports(jsSrc)),
+                    contents: Buffer.from(fixEsmImports(file.relative, jsSrc)),
                 }));
             }
             this._pending = undefined;
@@ -303,7 +309,7 @@ class SwcTranspiler {
             this.onOutfile(new Vinyl({
                 path: outPath,
                 base: outBase,
-                contents: Buffer.from(fixEsmImports(output.code)),
+                contents: Buffer.from(fixEsmImports(file.relative, output.code)),
             }));
             this._logFn('Transpile', `swc took ${Date.now() - t1}ms for ${file.path}`);
         }).catch(err => {

@@ -93,7 +93,7 @@ class OutputFileNameOracle {
 
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/
 
-const fixEsmImportLine = (line: string) => {
+const fixEsmImportLine = (relative: string, line: string) => {
 	if (!line.startsWith('import ')) {
 		return line
 	}
@@ -105,20 +105,28 @@ const fixEsmImportLine = (line: string) => {
 	const quote1 = importMatch[2]
 	const path = importMatch[3]
 	const quote2 = importMatch[4]
-	if (path.endsWith('.js')) {
+	if (!path.startsWith('vs') || path.endsWith('.js')) {
 		return line
 	}
-	return `import${imports}${quote1}${path}.js${quote2}`
+	const slashCount = relative.split('/').length
+	const prefix = '../'.repeat(slashCount - 1)
+	return `import${imports}${quote1}${prefix}${path}.js${quote2}`
 }
 
 
-function fixEsmImportLines(lines: readonly string[]) {
-	return lines.map(fixEsmImportLine)
+function fixEsmImportLines(relative: string, lines: readonly string[]) {
+	const newLines: string[] = []
+	for (const line of lines) {
+		newLines.push(
+			fixEsmImportLine(relative, line)
+		)
+	}
+	return newLines
 }
 
-function fixEsmImports(content: string) {
+function fixEsmImports(relative: string, content: string) {
 	const lines = content.split('\n')
-	const newLines = fixEsmImportLines(lines)
+	const newLines = fixEsmImportLines(relative, lines)
 	return newLines.join('\n')
 }
 
@@ -172,12 +180,11 @@ class TranspileWorker {
 
 				const outBase = options.compilerOptions?.outDir ?? file.base;
 				const outPath = outFileFn(file.path);
-
 				outFiles.push(new Vinyl({
 					path: outPath,
 					base: outBase,
 					contents: Buffer.from(
-						fixEsmImports(jsSrc)
+						fixEsmImports(file.relative, jsSrc)
 					),
 				}));
 			}
@@ -385,12 +392,11 @@ export class SwcTranspiler implements ITranspiler {
 
 			const outBase = this._cmdLine.options.outDir ?? file.base;
 			const outPath = this._outputFileNames.getOutputFileName(file.path);
-
 			this.onOutfile!(new Vinyl({
 				path: outPath,
 				base: outBase,
 				contents: Buffer.from(
-					fixEsmImports(output.code)
+					fixEsmImports(file.relative, output.code)
 				),
 			}));
 
