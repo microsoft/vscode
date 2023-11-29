@@ -12,20 +12,20 @@
  * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
  */
 
-const perf = require('./vs/base/common/performance');
+import perf from './vs/base/common/performance.js';
 perf.mark('code/didStartMain');
 
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
-const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
-const { stripComments } = require('./vs/base/common/stripComments');
-const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
+import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import bootstrap from './bootstrap.js';
+import bootstrapNode from './bootstrap-node.js';
+import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
+import { stripComments } from './vs/base/common/stripComments.cjs';
+import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.cjs';
 /** @type {Partial<IProductConfiguration>} */
-const product = require('../product.json');
-const { app, protocol, crashReporter, Menu } = require('electron');
+import product from '../product.json' assert {type: 'json'};
+import { app, protocol, crashReporter, Menu } from 'electron';
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);

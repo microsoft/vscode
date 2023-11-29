@@ -6,7 +6,8 @@
     "name": "Microsoft Corporation"
   },
   "license": "MIT",
-  "main": "./out/main",
+  "main": "./out/main.js",
+  "type": "module",
   "private": true,
   "scripts": {
     "test": "echo Please run any of the test scripts from the scripts folder.",

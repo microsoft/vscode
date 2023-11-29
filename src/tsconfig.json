@@ -30,6 +30,9 @@
 		"./typings",
 		"./vs/**/*.ts",
 		"vscode-dts/vscode.proposed.*.d.ts",
-		"vscode-dts/vscode.d.ts"
+		"vscode-dts/vscode.d.ts",
+		"vs/platform/environment/node/userDataPath.d.cts",
+		"vs/base/common/stripComments.cjs",
+		"vs/base/node/unc.cjs"
 	]
 }
