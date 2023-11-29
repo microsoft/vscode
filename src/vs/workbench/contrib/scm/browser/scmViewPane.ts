@@ -1733,7 +1733,8 @@ class HistoryItemViewChangesAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryItem,
-				group: 'inline'
+				group: 'inline',
+				when: ContextKeyExpr.has('config.multiDiffEditor.experimental.enabled'),
 			}
 		});
 	}
