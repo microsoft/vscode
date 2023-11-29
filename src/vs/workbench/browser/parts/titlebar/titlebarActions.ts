@@ -21,12 +21,19 @@ class ToggleConfigAction extends Action2 {
 			id: `toggle.${section}`,
 			title,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
-			menu: {
-				id: MenuId.TitleBarContext,
-				when: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
-				order,
-				group: '2_config'
-			}
+			menu: [
+				{
+					id: MenuId.TitleBarContext,
+					when: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
+					order
+				},
+				{
+					id: MenuId.TitleBarTitleContext,
+					when: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
+					order,
+					group: '2_config'
+				}
+			]
 		});
 	}
 
@@ -56,7 +63,10 @@ registerAction2(class ToggleEditorActions extends Action2 {
 			id: `toggle.${ToggleEditorActions.settingsID}`,
 			title: localize('toggle.editorActions', 'Editor Actions'),
 			toggled: ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'hidden').negate(),
-			menu: { id: MenuId.TitleBarContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none'), group: '2_config' }
+			menu: [
+				{ id: MenuId.TitleBarContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none') },
+				{ id: MenuId.TitleBarTitleContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none'), group: '2_config' }
+			]
 		});
 	}
 
