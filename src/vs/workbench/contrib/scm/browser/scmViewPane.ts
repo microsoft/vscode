@@ -1787,7 +1787,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 	constructor(
 		private readonly input: ISCMInput,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
@@ -1797,11 +1797,6 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 	protected override async runAction(action: IAction): Promise<void> {
 		try {
-			// Check if toolbar is disabled
-			if (this.contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) === false) {
-				return;
-			}
-
 			// Cancel previous action
 			if (this._ctxIsActionRunning.get() === true) {
 				this._cts?.cancel();
@@ -1899,7 +1894,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		this._store.add(menu.onDidChange(() => updateToolbar()));
 
 		const ctxKeys = new Set<string>([SCMInputContextKeys.ActionIsEnabled.key, SCMInputContextKeys.ActionIsRunning.key]);
-		Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ctxKeys))(() => updateToolbar());
+		this._store.add(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(ctxKeys))(() => updateToolbar()));
 
 		// Delay initial update to finish class initialization
 		setTimeout(() => updateToolbar(), 0);
@@ -2127,6 +2122,7 @@ class SCMInputWidget {
 
 		const ctxIsActionEnabled = SCMInputContextKeys.ActionIsEnabled.bindTo(this.toolbarContextKeyService);
 		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => ctxIsActionEnabled.set(input.repository.provider.groups.some(r => r.resources.length > 0))));
+		ctxIsActionEnabled.set(input.repository.provider.groups.some(r => r.resources.length > 0));
 
 		const actionRunner = instantiationService2.createInstance(SCMInputWidgetActionRunner, input);
 		this.repositoryDisposables.add(actionRunner);
