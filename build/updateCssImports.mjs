@@ -71,7 +71,7 @@ const getNewCssImportLines = (newCssImports) => {
 	newCssImportLines.push('')
 	for (const newCssImport of newCssImports) {
 		const path = parseNewCssImport(newCssImport)
-		newCssImportLines.push(`importCss('${path}', import.meta.url)`)
+		newCssImportLines.push(`importCss('${path}.css', import.meta.url)`)
 	}
 	newCssImportLines.push('')
 	return newCssImportLines
