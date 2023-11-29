@@ -19,7 +19,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
-import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -27,6 +26,10 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/settingsWidgets.css', import.meta.url)
+
 
 const $ = DOM.$;
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -16,6 +15,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { localize } from 'vs/nls';
 import { ISCMHistoryItem, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/scm.css', import.meta.url)
+
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;

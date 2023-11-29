@@ -6,7 +6,6 @@
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +17,10 @@ import { TerminalInstance, TerminalInstanceColorProvider } from 'vs/workbench/co
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStickyScrollOverlay } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollOverlay';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/stickyScroll.css', import.meta.url)
+
 
 export class TerminalStickyScrollContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.stickyScroll';

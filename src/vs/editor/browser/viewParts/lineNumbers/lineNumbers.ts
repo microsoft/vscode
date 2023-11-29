@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./lineNumbers';
 import * as platform from 'vs/base/common/platform';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -13,6 +12,10 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorDimmedLineNumber, editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./lineNumbers.css', import.meta.url)
+
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 

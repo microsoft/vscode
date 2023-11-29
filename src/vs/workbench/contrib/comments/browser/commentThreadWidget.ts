@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -36,6 +35,10 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/review.css', import.meta.url)
+
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 

@@ -3,20 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notebook';
-import 'vs/css!./media/notebookCellChat';
-import 'vs/css!./media/notebookCellEditorHint';
-import 'vs/css!./media/notebookCellInsertToolbar';
-import 'vs/css!./media/notebookCellStatusBar';
-import 'vs/css!./media/notebookCellTitleToolbar';
-import 'vs/css!./media/notebookFocusIndicator';
-import 'vs/css!./media/notebookToolbar';
-import 'vs/css!./media/notebookDnd';
-import 'vs/css!./media/notebookFolding';
-import 'vs/css!./media/notebookCellOutput';
-import 'vs/css!./media/notebookEditorStickyScroll';
-import 'vs/css!./media/notebookKernelActionViewItem';
-import 'vs/css!./media/notebookOutline';
 
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
@@ -102,6 +88,23 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/notebook.css', import.meta.url)
+importCss('./media/notebookCellChat.css', import.meta.url)
+importCss('./media/notebookCellEditorHint.css', import.meta.url)
+importCss('./media/notebookCellInsertToolbar.css', import.meta.url)
+importCss('./media/notebookCellStatusBar.css', import.meta.url)
+importCss('./media/notebookCellTitleToolbar.css', import.meta.url)
+importCss('./media/notebookFocusIndicator.css', import.meta.url)
+importCss('./media/notebookToolbar.css', import.meta.url)
+importCss('./media/notebookDnd.css', import.meta.url)
+importCss('./media/notebookFolding.css', import.meta.url)
+importCss('./media/notebookCellOutput.css', import.meta.url)
+importCss('./media/notebookEditorStickyScroll.css', import.meta.url)
+importCss('./media/notebookKernelActionViewItem.css', import.meta.url)
+importCss('./media/notebookOutline.css', import.meta.url)
+
 
 const $ = DOM.$;
 

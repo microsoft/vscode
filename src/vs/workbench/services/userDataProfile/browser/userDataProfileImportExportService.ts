@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/userDataProfileView';
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -79,6 +78,10 @@ import { WorkbenchIconSelectBox } from 'vs/workbench/browser/iconSelectBox';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/userDataProfileView.css', import.meta.url)
+
 
 interface IUserDataProfileTemplate {
 	readonly name: string;

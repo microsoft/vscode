@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionsViewlet';
 import { localize, localize2 } from 'vs/nls';
 import { timeout, Delayer, Promises } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -64,6 +63,10 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/extensionsViewlet.css', import.meta.url)
+
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');

@@ -14,7 +14,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
-import 'vs/css!./referencesWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -37,6 +36,10 @@ import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from 'vs/platf
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./referencesWidget.css', import.meta.url)
+
 
 class DecorationsManager implements IDisposable {
 

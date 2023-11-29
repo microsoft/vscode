@@ -12,7 +12,6 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDi
 import { isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -32,6 +31,10 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/chat.css', import.meta.url)
+
 
 const $ = dom.$;
 

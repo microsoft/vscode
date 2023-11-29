@@ -33,7 +33,6 @@ import { count } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./testingOutputPeek';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -101,6 +100,10 @@ import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/tes
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { ParsedTestUri, TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./testingOutputPeek.css', import.meta.url)
+
 
 class MessageSubject {
 	public readonly test: ITestItem;

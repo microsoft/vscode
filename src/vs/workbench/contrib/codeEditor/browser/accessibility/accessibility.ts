@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./accessibility';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -14,6 +13,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./accessibility.css', import.meta.url)
+
 
 class ToggleScreenReaderMode extends Action2 {
 

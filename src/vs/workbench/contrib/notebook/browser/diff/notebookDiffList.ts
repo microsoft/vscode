@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookDiff';
 import { IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
 import { IListOptions, IListStyles, isMonacoEditor, IStyleController, MouseController } from 'vs/base/browser/ui/list/listWidget';
@@ -30,6 +29,10 @@ import { PixelRatio } from 'vs/base/browser/browser';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { fixedDiffEditorOptions, fixedEditorOptions } from 'vs/workbench/contrib/notebook/browser/diff/diffCellEditorOptions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./notebookDiff.css', import.meta.url)
+
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
 	private readonly lineHeight: number;

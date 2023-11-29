@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/releasenoteseditor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { escapeMarkdownSyntaxTokens } from 'vs/base/common/htmlContent';
@@ -30,6 +29,10 @@ import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/comm
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/releasenoteseditor.css', import.meta.url)
+
 
 export class ReleaseNotesManager {
 

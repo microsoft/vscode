@@ -12,12 +12,15 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { defaultListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./actionWidget.css', import.meta.url)
+
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';

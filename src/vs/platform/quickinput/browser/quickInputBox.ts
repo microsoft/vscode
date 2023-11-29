@@ -11,7 +11,10 @@ import { IInputBoxStyles, IRange, MessageType } from 'vs/base/browser/ui/inputbo
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import 'vs/css!./media/quickInput';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/quickInput.css', import.meta.url)
+
 
 const $ = dom.$;
 

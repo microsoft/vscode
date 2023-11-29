@@ -30,7 +30,6 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/views';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -73,6 +72,10 @@ import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUti
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/views.css', import.meta.url)
+
 
 export class TreeViewPane extends ViewPane {
 

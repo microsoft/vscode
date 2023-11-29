@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
@@ -28,6 +27,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { isMacintosh } from 'vs/base/common/platform';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/actions.css', import.meta.url)
+
 
 export class CloseWindowAction extends Action2 {
 

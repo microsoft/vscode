@@ -7,7 +7,6 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./anchorSelect';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -17,6 +16,10 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./anchorSelect.css', import.meta.url)
+
 
 export const SelectionAnchorSet = new RawContextKey('selectionAnchorSet', false);
 

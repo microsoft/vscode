@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
@@ -54,6 +53,10 @@ import { ITableContextMenuEvent, ITableEvent } from 'vs/base/browser/ui/table/ta
 import { MarkersTable } from 'vs/workbench/contrib/markers/browser/markersTable';
 import { Markers, MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/markers/common/markers';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/markers.css', import.meta.url)
+
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {

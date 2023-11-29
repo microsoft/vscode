@@ -9,7 +9,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -19,6 +18,10 @@ import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAct
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./lightBulbWidget.css', import.meta.url)
+
 
 namespace LightBulbState {
 

@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/gettingStarted';
 import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/gettingStarted.css', import.meta.url)
+
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 

@@ -11,7 +11,10 @@ import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import 'vs/css!./link';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./link.css', import.meta.url)
+
 
 export interface ILinkDescriptor {
 	readonly label: string | HTMLElement;

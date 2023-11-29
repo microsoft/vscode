@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/suggest';
 import * as dom from 'vs/base/browser/dom';
 import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
@@ -19,6 +18,10 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/browser/suggestWidgetStatus';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/suggest.css', import.meta.url)
+
 
 const $ = dom.$;
 

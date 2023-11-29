@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./bulkEdit';
 import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -38,6 +37,10 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./bulkEdit.css', import.meta.url)
+
 
 const enum State {
 	Data = 'data',

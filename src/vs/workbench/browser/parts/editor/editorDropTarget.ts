@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editordroptarget';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isAncestor } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -27,6 +26,10 @@ import { GroupDirection, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupsS
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editordroptarget.css', import.meta.url)
+
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;

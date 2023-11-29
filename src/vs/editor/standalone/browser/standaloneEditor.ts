@@ -7,7 +7,6 @@ import { mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./standalone-tokens';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -40,6 +39,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./standalone-tokens.css', import.meta.url)
+
 
 /**
  * Create a new editor under `domElement`.

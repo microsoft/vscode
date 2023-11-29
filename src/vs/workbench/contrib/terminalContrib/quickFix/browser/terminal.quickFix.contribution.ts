@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/terminalQuickFix';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -21,6 +20,10 @@ import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quic
 import { freePort, gitCreatePr, gitPull, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/terminalQuickFix.css', import.meta.url)
+
 
 // Services
 registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);

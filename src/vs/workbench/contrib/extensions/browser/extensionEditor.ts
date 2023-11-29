@@ -27,7 +27,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/extensionEditor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -91,6 +90,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/extensionEditor.css', import.meta.url)
+
 
 class NavBar extends Disposable {
 

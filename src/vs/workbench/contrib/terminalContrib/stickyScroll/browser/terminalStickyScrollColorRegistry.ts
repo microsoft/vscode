@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
-import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/stickyScroll.css', import.meta.url)
+
 
 export const terminalStickyScrollBackground = registerColor('terminalStickyScroll.background', {
 	light: null,

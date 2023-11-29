@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/paneCompositePart';
 import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
@@ -39,6 +38,10 @@ import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/paneCompositePart.css', import.meta.url)
+
 
 export interface IPaneCompositePart extends IView {
 

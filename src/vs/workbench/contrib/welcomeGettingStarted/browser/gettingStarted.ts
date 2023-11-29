@@ -27,7 +27,6 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/gettingStarted';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
@@ -74,6 +73,10 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { GettingStartedIndexList } from './gettingStartedList';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/gettingStarted.css', import.meta.url)
+
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';

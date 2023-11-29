@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'vs/css!./bannerController';
 import { $, append, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
@@ -14,6 +13,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILinkDescriptor, Link } from 'vs/platform/opener/browser/link';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./bannerController.css', import.meta.url)
+
 
 const BANNER_ELEMENT_HEIGHT = 26;
 

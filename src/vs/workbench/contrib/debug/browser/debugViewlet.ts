@@ -6,7 +6,6 @@
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/debugViewlet';
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -32,6 +31,10 @@ import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { BREAKPOINTS_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_UX, CONTEXT_DEBUG_UX_KEY, getStateLabel, IDebugService, ILaunch, REPL_VIEW_ID, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/debugViewlet.css', import.meta.url)
+
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 

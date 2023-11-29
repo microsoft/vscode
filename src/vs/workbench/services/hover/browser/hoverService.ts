@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/hover';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -20,6 +19,10 @@ import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/hover.css', import.meta.url)
+
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;

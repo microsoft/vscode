@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./marginDecorations';
 import { DecorationToRender, DedupOverlay } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./marginDecorations.css', import.meta.url)
+
 
 export class MarginViewLineDecorationsOverlay extends DedupOverlay {
 	private readonly _context: ViewContext;

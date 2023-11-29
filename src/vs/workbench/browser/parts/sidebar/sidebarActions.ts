@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebarpart';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
@@ -13,6 +12,10 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/sidebarpart.css', import.meta.url)
+
 
 export class FocusSideBarAction extends Action2 {
 

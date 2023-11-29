@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extension';
 import { append, $, addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
@@ -26,6 +25,10 @@ import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { verifiedPublisherIcon as verifiedPublisherThemeIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/extension.css', import.meta.url)
+
 
 const EXTENSION_LIST_ELEMENT_HEIGHT = 72;
 

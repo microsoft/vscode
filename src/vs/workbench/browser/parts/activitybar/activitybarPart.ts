@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/activitybarpart';
-import 'vs/css!./media/activityaction';
 import { localize } from 'vs/nls';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Part } from 'vs/workbench/browser/part';
@@ -38,6 +36,11 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/activitybarpart.css', import.meta.url)
+importCss('./media/activityaction.css', import.meta.url)
+
 
 export class ActivitybarPart extends Part {
 

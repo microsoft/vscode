@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./whitespace';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Selection } from 'vs/editor/common/core/selection';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -17,6 +16,10 @@ import { CharCode } from 'vs/base/common/charCode';
 import { LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { Position } from 'vs/editor/common/core/position';
 import { editorWhitespaces } from 'vs/editor/common/core/editorColorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./whitespace.css', import.meta.url)
+
 
 export class WhitespaceOverlay extends DynamicViewOverlay {
 

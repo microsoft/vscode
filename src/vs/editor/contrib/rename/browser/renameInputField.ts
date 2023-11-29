@@ -5,7 +5,6 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./renameInputField';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
@@ -17,6 +16,10 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { editorWidgetBackground, inputBackground, inputBorder, inputForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./renameInputField.css', import.meta.url)
+
 
 export const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisible', false, localize('renameInputVisible', "Whether the rename input widget is visible"));
 

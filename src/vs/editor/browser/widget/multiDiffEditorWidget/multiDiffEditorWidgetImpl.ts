@@ -10,7 +10,6 @@ import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorun, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./style';
 import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
@@ -21,6 +20,10 @@ import { ObjectPool } from './objectPool';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./style.css', import.meta.url)
+
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div', {

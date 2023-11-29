@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./emptyTextEditorHint';
 import * as dom from 'vs/base/browser/dom';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -34,6 +33,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./emptyTextEditorHint.css', import.meta.url)
+
 
 const $ = dom.$;
 

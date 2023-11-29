@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inspectEditorTokens';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { CharCode } from 'vs/base/common/charCode';
@@ -31,6 +30,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./inspectEditorTokens.css', import.meta.url)
+
 
 const $ = dom.$;
 

@@ -9,7 +9,6 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./messageController';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -22,6 +21,10 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as dom from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./messageController.css', import.meta.url)
+
 
 export class MessageController implements IEditorContribution {
 

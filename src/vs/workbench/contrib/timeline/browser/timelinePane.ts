@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/timelinePane';
 import { localize, localize2 } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -56,6 +55,10 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/timelinePane.css', import.meta.url)
+
 
 const ItemHeight = 22;
 

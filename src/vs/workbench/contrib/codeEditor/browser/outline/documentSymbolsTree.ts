@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./documentSymbolsTree';
 import 'vs/editor/contrib/symbolIcons/browser/symbolIcons'; // The codicon symbol colors are defined here and must be loaded to get colors
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -24,6 +23,10 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./documentSymbolsTree.css', import.meta.url)
+
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 

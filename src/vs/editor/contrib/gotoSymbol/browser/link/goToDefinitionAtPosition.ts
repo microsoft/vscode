@@ -9,7 +9,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./goToDefinitionAtPosition';
 import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -31,6 +30,10 @@ import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./goToDefinitionAtPosition.css', import.meta.url)
+
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 

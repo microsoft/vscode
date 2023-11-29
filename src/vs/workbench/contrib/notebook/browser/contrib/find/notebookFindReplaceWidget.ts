@@ -11,7 +11,6 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
 import * as nls from 'vs/nls';
@@ -40,6 +39,10 @@ import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } 
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./notebookFindReplaceWidget.css', import.meta.url)
+
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");

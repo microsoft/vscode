@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionActions';
 import { localize } from 'vs/nls';
 import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Delayer, Promises, Throttler } from 'vs/base/common/async';
@@ -71,6 +70,10 @@ import { ILocaleService } from 'vs/workbench/services/localization/common/locale
 import { isString } from 'vs/base/common/types';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/extensionActions.css', import.meta.url)
+
 
 export class PromptExtensionInstallFailureAction extends Action {
 

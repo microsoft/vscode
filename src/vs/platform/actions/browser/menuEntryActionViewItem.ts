@@ -13,7 +13,6 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows, OS } from 'vs/base/common/platform';
-import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandAction, isICommandActionToggleInfo } from 'vs/platform/action/common/action';
@@ -31,6 +30,10 @@ import { assertType } from 'vs/base/common/types';
 import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./menuEntryActionViewItem.css', import.meta.url)
+
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
 	const groups = menu.getActions(options);

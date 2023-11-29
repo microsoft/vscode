@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
 import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
@@ -29,6 +28,10 @@ import { FileChangeType, FileOperationError, FileOperationResult, IFileService }
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { truncate } from 'vs/base/common/strings';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editorplaceholder.css', import.meta.url)
+
 
 export interface IEditorPlaceholderContents {
 	icon: string;

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { HorizontalRange, RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -11,6 +10,10 @@ import { Range } from 'vs/editor/common/core/range';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./decorations.css', import.meta.url)
+
 
 export class DecorationsOverlay extends DynamicViewOverlay {
 

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsCenter';
-import 'vs/css!./media/notificationsActions';
 import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
@@ -27,6 +25,11 @@ import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextke
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/notificationsCenter.css', import.meta.url)
+importCss('./media/notificationsActions.css', import.meta.url)
+
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 

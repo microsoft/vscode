@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/singleeditortabscontrol';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, preventEditorClose, EditorCloseMethod, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
@@ -19,6 +18,10 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/singleeditortabscontrol.css', import.meta.url)
+
 
 interface IRenderedEditorLabel {
 	readonly editor?: EditorInput;

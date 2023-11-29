@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/part';
 import { Component } from 'vs/workbench/common/component';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Dimension, size, IDimension, getActiveDocument } from 'vs/base/browser/dom';
@@ -13,6 +12,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/part.css', import.meta.url)
+
 
 export interface IPartOptions {
 	readonly hasTitle?: boolean;

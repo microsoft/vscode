@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebarpart';
 import 'vs/workbench/browser/parts/sidebar/sidebarActions';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/contextkeys';
@@ -34,6 +33,10 @@ import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 import { localize } from 'vs/nls';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/sidebarpart.css', import.meta.url)
+
 
 export class SidebarPart extends AbstractPaneCompositePart {
 

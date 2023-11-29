@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/searchEditor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { extname, isEqual, joinPath } from 'vs/base/common/resources';
@@ -32,6 +31,10 @@ import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/searchEditor.css', import.meta.url)
+
 
 export type SearchConfiguration = {
 	query: string;

@@ -8,7 +8,6 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./dnd';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -20,6 +19,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { DragAndDropCommand } from 'vs/editor/contrib/dnd/browser/dragAndDropCommand';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./dnd.css', import.meta.url)
+
 
 function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	if (isMacintosh) {

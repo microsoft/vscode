@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/explorerviewlet';
 import { localize, localize2 } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { VIEWLET_ID, VIEW_ID, IFilesConfiguration, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
@@ -38,6 +37,10 @@ import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { focusWindow, isMouseEvent } from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/explorerviewlet.css', import.meta.url)
+
 
 const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
 const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', 'View icon of the open editors view.'));

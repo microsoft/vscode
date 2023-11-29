@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelpart';
 import { localize } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -19,6 +18,10 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/panelpart.css', import.meta.url)
+
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));

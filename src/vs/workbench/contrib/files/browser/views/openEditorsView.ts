@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/openeditors';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -53,6 +52,10 @@ import { Schemas } from 'vs/base/common/network';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/openeditors.css', import.meta.url)
+
 
 const $ = dom.$;
 

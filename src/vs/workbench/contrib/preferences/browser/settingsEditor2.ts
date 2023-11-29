@@ -20,7 +20,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
@@ -66,6 +65,10 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/settingsEditor2.css', import.meta.url)
+
 
 
 export const enum SettingsFocusContext {

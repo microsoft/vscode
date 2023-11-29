@@ -15,7 +15,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { MarkersContextKeys } from 'vs/workbench/contrib/markers/common/markers';
-import 'vs/css!./markersViewActions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./markersViewActions.css', import.meta.url)
+
 
 export interface IMarkersFiltersChangeEvent {
 	excludedFiles?: boolean;

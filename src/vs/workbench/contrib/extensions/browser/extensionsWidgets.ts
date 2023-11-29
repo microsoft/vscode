@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionsWidgets';
 import * as semver from 'vs/base/common/semver/semver';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer, ExtensionState, ExtensionEditorTab } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -41,6 +40,10 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/extensionsWidgets.css', import.meta.url)
+
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;

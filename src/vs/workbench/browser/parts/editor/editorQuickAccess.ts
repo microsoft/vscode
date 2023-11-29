@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorquickaccess';
 import { localize } from 'vs/nls';
 import { IQuickPickSeparator, quickPickItemScorerAccessor, IQuickPickItemWithResource, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { PickerQuickAccessProvider, IPickerQuickAccessItem, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
@@ -18,6 +17,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editorquickaccess.css', import.meta.url)
+
 
 interface IEditorQuickPickItem extends IQuickPickItemWithResource, IPickerQuickAccessItem {
 	groupId: GroupIdentifier;

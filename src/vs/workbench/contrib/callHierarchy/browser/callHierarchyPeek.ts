@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/callHierarchy';
 import * as peekView from 'vs/editor/contrib/peekView/browser/peekView';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +33,10 @@ import { URI } from 'vs/base/common/uri';
 import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/callHierarchy.css', import.meta.url)
+
 
 const enum State {
 	Loading = 'loading',

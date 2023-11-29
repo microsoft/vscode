@@ -12,7 +12,6 @@ import { IDisposable, DisposableStore, MutableDisposable, Disposable } from 'vs/
 import { posix, relative } from 'vs/base/common/path';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/breadcrumbscontrol';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,6 +30,10 @@ import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/brow
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/breadcrumbscontrol.css', import.meta.url)
+
 
 interface ILayoutInfo {
 	maxHeight: number;

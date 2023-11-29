@@ -8,7 +8,6 @@ import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { IAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./actionWidget';
 import { localize } from 'vs/nls';
 import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, previewSelectedActionCommand } from 'vs/platform/actionWidget/browser/actionList';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -18,6 +17,10 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inputActiveOptionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./actionWidget.css', import.meta.url)
+
 
 registerColor(
 	'actionBar.toggledBackground',

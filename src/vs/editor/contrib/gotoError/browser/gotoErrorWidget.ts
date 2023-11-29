@@ -13,7 +13,6 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { splitLines } from 'vs/base/common/strings';
-import 'vs/css!./media/gotoErrorWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,6 +29,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { contrastBorder, editorBackground, editorErrorBorder, editorErrorForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, oneOf, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/gotoErrorWidget.css', import.meta.url)
+
 
 class MessageWidget {
 

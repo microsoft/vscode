@@ -13,7 +13,6 @@ import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./links';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -30,6 +29,10 @@ import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLi
 import * as nls from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./links.css', import.meta.url)
+
 
 export class LinkDetector extends Disposable implements IEditorContribution {
 

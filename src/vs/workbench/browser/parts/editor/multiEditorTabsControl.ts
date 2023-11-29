@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
@@ -56,6 +55,10 @@ import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/multieditortabscontrol.css', import.meta.url)
+
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import 'vs/css!./media/review';
 import { IActiveCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -25,6 +24,10 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { accessibilityHelpIsShown, accessibleViewCurrentProviderId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/review.css', import.meta.url)
+
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panelpart';
 import { localize } from 'vs/nls';
 import { IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -29,6 +28,10 @@ import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompos
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/panelpart.css', import.meta.url)
+
 
 export class PanelPart extends AbstractPaneCompositePart {
 

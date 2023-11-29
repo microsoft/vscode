@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/interactive';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -60,9 +59,13 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { isEqual } from 'vs/base/common/resources';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/interactive.css', import.meta.url)
+importCss('./interactiveEditor.css', import.meta.url)
+
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';

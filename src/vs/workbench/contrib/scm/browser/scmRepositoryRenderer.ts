@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
 import { IDisposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { append, $ } from 'vs/base/browser/dom';
 import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
@@ -19,6 +18,10 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/scm.css', import.meta.url)
+
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;

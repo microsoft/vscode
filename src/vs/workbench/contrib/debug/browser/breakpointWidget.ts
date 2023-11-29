@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/breakpointWidget';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -40,6 +39,10 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/breakpointWidget.css', import.meta.url)
+
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');

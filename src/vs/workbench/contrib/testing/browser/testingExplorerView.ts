@@ -23,7 +23,6 @@ import { fuzzyContains } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -75,6 +74,10 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IActivityService, IconBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/testing.css', import.meta.url)
+
 
 const enum LastFocusState {
 	Input,

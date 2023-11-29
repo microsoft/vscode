@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./symbolIcons';
 import { localize } from 'vs/nls';
 import { foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./symbolIcons.css', import.meta.url)
+
 
 export const SYMBOL_ICON_ARRAY_FOREGROUND = registerColor('symbolIcon.arrayForeground', {
 	dark: foreground,

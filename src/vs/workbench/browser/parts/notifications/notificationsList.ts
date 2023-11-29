@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
 import { getWindow, isAncestorOfActiveElement, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -21,6 +20,10 @@ import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/notificationsList.css', import.meta.url)
+
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	readonly widgetAriaLabel?: string;

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/bannerpart';
 import { localize } from 'vs/nls';
 import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -28,6 +27,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { BannerFocused } from 'vs/workbench/common/contextkeys';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/bannerpart.css', import.meta.url)
+
 
 // Banner Part
 

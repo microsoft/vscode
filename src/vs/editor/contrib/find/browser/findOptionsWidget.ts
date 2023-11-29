@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import 'vs/css!./findOptionsWidget';
 import { CaseSensitiveToggle, RegexToggle, WholeWordsToggle } from 'vs/base/browser/ui/findinput/findInputToggles';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -13,6 +12,10 @@ import { FIND_IDS } from 'vs/editor/contrib/find/browser/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./findOptionsWidget.css', import.meta.url)
+
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 

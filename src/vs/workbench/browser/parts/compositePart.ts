@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/compositepart';
 import { localize } from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable, } from 'vs/base/common/lifecycle';
@@ -32,6 +31,10 @@ import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/ser
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/compositepart.css', import.meta.url)
+
 
 export interface ICompositeTitleLabel {
 

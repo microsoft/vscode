@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, EditorPinnedAndUnpinnedTabsContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
@@ -55,6 +54,10 @@ import { EditorGroupWatermark } from 'vs/workbench/browser/parts/editor/editorGr
 import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editorgroupview.css', import.meta.url)
+
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 

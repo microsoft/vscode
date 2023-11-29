@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inlineChat';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -70,6 +69,10 @@ import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IAction } from 'vs/base/common/actions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./inlineChat.css', import.meta.url)
+
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/voiceChatActions';
 import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -41,6 +40,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isNumber } from 'vs/base/common/types';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/voiceChatActions.css', import.meta.url)
+
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });

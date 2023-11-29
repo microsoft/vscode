@@ -8,7 +8,6 @@ import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { equals } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./stickyScroll';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { getColumnOfNodeOffset } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -19,6 +18,10 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/folding/browser/foldingDecorations';
 import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./stickyScroll.css', import.meta.url)
+
 
 export class StickyScrollWidgetState {
 	constructor(

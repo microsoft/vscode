@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { Dimension, getWindow, isMouseEvent } from 'vs/base/browser/dom';
@@ -43,6 +42,10 @@ import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/edit
 import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editortabscontrol.css', import.meta.url)
+
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./suggestEnabledInput';
 import { $, Dimension, append } from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -39,6 +38,10 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./suggestEnabledInput.css', import.meta.url)
+
 
 export interface SuggestResultsProvider {
 	/**

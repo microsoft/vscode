@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/developer';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -25,6 +24,10 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import type { Terminal } from '@xterm/xterm';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { getWindow } from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/developer.css', import.meta.url)
+
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,

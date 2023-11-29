@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./viewCursors';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
@@ -18,6 +17,10 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { WindowIntervalTimer, getWindow } from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./viewCursors.css', import.meta.url)
+
 
 export class ViewCursors extends ViewPart {
 

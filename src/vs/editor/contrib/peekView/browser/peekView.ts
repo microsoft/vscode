@@ -13,7 +13,6 @@ import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
-import 'vs/css!./media/peekViewWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -27,6 +26,10 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { activeContrastBorder, contrastBorder, editorForeground, editorInfoForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/peekViewWidget.css', import.meta.url)
+
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
 export interface IPeekViewService {

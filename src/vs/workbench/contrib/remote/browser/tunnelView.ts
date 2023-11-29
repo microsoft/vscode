@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
@@ -56,6 +55,10 @@ import { STATUS_BAR_REMOTE_ITEM_BACKGROUND } from 'vs/workbench/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Attributes, CandidatePort, Tunnel, TunnelCloseReason, TunnelModel, TunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/tunnelView.css', import.meta.url)
+
 
 export const openPreviewEnabledContext = new RawContextKey<boolean>('openPreviewEnabled', false);
 

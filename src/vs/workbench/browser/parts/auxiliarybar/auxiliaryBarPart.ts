@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/auxiliaryBarPart';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -29,6 +28,10 @@ import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompos
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IMenuService } from 'vs/platform/actions/common/actions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/auxiliaryBarPart.css', import.meta.url)
+
 
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 

@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
 import * as strings from 'vs/base/common/strings';
-import 'vs/css!./ghostText';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -24,6 +23,10 @@ import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/vie
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./ghostText.css', import.meta.url)
+
 
 export const GHOST_TEXT_DESCRIPTION = 'ghost-text';
 export interface IGhostTextWidgetModel {

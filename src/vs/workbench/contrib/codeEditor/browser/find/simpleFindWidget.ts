@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
@@ -25,6 +24,10 @@ import { status } from 'vs/base/browser/ui/aria/aria';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./simpleFindWidget.css', import.meta.url)
+
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");

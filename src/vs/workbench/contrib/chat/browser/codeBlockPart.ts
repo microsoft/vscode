@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./codeBlockPart';
 
 import * as dom from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -39,6 +38,10 @@ import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./codeBlockPart.css', import.meta.url)
+
 
 const $ = dom.$;
 

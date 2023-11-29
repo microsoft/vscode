@@ -12,7 +12,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/breadcrumbscontrol';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,6 +39,10 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/breadcrumbscontrol.css', import.meta.url)
+
 
 class OutlineItem extends BreadcrumbsItem {
 

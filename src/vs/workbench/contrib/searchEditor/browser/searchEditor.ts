@@ -12,7 +12,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
 import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -62,6 +61,10 @@ import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/edi
 import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
 import { defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 import { ILogService } from 'vs/platform/log/common/log';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/searchEditor.css', import.meta.url)
+
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;

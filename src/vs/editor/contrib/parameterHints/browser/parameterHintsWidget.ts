@@ -12,7 +12,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./parameterHints';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
@@ -26,6 +25,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./parameterHints.css', import.meta.url)
+
 
 const $ = dom.$;
 

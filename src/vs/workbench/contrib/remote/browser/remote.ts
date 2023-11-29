@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/remoteViewlet';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
@@ -54,6 +53,10 @@ import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtua
 import { IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { Schemas } from 'vs/base/common/network';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/remoteViewlet.css', import.meta.url)
+
 
 interface IViewModel {
 	onDidChangeHelpInformation: Event<void>;

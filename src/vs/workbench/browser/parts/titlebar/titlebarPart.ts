@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/titlebarpart';
 import { localize } from 'vs/nls';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
@@ -54,6 +53,10 @@ import { IEditorCommandsContext, IToolbarActions } from 'vs/workbench/common/edi
 import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/titlebarpart.css', import.meta.url)
+
 
 export interface ITitleProperties {
 	isPure?: boolean;

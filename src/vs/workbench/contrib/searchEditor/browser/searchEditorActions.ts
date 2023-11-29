@@ -5,7 +5,6 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
 import { ICodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,6 +25,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/searchEditor.css', import.meta.url)
+
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);

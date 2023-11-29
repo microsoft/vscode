@@ -8,7 +8,6 @@ import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/l
 import { Schemas } from 'vs/base/common/network';
 import { isBoolean, isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/preferences';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
@@ -46,6 +45,10 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/preferences.css', import.meta.url)
+
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 

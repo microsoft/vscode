@@ -22,7 +22,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import 'vs/css!./findWidget';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -43,6 +42,10 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./findWidget.css', import.meta.url)
+
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));

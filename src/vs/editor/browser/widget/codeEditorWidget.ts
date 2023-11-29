@@ -5,7 +5,6 @@
 
 import 'vs/editor/browser/services/markerDecorations';
 
-import 'vs/css!./media/editor';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -60,6 +59,10 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeEditorContributions } from 'vs/editor/browser/widget/codeEditorContributions';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editor.css', import.meta.url)
+
 
 let EDITOR_ID = 0;
 

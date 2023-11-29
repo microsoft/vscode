@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/languageStatus';
 import * as dom from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Disposable, DisposableStore, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,6 +32,10 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/languageStatus.css', import.meta.url)
+
 
 class LanguageStatusViewModel {
 

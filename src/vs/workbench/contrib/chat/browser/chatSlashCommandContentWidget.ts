@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./chatSlashCommandContentWidget';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Range } from 'vs/editor/common/core/range';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -11,6 +10,10 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget } from 'vs
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./chatSlashCommandContentWidget.css', import.meta.url)
+
 
 export class SlashCommandContentWidget extends Disposable implements IContentWidget {
 	private _domNode = document.createElement('div');

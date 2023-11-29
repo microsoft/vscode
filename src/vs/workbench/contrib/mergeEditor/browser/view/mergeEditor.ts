@@ -15,7 +15,6 @@ import { autorun, autorunWithStore, IObservable, IReader, observableValue, trans
 import { basename, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/mergeEditor';
 import { ICodeEditor, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -52,6 +51,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import './colors';
 import { InputCodeEditorView } from './editors/inputCodeEditorView';
 import { ResultCodeEditorView } from './editors/resultCodeEditorView';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/mergeEditor.css', import.meta.url)
+
 
 export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 

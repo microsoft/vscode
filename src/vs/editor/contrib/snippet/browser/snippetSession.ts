@@ -7,7 +7,6 @@ import { groupBy } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
 import { dispose } from 'vs/base/common/lifecycle';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import 'vs/css!./snippetSession';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -23,6 +22,10 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Choice, Marker, Placeholder, SnippetParser, Text, TextmateSnippet } from './snippetParser';
 import { ClipboardBasedVariableResolver, CommentBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, RandomBasedVariableResolver, SelectionBasedVariableResolver, TimeBasedVariableResolver, WorkspaceBasedVariableResolver } from './snippetVariables';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./snippetSession.css', import.meta.url)
+
 
 export class OneSnippet {
 

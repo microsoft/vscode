@@ -14,7 +14,6 @@ import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
-import 'vs/css!./media/suggest';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -35,6 +34,10 @@ import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } 
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { status } from 'vs/base/browser/ui/aria/aria';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/suggest.css', import.meta.url)
+
 
 /**
  * Suggest widget colors

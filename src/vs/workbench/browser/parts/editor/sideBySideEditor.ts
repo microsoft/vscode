@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/sidebysideeditor';
 import { localize } from 'vs/nls';
 import { Dimension, $, clearNode, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -32,6 +31,10 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/sidebysideeditor.css', import.meta.url)
+
 
 interface ISideBySideEditorViewState {
 	primary: object;

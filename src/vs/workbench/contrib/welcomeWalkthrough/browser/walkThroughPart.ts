@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/contrib/welcomeWalkthrough/common/walkThroughUtils';
-import 'vs/css!./media/walkThroughPart';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -37,6 +36,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/walkThroughPart.css', import.meta.url)
+
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 

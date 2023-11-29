@@ -4,10 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/widgets';
-import 'vs/css!./media/xterm';
-import 'vs/css!./media/terminal';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -53,6 +49,13 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { TerminalMainContribution } from 'vs/workbench/contrib/terminal/browser/terminalMainContribution';
 import { Schemas } from 'vs/base/common/network';
 import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/scrollbar.css', import.meta.url)
+importCss('./media/widgets.css', import.meta.url)
+importCss('./media/xterm.css', import.meta.url)
+importCss('./media/terminal.css', import.meta.url)
+
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);

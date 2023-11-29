@@ -7,8 +7,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { FileAccess } from 'vs/base/common/network';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/debug.contribution';
-import 'vs/css!./media/debugHover';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ICommandActionTitle, Icon } from 'vs/platform/action/common/action';
@@ -54,6 +52,11 @@ import { DebugLifecycle } from 'vs/workbench/contrib/debug/common/debugLifecycle
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/debug.contribution.css', import.meta.url)
+importCss('./media/debugHover.css', import.meta.url)
+
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();

@@ -15,7 +15,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
-import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IAction2Options, IMenuService, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -39,6 +38,10 @@ import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerMo
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/paneviewlet.css', import.meta.url)
+
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{

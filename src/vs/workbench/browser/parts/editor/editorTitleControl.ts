@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editortitlecontrol';
 import { Dimension, clearNode } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -18,6 +17,10 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MultiRowEditorControl } from 'vs/workbench/browser/parts/editor/multiRowEditorTabsControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { NoEditorTabsControl } from 'vs/workbench/browser/parts/editor/noEditorTabsControl';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editortitlecontrol.css', import.meta.url)
+
 
 export interface IEditorTitleControlDimensions {
 

@@ -33,7 +33,10 @@ import { localize } from 'vs/nls';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import 'vs/css!./accessibleDiffViewer';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./accessibleDiffViewer.css', import.meta.url)
+
 
 const accessibleDiffViewerInsertIcon = registerIcon('diff-review-insert', Codicon.add, localize('accessibleDiffViewerInsertIcon', 'Icon for \'Insert\' in accessible diff viewer.'));
 const accessibleDiffViewerRemoveIcon = registerIcon('diff-review-remove', Codicon.remove, localize('accessibleDiffViewerRemoveIcon', 'Icon for \'Remove\' in accessible diff viewer.'));

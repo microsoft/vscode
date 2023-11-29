@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/statusbarpart';
 import { localize } from 'vs/nls';
 import { Disposable, DisposableStore, dispose, disposeIfDisposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
@@ -36,6 +35,10 @@ import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusb
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/grid';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/statusbarpart.css', import.meta.url)
+
 
 export interface IStatusbarEntryContainer extends IDisposable {
 

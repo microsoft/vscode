@@ -14,7 +14,6 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent } from 'vs/base/common/observable';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./inlineCompletionsHintsWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -33,6 +32,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./inlineCompletionsHintsWidget.css', import.meta.url)
+
 
 export class InlineCompletionsHintsWidget extends Disposable {
 	private readonly alwaysShowToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/welcomeWidget';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { $, append, hide } from 'vs/base/browser/dom';
@@ -28,6 +27,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { contrastBorder, editorWidgetBackground, editorWidgetForeground, widgetBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/welcomeWidget.css', import.meta.url)
+
 
 export class WelcomeWidget extends Disposable implements IOverlayWidget {
 

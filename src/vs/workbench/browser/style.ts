@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/style';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -11,6 +10,10 @@ import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
 import { selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { mainWindow } from 'vs/base/browser/window';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/style.css', import.meta.url)
+
 
 registerThemingParticipant((theme, collector) => {
 

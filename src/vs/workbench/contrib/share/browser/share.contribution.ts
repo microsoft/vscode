@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./share';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -33,6 +32,10 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./share.css', import.meta.url)
+
 
 const targetMenus = [
 	MenuId.EditorContextShare,

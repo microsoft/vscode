@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./minimap';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
@@ -35,6 +34,10 @@ import { GestureEvent, EventType, Gesture } from 'vs/base/browser/touch';
 import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/minimapCharRendererFactory';
 import { MinimapPosition, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { createSingleCallFunction } from 'vs/base/common/functional';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./minimap.css', import.meta.url)
+
 
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"

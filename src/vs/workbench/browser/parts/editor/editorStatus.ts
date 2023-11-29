@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/editorstatus';
 import { localize } from 'vs/nls';
 import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
@@ -58,6 +57,10 @@ import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 import { mainWindow } from 'vs/base/browser/window';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/editorstatus.css', import.meta.url)
+
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }

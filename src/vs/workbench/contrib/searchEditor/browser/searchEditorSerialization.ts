@@ -5,7 +5,6 @@
 
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/searchEditor';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import type { ITextModel } from 'vs/editor/common/model';
@@ -14,6 +13,10 @@ import { FileMatch, Match, searchMatchComparer, SearchResult, FolderMatch, CellM
 import type { SearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { ITextQuery, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/searchEditor.css', import.meta.url)
+
 
 // Using \r\n on Windows inserts an extra newline between results.
 const lineDelimiter = '\n';

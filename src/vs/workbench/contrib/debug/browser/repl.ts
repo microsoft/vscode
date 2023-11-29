@@ -21,7 +21,6 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI as uri } from 'vs/base/common/uri';
-import 'vs/css!./media/repl';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -70,6 +69,10 @@ import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/comm
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/repl.css', import.meta.url)
+
 
 const $ = dom.$;
 

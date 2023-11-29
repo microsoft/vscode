@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/singleeditortabscontrol';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { Dimension } from 'vs/base/browser/dom';
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IToolbarActions } from 'vs/workbench/common/editor';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/singleeditortabscontrol.css', import.meta.url)
+
 
 export class NoEditorTabsControl extends EditorTabsControl {
 	private activeEditor: EditorInput | null = null;

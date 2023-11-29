@@ -25,12 +25,15 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/quickInput.css', import.meta.url)
+
 
 export interface IQuickInputOptions {
 	idPrefix: string;

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/typeHierarchy';
 import { Dimension, isKeyboardEvent } from 'vs/base/browser/dom';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
@@ -34,6 +33,10 @@ import { IColorTheme, IThemeService, themeColorFromId } from 'vs/platform/theme/
 import * as typeHTree from 'vs/workbench/contrib/typeHierarchy/browser/typeHierarchyTree';
 import { TypeHierarchyDirection, TypeHierarchyModel } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/typeHierarchy.css', import.meta.url)
+
 
 // Todo: copied from call hierarchy, to extract
 const enum State {

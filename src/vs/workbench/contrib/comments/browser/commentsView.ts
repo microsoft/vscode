@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
@@ -43,6 +42,10 @@ import { Iterable } from 'vs/base/common/iterator';
 import { CommentController } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { Range } from 'vs/editor/common/core/range';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./media/panel.css', import.meta.url)
+
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 const CONTEXT_KEY_SOME_COMMENTS_EXPANDED = new RawContextKey<boolean>('commentsView.someCommentsExpanded', false);

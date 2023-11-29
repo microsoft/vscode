@@ -9,7 +9,6 @@ import { toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./postEditWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditResult, IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,6 +18,10 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./postEditWidget.css', import.meta.url)
+
 
 
 interface EditSet {
