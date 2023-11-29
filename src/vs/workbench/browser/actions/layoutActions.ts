@@ -759,16 +759,18 @@ if (isWindows || isLinux || isWeb) {
 	});
 
 	// Add separately to title bar context menu so we can use a different title
-	MenuRegistry.appendMenuItem(MenuId.TitleBarContext, {
-		command: {
-			id: 'workbench.action.toggleMenuBar',
-			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
-			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
-		},
-		group: '2_config',
-		when: IsAuxiliaryWindowFocusedContext.toNegated(),
-		order: 0
-	});
+	for (const menuId of [MenuId.TitleBarContext, MenuId.TitleBarTitleContext]) {
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: 'workbench.action.toggleMenuBar',
+				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
+				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+			},
+			when: IsAuxiliaryWindowFocusedContext.toNegated(),
+			group: menuId === MenuId.TitleBarTitleContext ? '2_config' : undefined,
+			order: 0
+		});
+	}
 }
 
 // --- Reset View Locations
