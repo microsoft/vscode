@@ -274,6 +274,7 @@ class SwcTranspiler {
             }
             const outBase = this._cmdLine.options.outDir ?? file.base;
             const outPath = this._outputFileNames.getOutputFileName(file.path);
+            console.log(output.code);
             this.onOutfile(new Vinyl({
                 path: outPath,
                 base: outBase,

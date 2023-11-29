@@ -30,7 +30,7 @@ globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 // @ts-ignore
 const loader = require('./vs/loader.cjs');
 const bootstrap = require('./bootstrap.cjs');
-const performance = require('./vs/base/common/performance');
+const performance = require('./vs/base/common/performance.cjs');
 
 // Bootstrap: NLS
 const nlsConfig = bootstrap.setupNLS();

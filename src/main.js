@@ -175,7 +175,7 @@ app.once('ready', function () {
  * @param {string | undefined} codeCachePath
  * @param {NLSConfiguration} nlsConfig
  */
-function startup(codeCachePath, nlsConfig) {
+async function startup(codeCachePath, nlsConfig) {
 	nlsConfig._languagePackSupport = true;
 
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
@@ -183,9 +183,9 @@ function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd.cjs').load('vs/code/electron-main/main', () => {
-		perf.mark('code/didLoadMainBundle');
-	});
+	require('./bootstrap-amd.cjs')
+	await import('./vs/code/electron-main/main.js')
+	perf.mark('code/didLoadMainBundle');
 }
 
 async function onReady() {
