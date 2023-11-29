@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
-const perf = require('./vs/base/common/performance.cjs');
+import * as perf from './vs/base/common/performance.js';
 perf.mark('code/didStartMain');
 
 import * as path from 'node:path';
@@ -136,7 +136,7 @@ const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
-	const { getNLSConfiguration } = require('./vs/base/node/languagePacks.cjs');
+	const { getNLSConfiguration } = await import('./vs/base/node/languagePacks.js');
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
 }
 
@@ -183,7 +183,7 @@ async function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd.cjs')
+	await import('./bootstrap-esm.js')
 	await import('./vs/code/electron-main/main.js')
 	perf.mark('code/didLoadMainBundle');
 }
@@ -663,7 +663,7 @@ async function resolveNlsConfiguration() {
 	// See above the comment about the loader and case sensitiveness
 	appLocale = processZhLocale(appLocale.toLowerCase());
 
-	const { getNLSConfiguration } = require('./vs/base/node/languagePacks.cjs');
+	const { getNLSConfiguration } = await import('./vs/base/node/languagePacks.js');
 	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
 	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }

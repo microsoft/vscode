@@ -32,7 +32,7 @@
 		"src/vs/base/test/common/filters.perf.data.js": true,
 		"src/vs/base/test/node/uri.test.data.txt": true,
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
-		"src/vs/editor/test/node/diffing/fixtures/**": true,
+		"src/vs/editor/test/node/diffing/fixtures/**": true
 	},
 	"files.readonlyInclude": {
 		"**/node_modules/**/*.*": true,
@@ -51,7 +51,7 @@
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true,
+		"test/integration/browser/out/**": true
 	},
 	"files.readonlyExclude": {
 		"build/builtin/*.js": true,
@@ -80,24 +80,16 @@
 	"typescript.preferences.quoteStyle": "single",
 	"json.schemas": [
 		{
-			"fileMatch": [
-				"cgmanifest.json"
-			],
-			"url": "https://json.schemastore.org/component-detection-manifest.json",
+			"fileMatch": ["cgmanifest.json"],
+			"url": "https://json.schemastore.org/component-detection-manifest.json"
 		},
 		{
-			"fileMatch": [
-				"cglicenses.json"
-			],
+			"fileMatch": ["cglicenses.json"],
 			"url": "./.vscode/cglicenses.schema.json"
 		}
 	],
 	"git.ignoreLimitWarning": true,
-	"git.branchProtection": [
-		"main",
-		"distro",
-		"release/*"
-	],
+	"git.branchProtection": ["main", "distro", "release/*"],
 	"git.branchProtectionPrompt": "alwaysCommitToNewBranch",
 	"git.branchRandomName.enable": true,
 	"git.pullBeforeCheckout": true,
@@ -120,11 +112,9 @@
 	},
 	"[rust]": {
 		"editor.defaultFormatter": "rust-lang.rust-analyzer",
-		"editor.formatOnSave": true,
+		"editor.formatOnSave": true
 	},
-	"rust-analyzer.linkedProjects": [
-		"cli/Cargo.toml"
-	],
+	"rust-analyzer.linkedProjects": ["cli/Cargo.toml"],
 	"typescript.tsc.autoDetect": "off",
 	"testing.autoRun.mode": "rerun",
 	"conventionalCommits.scopes": [
@@ -145,15 +135,11 @@
 		]
 	},
 	"extension-test-runner.debugOptions": {
-		"outFiles": [
-			"${workspaceFolder}/extensions/*/out/**/*.js",
-		]
+		"outFiles": ["${workspaceFolder}/extensions/*/out/**/*.js"]
 	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
-	"githubPullRequests.ignoredPullRequestBranches": [
-		"main"
-	],
+	"githubPullRequests.ignoredPullRequestBranches": ["main"],
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
