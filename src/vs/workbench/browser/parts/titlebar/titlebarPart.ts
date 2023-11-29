@@ -413,14 +413,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		append(primaryControlLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.secondary'));
 
 		// Context menu on title
-		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
+		[EventType.CONTEXT_MENU, EventType.CLICK].forEach(event => {
 			this._register(addDisposableListener(this.rootContainer, event, e => {
-				if (e.type === EventType.CONTEXT_MENU || (e.target === this.title && e.metaKey)) {
-					EventHelper.stop(e);
+				if (event === EventType.CONTEXT_MENU || (isMacintosh && e.metaKey /* https://github.com/microsoft/vscode/issues/173563 */)) {
+					EventHelper.stop(e, event === EventType.CLICK /* prevents command center from appearing */);
 
 					this.onContextMenu(e, MenuId.TitleBarContext);
 				}
-			}));
+			}, event === EventType.CLICK /* prevents command center from appearing */));
 		});
 
 		// Focus action
