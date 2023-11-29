@@ -58,7 +58,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -135,6 +135,9 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		// Lifecycle
 		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
+
+		// TODO@benibenj remove after experiment
+		this.stickyScrollExperimentTelemetry();
 	}
 
 	private onTextFileModelResolved(e: ITextFileResolveEvent): void {
@@ -173,6 +176,38 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			} & FileTelemetryDataFragment;
 			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
 		}
+	}
+
+	private stickyScrollExperimentTelemetry(): void {
+		type StickyScrollConfigurationEvent = { value: boolean };
+		type BaseStickyScrollConfigurationClassification = {
+			comment: 'Helps understand the effectiveness of the sticky scroll gradual release';
+			value: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'Helps understand the effectiveness of the sticky scroll gradual release';
+			};
+		};
+
+		type StickyScrollConfigurationClassificationTree = BaseStickyScrollConfigurationClassification & {
+			owner: 'BeniBenj';
+		};
+
+		type StickyScrollConfigurationClassificationEditor = BaseStickyScrollConfigurationClassification & {
+			owner: 'aiday-mar';
+		};
+
+		// Editor
+		const editorStickyScrollSetting = this.configurationService.getValue<boolean>('editor.stickyScroll.enabled');
+		this.telemetryService.publicLog2<StickyScrollConfigurationEvent, StickyScrollConfigurationClassificationEditor>('stickyScrollSettingEditor', {
+			value: editorStickyScrollSetting
+		});
+
+		// Tree
+		const treeStickyScrollSetting = this.configurationService.getValue<boolean>('workbench.tree.enableStickyScroll');
+		this.telemetryService.publicLog2<StickyScrollConfigurationEvent, StickyScrollConfigurationClassificationTree>('stickyScrollSettingTree', {
+			value: treeStickyScrollSetting
+		});
 	}
 
 	private getTypeIfSettings(resource: URI): string {
