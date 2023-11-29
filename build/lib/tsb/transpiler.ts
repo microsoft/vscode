@@ -90,6 +90,36 @@ class OutputFileNameOracle {
 	}
 }
 
+
+const RE_IMPORT = /^import(.*)from '(.*)'/
+
+const fixEsmImportLine = (line: string) => {
+	if (!line.startsWith('import')) {
+		return line
+	}
+	const importMatch = line.match(RE_IMPORT)
+	if (!importMatch) {
+		throw new Error(`multiline import not supported`)
+	}
+	const imports = importMatch[1]
+	const path = importMatch[2]
+	if (path.endsWith('.js')) {
+		return line
+	}
+	return `import${imports}from '${path}.js'`
+}
+
+
+function fixEsmImportLines(lines: readonly string[]) {
+	return lines.map(fixEsmImportLine)
+}
+
+function fixEsmImports(content: string) {
+	const lines = content.split('\n')
+	const newLines = fixEsmImportLines(lines)
+	return newLines.join('\n')
+}
+
 class TranspileWorker {
 
 	private static pool = 1;
@@ -144,7 +174,9 @@ class TranspileWorker {
 				outFiles.push(new Vinyl({
 					path: outPath,
 					base: outBase,
-					contents: Buffer.from(jsSrc),
+					contents: Buffer.from(
+						fixEsmImports(jsSrc)
+					),
 				}));
 			}
 
@@ -355,7 +387,9 @@ export class SwcTranspiler implements ITranspiler {
 			this.onOutfile!(new Vinyl({
 				path: outPath,
 				base: outBase,
-				contents: Buffer.from(output.code),
+				contents: Buffer.from(
+					fixEsmImports(output.code)
+				),
 			}));
 
 			this._logFn('Transpile', `swc took ${Date.now() - t1}ms for ${file.path}`);
