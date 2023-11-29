@@ -204,7 +204,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			nextActiveGroup.groupsView.activateGroup(nextActiveGroup);
 
 			if (restoreFocus) {
-				nextActiveGroup?.focus();
+				nextActiveGroup.focus();
 			}
 		}
 
