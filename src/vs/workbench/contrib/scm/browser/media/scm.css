@@ -165,6 +165,12 @@
 	color: var(--vscode-scm-historyItemDeletionsForeground);
 }
 
+.scm-view .monaco-list-row .history-item .stats-container.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .insertions-label.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .deletions-label.hidden {
+	display: none;
+}
+
 .scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
 .scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
@@ -301,21 +307,6 @@
 .scm-view .scm-input .scm-editor .scm-editor-toolbar .monaco-action-bar.hidden,
 .scm-view .scm-input .scm-editor .scm-editor-toolbar .monaco-toolbar.hidden {
 	display: none;
-}
-
-.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item {
-	cursor: default;
-	opacity: 0.6;
-}
-
-.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-label:hover {
-	outline: unset;
-	outline-offset: unset;
-	background-color: unset;
-}
-
-.scm-view .scm-input .scm-editor .scm-editor-toolbar.disabled .action-item.monaco-dropdown-with-primary:hover {
-	background-color: unset;
 }
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar.scroll-decoration {

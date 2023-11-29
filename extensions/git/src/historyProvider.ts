@@ -58,28 +58,30 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
-		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit) { return; }
-
 		// Check if HEAD has changed
-		const HEAD = this.repository.HEAD;
-
-		if (this._HEAD?.name === HEAD.name &&
-			this._HEAD?.commit === HEAD.commit &&
-			this._HEAD?.upstream?.name === HEAD.upstream?.name &&
-			this._HEAD?.upstream?.remote === HEAD.upstream?.remote &&
-			this._HEAD?.upstream?.commit === HEAD.upstream?.commit) {
+		if (this._HEAD?.name === this.repository.HEAD?.name &&
+			this._HEAD?.commit === this.repository.HEAD?.commit &&
+			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
 			return;
 		}
 
 		this._HEAD = this.repository.HEAD;
 
+		// Check if HEAD supports incoming/outgoing (not a tag, not detached)
+		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
+			this.currentHistoryItemGroup = undefined;
+			return;
+		}
+
 		this.currentHistoryItemGroup = {
-			id: `refs/heads/${this.repository.HEAD.name}`,
-			label: this.repository.HEAD.name,
-			upstream: this.repository.HEAD.upstream ?
+			id: `refs/heads/${this._HEAD.name}`,
+			label: this._HEAD.name,
+			upstream: this._HEAD.upstream ?
 				{
-					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-					label: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
+					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
 	}
@@ -115,7 +117,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				description: commit.authorName,
 				icon: new ThemeIcon('git-commit'),
 				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat
+				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
 			};
 		}));
 

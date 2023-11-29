@@ -23,6 +23,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 class MultiDiffEditorResolverContribution extends Disposable {
@@ -128,7 +129,34 @@ export class GoToFileAction extends Action2 {
 	}
 }
 
+export class CollapseAllAction extends Action2 {
+	constructor() {
+		super({
+			id: 'multiDiffEditor.collapseAll',
+			title: { value: localize('collapseAllDiffs', "Collapse All Diffs"), original: 'Collapse All Diffs' },
+			icon: Codicon.collapseAll,
+			precondition: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+			menu: {
+				when: ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID),
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = editorService.activeEditor;
+
+		if (activeEditor instanceof MultiDiffEditorInput) {
+			const viewModel = await activeEditor.getViewModel();
+			viewModel.collapseAll();
+		}
+	}
+}
+
 registerAction2(GoToFileAction);
+registerAction2(CollapseAllAction);
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	properties: {

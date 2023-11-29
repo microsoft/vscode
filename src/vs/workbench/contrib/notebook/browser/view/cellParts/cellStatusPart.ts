@@ -244,7 +244,7 @@ export class CellEditorStatusBar extends CellContentPart {
 				if (existingItem) {
 					existingItem.updateItem(newLeftItem, maxItemWidth);
 				} else {
-					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, newLeftItem, maxItemWidth);
+					const item = this._instantiationService.createInstance(CellStatusBarItem, this.currentContext!, this.hoverDelegate, this._editor, newLeftItem, maxItemWidth);
 					renderedItems.push(item);
 					container.appendChild(item.container);
 				}
@@ -276,6 +276,7 @@ class CellStatusBarItem extends Disposable {
 	constructor(
 		private readonly _context: INotebookCellActionContext,
 		private readonly _hoverDelegate: IHoverDelegate,
+		private readonly _editor: ICodeEditor | undefined,
 		itemModel: INotebookCellStatusBarItem,
 		maxWidth: number | undefined,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -363,6 +364,7 @@ class CellStatusBarItem extends Disposable {
 
 		this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'cell status bar' });
 		try {
+			this._editor?.focus();
 			await this._commandService.executeCommand(id, ...args);
 		} catch (error) {
 			this._notificationService.error(toErrorMessage(error));

@@ -617,7 +617,6 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
 		const openSettingsCommand = 'workbench.action.openSettings';
 		const configureSettingsLabel = '@id:problems.visibility';
-		const tooltip = localize('problemsOff', "Problems have been turned off.");
 		return {
 			name: localize('status.problemsVisibility', "Problems Visibility"),
 			text: '$(whole-word)',
@@ -695,8 +694,12 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		if (total > 0) {
+			const message = localize('totalProblems', 'Total {0} Problems', total);
+			this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		} else {
+			this.activity.value = undefined;
+		}
 	}
 }
 

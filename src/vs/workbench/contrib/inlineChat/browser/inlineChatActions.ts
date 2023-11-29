@@ -43,8 +43,9 @@ export class StartSessionAction extends EditorAction2 {
 			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE.toNegated(), EditorContextKeys.focus),
+			precondition: CTX_INLINE_CHAT_HAS_PROVIDER,
 			keybinding: {
+				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
@@ -216,7 +217,7 @@ export class ArrowOutUpAction extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
-				primary: KeyCode.UpArrow
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 			}
 		});
 	}
@@ -234,7 +235,7 @@ export class ArrowOutDownAction extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
-				primary: KeyCode.DownArrow
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 			}
 		});
 	}
@@ -256,11 +257,11 @@ export class FocusInlineChat extends EditorAction2 {
 			keybinding: [{
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.isEqualTo('above'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
-				primary: KeyCode.DownArrow,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			}, {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.isEqualTo('below'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
-				primary: KeyCode.UpArrow,
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			}]
 		});
 	}
@@ -279,7 +280,7 @@ export class PreviousFromHistory extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_START),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+				primary: KeyCode.UpArrow,
 			}
 		});
 	}
@@ -298,7 +299,7 @@ export class NextFromHistory extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_END),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				primary: KeyCode.DownArrow,
 			}
 		});
 	}
@@ -406,7 +407,7 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			id: 'inlineChat.toggleDiff',
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live3), CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
 			title: localize2('showChanges', 'Show Changes'),
-			icon: Codicon.diff,
+			icon: Codicon.diffSingle,
 			toggled: {
 				condition: CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF,
 			},
@@ -506,9 +507,8 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 				title: localize('showDiff2', "Show Diff"),
 				mnemonicTitle: localize({ key: 'miShowDiff2', comment: ['&& denotes a mnemonic'] }, "&&Show Diff")
 			},
-			precondition: ContextKeyExpr.notEquals('config.inlineChat.mode', 'preview'),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)),
 			menu: [
-				{ id: MenuId.CommandPalette },
 				{ id: MENU_INLINE_CHAT_WIDGET_TOGGLE }
 			]
 		});

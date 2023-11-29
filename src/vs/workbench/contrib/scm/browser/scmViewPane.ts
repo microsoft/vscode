@@ -797,7 +797,7 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItemGroup.icon));
 		}
 
-		templateData.label.setLabel(historyItemGroup.label, historyItemGroup.description);
+		templateData.label.setLabel(historyItemGroup.label, historyItemGroup.description, { title: historyItemGroup.ariaLabel });
 		templateData.count.setCount(historyItemGroup.count ?? 0);
 	}
 
@@ -881,38 +881,31 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const historyItem = node.element;
 
 		if (historyItem.statistics) {
-			const statsAriaLabel: string[] = [];
+			const statsAriaLabel: string[] = [
+				historyItem.statistics.files === 1 ?
+					localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
+					localize('filesChanged', "{0} files changed", historyItem.statistics.files),
+				historyItem.statistics.insertions === 1 ? localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
+					historyItem.statistics.insertions > 1 ? localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)') : '',
+				historyItem.statistics.deletions === 1 ? localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
+					historyItem.statistics.deletions > 1 ? localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)') : ''
+			];
 
-			if (historyItem.statistics?.files) {
-				const filesDescription = historyItem.statistics.files === 1 ?
-					localize('fileChanged', "file changed") : localize('filesChanged', "files changed");
-				statsAriaLabel.push(`${historyItem.statistics.files} ${filesDescription}`);
-			}
-
-			if (historyItem.statistics?.insertions) {
-				const insertionsDescription = historyItem.statistics.insertions === 1 ?
-					localize('insertion', "insertion{0}", '(+)') : localize('insertions', "insertions{0}", '(+)');
-				statsAriaLabel.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
-			}
-
-			if (historyItem.statistics?.deletions) {
-				const deletionsDescription = historyItem.statistics.deletions === 1 ?
-					localize('deletion', "deletion{0}", '(-)') : localize('deletions', "deletions{0}", '(-)');
-				statsAriaLabel.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
-			}
-
-			const statsTitle = statsAriaLabel.join(', ');
+			const statsTitle = statsAriaLabel
+				.filter(l => l !== '').join(', ');
 			templateData.statsContainer.title = statsTitle;
 			templateData.statsContainer.setAttribute('aria-label', statsTitle);
 
-			templateData.filesLabel.textContent = historyItem.statistics.files > 0 ? historyItem.statistics.files.toString() : '';
-			templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
-			templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
+			templateData.filesLabel.textContent = historyItem.statistics.files.toString();
 
-			templateData.statsContainer.style.display = '';
-		} else {
-			templateData.statsContainer.style.display = 'none';
+			templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
+			templateData.insertionsLabel.classList.toggle('hidden', historyItem.statistics.insertions === 0);
+
+			templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
+			templateData.deletionsLabel.classList.toggle('hidden', historyItem.statistics.deletions === 0);
 		}
+
+		templateData.statsContainer.classList.toggle('hidden', historyItem.statistics === undefined);
 	}
 
 	disposeElement(element: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -1001,7 +994,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		return { label, disposables: new DisposableStore() };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		templateData.label.setLabel(element.element.label);
+		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
@@ -1736,11 +1729,12 @@ class HistoryItemViewChangesAction extends Action2 {
 		super({
 			id: `workbench.scm.action.historyItemViewChanges`,
 			title: localize('historyItemViewChanges', "View Changes"),
-			icon: Codicon.tasklist,
+			icon: Codicon.diffMultiple,
 			f1: false,
 			menu: {
 				id: MenuId.SCMHistoryItem,
-				group: 'inline'
+				group: 'inline',
+				when: ContextKeyExpr.has('config.multiDiffEditor.experimental.enabled'),
 			}
 		});
 	}
@@ -1889,12 +1883,16 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
+			if (primaryAction &&
+				primaryAction.id !== SCMInputCommandId.CancelAction &&
+				contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) === false) {
+				primaryAction.enabled = false;
+			}
+
 			this._ctxActionCount.set(actions.length);
 			this._dropdownActions = actions.length === 1 ? [] : actions;
 
 			container.classList.toggle('has-no-actions', actions.length === 0);
-			container.classList.toggle('disabled', contextKeyService.getContextKeyValue(SCMInputContextKeys.ActionIsEnabled.key) !== true);
-
 			super.setActions(primaryAction ? [primaryAction] : [], []);
 		};
 
@@ -3274,6 +3272,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			if (historyItemGroups.length > 0) {
 				children.push({
 					label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
+					ariaLabel: localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes"),
 					repository: inputOrElement,
 					type: 'separator'
 				} as SCMViewSeparatorElement);
@@ -3341,6 +3340,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				(this.showIncomingChanges() === 'auto' && (historyItemGroupDetails.incoming.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.incoming,
+				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", historyItemGroupDetails.incoming.label),
 				repository: element,
 				type: 'historyItemGroup'
 			});
@@ -3352,6 +3352,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				(this.showOutgoingChanges() === 'auto' && (historyItemGroupDetails.outgoing.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.outgoing,
+				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes from {0}", historyItemGroupDetails.outgoing.label),
 				repository: element,
 				type: 'historyItemGroup'
 			});
