@@ -43,8 +43,9 @@ export class StartSessionAction extends EditorAction2 {
 			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE.toNegated(), EditorContextKeys.focus),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE.toNegated()),
 			keybinding: {
+				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
@@ -506,9 +507,8 @@ export class ToggleInlineDiff extends AbstractInlineChatAction {
 				title: localize('showDiff2', "Show Diff"),
 				mnemonicTitle: localize({ key: 'miShowDiff2', comment: ['&& denotes a mnemonic'] }, "&&Show Diff")
 			},
-			precondition: ContextKeyExpr.notEquals('config.inlineChat.mode', 'preview'),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)),
 			menu: [
-				{ id: MenuId.CommandPalette },
 				{ id: MENU_INLINE_CHAT_WIDGET_TOGGLE }
 			]
 		});
