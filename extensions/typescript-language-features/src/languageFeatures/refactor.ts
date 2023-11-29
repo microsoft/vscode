@@ -22,6 +22,7 @@ import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
 import * as PConst from '../tsServer/protocol/protocol.const';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -436,30 +437,6 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 			arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
 		};
 	}
-
-	private static readonly _declarationKinds = new Set([
-		PConst.Kind.module,
-		PConst.Kind.class,
-		PConst.Kind.interface
-	]);
-
-	static isOnDeclarationName(node: Proto.NavigationTree | undefined, range: vscode.Range) {
-		if (!node) {
-			return false;
-		}
-		const isRangeInSpan = (span: Proto.TextSpan) => typeConverters.Range.fromTextSpan(span).contains(range);
-		if (MoveToFileCodeAction._declarationKinds.has(node.kind) && node.nameSpan && isRangeInSpan(node.nameSpan)) {
-			return true;
-		}
-		if (node.childItems && node.spans.some(isRangeInSpan)) {
-			for (const child of node.childItems) {
-				if (MoveToFileCodeAction.isOnDeclarationName(child, range)) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
 }
 
 class SelectCodeAction extends vscode.CodeAction {
@@ -480,8 +457,44 @@ type TsCodeAction = InlinedCodeAction | MoveToFileCodeAction | SelectCodeAction;
 
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeAction> {
 
+	private static readonly _declarationKinds = new Set([
+		PConst.Kind.module,
+		PConst.Kind.class,
+		PConst.Kind.interface,
+		PConst.Kind.function,
+		PConst.Kind.enum,
+		PConst.Kind.type,
+		PConst.Kind.const,
+		PConst.Kind.variable,
+		PConst.Kind.let,
+	]);
+
+	private static isOnSignatureName(node: Proto.NavigationTree, range: vscode.Range): boolean {
+		if (this._declarationKinds.has(node.kind)) {
+			// Show when on the name span
+			if (node.nameSpan) {
+				const convertedSpan = typeConverters.Range.fromTextSpan(node.nameSpan);
+				if (range.intersection(convertedSpan)) {
+					return true;
+				}
+			}
+
+			// Show when on the same line as an exported symbols without a name (handles default exports)
+			if (!node.nameSpan && /\bexport\b/.test(node.kindModifiers) && node.spans.length) {
+				const convertedSpan = typeConverters.Range.fromTextSpan(node.spans[0]);
+				if (range.intersection(new vscode.Range(convertedSpan.start.line, 0, convertedSpan.start.line, Number.MAX_SAFE_INTEGER))) {
+					return true;
+				}
+			}
+		}
+
+		// Show if on the signature of any children
+		return node.childItems?.some(child => this.isOnSignatureName(child, range)) ?? false;
+	}
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly cachedNavTree: CachedResponse<Proto.NavTreeResponse>,
 		private readonly formattingOptionsManager: FormattingOptionsManager,
 		commandManager: CommandManager,
 		telemetryReporter: TelemetryReporter
@@ -542,27 +555,41 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		}
 
 		const applicableRefactors = await this.convertApplicableRefactors(document, response.body, rangeOrSelection);
-		const actions = await Promise.all(applicableRefactors.map(async (action) => {
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const actions = coalesce(await Promise.all(applicableRefactors.map(async action => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
 				if (!context.only && action.kind?.value === 'refactor.rewrite.function.returnType') {
-					return false;
+					return undefined;
 				}
 			}
-			if (action.kind?.value === Move_NewFile.kind.value) {
-				const navigationTree = await this.client.execute('navtree', { file: document.uri.path }, nulToken);
-				if (navigationTree.type !== 'response') {
-					return;
+
+			// Don't include move actions on auto light bulb unless you are on a declaration name
+			if (this.client.apiVersion.lt(API.v540) && context.triggerKind === vscode.CodeActionTriggerKind.Automatic) {
+				if (action.kind?.value === Move_NewFile.kind.value || action.kind?.value === Move_File.kind.value) {
+					const file = this.client.toOpenTsFilePath(document);
+					if (!file) {
+						return undefined;
+					}
+
+					const navTree = await this.cachedNavTree.execute(document, () => this.client.execute('navtree', { file }, token));
+					if (navTree.type !== 'response' || !navTree.body || !TypeScriptRefactorProvider.isOnSignatureName(navTree.body, rangeOrSelection)) {
+						return undefined;
+					}
 				}
-				return MoveToFileCodeAction.isOnDeclarationName(navigationTree.body, rangeOrSelection);
 			}
-			return true;
-		})).then((mappedRefactors) => applicableRefactors.filter((_, index) => mappedRefactors[index]));
+
+			return action;
+		})));
 
 		if (!context.only) {
 			return actions;
 		}
+
 		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
 	}
 
@@ -610,14 +637,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 	): Promise<TsCodeAction | undefined> {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
-			const navigationTree = await this.client.execute('navtree', { file: document.uri.path }, nulToken);
-			if (navigationTree.type !== 'response') {
-				return;
-			}
-			const shouldIncludeMoveToAction = MoveToFileCodeAction.isOnDeclarationName(navigationTree.body, rangeOrSelection);
-			if (!shouldIncludeMoveToAction) {
-				return;
-			}
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
 		} else {
 			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
@@ -765,6 +784,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 export function register(
 	selector: DocumentSelector,
 	client: ITypeScriptServiceClient,
+	cachedNavTree: CachedResponse<Proto.NavTreeResponse>,
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
 	telemetryReporter: TelemetryReporter,
@@ -773,7 +793,7 @@ export function register(
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeActionsProvider(selector.semantic,
-			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager, telemetryReporter),
+			new TypeScriptRefactorProvider(client, cachedNavTree, formattingOptionsManager, commandManager, telemetryReporter),
 			TypeScriptRefactorProvider.metadata);
 	});
 }
