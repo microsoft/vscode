@@ -617,6 +617,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
 		const openSettingsCommand = 'workbench.action.openSettings';
 		const configureSettingsLabel = '@id:problems.visibility';
+		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
 		return {
 			name: localize('status.problemsVisibility', "Problems Visibility"),
 			text: '$(whole-word)',
