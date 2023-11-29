@@ -2927,10 +2927,7 @@ export class SCMViewPane extends ViewPane {
 			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
-			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => {
-				this.updateChildren(repository);
-				this.onDidActiveEditorChange();
-			}));
+			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
 			if (repository.provider.historyProvider) {
 				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.updateChildren(repository)));
@@ -2950,10 +2947,7 @@ export class SCMViewPane extends ViewPane {
 						const disposableStore = new DisposableStore();
 
 						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren(repository)));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => {
-							this.updateChildren(repository);
-							this.onDidActiveEditorChange();
-						}));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => this.updateChildren(repository)));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
 					}
 				}
