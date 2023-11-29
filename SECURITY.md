@@ -1,4 +1,4 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V0.0.5 BLOCK -->
+<!-- BEGIN MICROSOFT SECURITY.MD V0.0.5 BLOCK -->npm install -g @devcontainers/cli
 
 ## Security
 
