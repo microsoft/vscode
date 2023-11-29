@@ -94,7 +94,7 @@ export interface IColorRegistry {
 	registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency?: boolean): ColorIdentifier;
 
 	/**
-	 * Deregister a color from the registry.
+	 * Register a color to the registry.
 	 */
 	deregisterColor(id: string): void;
 

@@ -711,7 +711,6 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			return null;
 		}
 		result.semanticHighlighting = result.semanticHighlighting || contentValue.semanticHighlighting;
-
 		const colorPalette = contentValue.colorPalette;
 		const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 		schemaRegistry.registerSchema(themePaletteEnumSchemaId, { enum: Object.keys(colorPalette || {}) });
@@ -760,18 +759,15 @@ function _parseColor(colorValue: string | null, colorPalette: { [key: string]: s
 	if (!colorValue) {
 		return null;
 	}
-
 	if (colorValue.startsWith('#')) {
 		return colorValue;
 	}
-
 	if (colorPalette && colorValue.startsWith('$')) {
 		const hex = colorPalette[colorValue];
 		if (hex) {
 			return hex;
 		}
 	}
-
 	return null;
 }
 

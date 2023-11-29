@@ -223,19 +223,15 @@ export const workbenchColorsSchemaForThemeId = 'vscode://schemas/workbench-color
 export const themePaletteEnumSchemaId = 'vscode://schemas/theme-palette-enum';
 let colorThemeSchema: IJSONSchema = generateColorThemeSchemas();
 
-
-
 function generateColorThemeSchemas() {
 	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const originalWorkbenchColorsSchema = schemaRegistry.getSchemaContributions().schemas[workbenchColorsSchemaId];
-
 	const workbenchColorSchemaForTheme = JSON.parse(JSON.stringify(originalWorkbenchColorsSchema));
 	const themePaletteEnumSchema = schemaRegistry.getSchemaContributions().schemas[themePaletteEnumSchemaId];
 
 	if (themePaletteEnumSchema?.enum !== undefined && themePaletteEnumSchema.enum.length > 0) {
 		for (const key in workbenchColorSchemaForTheme.properties) {
 			const property = workbenchColorSchemaForTheme.properties[key];
-
 			delete property.format;
 
 			property.anyOf = [
@@ -314,7 +310,6 @@ export function registerColorThemeSchemas() {
 }
 
 const delay = 500;
-
 const delayer = new RunOnceScheduler(() => { colorThemeSchema = generateColorThemeSchemas(); registerColorThemeSchemas(); }, delay);
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.onDidChangeSchema(uri => {
