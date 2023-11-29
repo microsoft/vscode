@@ -3099,10 +3099,12 @@ export class SCMViewPane extends ViewPane {
 
 			if (element && this.tree.hasNode(element)) {
 				// Refresh specific repository
-				await this.tree.updateChildren(element);
+				// Use recursive = false so that collapseByDefault is called in setChildren
+				await this.tree.updateChildren(element, false);
 			} else {
 				// Refresh the entire tree
-				await this.tree.updateChildren();
+				// Use recursive = false so that collapseByDefault is called in setChildren
+				await this.tree.updateChildren(undefined, false);
 			}
 
 			if (focusedInput) {
