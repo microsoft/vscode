@@ -83,12 +83,13 @@ const getNewContent = (content) => {
 	if (lastImportLineIndex === -1) {
 		throw new Error(`no imports found`)
 	}
-	const { newLinesTop, newCssImports } = getNewContentTop(lines.slice(0, lastImportLineIndex))
+	const { newLinesTop, newCssImports } = getNewContentTop(lines.slice(0, lastImportLineIndex + 1))
 	if (newCssImports.length === 0) {
+		console.log(lines, lastImportLineIndex)
 		throw new Error(`import length cannot be zero`)
 	}
 	const newCssImportLines = getNewCssImportLines(newCssImports)
-	const newLinesBottom = lines.slice(lastImportLineIndex)
+	const newLinesBottom = lines.slice(lastImportLineIndex + 1)
 	const newLines = [...newLinesTop, ...newCssImportLines, ...newLinesBottom]
 	const newContent = newLines.join('\n')
 	return newContent
