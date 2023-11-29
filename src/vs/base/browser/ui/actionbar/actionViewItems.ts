@@ -6,6 +6,7 @@
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -17,8 +18,9 @@ import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separ
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
-import 'vs/css!./actionbar';
 import * as nls from 'vs/nls';
+
+importCss('./actionbar.css', import.meta.url)
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;

@@ -16,8 +16,11 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
+import { importCss } from 'vs/base/browser/importCss';
+
+importCss('./dialog.css', import.meta.url)
+
 
 export interface IDialogInputOptions {
 	readonly placeholder?: string;

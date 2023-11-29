@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -18,9 +19,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { equals } from 'vs/base/common/objects';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./inputBox';
 import * as nls from 'vs/nls';
 
+importCss('./codicon/inputBox.css', import.meta.url)
 
 const $ = dom.$;
 

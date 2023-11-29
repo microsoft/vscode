@@ -31,8 +31,10 @@ import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
-import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
+import { importCss } from 'vs/base/browser/importCss.js';
+
+importCss('./media/tree.css', import.meta.url)
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 

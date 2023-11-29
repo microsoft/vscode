@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -18,9 +19,9 @@ import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import 'vs/css!./selectBoxCustom';
 import { localize } from 'vs/nls';
 
+importCss('./selectBoxCustom.css', import.meta.url)
 
 const $ = dom.$;
 

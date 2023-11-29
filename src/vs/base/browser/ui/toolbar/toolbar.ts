@@ -13,10 +13,10 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { EventMultiplexer } from 'vs/base/common/event';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
+import { importCss } from 'vs/base/browser/importCss.js';
 
-
+importCss('./toolbar.css', import.meta.url)
 
 export interface IToolBarOptions {
 	orientation?: ActionsOrientation;

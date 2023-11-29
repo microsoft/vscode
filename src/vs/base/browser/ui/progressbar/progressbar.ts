@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hide, show } from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import 'vs/css!./progressbar';
+
+importCss('./progressbar.css', import.meta.url)
+
 
 const CSS_DONE = 'done';
 const CSS_ACTIVE = 'active';

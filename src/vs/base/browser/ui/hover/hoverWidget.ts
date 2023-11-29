@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./hover';
 import { localize } from 'vs/nls';
+
+importCss('./hover.css', import.meta.url)
 
 const $ = dom.$;
 

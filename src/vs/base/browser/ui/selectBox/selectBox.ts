@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListStyles, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';
@@ -12,8 +13,8 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import 'vs/css!./selectBox';
 
+importCss('./selectBox.css', import.meta.url)
 
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class

@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import 'vs/css!./blockDecorations';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+
+importCss('./media/blockDecorations.css', import.meta.url)
 
 export class BlockDecorations extends ViewPart {
 

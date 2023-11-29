@@ -6,6 +6,7 @@
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { addDisposableListener, EventHelper, EventType, IFocusTracker, isActiveElement, reset, trackFocus } from 'vs/base/browser/dom';
 import { sanitize } from 'vs/base/browser/dompurify/dompurify';
+import { importCss } from 'vs/base/browser/importCss';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown, renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
@@ -18,8 +19,9 @@ import { IMarkdownString, isMarkdownString, markdownStringEqual } from 'vs/base/
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
-import 'vs/css!./button';
 import { localize } from 'vs/nls';
+
+importCss('./button.css', import.meta.url)
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;

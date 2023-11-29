@@ -5,12 +5,14 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss.js';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
 import { OmitOptional } from 'vs/base/common/types';
-import 'vs/css!./contextview';
+
+importCss('./contextview.css', import.meta.url)
 
 export const enum ContextViewDOMPosition {
 	ABSOLUTE = 1,

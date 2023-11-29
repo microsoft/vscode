@@ -13,10 +13,11 @@ import { HistoryInputBox, IInputBoxStyles, IInputValidator, IMessage as InputBox
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./findInput';
 import * as nls from 'vs/nls';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { importCss } from 'vs/base/browser/importCss.js';
 
+importCss('./codicon/findInput.css', import.meta.url)
 
 export interface IFindInputOptions {
 	readonly placeholder?: string;

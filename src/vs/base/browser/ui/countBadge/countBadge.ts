@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, append } from 'vs/base/browser/dom';
+import { importCss } from 'vs/base/browser/importCss';
 import { format } from 'vs/base/common/strings';
-import 'vs/css!./countBadge';
+
+importCss('./countBadge.css', import.meta.url)
 
 export interface ICountBadgeOptions {
 	readonly count?: number;

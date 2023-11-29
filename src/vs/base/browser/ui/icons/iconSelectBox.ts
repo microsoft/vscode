@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./iconSelectBox';
 import * as dom from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IInputBoxStyles, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -15,6 +14,9 @@ import { localize } from 'vs/nls';
 import { IMatch } from 'vs/base/common/filters';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
+import { importCss } from 'vs/base/browser/importCss.js';
+
+importCss('./codicon/iconSelectBox.css', import.meta.url)
 
 export interface IIconSelectBoxOptions {
 	readonly icons: ThemeIcon[];
