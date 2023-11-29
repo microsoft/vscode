@@ -91,22 +91,24 @@ class OutputFileNameOracle {
 }
 
 
-const RE_IMPORT = /^import(.*)from '(.*)'/
+const RE_IMPORT = /^import(.*)('|")(.*)('|")/
 
 const fixEsmImportLine = (line: string) => {
-	if (!line.startsWith('import')) {
+	if (!line.startsWith('import ')) {
 		return line
 	}
 	const importMatch = line.match(RE_IMPORT)
 	if (!importMatch) {
-		throw new Error(`multiline import not supported`)
+		throw new Error(`multiline import not supported: ${line}`)
 	}
 	const imports = importMatch[1]
-	const path = importMatch[2]
+	const quote1 = importMatch[2]
+	const path = importMatch[3]
+	const quote2 = importMatch[4]
 	if (path.endsWith('.js')) {
 		return line
 	}
-	return `import${imports}from '${path}.js'`
+	return `import${imports}${quote1}${path}.js${quote2}`
 }
 
 

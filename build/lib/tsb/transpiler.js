@@ -67,6 +67,32 @@ class OutputFileNameOracle {
         };
     }
 }
+const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
+const fixEsmImportLine = (line) => {
+    if (!line.startsWith('import ')) {
+        return line;
+    }
+    const importMatch = line.match(RE_IMPORT);
+    if (!importMatch) {
+        throw new Error(`multiline import not supported: ${line}`);
+    }
+    const imports = importMatch[1];
+    const quote1 = importMatch[2];
+    const path = importMatch[3];
+    const quote2 = importMatch[4];
+    if (path.endsWith('.js')) {
+        return line;
+    }
+    return `import${imports}${quote1}${path}.js${quote2}`;
+};
+function fixEsmImportLines(lines) {
+    return lines.map(fixEsmImportLine);
+}
+function fixEsmImports(content) {
+    const lines = content.split('\n');
+    const newLines = fixEsmImportLines(lines);
+    return newLines.join('\n');
+}
 class TranspileWorker {
     static pool = 1;
     id = TranspileWorker.pool++;
@@ -110,7 +136,7 @@ class TranspileWorker {
                 outFiles.push(new Vinyl({
                     path: outPath,
                     base: outBase,
-                    contents: Buffer.from(jsSrc),
+                    contents: Buffer.from(fixEsmImports(jsSrc)),
                 }));
             }
             this._pending = undefined;
@@ -277,7 +303,7 @@ class SwcTranspiler {
             this.onOutfile(new Vinyl({
                 path: outPath,
                 base: outBase,
-                contents: Buffer.from(output.code),
+                contents: Buffer.from(fixEsmImports(output.code)),
             }));
             this._logFn('Transpile', `swc took ${Date.now() - t1}ms for ${file.path}`);
         }).catch(err => {
