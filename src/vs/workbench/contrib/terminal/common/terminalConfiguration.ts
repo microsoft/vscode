@@ -633,7 +633,7 @@ const terminalConfiguration: IConfigurationNode = {
 			// scope: ConfigurationScope.APPLICATION
 		},
 		[TerminalSettingId.StickyScrollMaxLineCount]: {
-			markdownDescription: localize('terminal.integrated.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show."),
+			markdownDescription: localize('terminal.integrated.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show. Sticky scroll lines will never exceed 40% of the viewport regardless of this setting."),
 			type: 'number',
 			default: 5,
 			minimum: 1,
