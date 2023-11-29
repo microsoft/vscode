@@ -677,8 +677,12 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		if (total > 0) {
+			const message = localize('totalProblems', 'Total {0} Problems', total);
+			this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		} else {
+			this.activity.value = undefined;
+		}
 	}
 }
 
