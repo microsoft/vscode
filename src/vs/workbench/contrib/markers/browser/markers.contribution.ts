@@ -572,7 +572,12 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		const addStatusBarEntry = () => {
 			this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49));
 		};
-		addStatusBarEntry();
+
+		// Add the status bar entry if the problems is not visible
+		let config = this.configurationService.getValue('problems.visibility');
+		if (!config) {
+			addStatusBarEntry();
+		}
 
 		this._register(this.markerService.onMarkerChanged(() => {
 			this.markersStatusItem.update(this.getMarkersItem());
@@ -582,8 +587,9 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('problems.visibility')) {
 				this.markersStatusItem.update(this.getMarkersItem());
-				const config = this.configurationService.getValue('problems.visibility');
 
+				// Update based on what setting was changed to.
+				config = this.configurationService.getValue('problems.visibility');
 				if (!config && !this.markersStatusItemOff) {
 					addStatusBarEntry();
 				} else if (config && this.markersStatusItemOff) {
@@ -607,10 +613,11 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
-		const config = this.configurationService.getValue('problems.visibility');
+		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
+		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
 		const openSettingsCommand = 'workbench.action.openSettings';
 		const configureSettingsLabel = '@id:problems.visibility';
-		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
+		const tooltip = localize('problemsOff', "Problems have been turned off.");
 		return {
 			name: localize('status.problemsVisibility', "Problems Visibility"),
 			text: '$(whole-word)',
