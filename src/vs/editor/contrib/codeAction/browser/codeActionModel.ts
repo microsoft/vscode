@@ -72,7 +72,8 @@ class CodeActionOracle extends Disposable {
 		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
-			if (line.length > 0) {
+			if (!/^\s*$/g.test(line)) {
+				// Suppose the line is not made of only whitespace characters
 				if (column === 1) {
 					// look only right
 					if (/\s/.test(line[0])) {

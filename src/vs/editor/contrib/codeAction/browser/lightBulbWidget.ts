@@ -238,7 +238,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 		const { lineNumber } = this._editor.getSelection().getPosition();
 		const line = this._editor.getModel().getLineContent(lineNumber);
-		if (line.length === 0) {
+		if (/^\s*$/g.test(line)) {
 			const doNotShowIconOnEmptyLines = (option === ShowAiIconMode.Off || option === ShowAiIconMode.OnCode);
 			if (doNotShowIconOnEmptyLines) {
 				return;
