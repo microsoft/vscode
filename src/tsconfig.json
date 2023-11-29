@@ -24,8 +24,8 @@
 		]
 	},
 	"include": [
-		"./bootstrap.js",
-		"./bootstrap-amd.js",
+		"bootstrap.cjs",
+		"bootstrap-amd.cjs",
 		"./server-main.js",
 		"./typings",
 		"./vs/**/*.ts",

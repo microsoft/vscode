@@ -2,6 +2,7 @@
   "name": "code-oss-dev-build",
   "version": "1.0.0",
   "license": "MIT",
+  "type": "commonjs",
   "devDependencies": {
     "@azure/cosmos": "^3",
     "@azure/identity": "^3.4.1",

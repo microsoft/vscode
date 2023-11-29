@@ -10,7 +10,7 @@
 	'use strict';
 
 	/**
-	 * @typedef {import('../../environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 * @typedef {import('../common/argv').NativeParsedArgs} NativeParsedArgs
 	 *
 	 * @param {typeof import('path')} path
 	 * @param {typeof import('os')} os
