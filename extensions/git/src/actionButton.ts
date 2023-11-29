@@ -182,8 +182,7 @@ export class CommitActionButton extends AbstractActionButton {
 				this.onDidChangeSmartCommitSettings();
 			}
 
-			if (e.affectsConfiguration('scm.experimental.showSyncView') ||
-				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
+			if (e.affectsConfiguration('git.branchProtectionPrompt', root) ||
 				e.affectsConfiguration('git.postCommitCommand', root) ||
 				e.affectsConfiguration('git.rememberPostCommitCommand', root) ||
 				e.affectsConfiguration('git.showActionButton', root)) {
@@ -256,11 +255,6 @@ export class CommitActionButton extends AbstractActionButton {
 	}
 
 	protected override getPublishBranchActionButton(): SourceControlActionButton | undefined {
-		const scmConfig = workspace.getConfiguration('scm');
-		if (scmConfig.get<boolean>('experimental.showSyncView', false)) {
-			return undefined;
-		}
-
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
@@ -271,11 +265,6 @@ export class CommitActionButton extends AbstractActionButton {
 	}
 
 	protected override getSyncChangesActionButton(): SourceControlActionButton | undefined {
-		const scmConfig = workspace.getConfiguration('scm');
-		if (scmConfig.get<boolean>('experimental.showSyncView', false)) {
-			return undefined;
-		}
-
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
 		const branchIsAheadOrBehind = (this.state.HEAD?.behind ?? 0) > 0 || (this.state.HEAD?.ahead ?? 0) > 0;
