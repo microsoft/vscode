@@ -10452,6 +10452,16 @@ declare module 'vscode' {
 		export const onDidChangeWindowState: Event<WindowState>;
 
 		/**
+		 * An {@link Event} which fires after the inline chat opens
+		 */
+		export const onDidOpenInlineChat: Event<void>;
+
+		/**
+		 * An {@link Event} which fires when the inline chat is about to close
+		 */
+		export const onWillCloseInlineChat: Event<void>;
+
+		/**
 		 * Show the given document in a text editor. A {@link ViewColumn column} can be provided
 		 * to control where the editor is being shown. Might change the {@link window.activeTextEditor active editor}.
 		 *

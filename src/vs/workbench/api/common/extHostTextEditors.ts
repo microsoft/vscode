@@ -22,6 +22,8 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>({ onListenerError: onUnexpectedExternalError });
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>({ onListenerError: onUnexpectedExternalError });
 	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidOpenInlineChat = new Emitter<void>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onWillCloseInlineChat = new Emitter<void>({ onListenerError: onUnexpectedExternalError });
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
@@ -29,6 +31,8 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<readonly vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	readonly onDidOpenInlineChat: Event<void> = this._onDidOpenInlineChat.event;
+	readonly onWillCloseInlineChat: Event<void> = this._onWillCloseInlineChat.event;
 
 	private readonly _proxy: MainThreadTextEditorsShape;
 

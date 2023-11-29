@@ -683,6 +683,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
 				return extHostEditors.onDidChangeTextEditorViewColumn(listener, thisArg, disposables);
 			},
+			onDidOpenInlineChat(listener, thisArg?, disposables?) {
+				return extHostEditors.onDidOpenInlineChat(listener, thisArg, disposables);
+			},
+			onWillCloseInlineChat(listener, thisArg?, disposables?) {
+				return extHostEditors.onWillCloseInlineChat(listener, thisArg, disposables);
+			},
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return extHostTerminalService.onDidCloseTerminal(listener, thisArg, disposables);
 			},
