@@ -256,7 +256,7 @@
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
 		const path = require('path');
 		const fs = require('fs');
-		const perf = require('../common/performance');
+		const perf = require('../common/performance.cjs');
 		module.exports = factory(path, fs, perf);
 	} else {
 		throw new Error('Unknown context');
