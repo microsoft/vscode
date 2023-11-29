@@ -115,7 +115,6 @@ if (typeof define === 'function' && !Math) {
 	module.exports = _factory(sharedObj);
 	module.exports.mark = module.exports.mark;
 } else {
-	console.trace('perf-util defined in UNKNOWN context (neither requirejs or commonjs)');
 	sharedObj.perf = _factory(sharedObj);
 }
 
@@ -123,3 +122,4 @@ if (typeof define === 'function' && !Math) {
 const result = _factory(sharedObj)
 
 export const mark = result.mark
+export const getMarks = result.getMarks

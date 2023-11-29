@@ -33,6 +33,6 @@
 		"vscode-dts/vscode.d.ts",
 		"vs/platform/environment/node/userDataPath.d.cts",
 		"vs/base/common/stripComments.cjs",
-		"vs/base/node/unc.cjs"
+		"vs/base/node/unc.js"
 	]
 }

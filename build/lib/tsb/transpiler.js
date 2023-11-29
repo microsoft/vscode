@@ -68,7 +68,7 @@ class OutputFileNameOracle {
     }
 }
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
-const commonJs = ['vs/base/node/unc', 'vs/platform/environment/node/userDataPath'];
+const commonJs = [];
 const fixEsmImportLine = (relative, line) => {
     if (!line.startsWith('import ')) {
         return line;

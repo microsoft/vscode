@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { gracefulify } from 'graceful-fs';
+import * as gracefulFs from 'graceful-fs';
 import { Barrier, retry } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -28,6 +28,8 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
 import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
 
+
+const { gracefulify } = (gracefulFs as any).default;
 /**
  * Enable graceful-fs very early from here to have it enabled
  * in all contexts that leverage the disk file system provider.
