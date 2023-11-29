@@ -765,6 +765,7 @@ if (isWindows || isLinux || isWeb) {
 			title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 			toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 		},
+		group: '2_config',
 		when: IsAuxiliaryWindowFocusedContext.toNegated(),
 		order: 0
 	});
