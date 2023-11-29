@@ -73,6 +73,7 @@ const getNewCssImportLines = (newCssImports) => {
 		const path = parseNewCssImport(newCssImport)
 		newCssImportLines.push(`importCss('${path}', import.meta.url)`)
 	}
+	newCssImportLines.push('')
 	return newCssImportLines
 }
 
