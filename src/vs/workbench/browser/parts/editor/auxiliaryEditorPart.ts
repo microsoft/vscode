@@ -19,7 +19,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -180,18 +180,35 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
-	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean | undefined): void {
+	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
 
 		// Close aux window when last group removed
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1 && this.activeGroup === groupView) {
-			this.doClose(false /* do not merge any groups to main part */);
+			this.doRemoveLastGroup(preserveFocus);
 		}
 
 		// Otherwise delegate to parent implementation
 		else {
 			super.removeGroup(group, preserveFocus);
 		}
+	}
+
+	private doRemoveLastGroup(preserveFocus?: boolean): void {
+		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
+
+		// Activate next group
+		const mostRecentlyActiveGroups = this.editorPartsView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
+		if (nextActiveGroup) {
+			nextActiveGroup.groupsView.activateGroup(nextActiveGroup);
+
+			if (restoreFocus) {
+				nextActiveGroup.focus();
+			}
+		}
+
+		this.doClose(false /* do not merge any groups to main part */);
 	}
 
 	protected override saveState(): void {

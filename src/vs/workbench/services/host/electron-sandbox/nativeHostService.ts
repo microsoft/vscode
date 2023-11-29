@@ -14,7 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { disposableWindowInterval, getActiveDocument, getWindowsCount, hasWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { isAuxiliaryWindow } from 'vs/base/browser/window';
 
@@ -164,7 +164,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	focus(targetWindow: Window, options?: { force: boolean }): Promise<void> {
 		return this.nativeHostService.focusWindow({
 			force: options?.force,
-			targetWindowId: isAuxiliaryWindow(targetWindow) ? targetWindow.vscodeWindowId : this.nativeHostService.windowId
+			targetWindowId: getWindowId(targetWindow)
 		});
 	}
 
