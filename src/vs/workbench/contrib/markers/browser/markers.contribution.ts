@@ -559,7 +559,7 @@ registerAction2(class extends Action2 {
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
 	private markersStatusItem: IStatusbarEntryAccessor;
-	private markersStatusItemOff: IStatusbarEntryAccessor;
+	private markersStatusItemOff: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
@@ -568,15 +568,28 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49));
+
+		const addStatusBarEntry = () => {
+			this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49));
+		};
+		addStatusBarEntry();
+
 		this._register(this.markerService.onMarkerChanged(() => {
 			this.markersStatusItem.update(this.getMarkersItem());
-			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
+
 		}));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('problems.visibility')) {
 				this.markersStatusItem.update(this.getMarkersItem());
-				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
+				const config = this.configurationService.getValue('problems.visibility');
+
+				if (!config && !this.markersStatusItemOff) {
+					addStatusBarEntry();
+				} else if (config && this.markersStatusItemOff) {
+					this.markersStatusItemOff.dispose();
+					this.markersStatusItemOff = undefined;
+				}
 			}
 		}));
 	}
@@ -595,8 +608,6 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
 		const config = this.configurationService.getValue('problems.visibility');
-		this.statusbarService.updateEntryVisibility('status.problemsVisibility', !config);
-
 		const openSettingsCommand = 'workbench.action.openSettings';
 		const configureSettingsLabel = '@id:problems.visibility';
 		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
