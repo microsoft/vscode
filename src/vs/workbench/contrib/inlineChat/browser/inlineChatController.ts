@@ -691,6 +691,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateFollowUps(undefined);
 			this._zone.value.widget.updateProgress(true);
 			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
+			await this._strategy.start();
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 

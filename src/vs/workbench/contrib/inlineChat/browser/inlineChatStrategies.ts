@@ -59,6 +59,8 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.dispose();
 	}
 
+	abstract start(): Promise<void>;
+
 	abstract apply(): Promise<void>;
 
 	abstract cancel(): Promise<void>;
@@ -100,6 +102,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		this._listener.dispose();
 		this._ctxDocumentChanged.reset();
 		super.dispose();
+	}
+
+	async start() {
+		// nothing to do
 	}
 
 	async apply() {
@@ -278,6 +284,10 @@ export class LiveStrategy extends EditModeStrategy {
 
 	protected _doToggleDiff(): void {
 		this._inlineDiffDecorations.visible = this._diffEnabled;
+	}
+
+	async start() {
+		// nothing to do
 	}
 
 	async apply() {
@@ -637,22 +647,27 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	override dispose(): void {
-		this._ctxCurrentChangeHasDiff.reset();
-		this._ctxCurrentChangeShowsDiff.reset();
-		this._modifiedRangesDecorations.clear();
+		this._resetDiff();
 		this._previewZone.rawValue?.dispose();
-		this._sessionStore.dispose();
 		this._store.dispose();
 		super.dispose();
 	}
 
-
-	async apply() {
+	private _resetDiff(): void {
 		this._ctxCurrentChangeHasDiff.reset();
 		this._ctxCurrentChangeShowsDiff.reset();
 		this._sessionStore.clear();
 		this._modifiedRangesDecorations.clear();
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
+		this._zone.widget.updateStatus('');
+	}
+
+	async start() {
+		this._resetDiff();
+	}
+
+	async apply() {
+		this._resetDiff();
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
@@ -666,11 +681,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	async cancel() {
-		this._ctxCurrentChangeHasDiff.reset();
-		this._ctxCurrentChangeShowsDiff.reset();
-		this._sessionStore.clear();
-		this._modifiedRangesDecorations.clear();
-		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
+		this._resetDiff();
 		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
 		if (modelN.isDisposed()) {
 			return;
