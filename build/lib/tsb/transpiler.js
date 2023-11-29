@@ -68,11 +68,9 @@ class OutputFileNameOracle {
     }
 }
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
+const RE_EXPORT = /^export(.*)from ('|")(.*)('|")/;
 const commonJs = [];
 const fixEsmImportLine = (relative, line) => {
-    if (!line.startsWith('import ')) {
-        return line;
-    }
     const importMatch = line.match(RE_IMPORT);
     if (!importMatch) {
         throw new Error(`multiline import not supported: ${line}`);
@@ -94,16 +92,47 @@ const fixEsmImportLine = (relative, line) => {
     const prefix = '../'.repeat(slashCount - 1);
     return `import${imports}${quote1}${prefix}${path}${extension}${quote2}`;
 };
-function fixEsmImportLines(relative, lines) {
+const fixEsmExportLine = (relative, line) => {
+    const exportMatch = line.match(RE_EXPORT);
+    if (!exportMatch) {
+        throw new Error(`multiline export not supported: ${line}`);
+    }
+    const exports = exportMatch[1];
+    const quote1 = exportMatch[2];
+    const path = exportMatch[3];
+    const quote2 = exportMatch[4];
+    const isVs = path.startsWith('vs');
+    const isRelative = path.startsWith('.');
+    if (!isVs && !isRelative || path.endsWith('.js')) {
+        return line;
+    }
+    const extension = commonJs.includes(path) ? '.cjs' : '.js';
+    if (isRelative) {
+        return `export${exports}from ${quote1}${path}${extension}${quote2}`;
+    }
+    const slashCount = relative.split('/').length;
+    const prefix = '../'.repeat(slashCount - 1);
+    return `export${exports}from ${quote1}${prefix}${path}${extension}${quote2}`;
+};
+const fixEsmImportExportLine = (relative, line) => {
+    if (line.startsWith('import ')) {
+        return fixEsmImportLine(relative, line);
+    }
+    if (line.startsWith('export') && line.includes(' from \'')) {
+        return fixEsmExportLine(relative, line);
+    }
+    return line;
+};
+function fixEsmImportExportLines(relative, lines) {
     const newLines = [];
     for (const line of lines) {
-        newLines.push(fixEsmImportLine(relative, line));
+        newLines.push(fixEsmImportExportLine(relative, line));
     }
     return newLines;
 }
 function fixEsmImports(relative, content) {
     const lines = content.split('\n');
-    const newLines = fixEsmImportLines(relative, lines);
+    const newLines = fixEsmImportExportLines(relative, lines);
     return newLines.join('\n');
 }
 class TranspileWorker {

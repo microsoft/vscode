@@ -525,6 +525,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this._win = new BrowserWindow(options);
 			mark('code/didCreateCodeBrowserWindow');
 
+			this._win.webContents.openDevTools()
+
 			this._id = this._win.id;
 			this.setWin(this._win);
 
