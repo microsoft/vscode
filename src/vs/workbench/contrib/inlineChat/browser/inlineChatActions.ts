@@ -407,7 +407,7 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			id: 'inlineChat.toggleDiff',
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live3), CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
 			title: localize2('showChanges', 'Show Changes'),
-			icon: Codicon.diff,
+			icon: Codicon.diffSingle,
 			toggled: {
 				condition: CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF,
 			},
