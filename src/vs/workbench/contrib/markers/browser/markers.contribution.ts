@@ -595,7 +595,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
 		const config = this.configurationService.getValue('problems.visibility');
-		this.statusbarService.updateEntryVisibility('status.problemsVisibility', config ? false : true);
+		this.statusbarService.updateEntryVisibility('status.problemsVisibility', !config);
 
 		const openSettingsCommand = 'workbench.action.openSettings';
 		const configureSettingsLabel = '@id:problems.visibility';
