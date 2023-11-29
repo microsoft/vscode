@@ -11,22 +11,28 @@
  * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
  */
 
-import perf from './vs/base/common/performance.js';
+import { createRequire } from 'module';
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const require = createRequire(import.meta.url)
+
+const perf = require('./vs/base/common/performance.cjs');
 perf.mark('code/didStartMain');
 
-import path from 'path';
-import fs from 'fs';
-import os from 'os';
-import bootstrap from './bootstrap.cjs';
-import bootstrapNode from './bootstrap-node.cjs';
-import { getUserDataPath } from './vs/platform/environment/node/userDataPath.cjs';
-import { stripComments } from './vs/base/common/stripComments.cjs';
-import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.cjs';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+
+const bootstrap = require('./bootstrap.cjs');
+const bootstrapNode = require('./bootstrap-node.cjs');
+const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath.cjs');
+const { stripComments } = require('./vs/base/common/stripComments.cjs');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc.cjs');
 /** @type {Partial<IProductConfiguration>} */
 import { app, protocol, crashReporter, Menu } from 'electron';
-import { createRequire } from 'module';
 
-const require = createRequire(import.meta.url)
 
 const product = require('../product.json')
 
@@ -130,7 +136,7 @@ const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
-	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks.cjs');
 	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
 }
 

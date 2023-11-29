@@ -135,6 +135,7 @@
 	}
 
 	if (typeof define === 'function') {
+		console.log('unc amd')
 		// amd
 		define([], function () { return factory(); });
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
