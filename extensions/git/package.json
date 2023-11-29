@@ -26,7 +26,8 @@
     "contribMergeEditorMenus",
     "scmInputBoxActionButton",
     "scmInputBoxValueProvider",
-    "contribSourceControlInputBoxMenu"
+    "contribSourceControlInputBoxMenu",
+    "quickPickSortByLabel"
   ],
   "categories": [
     "Other"
