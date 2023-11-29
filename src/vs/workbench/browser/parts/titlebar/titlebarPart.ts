@@ -418,7 +418,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				if (e.type === EventType.CONTEXT_MENU || (e.target === this.title && e.metaKey)) {
 					EventHelper.stop(e);
 
-					this.onContextMenu(e, e.target === this.title ? MenuId.TitleBarTitleContext : MenuId.TitleBarContext);
+					this.onContextMenu(e, MenuId.TitleBarContext);
 				}
 			}));
 		});

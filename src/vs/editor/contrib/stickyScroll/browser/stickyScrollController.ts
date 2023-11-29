@@ -435,7 +435,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
 				this._showEndForLine = null;
-				this._renderStickyScroll();
+				this._renderStickyScroll(-1);
 			}));
 		}
 	}

@@ -147,15 +147,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 			const focusTracker = disposables.add(trackFocus(window));
 			const visibilityTracker = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
 
-			Event.latch(Event.any(
+			Event.any(
 				Event.map(focusTracker.onDidFocus, () => this.hasFocus, disposables),
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
 				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, disposables),
-			), undefined, disposables)(focus => emitter.fire(focus));
+			)(focus => emitter.fire(focus));
 		}, { window: mainWindow, disposables: this._store }));
 
-		return emitter.event;
+		return Event.latch(emitter.event, undefined, this._store);
 	}
 
 	get hasFocus(): boolean {

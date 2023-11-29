@@ -219,6 +219,16 @@ export class CommitActionButton extends AbstractActionButton {
 			};
 		}
 
+		// Not a branch (tag, detached)
+		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
+			return {
+				command: 'git.commit',
+				title: l10n.t('{0} Commit', '$(check)'),
+				tooltip: this.state.isCommitInProgress ? l10n.t('Committing Changes...') : l10n.t('Commit Changes'),
+				arguments: [this.repository.sourceControl, '']
+			};
+		}
+
 		// Commit
 		return this.postCommitCommandCenter.getPrimaryCommand();
 	}
@@ -226,6 +236,11 @@ export class CommitActionButton extends AbstractActionButton {
 	private getCommitActionButtonSecondaryCommands(): Command[][] {
 		// Rebase Continue
 		if (this.state.isRebaseInProgress) {
+			return [];
+		}
+
+		// Not a branch (tag, detached)
+		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name) {
 			return [];
 		}
 

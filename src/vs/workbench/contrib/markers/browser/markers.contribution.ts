@@ -568,7 +568,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'error-kind', StatusbarAlignment.LEFT, 49));
+		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49));
 		this._register(this.markerService.onMarkerChanged(() => {
 			this.markersStatusItem.update(this.getMarkersItem());
 			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
@@ -595,15 +595,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
 		const config = this.configurationService.getValue('problems.visibility');
-		if (config) {
-			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
-		}
+		this.statusbarService.updateEntryVisibility('status.problemsVisibility', !config);
 
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = 'problems.visibility';
+		const configureSettingsLabel = '@id:problems.visibility';
 		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
 		return {
-			name: localize('status.problems.off', "Problems"),
+			name: localize('status.problemsVisibility', "Problems Visibility"),
 			text: '$(whole-word)',
 			ariaLabel: tooltip,
 			tooltip,
@@ -679,8 +677,12 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		if (total > 0) {
+			const message = localize('totalProblems', 'Total {0} Problems', total);
+			this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		} else {
+			this.activity.value = undefined;
+		}
 	}
 }
 

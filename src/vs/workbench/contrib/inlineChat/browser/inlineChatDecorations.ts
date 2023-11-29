@@ -129,7 +129,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			return;
 		}
 		this._inlineChatKeybinding = keybinding;
-		const hoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
+		const hoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat ({0})', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
 		this._gutterDecorationTransparent.glyphMarginHoverMessage = hoverMessage;
 		this._gutterDecorationOpaque.glyphMarginHoverMessage = hoverMessage;
 	}

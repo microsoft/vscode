@@ -55,7 +55,7 @@ import { mainWindow } from 'vs/base/browser/window';
 interface ILayoutRuntimeState {
 	activeContainerId: number;
 	fullscreen: boolean;
-	maximized: Set<number>;
+	readonly maximized: Set<number>;
 	hasFocus: boolean;
 	mainWindowBorder: boolean;
 	readonly menuBar: {
@@ -538,6 +538,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER);
 		const inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER);
 
+		const didHaveMainWindowBorder = this.hasMainWindowBorder();
+
 		for (const container of this.containers) {
 			const isMainContainer = container === this.mainContainer;
 			const isActiveContainer = this.activeContainer === container;
@@ -559,7 +561,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			container.classList.toggle(LayoutClasses.WINDOW_BORDER, windowBorder);
 		}
 
-		if (!skipLayout) {
+		if (!skipLayout && didHaveMainWindowBorder !== this.hasMainWindowBorder()) {
 			this.layout();
 		}
 	}
