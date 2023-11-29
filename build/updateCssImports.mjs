@@ -1,6 +1,5 @@
-import { readdir } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
-import * as path from 'path'
+import { readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -66,7 +65,7 @@ const parseNewCssImport = line => {
 	return path
 }
 
-const getNewCssImportLines = (path, newCssImports) => {
+const getNewCssImportLines = (newCssImports) => {
 	const newCssImportLines = []
 	newCssImportLines.push(`import { importCss } from 'vs/base/browser/importCss';`)
 	newCssImportLines.push('')
@@ -77,7 +76,7 @@ const getNewCssImportLines = (path, newCssImports) => {
 	return newCssImportLines
 }
 
-const getNewContent = content => {
+const getNewContent = (content) => {
 	const lines = content.split('\n')
 	const lastImportLineIndex = getLastImportLineIndex(lines)
 	if (lastImportLineIndex === -1) {
