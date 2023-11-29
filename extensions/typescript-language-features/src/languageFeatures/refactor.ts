@@ -554,12 +554,8 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const applicableRefactors = await this.convertApplicableRefactors(document, response.body, rangeOrSelection);
-		if (token.isCancellationRequested) {
-			return;
-		}
-
-		const actions = coalesce(await Promise.all(applicableRefactors.map(async action => {
+		const applicableRefactors = this.convertApplicableRefactors(document, response.body, rangeOrSelection);
+		const actions = coalesce(await Promise.all(Array.from(applicableRefactors, async action => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
@@ -607,34 +603,32 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke ? 'invoked' : 'implicit';
 	}
 
-	private async convertApplicableRefactors(
+	private *convertApplicableRefactors(
 		document: vscode.TextDocument,
 		refactors: readonly Proto.ApplicableRefactorInfo[],
 		rangeOrSelection: vscode.Range | vscode.Selection
-	): Promise<Array<TsCodeAction>> {
-		const actions: Array<TsCodeAction> = [];
+	): Iterable<TsCodeAction> {
 		for (const refactor of refactors) {
 			if (refactor.inlineable === false) {
-				actions.push(new SelectCodeAction(refactor, document, rangeOrSelection));
+				yield new SelectCodeAction(refactor, document, rangeOrSelection);
 			} else {
 				for (const action of refactor.actions) {
-					const refactorAction = await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
+					const refactorAction = this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
 					if (refactorAction) {
-						actions.push(refactorAction);
+						yield refactorAction;
 					}
 				}
 			}
 		}
-		return actions;
 	}
 
-	private async refactorActionToCodeAction(
+	private refactorActionToCodeAction(
 		document: vscode.TextDocument,
 		refactor: Proto.ApplicableRefactorInfo,
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): Promise<TsCodeAction | undefined> {
+	): TsCodeAction | undefined {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
