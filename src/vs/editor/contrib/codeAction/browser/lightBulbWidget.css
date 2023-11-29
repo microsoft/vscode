@@ -23,6 +23,11 @@
 	color: var(--vscode-editorLightBulbAutoFix-foreground, var(--vscode-editorLightBulb-foreground));
 }
 
+.monaco-editor .lightBulbWidget.codicon-sparkle-filled {
+	color: var(--vscode-icon-foreground);
+	opacity: 0.5;
+}
+
 .monaco-editor .lightBulbWidget:before {
 	position: relative;
 	z-index: 2;
