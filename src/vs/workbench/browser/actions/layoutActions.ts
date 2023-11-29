@@ -533,7 +533,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.EditorTabsBarShowTabsSubmenu,
 	title: localize('tabBar', "Tab Bar"),
 	group: '3_workbench_layout_move',
-	order: 10
+	order: 10,
+	when: InEditorZenModeContext.negate()
 });
 
 // --- Show Editor Actions in Title Bar
