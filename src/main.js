@@ -18,14 +18,18 @@ perf.mark('code/didStartMain');
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
-import bootstrap from './bootstrap.js';
-import bootstrapNode from './bootstrap-node.js';
-import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
+import bootstrap from './bootstrap.cjs';
+import bootstrapNode from './bootstrap-node.cjs';
+import { getUserDataPath } from './vs/platform/environment/node/userDataPath.cjs';
 import { stripComments } from './vs/base/common/stripComments.cjs';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.cjs';
 /** @type {Partial<IProductConfiguration>} */
-import product from '../product.json' assert {type: 'json'};
 import { app, protocol, crashReporter, Menu } from 'electron';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url)
+
+const product = require('../product.json')
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -174,7 +178,7 @@ function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+	require('./bootstrap-amd.cjs').load('vs/code/electron-main/main', () => {
 		perf.mark('code/didLoadMainBundle');
 	});
 }
