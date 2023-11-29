@@ -15,7 +15,7 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
 //#region typed options
 
@@ -2763,6 +2763,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 				},
 				'editor.lightbulb.experimental.showAiIcon': {
 					type: 'string',
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 					enum: [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On],
 					default: defaults.experimental.showAiIcon,
 					enumDescriptions: [
