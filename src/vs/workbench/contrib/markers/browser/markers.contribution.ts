@@ -570,7 +570,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
 
 		const addStatusBarEntry = () => {
-			this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49));
+			this.markersStatusItemOff = this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49);
 		};
 
 		// Add the status bar entry if the problems is not visible
@@ -581,7 +581,6 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 		this._register(this.markerService.onMarkerChanged(() => {
 			this.markersStatusItem.update(this.getMarkersItem());
-
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
