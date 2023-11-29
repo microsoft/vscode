@@ -12,7 +12,6 @@ import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getActiveWindow } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -95,7 +94,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() !== auxiliaryWindow) {
+			if (!auxiliaryWindow.document.hasFocus()) {
 				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
 			}
 		};
