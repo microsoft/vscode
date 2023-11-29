@@ -16,7 +16,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED, IInlineChatService, ShowGutterIcon } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService, ShowGutterIcon } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
 import { Range } from 'vs/editor/common/core/range';
@@ -27,14 +27,13 @@ import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineC
 import { IBreakpoint, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { URI } from 'vs/base/common/uri';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
 const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
-	private _ctxToolbarIconEnabled: IContextKey<boolean>;
 	private _currentBreakpoints: readonly IBreakpoint[] = [];
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
@@ -62,13 +61,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		super();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
 		this._gutterDecorationOpaque = this._registerGutterDecoration(false);
-		this._ctxToolbarIconEnabled = CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED.bindTo(_contextKeyService);
-		this._setToolbarIconEnablementToSetting();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
-			if (e.affectsConfiguration(InlineChatDecorationsContribution.TOOLBAR_SETTING_ID)) {
-				this._setToolbarIconEnablementToSetting();
-				return;
-			}
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
 				return;
 			}
@@ -108,10 +101,6 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
-	}
-
-	private _setToolbarIconEnablementToSetting(): void {
-		this._ctxToolbarIconEnabled.set(this._configurationService.getValue<boolean>(InlineChatDecorationsContribution.TOOLBAR_SETTING_ID));
 	}
 
 	private _registerGutterDecoration(isTransparent: boolean): ModelDecorationOptions {
