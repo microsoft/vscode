@@ -16,7 +16,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INotificationHandle, INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, IPromptChoice, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
@@ -228,6 +228,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 					this.notificationService.notify({
 						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings. Some ports may no longer be detected."),
 						severity: Severity.Warning,
+						priority: NotificationPriority.URGENT,
 						actions: {
 							primary: [
 								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"), undefined, true, async () => {
