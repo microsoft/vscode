@@ -613,10 +613,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 				yield new SelectCodeAction(refactor, document, rangeOrSelection);
 			} else {
 				for (const action of refactor.actions) {
-					const refactorAction = this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
-					if (refactorAction) {
-						yield refactorAction;
-					}
+					yield this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
 				}
 			}
 		}
@@ -628,7 +625,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): TsCodeAction | undefined {
+	): TsCodeAction {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
 			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
