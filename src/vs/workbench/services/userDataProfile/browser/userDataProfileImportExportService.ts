@@ -579,13 +579,13 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				sticky: true,
 			}, async progress => {
 				const reportProgress = (message: string) => progress.report({ message: localize('create from profile', "Create Profile: {0}", message) });
-				const profile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags, icon: options?.icon }, reportProgress);
-				if (profile) {
+				const createdProfile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags, icon: options?.icon }, reportProgress);
+				if (createdProfile) {
 					reportProgress(localize('progress extensions', "Applying Extensions..."));
-					await this.instantiationService.createInstance(ExtensionsResource).copy(this.userDataProfileService.currentProfile, profile, false);
+					await this.instantiationService.createInstance(ExtensionsResource).copy(profile, createdProfile, false);
 
 					reportProgress(localize('switching profile', "Switching Profile..."));
-					await this.userDataProfileManagementService.switchProfile(profile);
+					await this.userDataProfileManagementService.switchProfile(createdProfile);
 				}
 			});
 		} finally {
