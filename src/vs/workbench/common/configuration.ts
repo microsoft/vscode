@@ -98,11 +98,11 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 		const inspectData = this.configurationService.inspect(migration.key, { resource });
 
 		const targetPairs: [keyof IConfigurationValue<any>, ConfigurationTarget][] = [
-			['userValue', ConfigurationTarget.USER],
-			['userLocalValue', ConfigurationTarget.USER_LOCAL],
-			['userRemoteValue', ConfigurationTarget.USER_REMOTE],
-			['workspaceValue', ConfigurationTarget.WORKSPACE],
-			['workspaceFolderValue', ConfigurationTarget.WORKSPACE_FOLDER],
+			['user', ConfigurationTarget.USER],
+			['userLocal', ConfigurationTarget.USER_LOCAL],
+			['userRemote', ConfigurationTarget.USER_REMOTE],
+			['workspace', ConfigurationTarget.WORKSPACE],
+			['workspaceFolder', ConfigurationTarget.WORKSPACE_FOLDER],
 		];
 		for (const [dataKey, target] of targetPairs) {
 			const migrationValues: [[string, ConfigurationValue], string[]][] = [];
@@ -134,11 +134,15 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 	}
 
 	private async runMigration(migration: ConfigurationMigration, overrides: IConfigurationOverrides, dataKey: keyof IConfigurationValue<any>, data?: IConfigurationValue<any>): Promise<ConfigurationKeyValuePairs | undefined> {
-		const value = (data ?? this.configurationService.inspect(migration.key, overrides))[dataKey];
+		const valueAccessor = (key: string) => getInspectValue(this.configurationService.inspect(key, overrides));
+		const getInspectValue = (data: IConfigurationValue<any>) => {
+			const inspectValue: { value?: any; override?: any } | undefined = data[dataKey];
+			return overrides.overrideIdentifier ? inspectValue?.override : inspectValue?.value;
+		};
+		const value = data ? getInspectValue(data) : valueAccessor(migration.key);
 		if (value === undefined) {
 			return undefined;
 		}
-		const valueAccessor = (key: string) => this.configurationService.inspect(key, overrides)[dataKey];
 		const result = await migration.migrateFn(value, valueAccessor);
 		return Array.isArray(result) ? result : [[migration.key, result]];
 	}
