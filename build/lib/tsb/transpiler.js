@@ -68,7 +68,7 @@ class OutputFileNameOracle {
     }
 }
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
-const commonJs = ['vs/base/common/performance'];
+const commonJs = ['vs/base/common/performance', 'vs/base/node/unc', 'vs/platform/environment/node/userDataPath'];
 const fixEsmImportLine = (relative, line) => {
     if (!line.startsWith('import ')) {
         return line;
@@ -81,12 +81,17 @@ const fixEsmImportLine = (relative, line) => {
     const quote1 = importMatch[2];
     const path = importMatch[3];
     const quote2 = importMatch[4];
-    if (!path.startsWith('vs') || path.endsWith('.js')) {
+    const isVs = path.startsWith('vs');
+    const isRelative = path.startsWith('.');
+    if (!isVs && !isRelative || path.endsWith('.js')) {
         return line;
+    }
+    const extension = commonJs.includes(path) ? '.cjs' : '.js';
+    if (isRelative) {
+        return `import${imports}${quote1}${path}${extension}${quote2}`;
     }
     const slashCount = relative.split('/').length;
     const prefix = '../'.repeat(slashCount - 1);
-    const extension = commonJs.includes(path) ? '.cjs' : '.js';
     return `import${imports}${quote1}${prefix}${path}${extension}${quote2}`;
 };
 function fixEsmImportLines(relative, lines) {
