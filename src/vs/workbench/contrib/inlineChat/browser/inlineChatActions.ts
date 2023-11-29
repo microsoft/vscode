@@ -217,7 +217,7 @@ export class ArrowOutUpAction extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
-				primary: KeyCode.UpArrow
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow
 			}
 		});
 	}
@@ -235,7 +235,7 @@ export class ArrowOutDownAction extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST, EditorContextKeys.isEmbeddedDiffEditor.negate(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore,
-				primary: KeyCode.DownArrow
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow
 			}
 		});
 	}
@@ -257,11 +257,11 @@ export class FocusInlineChat extends EditorAction2 {
 			keybinding: [{
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.isEqualTo('above'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
-				primary: KeyCode.DownArrow,
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 			}, {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.isEqualTo('below'), EditorContextKeys.isEmbeddedDiffEditor.negate()),
-				primary: KeyCode.UpArrow,
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 			}]
 		});
 	}
@@ -280,7 +280,7 @@ export class PreviousFromHistory extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_START),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+				primary: KeyCode.UpArrow,
 			}
 		});
 	}
@@ -299,7 +299,7 @@ export class NextFromHistory extends AbstractInlineChatAction {
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_END),
 			keybinding: {
 				weight: KeybindingWeight.EditorCore + 10, // win against core_command
-				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				primary: KeyCode.DownArrow,
 			}
 		});
 	}
