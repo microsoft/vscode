@@ -59,7 +59,7 @@ export class CloseWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		return nativeHostService.closeWindowById(getActiveWindow().vscodeWindowId);
+		return nativeHostService.closeWindow({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }
 
@@ -274,7 +274,7 @@ abstract class BaseSwitchWindow extends Action2 {
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
-				await nativeHostService.closeWindowById(context.item.windowId);
+				await nativeHostService.closeWindow({ targetWindowId: context.item.windowId });
 				context.removeItem();
 			}
 		});

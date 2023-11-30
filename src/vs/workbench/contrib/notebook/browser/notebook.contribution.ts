@@ -1050,6 +1050,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.scrolling.anchorToFocusedCell.off.description', "The focused cell may shift around as cells resize.")
 			],
 			default: 'auto'
+		},
+		[NotebookSetting.cellChat]: {
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			type: 'boolean',
+			default: false
 		}
 	}
 });

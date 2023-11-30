@@ -6,6 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as URI from 'vscode-uri';
+import { ITextDocument } from '../../types/textDocument';
 import { coalesce } from '../../util/arrays';
 import { getDocumentDir } from '../../util/document';
 import { mediaMimes } from '../../util/mimes';
@@ -18,7 +19,7 @@ enum MediaKind {
 	Audio,
 }
 
-export const externalUriSchemes = [
+const externalUriSchemes = [
 	'http',
 	'https',
 	'mailto',
@@ -50,21 +51,6 @@ export const mediaFileExtensions = new Map<string, MediaKind>([
 	['wav', MediaKind.Audio],
 ]);
 
-const smartPasteRegexes = [
-	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g }, // In a Markdown link
-	{ regex: /^```[\s\S]*?```$/gm }, // In a backtick fenced code block
-	{ regex: /^~~~[\s\S]*?~~~$/gm }, // In a tildefenced code block
-	{ regex: /^\$\$[\s\S]*?\$\$$/gm }, // In a fenced math block
-	{ regex: /`[^`]*`/g }, // In inline code
-	{ regex: /\$[^$]*\$/g }, // In inline math
-];
-
-export interface SkinnyTextDocument {
-	offsetAt(position: vscode.Position): number;
-	getText(range?: vscode.Range): string;
-	readonly uri: vscode.Uri;
-}
-
 export enum PasteUrlAsFormattedLink {
 	Always = 'always',
 	Smart = 'smart',
@@ -75,18 +61,17 @@ export function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument)
 	return vscode.workspace.getConfiguration('markdown', document).get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Smart);
 }
 
-export async function createEditAddingLinksForUriList(
-	document: SkinnyTextDocument,
+export function createEditAddingLinksForUriList(
+	document: ITextDocument,
 	ranges: readonly vscode.Range[],
 	urlList: string,
 	isExternalLink: boolean,
 	useSmartPaste: boolean,
-	token: vscode.CancellationToken,
-): Promise<{ additionalEdits: vscode.WorkspaceEdit; label: string; markdownLink: boolean } | undefined> {
-
-	if (ranges.length === 0) {
+): { additionalEdits: vscode.WorkspaceEdit; label: string; markdownLink: boolean } | undefined {
+	if (!ranges.length) {
 		return;
 	}
+
 	const edits: vscode.SnippetTextEdit[] = [];
 	let placeHolderValue: number = ranges.length;
 	let label: string = '';
@@ -94,17 +79,12 @@ export async function createEditAddingLinksForUriList(
 	let markdownLink: boolean = true;
 
 	for (const range of ranges) {
-		const selectedRange: vscode.Range = new vscode.Range(
-			new vscode.Position(range.start.line, document.offsetAt(range.start)),
-			new vscode.Position(range.end.line, document.offsetAt(range.end))
-		);
-
 		if (useSmartPaste) {
-			pasteAsMarkdownLink = checkSmartPaste(document, selectedRange, range);
+			pasteAsMarkdownLink = shouldSmartPaste(document, range);
 			markdownLink = pasteAsMarkdownLink; // FIX: this will only match the last range
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
+		const snippet = tryGetUriListSnippet(document, urlList, document.getText(range), placeHolderValue, pasteAsMarkdownLink, isExternalLink);
 		if (!snippet) {
 			return;
 		}
@@ -121,13 +101,47 @@ export async function createEditAddingLinksForUriList(
 	return { additionalEdits, label, markdownLink };
 }
 
-export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vscode.Range, range: vscode.Range): boolean {
-	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(range)) || validateLink(document.getText(range)).isValid) {
+export function findValidUriInText(text: string): string | undefined {
+	const trimmedUrlList = text.trim();
+
+	// Uri must consist of a single sequence of characters without spaces
+	if (!/^\S+$/.test(trimmedUrlList)) {
+		return;
+	}
+
+	let uri: vscode.Uri;
+	try {
+		uri = vscode.Uri.parse(trimmedUrlList);
+	} catch {
+		// Could not parse
+		return;
+	}
+
+	if (!externalUriSchemes.includes(uri.scheme.toLowerCase()) || uri.authority.length <= 1) {
+		return;
+	}
+
+	return trimmedUrlList;
+}
+
+const smartPasteRegexes = [
+	{ regex: /(\[[^\[\]]*](?:\([^\(\)]*\)|\[[^\[\]]*]))/g }, // In a Markdown link
+	{ regex: /^```[\s\S]*?```$/gm }, // In a backtick fenced code block
+	{ regex: /^~~~[\s\S]*?~~~$/gm }, // In a tildefenced code block
+	{ regex: /^\$\$[\s\S]*?\$\$$/gm }, // In a fenced math block
+	{ regex: /`[^`]*`/g }, // In inline code
+	{ regex: /\$[^$]*\$/g }, // In inline math
+];
+
+export function shouldSmartPaste(document: ITextDocument, selectedRange: vscode.Range): boolean {
+	if (selectedRange.isEmpty || /^[\s\n]*$/.test(document.getText(selectedRange)) || findValidUriInText(document.getText(selectedRange))) {
 		return false;
 	}
-	if (/\[.*\]\(.*\)/.test(document.getText(range)) || /!\[.*\]\(.*\)/.test(document.getText(range))) {
+
+	if (/\[.*\]\(.*\)/.test(document.getText(selectedRange)) || /!\[.*\]\(.*\)/.test(document.getText(selectedRange))) {
 		return false;
 	}
+
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
@@ -139,40 +153,20 @@ export function checkSmartPaste(document: SkinnyTextDocument, selectedRange: vsc
 			}
 		}
 	}
+
 	return true;
 }
 
-export function validateLink(urlList: string): { isValid: boolean; cleanedUrlList: string } {
-	let isValid = false;
-	let uri = undefined;
-	const trimmedUrlList = urlList?.trim(); //remove leading and trailing whitespace and new lines
-	try {
-		uri = vscode.Uri.parse(trimmedUrlList);
-	} catch (error) {
-		return { isValid: false, cleanedUrlList: urlList };
-	}
-	const splitUrlList = trimmedUrlList.split(' ').filter(item => item !== ''); //split on spaces and remove empty strings
-	if (uri) {
-		isValid = splitUrlList.length === 1 && !splitUrlList[0].includes('\n') && externalUriSchemes.includes(vscode.Uri.parse(splitUrlList[0]).scheme) && !!vscode.Uri.parse(splitUrlList[0]).authority;
-	}
-	return { isValid, cleanedUrlList: splitUrlList[0] };
-}
-
-export async function tryGetUriListSnippet(document: SkinnyTextDocument, urlList: String, token: vscode.CancellationToken, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): Promise<{ snippet: vscode.SnippetString; label: string } | undefined> {
-	if (token.isCancellationRequested) {
-		return undefined;
-	}
-	const uriStrings: string[] = [];
-	const uris: vscode.Uri[] = [];
-	for (const resource of urlList.split(/\r?\n/g)) {
+export function tryGetUriListSnippet(document: ITextDocument, urlList: String, title = '', placeHolderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false): { snippet: vscode.SnippetString; label: string } | undefined {
+	const entries = coalesce(urlList.split(/\r?\n/g).map(line => {
 		try {
-			uris.push(vscode.Uri.parse(resource));
-			uriStrings.push(resource);
+			return { uri: vscode.Uri.parse(line), str: line };
 		} catch {
-			// noop
+			// Uri parse failure
+			return undefined;
 		}
-	}
-	return createUriListSnippet(document, uris, uriStrings, title, placeHolderValue, pasteAsMarkdownLink, isExternalLink);
+	}));
+	return createUriListSnippet(document, entries, title, placeHolderValue, pasteAsMarkdownLink, isExternalLink);
 }
 
 interface UriListSnippetOptions {
@@ -193,20 +187,21 @@ interface UriListSnippetOptions {
 export function appendToLinkSnippet(
 	snippet: vscode.SnippetString,
 	title: string,
-	uriString: string,
+	link: string,
 	placeholderValue: number,
 	isExternalLink: boolean,
-): vscode.SnippetString {
+): void {
 	snippet.appendText('[');
 	snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-	snippet.appendText(`](${escapeMarkdownLinkPath(uriString, isExternalLink)})`);
-	return snippet;
+	snippet.appendText(`](${escapeMarkdownLinkPath(link, isExternalLink)})`);
 }
 
 export function createUriListSnippet(
-	document: SkinnyTextDocument,
-	uris: readonly vscode.Uri[],
-	uriStrings?: readonly string[],
+	document: ITextDocument,
+	uris: ReadonlyArray<{
+		readonly uri: vscode.Uri;
+		readonly str?: string;
+	}>,
 	title = '',
 	placeholderValue = 0,
 	pasteAsMarkdownLink = true,
@@ -219,15 +214,15 @@ export function createUriListSnippet(
 
 	const documentDir = getDocumentDir(document.uri);
 
-	let snippet = new vscode.SnippetString();
+	const snippet = new vscode.SnippetString();
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
 	let insertedAudioVideoCount = 0;
 
 	uris.forEach((uri, i) => {
-		const mdPath = getMdPath(documentDir, uri);
+		const mdPath = getRelativeMdPath(documentDir, uri.uri) ?? uri.str ?? uri.uri.toString();
 
-		const ext = URI.Utils.extname(uri).toLowerCase().replace('.', '');
+		const ext = URI.Utils.extname(uri.uri).toLowerCase().replace('.', '');
 		const insertAsMedia = typeof options?.insertAsMedia === 'undefined' ? mediaFileExtensions.has(ext) : !!options.insertAsMedia;
 		const insertAsVideo = mediaFileExtensions.get(ext) === MediaKind.Video;
 		const insertAsAudio = mediaFileExtensions.get(ext) === MediaKind.Audio;
@@ -257,11 +252,7 @@ export function createUriListSnippet(
 			}
 		} else {
 			insertedLinkCount++;
-			if (uriStrings && isExternalLink) {
-				snippet = appendToLinkSnippet(snippet, title, uriStrings[i], placeholderValue, isExternalLink);
-			} else {
-				snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
-			}
+			appendToLinkSnippet(snippet, title, mdPath, placeholderValue, isExternalLink);
 		}
 
 		if (i < uris.length - 1 && uris.length > 1) {
@@ -349,7 +340,7 @@ export async function createEditForMediaFiles(
 		}
 	}
 
-	const snippet = createUriListSnippet(document, fileEntries.map(entry => entry.uri));
+	const snippet = createUriListSnippet(document, fileEntries);
 	if (!snippet) {
 		return;
 	}
@@ -361,7 +352,7 @@ export async function createEditForMediaFiles(
 	};
 }
 
-function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
+function getRelativeMdPath(dir: vscode.Uri | undefined, file: vscode.Uri): string | undefined {
 	if (dir && dir.scheme === file.scheme && dir.authority === file.authority) {
 		if (file.scheme === Schemes.file) {
 			// On windows, we must use the native `path.relative` to generate the relative path
@@ -373,8 +364,7 @@ function getMdPath(dir: vscode.Uri | undefined, file: vscode.Uri) {
 
 		return path.posix.relative(dir.path, file.path);
 	}
-
-	return file.toString(false);
+	return undefined;
 }
 
 function escapeHtmlAttribute(attr: string): string {
@@ -422,4 +412,3 @@ function needsBracketLink(mdPath: string) {
 
 	return nestingCount > 0;
 }
-

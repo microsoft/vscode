@@ -507,7 +507,7 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default":"never",
+          "default": "never",
           "enum": [
             "always",
             "smart",
@@ -734,6 +734,7 @@
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
+    "vscode-languageserver-textdocument": "^1.0.11",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

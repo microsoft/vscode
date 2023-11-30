@@ -3653,12 +3653,12 @@ export class CommandCenter {
 
 	@command('git.viewChanges', { repository: true })
 	viewChanges(repository: Repository): void {
-		this._viewChanges('Changes', repository.workingTreeGroup.resourceStates);
+		this._viewChanges('Git: Changes', repository.workingTreeGroup.resourceStates);
 	}
 
 	@command('git.viewStagedChanges', { repository: true })
 	viewStagedChanges(repository: Repository): void {
-		this._viewChanges('Staged Changes', repository.indexGroup.resourceStates);
+		this._viewChanges('Git: Staged Changes', repository.indexGroup.resourceStates);
 	}
 
 	private _viewChanges(title: string, resources: Resource[]): void {

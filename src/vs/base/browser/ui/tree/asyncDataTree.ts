@@ -954,6 +954,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 				asyncDataTreeNode.element = element;
 				asyncDataTreeNode.hasChildren = hasChildren;
+				asyncDataTreeNode.collapsedByDefault = this.collapseByDefault?.(element);
 
 				if (recursive) {
 					if (result.collapsed) {
@@ -963,8 +964,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 					} else {
 						childrenToRefresh.push(asyncDataTreeNode);
 					}
-				} else if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
-					asyncDataTreeNode.collapsedByDefault = false;
+				} else if (hasChildren && !asyncDataTreeNode.collapsedByDefault) {
 					childrenToRefresh.push(asyncDataTreeNode);
 				}
 
@@ -1277,7 +1277,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		return { focus, selection, expanded, scrollTop: this.scrollTop };
 	}
 
-	protected override render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>): void {
+	protected override render(node: IAsyncDataTreeNode<TInput, T>, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): void {
 		if (!this.identityProvider) {
 			return super.render(node, viewStateContext);
 		}
@@ -1307,7 +1307,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 		const oldSelection = getUncompressedIds(this.tree.getSelection() as IAsyncDataTreeNode<TInput, T>[]);
 		const oldFocus = getUncompressedIds(this.tree.getFocus() as IAsyncDataTreeNode<TInput, T>[]);
 
-		super.render(node, viewStateContext);
+		super.render(node, viewStateContext, options);
 
 		const selection = this.getSelection();
 		let didChangeSelection = false;

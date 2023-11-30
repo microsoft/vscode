@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument } from 'vs/base/browser/dom';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
@@ -336,6 +336,27 @@ suite('dom', () => {
 
 			disposable.dispose();
 		});
+	});
+
+	test('window utilities', () => {
+		const windows = Array.from(getWindows());
+		assert.strictEqual(windows.length, 1);
+		assert.strictEqual(getWindowsCount(), 1);
+		const windowId = getWindowId(mainWindow);
+		assert.ok(typeof windowId === 'number');
+		assert.strictEqual(getWindowById(windowId)?.window, mainWindow);
+		assert.strictEqual(hasWindow(windowId), true);
+		assert.strictEqual(isAuxiliaryWindow(mainWindow), false);
+		ensureCodeWindow(mainWindow, 1);
+		assert.ok(typeof mainWindow.vscodeWindowId === 'number');
+
+		const div = document.createElement('div');
+		assert.strictEqual(getWindow(div), mainWindow);
+		assert.strictEqual(getDocument(div), mainWindow.document);
+
+		const event = document.createEvent('MouseEvent');
+		assert.strictEqual(getWindow(event), mainWindow);
+		assert.strictEqual(getDocument(event), mainWindow.document);
 	});
 
 	suite('disposableWindowInterval', () => {

@@ -5,8 +5,10 @@
 
 import * as assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { AsyncDataTree, CompressibleAsyncDataTree, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
+import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -37,7 +39,7 @@ function find(element: Element, id: string): Element | undefined {
 	return undefined;
 }
 
-class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
+class Renderer implements ICompressibleTreeRenderer<Element, void, HTMLElement> {
 	readonly templateId = 'default';
 	renderTemplate(container: HTMLElement): HTMLElement {
 		return container;
@@ -47,6 +49,15 @@ class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
 	}
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
+	}
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<Element>, void>, index: number, templateData: HTMLElement, height: number | undefined): void {
+		const result: string[] = [];
+
+		for (const element of node.element.elements) {
+			result.push(element.id + (element.suffix || ''));
+		}
+
+		templateData.textContent = result.join('/');
 	}
 }
 
@@ -494,5 +505,50 @@ suite('AsyncDataTree', function () {
 		assert.strictEqual(calls.length, 2, 'Finally, there should be a getChildren call for a');
 		assert(tree.isCollapsible(a), 'a is still collapsible');
 		assert(!tree.isCollapsed(a), 'a is expanded');
+	});
+
+	test('issue #199441', async () => {
+		const container = document.createElement('div');
+
+		const dataSource = new class implements IAsyncDataSource<Element, Element> {
+			hasChildren(element: Element): boolean {
+				return !!element.children && element.children.length > 0;
+			}
+			async getChildren(element: Element) {
+				return element.children ?? Iterable.empty();
+			}
+		};
+
+		const compressionDelegate = new class implements ITreeCompressionDelegate<Element> {
+			isIncompressible(element: Element): boolean {
+				return !dataSource.hasChildren(element);
+			}
+		};
+
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{
+					id: 'b',
+					children: [{ id: 'b.txt' }]
+				}]
+			}]
+		});
+
+		const collapseByDefault = (element: Element) => false;
+
+		const tree = store.add(new CompressibleAsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), compressionDelegate, [new Renderer()], dataSource, { identityProvider: new IdentityProvider(), collapseByDefault }));
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a/b', 'b.txt']);
+
+		model.get('a').children!.push({
+			id: 'c',
+			children: [{ id: 'c.txt' }]
+		});
+
+		await tree.updateChildren(model.root, true);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b', 'b.txt', 'c', 'c.txt']);
 	});
 });

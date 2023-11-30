@@ -10,10 +10,10 @@ import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_TOOLBAR, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_TOOLBAR, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
@@ -174,6 +174,82 @@ registerAction2(class extends NotebookCellAction {
 		ctrl.dismiss(true);
 	}
 });
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: 'notebook.cell.feedbackHelpful',
+			title: localize('feedback.helpful', 'Helpful'),
+			icon: Codicon.thumbsup,
+			menu: {
+				id: MENU_CELL_CHAT_WIDGET_FEEDBACK,
+				group: 'inline',
+				order: 1,
+				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const ctrl = NotebookCellChatController.get(context.cell);
+		if (!ctrl) {
+			return;
+		}
+
+		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Helpful);
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: 'notebook.cell.feedbackUnhelpful',
+			title: localize('feedback.unhelpful', 'Unhelpful'),
+			icon: Codicon.thumbsdown,
+			menu: {
+				id: MENU_CELL_CHAT_WIDGET_FEEDBACK,
+				group: 'inline',
+				order: 2,
+				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const ctrl = NotebookCellChatController.get(context.cell);
+		if (!ctrl) {
+			return;
+		}
+
+		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Unhelpful);
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super({
+			id: 'notebook.cell.reportIssueForBug',
+			title: localize('feedback.reportIssueForBug', 'Report Issue'),
+			icon: Codicon.report,
+			menu: {
+				id: MENU_CELL_CHAT_WIDGET_FEEDBACK,
+				group: 'inline',
+				order: 3,
+				when: CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.notEqualsTo(undefined),
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const ctrl = NotebookCellChatController.get(context.cell);
+		if (!ctrl) {
+			return;
+		}
+
+		ctrl.feedbackLast(InlineChatResponseFeedbackKind.Bug);
+	}
+});
+
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {

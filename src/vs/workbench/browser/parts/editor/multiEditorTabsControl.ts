@@ -32,7 +32,7 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -55,7 +55,6 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 interface IEditorInputLabel {
@@ -150,7 +149,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IPathService private readonly pathService: IPathService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHostService hostService: IHostService
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
@@ -458,7 +456,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Find target anchor
 			let anchor: HTMLElement | StandardMouseEvent = tabsContainer;
 			if (isMouseEvent(e)) {
-				anchor = new StandardMouseEvent(getWindow(tabsContainer), e);
+				anchor = new StandardMouseEvent(getWindow(this.parent), e);
 			}
 
 			// Show it
@@ -1043,7 +1041,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				// Fixes https://github.com/microsoft/vscode/issues/18733
 				tab.classList.add('dragged');
-				scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
+				scheduleAtNextAnimationFrame(getWindow(this.parent), () => tab.classList.remove('dragged'));
 			},
 
 			onDrag: e => {
@@ -1426,6 +1424,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		let name: string | undefined;
 		let forceLabel = false;
 		let fileDecorationBadges = Boolean(options.decorations?.badges);
+		const fileDecorationColors = Boolean(options.decorations?.colors);
 		let description: string;
 		if (options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
@@ -1457,7 +1456,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				italic: !this.tabsModel.isPinned(editor),
 				forceLabel,
 				fileDecorations: {
-					colors: Boolean(options.decorations?.colors),
+					colors: fileDecorationColors,
 					badges: fileDecorationBadges
 				}
 			}
@@ -1644,20 +1643,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// this a little bit we try at least to schedule this work on the next animation frame
 				// when we have restored or when idle otherwise.
 
-				const layoutFunction = () => {
+				const disposable = scheduleAtNextAnimationFrame(getWindow(this.parent), () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
-				};
-
-				let scheduledLayout: IDisposable;
-				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
-				} else {
-					scheduledLayout = runWhenWindowIdle(getWindow(this.tabsContainer), layoutFunction);
-				}
-
-				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
+				});
+				this.layoutScheduler.value = { options, dispose: () => disposable.dispose() };
 			}
 
 			// Make sure to keep options updated
@@ -2121,7 +2112,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-			dropHandler.handleDrop(e, getWindow(this.titleContainer), () => this.groupView, () => this.groupView.focus(), options);
+			dropHandler.handleDrop(e, getWindow(this.parent), () => this.groupView, () => this.groupView.focus(), options);
 		}
 	}
 

@@ -84,9 +84,7 @@ export namespace Iterable {
 
 	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
 		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
-			}
+			yield* iterable;
 		}
 	}
 
