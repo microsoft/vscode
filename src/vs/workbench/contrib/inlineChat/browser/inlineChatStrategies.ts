@@ -900,19 +900,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 					}
 					: undefined;
 
-
-				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
-
-					for (const editRange of e.changes.map(c => c.range).flat()) {
-						if (Range.areIntersectingOrTouching(modifiedRange, editRange)) {
-							// implicit accepted
-							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
-						}
-					}
-					this._showDiff(true, true);
-				}));
-
-
 				const zoneLineNumber = this._zone.position!.lineNumber;
 				const myDistance = zoneLineNumber <= modifiedRange.startLineNumber
 					? modifiedRange.startLineNumber - zoneLineNumber
