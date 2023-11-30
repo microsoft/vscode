@@ -221,35 +221,23 @@ function showSplash(configuration) {
 import { main } from '../../../../vs/workbench/workbench.desktop.main.js'
 
 
-/**
- * @type {INativeWindowConfiguration}
- */
-const configuration = {
-	colorScheme: {
-		dark: false, highContrast: false
-	},
-	mainPid: 1,
-	machineId: '1',
-	sqmId: '1',
-	execPath: '',
-	homeDir: '',
-	tmpDir: '',
-	logLevel: '',
-	userDataDir: '',
-	perfMarks: [],
-	os: {
-		arch: '',
-		hostname: '',
-		release: ''
-	},
-	profiles: {
-		home: [],
-		all: [],
-		profile: []
-	},
-	loggers: {
-		global: [],
-		window: []
-	}
+
+const preloadGlobals = globalThis.vscode;
+const safeProcess = preloadGlobals.process;
+
+const actualMain = async () => {
+	// Await window configuration from preload
+	const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
+	performance.mark('code/willWaitForWindowConfig');
+	/** @type {ISandboxConfiguration} */
+	const configuration = await preloadGlobals.context.resolveConfiguration();
+	performance.mark('code/didWaitForWindowConfig');
+	clearTimeout(timeout);
+
+	console.log({ configuration })
+	await main(configuration)
+
 }
-main(configuration)
+
+
+actualMain()
