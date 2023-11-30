@@ -432,7 +432,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}));
 
 			if (isMacintosh) {
-				this._register(addDisposableListener(this.title, EventType.CLICK, e => {
+				this._register(addDisposableListener(this.title, EventType.MOUSE_DOWN, e => {
 					if (e.metaKey) {
 						EventHelper.stop(e, true /* stop bubbling to prevent command center from opening */);
 
