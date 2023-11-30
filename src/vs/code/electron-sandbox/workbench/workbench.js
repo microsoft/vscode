@@ -218,6 +218,38 @@ function showSplash(configuration) {
 //#endregion
 
 
-import {main} from  '../../../../vs/workbench/workbench.desktop.main.js'
+import { main } from '../../../../vs/workbench/workbench.desktop.main.js'
 
-main()
+
+/**
+ * @type {INativeWindowConfiguration}
+ */
+const configuration = {
+	colorScheme: {
+		dark: false, highContrast: false
+	},
+	mainPid: 1,
+	machineId: '1',
+	sqmId: '1',
+	execPath: '',
+	homeDir: '',
+	tmpDir: '',
+	logLevel: '',
+	userDataDir: '',
+	perfMarks: [],
+	os: {
+		arch: '',
+		hostname: '',
+		release: ''
+	},
+	profiles: {
+		home: [],
+		all: [],
+		profile: []
+	},
+	loggers: {
+		global: [],
+		window: []
+	}
+}
+main(configuration)
