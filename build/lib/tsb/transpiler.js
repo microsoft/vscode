@@ -69,6 +69,7 @@ class OutputFileNameOracle {
 }
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/;
 const RE_EXPORT = /^export(.*)from ('|")(.*)('|")/;
+const RE_FROM_END = /\} from ('|")(.*)('|")/;
 const commonJs = [];
 const fixEsmImportLine = (relative, line) => {
     const importMatch = line.match(RE_IMPORT);
@@ -114,12 +115,36 @@ const fixEsmExportLine = (relative, line) => {
     const prefix = '../'.repeat(slashCount - 1);
     return `export${exports}from ${quote1}${prefix}${path}${extension}${quote2}`;
 };
+const fixEsmFromEndLine = (relative, line) => {
+    const exportMatch = line.match(RE_FROM_END);
+    if (!exportMatch) {
+        throw new Error(`multiline export not supported: ${line}`);
+    }
+    const quote1 = exportMatch[1];
+    const path = exportMatch[2];
+    const quote2 = exportMatch[3];
+    const isVs = path.startsWith('vs');
+    const isRelative = path.startsWith('.');
+    if (!isVs && !isRelative || path.endsWith('.js')) {
+        return line;
+    }
+    const extension = '.js';
+    if (isRelative) {
+        return `from ${quote1}${path}${extension}${quote2};`;
+    }
+    const slashCount = relative.split('/').length;
+    const prefix = '../'.repeat(slashCount - 1);
+    return `from ${quote1}${prefix}${path}${extension}${quote2};`;
+};
 const fixEsmImportExportLine = (relative, line) => {
     if (line.startsWith('import ')) {
         return fixEsmImportLine(relative, line);
     }
     if (line.startsWith('export') && line.includes(' from \'')) {
         return fixEsmExportLine(relative, line);
+    }
+    if (line.startsWith('} from \'') || line.startsWith('} from "')) {
+        return fixEsmFromEndLine(relative, line);
     }
     return line;
 };
