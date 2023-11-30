@@ -79,7 +79,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _leadingLineContent?: string;
 	private _additionalInput?: string;
-	private _cursorIndexStart: number = 0;
 	private _cursorIndexDelta: number = 0;
 	private _inputQueue?: string[];
 	private _cachedCompletions: Set<string> = new Set();
@@ -141,7 +140,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const replacementIndex = parseInt(args[0]);
 		const replacementLength = parseInt(args[1]);
-		this._cursorIndexStart = parseInt(args[2]);
 		if (!args[3]) {
 			this._onBell.fire();
 			return;
