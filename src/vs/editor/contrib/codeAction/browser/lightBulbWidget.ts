@@ -224,6 +224,13 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private set state(value) {
 		this._state = value;
+		if (value.type === LightBulbState.Type.Showing) {
+			const onlyAIActions = value.actions.allAIFixes;
+			const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
+			if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
+				return;
+			}
+		}
 		this._updateLightBulbTitleAndIcon();
 	}
 
