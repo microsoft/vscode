@@ -16,6 +16,7 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import product from 'vs/platform/product/common/product';
 
 //#region typed options
 
@@ -2821,7 +2822,9 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = {
+			enabled: typeof product.quality === 'string' && product.quality !== 'stable' /* only enabled by default in Insiders */, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true
+		};
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
