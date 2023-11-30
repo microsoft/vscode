@@ -141,6 +141,7 @@ export class CollapseAllAction extends Action2 {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 			},
+			f1: true,
 		});
 	}
 
