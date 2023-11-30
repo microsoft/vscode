@@ -28,7 +28,7 @@ import * as os from 'node:os';
 const bootstrap = require('./bootstrap.cjs');
 const bootstrapNode = require('./bootstrap-node.cjs');
 import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
-const { stripComments } = require('./vs/base/common/stripComments.cjs');
+import { stripComments } from './vs/base/common/stripComments.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 /** @type {Partial<IProductConfiguration>} */
 import { app, protocol, crashReporter, Menu } from 'electron';
