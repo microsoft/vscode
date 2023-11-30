@@ -93,8 +93,29 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				&& this.state.actions.validActions.length === 1
 			) {
 				const action = this.state.actions.validActions[0].action;
-				if (action.command?.id) {
-					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+				const id = action.command?.id;
+				if (id) {
+					const args = action.command?.arguments;
+					if (id === 'inlineChat.start' && args) {
+						console.log('args : ', args);
+						console.log('...args : ', ...args);
+						console.log(`'initialRange' in args : `, 'initialRange' in args);
+						console.log(`'initialSelection' in args : `, 'initialSelection' in args);
+						console.log(`'position' in args : `, 'position' in args);
+						console.log(`'message' in args : `, 'message' in args);
+						const properties = args[0];
+						const modifiedArg = {
+							initialRange: 'initialRange' in properties ? properties.initialRange : undefined,
+							initialSelection: 'initialSelection' in properties ? properties.initialSelection : undefined,
+							position: 'position' in properties ? properties.position : undefined,
+							message: 'message' in properties ? properties.message : '',
+							autoSend: false
+						};
+						console.log('modifiedArg : ', modifiedArg);
+						commandService.executeCommand('inlineChat.start', modifiedArg);
+					} else {
+						commandService.executeCommand(id, ...(args || []));
+					}
 					e.preventDefault();
 					return;
 				}
