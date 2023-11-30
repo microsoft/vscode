@@ -218,4 +218,6 @@ function showSplash(configuration) {
 //#endregion
 
 
-import '../../../../vs/workbench/workbench.desktop.main.js'
+import {main} from  '../../../../vs/workbench/workbench.desktop.main.js'
+
+main()
