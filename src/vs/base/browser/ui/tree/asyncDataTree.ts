@@ -954,7 +954,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 				asyncDataTreeNode.element = element;
 				asyncDataTreeNode.hasChildren = hasChildren;
-				asyncDataTreeNode.collapsedByDefault = this.collapseByDefault?.(element);
 
 				if (recursive) {
 					if (result.collapsed) {
@@ -964,7 +963,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 					} else {
 						childrenToRefresh.push(asyncDataTreeNode);
 					}
-				} else if (hasChildren && !asyncDataTreeNode.collapsedByDefault) {
+				} else if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
+					asyncDataTreeNode.collapsedByDefault = false;
 					childrenToRefresh.push(asyncDataTreeNode);
 				}
 
