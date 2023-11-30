@@ -3279,7 +3279,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				// Resources (Tree)
 				const children: TreeElement[] = [];
 				for (const node of inputOrElement.resourceTree.root.children) {
-					children.push(node.element ?? node);
+					children.push(node.element && node.childrenCount === 0 ? node.element : node);
 				}
 
 				return children;
@@ -3288,7 +3288,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// Resources (Tree), History item changes (Tree)
 			const children: TreeElement[] = [];
 			for (const node of inputOrElement.children) {
-				children.push(node.element ?? node);
+				children.push(node.element && node.childrenCount === 0 ? node.element : node);
 			}
 
 			return children;
