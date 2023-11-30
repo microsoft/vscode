@@ -59,6 +59,11 @@ export class DocumentSemanticTokensFeature extends Disposable {
 				}
 			}
 		};
+		modelService.getModels().forEach(model => {
+			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
+				register(model);
+			}
+		});
 		this._register(modelService.onModelAdded((model) => {
 			if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 				register(model);
