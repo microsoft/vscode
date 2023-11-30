@@ -203,4 +203,3 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 
 	return false;
 });
-

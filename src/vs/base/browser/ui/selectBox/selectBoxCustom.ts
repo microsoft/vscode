@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';

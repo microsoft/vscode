@@ -27,7 +27,7 @@ import { isNumber } from 'vs/base/common/types';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./list.css', import.meta.url)
 

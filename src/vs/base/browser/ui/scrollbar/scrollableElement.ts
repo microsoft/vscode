@@ -6,7 +6,7 @@
 import { getZoomFactor } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';

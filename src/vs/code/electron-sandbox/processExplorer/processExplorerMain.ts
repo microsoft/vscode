@@ -24,7 +24,7 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { mainWindow } from 'vs/base/browser/window';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/processExplorer.css', import.meta.url)
 importCss('vs/base/browser/ui/codicons/codiconStyles', import.meta.url)  // make sure codicon css is loaded

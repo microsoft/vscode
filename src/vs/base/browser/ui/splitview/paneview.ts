@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { localize } from 'vs/nls';
 import { IView, Sizing, SplitView } from './splitview';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./paneview.css', import.meta.url)
 

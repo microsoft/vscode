@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';

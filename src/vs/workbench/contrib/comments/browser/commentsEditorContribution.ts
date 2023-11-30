@@ -281,4 +281,3 @@ function getActiveController(accessor: ServicesAccessor): CommentController | un
 	}
 	return controller;
 }
-

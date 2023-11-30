@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hide, show } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';

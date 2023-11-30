@@ -1810,4 +1810,3 @@ registerColor('ports.iconRunningProcessForeground', {
 	hcDark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
 	hcLight: STATUS_BAR_REMOTE_ITEM_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
-

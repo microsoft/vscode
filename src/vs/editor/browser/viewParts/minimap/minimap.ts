@@ -2033,4 +2033,3 @@ class ContiguousLineMap<T> {
 		return this._values[lineNumber - this._startLineNumber];
 	}
 }
-

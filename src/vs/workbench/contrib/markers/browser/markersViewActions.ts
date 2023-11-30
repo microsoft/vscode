@@ -176,4 +176,3 @@ export class QuickFixActionViewItem extends ActionViewItem {
 		}
 	}
 }
-

@@ -13,7 +13,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/currentLineHighlight.css', import.meta.url)
 

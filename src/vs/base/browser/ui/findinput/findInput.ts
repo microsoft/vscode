@@ -15,7 +15,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as nls from 'vs/nls';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./codicon/findInput.css', import.meta.url)
 

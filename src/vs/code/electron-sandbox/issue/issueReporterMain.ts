@@ -18,7 +18,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { IssueReporter } from './issueReporterService';
 import { mainWindow } from 'vs/base/browser/window';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/issueReporter.css', import.meta.url)
 importCss('vs/base/browser/ui/codicons/codiconStyles.css', import.meta.url) // make sure codicon css is loaded

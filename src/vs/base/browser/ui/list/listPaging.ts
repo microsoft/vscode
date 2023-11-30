@@ -12,7 +12,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
 import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List, TypeNavigationMode } from './listWidget';
 import { isActiveElement } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./list.css', import.meta.url)
 

@@ -12,7 +12,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./toggle.css', import.meta.url)
 

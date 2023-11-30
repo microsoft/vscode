@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { ResolvedKeybinding, ResolvedChord } from 'vs/base/common/keybindings';
 import { equals } from 'vs/base/common/objects';

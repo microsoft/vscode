@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IMatch } from 'vs/base/common/filters';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./codicon/iconSelectBox.css', import.meta.url)
 

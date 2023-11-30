@@ -5,7 +5,7 @@
 
 import { $, append, createStyleSheet, EventHelper, EventLike, getWindow } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';

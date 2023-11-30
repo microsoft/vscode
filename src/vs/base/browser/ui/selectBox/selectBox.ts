@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListStyles, unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxCustom';

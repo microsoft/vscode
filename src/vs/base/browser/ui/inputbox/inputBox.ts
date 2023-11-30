@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
-import { importCss } from 'vs/base/browser/importCss.js';
+import { importCss } from 'vs/base/browser/importCss';
 import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import * as aria from 'vs/base/browser/ui/aria/aria';

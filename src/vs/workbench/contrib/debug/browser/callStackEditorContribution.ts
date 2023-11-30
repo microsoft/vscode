@@ -185,4 +185,3 @@ export class CallStackEditorContribution extends Disposable implements IEditorCo
 		this.decorations.clear();
 	}
 }
-

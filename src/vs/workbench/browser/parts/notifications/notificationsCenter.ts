@@ -339,4 +339,3 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 }
-
