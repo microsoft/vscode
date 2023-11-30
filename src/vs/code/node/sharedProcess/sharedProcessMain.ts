@@ -495,6 +495,8 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 	process.parentPort.postMessage(SharedProcessLifecycle.initDone);
 }
 
+console.log('hello from shared process')
+
 process.parentPort.once('message', (e: Electron.MessageEvent) => {
 	main(e.data as ISharedProcessConfiguration);
 });

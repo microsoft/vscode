@@ -236,8 +236,15 @@ export class UtilityProcess extends Disposable {
 
 		this.log('creating new...', Severity.Info);
 
+		console.log('create utility worker', serviceName);
+		console.log('create utility worker with path', configuration.entryPoint);
+
+		// @ts-ignore
+		const absolutePath = FileAccess.asFileUri(configuration.entryPoint + '.js').fsPath
+
+		console.log('absolute path', absolutePath)
 		// Fork utility process
-		this.process = utilityProcess.fork(modulePath, args, {
+		this.process = utilityProcess.fork(absolutePath, args, {
 			serviceName,
 			env,
 			execArgv,
@@ -245,6 +252,17 @@ export class UtilityProcess extends Disposable {
 			forceAllocationsToV8Sandbox,
 			stdio
 		} as ForkOptions & { forceAllocationsToV8Sandbox?: Boolean });
+
+		console.log(this.process.pid)
+		this.process.stderr?.addListener('data', data => {
+			process.stderr.write(data)
+		})
+		this.process.stdout?.addListener('data', data => {
+			process?.stdout.write(data)
+		})
+		this.process.addListener('exit', (code) => {
+			console.log('process has exited', code)
+		})
 
 		// Register to events
 		this.registerListeners(this.process, this.configuration, serviceName);

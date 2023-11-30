@@ -171,17 +171,17 @@ export abstract class AbstractWatcherClient extends Disposable {
 	protected init(): void {
 
 		// Associate disposables to the watcher
-		const disposables = new DisposableStore();
-		this.watcherDisposables.value = disposables;
+		// const disposables = new DisposableStore();
+		// this.watcherDisposables.value = disposables;
 
-		// Ask implementors to create the watcher
-		this.watcher = this.createWatcher(disposables);
-		this.watcher.setVerboseLogging(this.verboseLogging);
+		// // Ask implementors to create the watcher
+		// this.watcher = this.createWatcher(disposables);
+		// this.watcher.setVerboseLogging(this.verboseLogging);
 
-		// Wire in event handlers
-		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
-		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
-		disposables.add(this.watcher.onDidError(error => this.onError(error)));
+		// // Wire in event handlers
+		// disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
+		// disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
+		// disposables.add(this.watcher.onDidError(error => this.onError(error)));
 	}
 
 	protected onError(error: string): void {
