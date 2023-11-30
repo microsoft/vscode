@@ -27,6 +27,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStyleOverride, defaultFindWidgetStyles, defaultListStyles, getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -1479,7 +1480,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
-			default: true,
+			default: product.quality !== 'stable',
 			description: localize('sticky scroll', "Controls whether sticky scrolling is enabled in trees."),
 		},
 		[treeStickyScrollMaxElements]: {
