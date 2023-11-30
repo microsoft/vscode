@@ -228,15 +228,20 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			const onlyAIActions = value.actions.allAIFixes;
 			const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 			if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
+				this._clearClasses();
 				return;
 			}
 		}
 		this._updateLightBulbTitleAndIcon();
 	}
 
-	private _updateLightBulbTitleAndIcon(): void {
+	private _clearClasses(): void {
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
+	}
+
+	private _updateLightBulbTitleAndIcon(): void {
+		this._clearClasses();
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
