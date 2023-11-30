@@ -68,6 +68,7 @@ export interface ISCMHistoryItemGroupEntry {
 }
 
 export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroupEntry {
+	readonly ariaLabel?: string;
 	readonly repository: ISCMRepository;
 	readonly type: 'historyItemGroup';
 }
@@ -107,6 +108,7 @@ export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
 
 export interface SCMViewSeparatorElement {
 	readonly label: string;
+	readonly ariaLabel?: string;
 	readonly repository: ISCMRepository;
 	readonly type: 'separator';
 }
