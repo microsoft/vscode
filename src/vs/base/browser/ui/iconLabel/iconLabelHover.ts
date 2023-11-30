@@ -124,9 +124,13 @@ class UpdatableHoverWidget implements IDisposable {
 			const hoverOptions: IHoverDelegateOptions = {
 				content,
 				target: this.target,
-				showPointer: this.hoverDelegate.placement === 'element',
-				hoverPosition: HoverPosition.BELOW,
-				skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
+				appearance: {
+					showPointer: this.hoverDelegate.placement === 'element',
+					skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
+				},
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+				},
 				...options
 			};
 

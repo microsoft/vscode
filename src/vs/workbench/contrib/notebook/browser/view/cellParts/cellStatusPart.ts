@@ -77,7 +77,8 @@ export class CellEditorStatusBar extends CellContentPart {
 			private _lastHoverHideTime: number = 0;
 
 			readonly showHover = (options: IHoverDelegateOptions) => {
-				options.hoverPosition = HoverPosition.ABOVE;
+				options.position = options.position ?? {};
+				options.position.hoverPosition = HoverPosition.ABOVE;
 				return hoverService.showHover(options);
 			};
 
