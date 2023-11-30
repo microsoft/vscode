@@ -248,6 +248,10 @@ export class ActionList<T> extends Disposable {
 		let maxWidth = minWidth;
 
 		if (this._allMenuItems.length >= 50) {
+			// temporary max width for long lists
+			// TODO: make this dynamic again
+			// TODO: Truncate list baseed on what is talked about
+			// these comments are for testing purposes
 			maxWidth = 380;
 		} else {
 			// For finding width dynamically (not using resize observer)
