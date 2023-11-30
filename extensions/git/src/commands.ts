@@ -9,7 +9,7 @@ import { Command, commands, Disposable, LineChange, MessageOptions, Position, Pr
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
-import { Git, Stash } from './git';
+import { Commit, Git, Stash } from './git';
 import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
@@ -108,7 +108,8 @@ class BranchDeleteItem implements QuickPickItem {
 class MergeItem implements QuickPickItem {
 
 	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
+	description: string = '';
+	//get description(): string { return (this.ref.commit || '').substr(0, 8); }
 
 	constructor(protected ref: Ref) { }
 
@@ -2482,11 +2483,28 @@ export class CommandCenter {
 		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
 
 		const getBranchPicks = async (): Promise<MergeItem[]> => {
-			const refs = await repository.getRefs();
+			interface AugmentedRef extends Ref {
+				commitDetails?: Commit;
+			}
+			const refs: AugmentedRef[] = await repository.getRefs();
+
+			const getCommitDetails = async (refs: AugmentedRef[]): Promise<void> => {
+				await Promise.all(refs.map(async (ref, index, array) => {
+					if (ref.commit) {
+						const commitDetails = await repository.getCommit(ref.commit);
+						array[index].commitDetails = commitDetails;
+					}
+				}));
+			};
+			await getCommitDetails(refs);
 
 			const heads = refs.filter(ref => ref.type === RefType.Head)
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => {
+					const item = new MergeItem(ref as Branch);
+					item.description = ref.commitDetails?.commitDate?.toLocaleString() || '';
+					return item;
+				});
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 				.filter(ref => ref.name || ref.commit)
