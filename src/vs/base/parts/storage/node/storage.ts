@@ -305,38 +305,37 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		this.logger.error(msg);
 	}
 
-	private doConnect(path: string): Promise<IDatabaseConnection> {
+	private async doConnect(path: string): Promise<IDatabaseConnection> {
+		const { default: sqlite3 } = await import('@vscode/sqlite3')
 		return new Promise((resolve, reject) => {
-			import('@vscode/sqlite3').then(sqlite3 => {
-				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
-						if (error) {
-							return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
-						}
+			const connection: IDatabaseConnection = {
+				db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
+					if (error) {
+						return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
+					}
 
-						// The following exec() statement serves two purposes:
-						// - create the DB if it does not exist yet
-						// - validate that the DB is not corrupt (the open() call does not throw otherwise)
-						return this.exec(connection, [
-							'PRAGMA user_version = 1;',
-							'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
-						].join('')).then(() => {
-							return resolve(connection);
-						}, error => {
-							return connection.db.close(() => reject(error));
-						});
-					}),
-					isInMemory: path === SQLiteStorageDatabase.IN_MEMORY_PATH
-				};
+					// The following exec() statement serves two purposes:
+					// - create the DB if it does not exist yet
+					// - validate that the DB is not corrupt (the open() call does not throw otherwise)
+					return this.exec(connection, [
+						'PRAGMA user_version = 1;',
+						'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)'
+					].join('')).then(() => {
+						return resolve(connection);
+					}, error => {
+						return connection.db.close(() => reject(error));
+					});
+				}),
+				isInMemory: path === SQLiteStorageDatabase.IN_MEMORY_PATH
+			};
 
-				// Errors
-				connection.db.on('error', error => this.handleSQLiteError(connection, `[storage ${this.name}] Error (event): ${error}`));
+			// Errors
+			connection.db.on('error', error => this.handleSQLiteError(connection, `[storage ${this.name}] Error (event): ${error}`));
 
-				// Tracing
-				if (this.logger.isTracing) {
-					connection.db.on('trace', sql => this.logger.trace(`[storage ${this.name}] Trace (event): ${sql}`));
-				}
-			}, reject);
+			// Tracing
+			if (this.logger.isTracing) {
+				connection.db.on('trace', sql => this.logger.trace(`[storage ${this.name}] Trace (event): ${sql}`));
+			}
 		});
 	}
 

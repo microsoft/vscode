@@ -149,8 +149,11 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 	async init(): Promise<void> {
 
+		console.log('started services')
 		// Services
 		const instantiationService = await this.initServices();
+
+		console.log('finished services')
 
 		// Config
 		registerUserDataSyncConfiguration();
@@ -258,12 +261,14 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IStorageService, storageService);
 		this._register(toDisposable(() => storageService.flush()));
 
+		console.log('start storage')
 		// Initialize config & storage in parallel
-		await Promise.all([
-			configurationService.initialize(),
-			storageService.initialize()
-		]);
+		await configurationService.initialize(),
 
+			console.log('finish config')
+		await storageService.initialize()
+
+		console.log('finish storage')
 		// Request
 		const requestService = new RequestChannelClient(mainProcessService.getChannel('request'));
 		services.set(IRequestService, requestService);
@@ -489,14 +494,20 @@ export async function main(configuration: ISharedProcessConfiguration): Promise<
 	const sharedProcess = new SharedProcessMain(configuration);
 	process.parentPort.postMessage(SharedProcessLifecycle.ipcReady);
 
+	console.log('before init')
+
 	// await initialization and signal this back to electron-main
 	await sharedProcess.init();
+
+	console.log('shared process init done')
 
 	process.parentPort.postMessage(SharedProcessLifecycle.initDone);
 }
 
+
 console.log('hello from shared process')
 
 process.parentPort.once('message', (e: Electron.MessageEvent) => {
+	console.log('shared process messaeg')
 	main(e.data as ISharedProcessConfiguration);
 });

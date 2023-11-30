@@ -95,13 +95,14 @@ export class RemoteStorageService extends AbstractStorageService {
 	}
 
 	protected async doInitialize(): Promise<void> {
+		console.log('do initialize')
+		await this.applicationStorage.init()
+		console.log('finished application')
+		await this.profileStorage.init()
+		console.log('finished profile')
+		await this.workspaceStorage?.init() ?? Promise.resolve()
+		console.log('finished workspace')
 
-		// Init all storage locations
-		await Promises.settled([
-			this.applicationStorage.init(),
-			this.profileStorage.init(),
-			this.workspaceStorage?.init() ?? Promise.resolve()
-		]);
 	}
 
 	protected getStorage(scope: StorageScope): IStorage | undefined {
