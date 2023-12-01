@@ -141,7 +141,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
-	private container: HTMLElement | undefined;
+	protected container: HTMLElement | undefined;
 
 	private scopedInstantiationService!: IInstantiationService;
 
@@ -540,7 +540,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return { size: serializedNode.size };
 	}
 
-	private shouldRestoreFocus(target: Element | undefined): boolean {
+	protected shouldRestoreFocus(target: Element | undefined): boolean {
 		if (!target) {
 			return false;
 		}

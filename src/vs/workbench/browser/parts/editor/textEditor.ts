@@ -38,6 +38,9 @@ export interface IEditorConfiguration {
 			diffEditor?: boolean;
 		};
 	};
+	problems?: {
+		visibility?: boolean;
+	};
 }
 
 /**
@@ -116,7 +119,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 
 		// Specific editor options always overwrite user configuration
 		const editorConfiguration: ICodeEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
-		Object.assign(editorConfiguration, this.getConfigurationOverrides());
+		Object.assign(editorConfiguration, this.getConfigurationOverrides(configuration));
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
@@ -155,14 +158,13 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		};
 	}
 
-	protected getConfigurationOverrides(): ICodeEditorOptions {
-		const config = this.textResourceConfigurationService.getValue(this.getActiveResource(), 'problems.visibility');
+	protected getConfigurationOverrides(configuration: IEditorConfiguration): ICodeEditorOptions {
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: config ? 'on' : 'off'
+			renderValidationDecorations: configuration.problems?.visibility !== false ? 'on' : 'off'
 		};
 	}
 

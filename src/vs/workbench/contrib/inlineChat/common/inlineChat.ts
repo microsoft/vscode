@@ -155,7 +155,7 @@ export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inli
 export const CTX_INLINE_CHAT_CHANGE_HAS_DIFF = new RawContextKey<boolean>('inlineChatChangeHasDiff', false, localize('inlineChatChangeHasDiff', "Whether the current change supports showing a diff"));
 export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inlineChatChangeShowsDiff', false, localize('inlineChatChangeShowsDiff', "Whether the current change showing a diff"));
 export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.mode', EditMode.Live);
-export const CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED = new RawContextKey<boolean>('inlineChatToolbarIconEnabled', false, localize('inlineChatToolbarIconEnabled', "Whether the toolbar icon spawning inline chat is enabled."));
+export const CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED = new RawContextKey<boolean>('config.inlineChat.showToolbarIcon', false);
 
 // --- (select) action identifier
 
