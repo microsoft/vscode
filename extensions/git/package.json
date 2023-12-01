@@ -25,7 +25,6 @@
     "timeline",
     "contribMergeEditorMenus",
     "scmInputBoxActionButton",
-    "scmInputBoxValueProvider",
     "contribSourceControlInputBoxMenu"
   ],
   "categories": [
