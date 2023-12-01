@@ -301,7 +301,7 @@ export class InlineCompletionsModel extends Disposable {
 					...completion.additionalTextEdits
 				]
 			);
-			editor.setPosition(completion.snippetInfo.range.getStartPosition());
+			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
 			editor.executeEdits(
@@ -413,7 +413,7 @@ export class InlineCompletionsModel extends Disposable {
 					EditOperation.replace(Range.fromPositions(position), partialText),
 				]);
 				const length = lengthOfText(partialText);
-				editor.setPosition(addPositions(position, length));
+				editor.setPosition(addPositions(position, length), 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}

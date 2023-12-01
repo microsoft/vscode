@@ -893,7 +893,7 @@ export function getActiveWindow(): CodeWindow {
 
 export function focusWindow(element: Node): void {
 	const window = getWindow(element);
-	if (window !== getActiveWindow()) {
+	if (!window.document.hasFocus()) {
 		window.focus();
 	}
 }

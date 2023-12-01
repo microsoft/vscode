@@ -35,6 +35,14 @@ export class MultiDiffEditorViewModel extends Disposable {
 		});
 	}
 
+	public expandAll(): void {
+		transaction(tx => {
+			for (const d of this.items.get()) {
+				d.collapsed.set(false, tx);
+			}
+		});
+	}
+
 	constructor(
 		private readonly _model: IMultiDiffEditorModel,
 		private readonly _instantiationService: IInstantiationService,
