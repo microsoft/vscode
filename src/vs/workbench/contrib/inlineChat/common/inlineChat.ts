@@ -152,7 +152,10 @@ export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineC
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
 export const CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING = new RawContextKey<boolean>('inlineChatSupportIssueReporting', false, localize('inlineChatSupportIssueReporting', "Whether the interactive editor supports issue reporting"));
 export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inlineChatDocumentChanged', false, localize('inlineChatDocumentChanged', "Whether the document has changed concurrently"));
-export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.editMode', EditMode.Live);
+export const CTX_INLINE_CHAT_CHANGE_HAS_DIFF = new RawContextKey<boolean>('inlineChatChangeHasDiff', false, localize('inlineChatChangeHasDiff', "Whether the current change supports showing a diff"));
+export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inlineChatChangeShowsDiff', false, localize('inlineChatChangeShowsDiff', "Whether the current change showing a diff"));
+export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.mode', EditMode.Live);
+export const CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED = new RawContextKey<boolean>('config.inlineChat.showToolbarIcon', false);
 
 // --- (select) action identifier
 
@@ -188,6 +191,7 @@ export const inlineChatDiffRemoved = registerColor('inlineChatDiff.removed', { d
 
 export const enum EditMode {
 	Live = 'live',
+	Live3 = 'live3',
 	LivePreview = 'livePreview',
 	Preview = 'preview'
 }
@@ -235,6 +239,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
 				localize('showGutterIcon.never', "Never show the gutter icon."),
 			]
+		},
+		'inlineChat.showToolbarIcon': {
+			description: localize('showToolbarIcon', "Controls whether the toolbar icon spawning the inline chat is enabled."),
+			default: false,
+			type: 'boolean'
 		}
 	}
 });

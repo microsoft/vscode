@@ -118,30 +118,10 @@
 	align-items: center;
 }
 
-.scm-view .monaco-list-row .history-item-group .monaco-highlighted-label {
-	display: flex;
-	align-items: center;
-}
-
 .scm-view .monaco-list-row .history-item-group .monaco-icon-label,
 .scm-view .monaco-list-row .history-item .monaco-icon-label {
 	flex-grow: 1;
 	align-items: center;
-}
-
-.scm-view .monaco-list-row .history-item-group .monaco-icon-label > .monaco-icon-label-container {
-	display: flex;
-}
-.scm-view .monaco-list-row .history-item-group .monaco-icon-label > .monaco-icon-label-container .monaco-icon-description-container {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.scm-sync-view .monaco-list-row .monaco-icon-label .icon-container
-.scm-sync-view .monaco-list-row .monaco-icon-label .icon-container {
-	display: flex;
-	font-size: 14px;
-	padding-right: 4px;
 }
 
 .scm-view .monaco-list-row .history-item {
@@ -185,9 +165,15 @@
 	color: var(--vscode-scm-historyItemDeletionsForeground);
 }
 
+.scm-view .monaco-list-row .history-item .stats-container.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .insertions-label.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .deletions-label.hidden {
+	display: none;
+}
+
+.scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
 .scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
-	font-size: 14px;
 	padding-right: 4px;
 }
 

@@ -44,10 +44,15 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
+import { ITestCoverageService, TestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
+import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
+import { ExplorerExtensions, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
 registerSingleton(ITestProfileService, TestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestCoverageService, TestCoverageService, InstantiationType.Delayed);
 registerSingleton(ITestingContinuousRunService, TestingContinuousRunService, InstantiationType.Delayed);
 registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
@@ -112,8 +117,17 @@ viewsRegistry.registerViews([{
 	weight: 80,
 	order: -999,
 	containerIcon: testingViewIcon,
-	// temporary until release, at which point we can show the welcome view:
 	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
+}, {
+	id: Testing.CoverageViewId,
+	name: localize2('testCoverage', "Test Coverage"),
+	ctorDescriptor: new SyncDescriptor(TestCoverageView),
+	canToggleVisibility: true,
+	canMoveView: true,
+	weight: 80,
+	order: -998,
+	containerIcon: testingViewIcon,
+	when: TestingContextKeys.isTestCoverageOpen,
 }], viewContainer);
 
 allTestActions.forEach(registerAction2);
@@ -220,3 +234,12 @@ CommandsRegistry.registerCommand({
 });
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguration);
+
+Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
+	create(insta, container) {
+		return insta.createInstance(
+			ExplorerTestCoverageBars,
+			{ compact: true, container }
+		);
+	},
+});

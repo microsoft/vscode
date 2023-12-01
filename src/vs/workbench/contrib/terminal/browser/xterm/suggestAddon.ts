@@ -267,6 +267,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._handleCompletionModel(model);
 	}
 
+	private _getTerminalDimensions(): { width: number; height: number } {
+		return {
+			width: (this._terminal as any)._core._renderService.dimensions.css.cell.width,
+			height: (this._terminal as any)._core._renderService.dimensions.css.cell.height,
+		};
+	}
+
 	private _handleCompletionModel(model: SimpleCompletionModel): void {
 		if (model.items.length === 0 || !this._terminal?.element) {
 			return;
@@ -280,15 +287,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		this._additionalInput = undefined;
-		const dimensions = {
-			width: (this._terminal as any)._core._renderService.dimensions.device.cell.width,
-			height: (this._terminal as any)._core._renderService.dimensions.device.cell.height,
-		};
+		const dimensions = this._getTerminalDimensions();
 		if (!dimensions.width || !dimensions.height) {
 			return;
 		}
 		// TODO: What do frozen and auto do?
-		const xtermBox = this._terminal.element.getBoundingClientRect();
+		const xtermBox = this._terminal.element!.querySelector('.xterm-screen')!.getBoundingClientRect();
 		// TODO: Layer breaker, unsafe and won't work for terminal editors
 		const panelElement = dom.findParentWithClass(this._container!, 'panel')!.offsetParent as HTMLElement;
 		const panelBox = panelElement.getBoundingClientRect();
@@ -449,17 +453,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 
-			// TODO: Share code
 			// TODO: Expose on xterm.js
-			const dimensions = {
-				width: (this._terminal as any)._core._renderService.dimensions.device.cell.width,
-				height: (this._terminal as any)._core._renderService.dimensions.device.cell.height,
-			};
+			const dimensions = this._getTerminalDimensions();
 			if (!dimensions.width || !dimensions.height) {
 				return;
 			}
 			// TODO: What do frozen and auto do?
-			const xtermBox = this._terminal.element!.getBoundingClientRect();
+			const xtermBox = this._terminal.element!.querySelector('.xterm-screen')!.getBoundingClientRect();
 			// TODO: Layer breaker, unsafe and won't work for terminal editors
 			const panelElement = dom.findParentWithClass(this._container!, 'panel')!.offsetParent as HTMLElement;
 			const panelBox = panelElement.getBoundingClientRect();

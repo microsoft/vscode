@@ -241,6 +241,7 @@
 		"--vscode-editorInlayHint-typeBackground",
 		"--vscode-editorInlayHint-typeForeground",
 		"--vscode-editorLightBulb-foreground",
+		"--vscode-editorLightBulbAi-foreground",
 		"--vscode-editorLightBulbAutoFix-foreground",
 		"--vscode-editorLineNumber-activeForeground",
 		"--vscode-editorLineNumber-dimmedForeground",
@@ -791,6 +792,7 @@
 		"--z-index-notebook-scrollbar",
 		"--z-index-run-button-container",
 		"--z-index-notebook-sticky-scroll",
-		"--zoom-factor"
+		"--zoom-factor",
+		"--test-bar-width"
 	]
 }

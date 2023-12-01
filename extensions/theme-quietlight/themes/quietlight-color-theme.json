@@ -252,8 +252,7 @@
 				"meta.selector",
 				"meta.selector entity",
 				"meta.selector entity punctuation",
-				"entity.name.tag.css",
-				"entity.name.tag.less"
+				"entity.name.tag.css"
 			],
 			"settings": {
 				"foreground": "#7A3E9D"

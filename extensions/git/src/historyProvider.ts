@@ -4,32 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, filterEvent } from './util';
 import { toGitUri } from './uri';
-import { SyncActionButton } from './actionButton';
 import { Branch, RefType, Status } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
-	private readonly _onDidChangeActionButton = new EventEmitter<void>();
-	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
-
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void> = this._onDidChangeCurrentHistoryItemGroup.event;
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
-
-	private _actionButton: SourceControlActionButton | undefined;
-	get actionButton(): SourceControlActionButton | undefined { return this._actionButton; }
-	set actionButton(button: SourceControlActionButton | undefined) {
-		this._actionButton = button;
-		this._onDidChangeActionButton.fire();
-	}
 
 	private _HEAD: Branch | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
@@ -45,12 +34,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository) {
-		const actionButton = new SyncActionButton(repository);
-		this.actionButton = actionButton.button;
-		this.disposables.push(actionButton);
-
-		this.disposables.push(actionButton.onDidChange(() => this.actionButton = actionButton.button));
-
 		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
 		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this._onDidChangeCurrentHistoryItemGroup.fire()));
 
@@ -58,28 +41,30 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
-		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit) { return; }
-
 		// Check if HEAD has changed
-		const HEAD = this.repository.HEAD;
-
-		if (this._HEAD?.name === HEAD.name &&
-			this._HEAD?.commit === HEAD.commit &&
-			this._HEAD?.upstream?.name === HEAD.upstream?.name &&
-			this._HEAD?.upstream?.remote === HEAD.upstream?.remote &&
-			this._HEAD?.upstream?.commit === HEAD.upstream?.commit) {
+		if (this._HEAD?.name === this.repository.HEAD?.name &&
+			this._HEAD?.commit === this.repository.HEAD?.commit &&
+			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
 			return;
 		}
 
 		this._HEAD = this.repository.HEAD;
 
+		// Check if HEAD supports incoming/outgoing (not a tag, not detached)
+		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
+			this.currentHistoryItemGroup = undefined;
+			return;
+		}
+
 		this.currentHistoryItemGroup = {
-			id: `refs/heads/${this.repository.HEAD.name}`,
-			label: this.repository.HEAD.name,
-			upstream: this.repository.HEAD.upstream ?
+			id: `refs/heads/${this._HEAD.name}`,
+			label: this._HEAD.name,
+			upstream: this._HEAD.upstream ?
 				{
-					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-					label: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
+					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
 	}
@@ -115,7 +100,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				description: commit.authorName,
 				icon: new ThemeIcon('git-commit'),
 				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat
+				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
 			};
 		}));
 
