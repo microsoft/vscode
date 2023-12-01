@@ -19,7 +19,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -1482,12 +1482,14 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: product.quality !== 'stable',
 			description: localize('sticky scroll', "Controls whether sticky scrolling is enabled in trees."),
+			scope: ConfigurationScope.APPLICATION
 		},
 		[treeStickyScrollMaxElements]: {
 			type: 'number',
 			minimum: 1,
 			default: 7,
 			markdownDescription: localize('sticky scroll maximum items', "Controls the number of sticky elements displayed in the tree when `#workbench.tree.enableStickyScroll#` is enabled."),
+			scope: ConfigurationScope.APPLICATION
 		},
 		[typeNavigationModeSettingKey]: {
 			type: 'string',
