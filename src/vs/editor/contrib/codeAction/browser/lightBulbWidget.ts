@@ -175,6 +175,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
+		const onlyAIActions = actions.allAIFixes;
+		const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
+		if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
+			return this.hide();
+		}
+
 		const model = this._editor.getModel();
 		if (!model) {
 			return this.hide();
@@ -224,24 +230,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private set state(value) {
 		this._state = value;
-		if (value.type === LightBulbState.Type.Showing) {
-			const onlyAIActions = value.actions.allAIFixes;
-			const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-			if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
-				this._clearClasses();
-				return;
-			}
-		}
 		this._updateLightBulbTitleAndIcon();
 	}
 
-	private _clearClasses(): void {
+	private _updateLightBulbTitleAndIcon(): void {
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
-	}
-
-	private _updateLightBulbTitleAndIcon(): void {
-		this._clearClasses();
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
