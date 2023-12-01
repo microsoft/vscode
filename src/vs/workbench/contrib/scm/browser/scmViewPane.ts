@@ -2088,9 +2088,6 @@ class SCMInputWidget {
 				this.actionBar.push(action, { icon: true, label: false });
 			}
 
-			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
-			this.actionBar.domNode.classList.toggle('hidden', !showInputActionButton || this.actionBar.isEmpty());
-
 			this.layout();
 		};
 
@@ -2330,7 +2327,7 @@ class SCMInputWidget {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const toolbarWidth = this.toolbarContainer.clientWidth;
+		const toolbarWidth = this.getToolbarWidth();
 		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
 
 		if (dimension.width < 0) {
@@ -2342,6 +2339,9 @@ class SCMInputWidget {
 		this.inputEditor.layout(dimension);
 		this.placeholderTextContainer.style.width = `${dimension.width}px`;
 		this.renderValidation();
+
+		this.actionBar.domNode.classList.toggle('hidden', this.actionBar.isEmpty());
+		this.toolbarContainer.classList.toggle('hidden', this.configurationService.getValue<boolean>('scm.showInputActionButton') === false);
 
 		if (this.shouldFocusAfterLayout) {
 			this.shouldFocusAfterLayout = false;
@@ -2471,6 +2471,17 @@ class SCMInputWidget {
 		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
 
 		return maxLines * lineHeight + top + bottom;
+	}
+
+	private getToolbarWidth(): number {
+		const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton');
+		const actionCount = this.toolbarContextKeyService.getContextKeyValue<number>(SCMInputContextKeys.ActionCount.key) ?? 0;
+
+		if (!showInputActionButton || (this.actionBar.isEmpty() && actionCount === 0)) {
+			return 0;
+		}
+
+		return 26; /* 22px action + 4px margin */
 	}
 
 	private computeLineHeight(fontSize: number): number {
