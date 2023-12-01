@@ -59,13 +59,19 @@ registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 registerAction2(class ToggleEditorActions extends Action2 {
 	static readonly settingsID = `workbench.editor.editorActionsLocation`;
 	constructor() {
+
+		const titleBarContextCondition = ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none').negate(),
+			ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'default'),
+		)?.negate();
+
 		super({
 			id: `toggle.${ToggleEditorActions.settingsID}`,
 			title: localize('toggle.editorActions', 'Editor Actions'),
 			toggled: ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'hidden').negate(),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none') },
-				{ id: MenuId.TitleBarTitleContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none'), group: '2_config' }
+				{ id: MenuId.TitleBarContext, order: 3, when: titleBarContextCondition },
+				{ id: MenuId.TitleBarTitleContext, order: 3, when: titleBarContextCondition, group: '2_config' }
 			]
 		});
 	}
@@ -73,13 +79,28 @@ registerAction2(class ToggleEditorActions extends Action2 {
 	run(accessor: ServicesAccessor, ...args: any[]): void {
 		const configService = accessor.get(IConfigurationService);
 		const storageService = accessor.get(IStorageService);
-		const value = configService.getValue<string>(ToggleEditorActions.settingsID);
-		if (value === 'hidden') {
-			const storedValue = storageService.get(ToggleEditorActions.settingsID, StorageScope.PROFILE);
-			configService.updateValue(ToggleEditorActions.settingsID, storedValue ?? 'default');
-		} else {
+
+		const location = configService.getValue<string>(ToggleEditorActions.settingsID);
+		if (location === 'hidden') {
+			const showTabs = configService.getValue<string>('workbench.editor.showTabs');
+
+			// If tabs are visible, then set the editor actions to be in the title bar
+			if (showTabs !== 'none') {
+				configService.updateValue(ToggleEditorActions.settingsID, 'titleBar');
+			}
+
+			// If tabs are not visible, then set the editor actions to the last location the were before being hidden
+			else {
+				const storedValue = storageService.get(ToggleEditorActions.settingsID, StorageScope.PROFILE);
+				configService.updateValue(ToggleEditorActions.settingsID, storedValue ?? 'default');
+			}
+
+			storageService.remove(ToggleEditorActions.settingsID, StorageScope.PROFILE);
+		}
+		// Store the current value (titleBar or default) in the storage service for later to restore
+		else {
 			configService.updateValue(ToggleEditorActions.settingsID, 'hidden');
-			storageService.store(ToggleEditorActions.settingsID, value, StorageScope.PROFILE, StorageTarget.USER);
+			storageService.store(ToggleEditorActions.settingsID, location, StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 });

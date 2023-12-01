@@ -2088,9 +2088,6 @@ class SCMInputWidget {
 				this.actionBar.push(action, { icon: true, label: false });
 			}
 
-			const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
-			this.actionBar.domNode.classList.toggle('hidden', !showInputActionButton || this.actionBar.isEmpty());
-
 			this.layout();
 		};
 
@@ -2098,7 +2095,6 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(Event.filter(this.toolbarContextKeyService.onDidChangeContext, e => e.affectsSome(ctxKeys))(onDidChangeActionButton, this));
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
-		this.repositoryDisposables.add(this.scmService.onDidChangeInputValueProviders(onDidChangeActionButton, this));
 		this.repositoryDisposables.add(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(onDidChangeActionButton, this));
 		onDidChangeActionButton();
 
@@ -2173,7 +2169,6 @@ class SCMInputWidget {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -2330,7 +2325,7 @@ class SCMInputWidget {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const toolbarWidth = this.toolbarContainer.clientWidth;
+		const toolbarWidth = this.getToolbarWidth();
 		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
 
 		if (dimension.width < 0) {
@@ -2342,6 +2337,9 @@ class SCMInputWidget {
 		this.inputEditor.layout(dimension);
 		this.placeholderTextContainer.style.width = `${dimension.width}px`;
 		this.renderValidation();
+
+		this.actionBar.domNode.classList.toggle('hidden', this.actionBar.isEmpty());
+		this.toolbarContainer.classList.toggle('hidden', this.configurationService.getValue<boolean>('scm.showInputActionButton') === false);
 
 		if (this.shouldFocusAfterLayout) {
 			this.shouldFocusAfterLayout = false;
@@ -2473,6 +2471,17 @@ class SCMInputWidget {
 		return maxLines * lineHeight + top + bottom;
 	}
 
+	private getToolbarWidth(): number {
+		const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton');
+		const actionCount = this.toolbarContextKeyService.getContextKeyValue<number>(SCMInputContextKeys.ActionCount.key) ?? 0;
+
+		if (!showInputActionButton || (this.actionBar.isEmpty() && actionCount === 0)) {
+			return 0;
+		}
+
+		return 26; /* 22px action + 4px margin */
+	}
+
 	private computeLineHeight(fontSize: number): number {
 		return Math.round(fontSize * 1.5);
 	}
@@ -2504,7 +2513,6 @@ export class SCMViewPane extends ViewPane {
 	private treeScrollTop: number | undefined;
 	private treeContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
-	private treeIdentityProvider!: IIdentityProvider<TreeElement>;
 
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
@@ -2748,8 +2756,6 @@ export class SCMViewPane extends ViewPane {
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showIncomingChanges, () => this.showOutgoingChanges);
 		this.disposables.add(treeDataSource);
 
-		this.treeIdentityProvider = new SCMResourceIdentityProvider();
-
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Tree Repo',
@@ -2774,7 +2780,7 @@ export class SCMViewPane extends ViewPane {
 				transformOptimization: false,
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
-				identityProvider: this.treeIdentityProvider,
+				identityProvider: new SCMResourceIdentityProvider(),
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: {
@@ -3102,16 +3108,10 @@ export class SCMViewPane extends ViewPane {
 
 					if (element && this.tree.hasNode(element)) {
 						// Refresh specific repository
-						await this.tree.updateChildren(element, true, false, {
-							diffDepth: Infinity,
-							diffIdentityProvider: this.treeIdentityProvider
-						});
+						await this.tree.updateChildren(element);
 					} else {
 						// Refresh the entire tree
-						await this.tree.updateChildren(undefined, true, false, {
-							diffDepth: Infinity,
-							diffIdentityProvider: this.treeIdentityProvider
-						});
+						await this.tree.updateChildren(undefined);
 					}
 
 					if (focusedInput) {

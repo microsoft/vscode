@@ -274,7 +274,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 	}
 
-
 	private _cacheCurrentCompletion(): void {
 		this._cachedCompletions.add(JSON.stringify(this._currentCompletions));
 	}
