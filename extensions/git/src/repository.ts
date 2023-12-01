@@ -19,7 +19,7 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { CommitActionButton } from './actionButton';
+import { ActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
@@ -991,10 +991,10 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const commitActionButton = new CommitActionButton(this, this.commitCommandCenter);
-		this.disposables.push(commitActionButton);
-		commitActionButton.onDidChange(() => this._sourceControl.actionButton = commitActionButton.button);
-		this._sourceControl.actionButton = commitActionButton.button;
+		const actionButton = new ActionButton(this, this.commitCommandCenter);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
