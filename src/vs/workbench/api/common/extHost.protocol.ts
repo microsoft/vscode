@@ -1501,7 +1501,6 @@ export interface MainThreadSCMShape extends IDisposable {
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 
-	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
 
 	$registerSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number, sourceControlId: string, label: string, icon?: ThemeIcon | UriComponents | { light: UriComponents; dark: UriComponents }): void;

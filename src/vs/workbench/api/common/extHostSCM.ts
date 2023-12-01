@@ -589,7 +589,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
-	private _historyProviderActionButtonDisposable = new MutableDisposable<DisposableStore>();
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -608,20 +607,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
 				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
-			}));
-
-			this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
-				checkProposedApiEnabled(this._extension, 'scmActionButton');
-
-				this._historyProviderActionButtonDisposable.value = new DisposableStore();
-				const internal = historyProvider.actionButton !== undefined ?
-					{
-						command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
-						description: historyProvider.actionButton.description,
-						enabled: historyProvider.actionButton.enabled
-					} : undefined;
-
-				this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
 			}));
 		}
 	}

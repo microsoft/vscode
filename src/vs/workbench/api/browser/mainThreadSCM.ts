@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, DisposableMap } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, ISCMInputValueProvider, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMActionButtonDto, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -139,18 +139,8 @@ class MainThreadSCMResource implements ISCMResource {
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
-	private _onDidChangeActionButton = new Emitter<void>();
-	readonly onDidChangeActionButton = this._onDidChangeActionButton.event;
-
 	private _onDidChangeCurrentHistoryItemGroup = new Emitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup = this._onDidChangeCurrentHistoryItemGroup.event;
-
-	private _actionButton: ISCMActionButtonDescriptor | undefined;
-	get actionButton(): ISCMActionButtonDescriptor | undefined { return this._actionButton; }
-	set actionButton(actionButton: ISCMActionButtonDescriptor | undefined) {
-		this._actionButton = actionButton;
-		this._onDidChangeActionButton.fire();
-	}
 
 	private _currentHistoryItemGroup: ISCMHistoryItemGroup | undefined;
 	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
@@ -442,14 +432,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		return result && URI.revive(result);
 	}
 
-	$onDidChangeHistoryProviderActionButton(actionButton?: SCMActionButtonDto | null): void {
-		if (!this._historyProvider) {
-			return;
-		}
-
-		this._historyProvider.actionButton = actionButton ?? undefined;
-	}
-
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(currentHistoryItemGroup?: SCMHistoryItemGroupDto): void {
 		if (!this._historyProvider) {
 			return;
@@ -708,17 +690,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		} else {
 			repository.input.validateInput = async () => undefined;
 		}
-	}
-
-	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null | undefined): void {
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$onDidChangeHistoryProviderActionButton(actionButton);
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void {
