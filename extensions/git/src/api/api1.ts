@@ -157,6 +157,10 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
+	getDiff(): Promise<string[]> {
+		return this.repository.getDiff();
+	}
+
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -341,6 +345,9 @@ export class ApiImpl implements API {
 		return this._model.registerBranchProtectionProvider(root, provider);
 	}
 
+	/**
+	 * @deprecated See https://github.com/microsoft/vscode/issues/195474
+	 */
 	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable {
 		return this._model.registerCommitMessageProvider(provider);
 	}

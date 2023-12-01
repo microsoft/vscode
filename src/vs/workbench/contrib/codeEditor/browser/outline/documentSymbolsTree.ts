@@ -169,16 +169,23 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		const cssColor = color ? color.toString() : 'inherit';
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
-			template.container.style.setProperty('--outline-element-color', cssColor);
-		} else {
+		const problem = this._configurationService.getValue('problems.visibility');
+		const configProblems = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+
+		if (!problem || !configProblems) {
 			template.container.style.removeProperty('--outline-element-color');
+		} else {
+			template.container.style.setProperty('--outline-element-color', cssColor);
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
-			dom.hide(template.decoration);
+		if (problem === undefined) {
+			return;
+		}
 
+		const configBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
+		if (!configBadges || !problem) {
+			dom.hide(template.decoration);
 		} else if (count > 0) {
 			dom.show(template.decoration);
 			template.decoration.classList.remove('bubble');
@@ -194,8 +201,6 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
 	}
-
-
 
 	disposeTemplate(_template: DocumentSymbolTemplate): void {
 		_template.iconLabel.dispose();

@@ -340,6 +340,8 @@
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
 }
 
+/** -- coverage  */
+
 .test-coverage-list-item {
 	display: flex;
 }
@@ -368,4 +370,17 @@
 	height: 100%;
 	position: absolute;
 	opacity: 0.7;
+}
+
+/** -- coverage in the explorer  */
+
+.explorer-item-with-test-coverage {
+	display: flex;
+}
+
+.explorer-item-with-test-coverage .explorer-item {
+	flex-grow: 1;
+}
+.explorer-item-with-test-coverage .monaco-icon-label::after {
+	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
 }

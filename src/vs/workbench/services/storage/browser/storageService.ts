@@ -196,7 +196,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// have a pending update already running which indicates
 		// that the connection is either slow or disconnected and
 		// thus unhealthy.
-		return !!getActiveWindow() && !this.hasPendingUpdate;
+		return getActiveWindow().document.hasFocus() && !this.hasPendingUpdate;
 	}
 
 	close(): void {

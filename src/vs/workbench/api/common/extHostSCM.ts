@@ -589,7 +589,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
-	private _historyProviderActionButtonDisposable = new MutableDisposable<DisposableStore>();
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -608,20 +607,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
 				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
-			}));
-
-			this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
-				checkProposedApiEnabled(this._extension, 'scmActionButton');
-
-				this._historyProviderActionButtonDisposable.value = new DisposableStore();
-				const internal = historyProvider.actionButton !== undefined ?
-					{
-						command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
-						description: historyProvider.actionButton.description,
-						enabled: historyProvider.actionButton.enabled
-					} : undefined;
-
-				this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
 			}));
 		}
 	}
@@ -909,12 +894,12 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		return sourceControl;
 	}
 
-	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
+	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, sourceControlId: string, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
 		this.logService.trace('ExtHostSCM#registerSourceControlInputBoxValueProvider', extension.identifier.value, provider.label);
 
 		const handle = ExtHostSCM._inputBoxValueProviderHandlePool++;
 		this._inputBoxValueProviders.set(handle, provider);
-		this._proxy.$registerSourceControlInputBoxValueProvider(handle, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
+		this._proxy.$registerSourceControlInputBoxValueProvider(handle, sourceControlId, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
 
 		return toDisposable(() => {
 			this._proxy.$unregisterSourceControlInputBoxValueProvider(handle);
@@ -922,13 +907,13 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 	}
 
-	async $provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: vscode.SourceControlInputBoxValueProviderContext[]): Promise<string | undefined> {
+	async $provideInputBoxValue(inputBoxValueProviderHandle: number, rootUri: UriComponents, context: vscode.SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
 		const provider = this._inputBoxValueProviders.get(inputBoxValueProviderHandle);
 		if (!provider) {
 			return undefined;
 		}
 
-		return await provider.provideValue(sourceControlId, context, CancellationToken.None) ?? undefined;
+		return await provider.provideValue(URI.revive(rootUri), context, token) ?? undefined;
 	}
 
 	// Deprecated

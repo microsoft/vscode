@@ -218,8 +218,11 @@ class RevertButton implements IGlyphMarginWidget {
 		private readonly _selection: boolean,
 	) {
 		this._domNode.onmousedown = e => {
-			e.stopPropagation();
-			e.preventDefault();
+			// don't prevent context menu from showing up
+			if (e.button !== 2) {
+				e.stopPropagation();
+				e.preventDefault();
+			}
 		};
 		this._domNode.onmouseup = e => {
 			e.stopPropagation();
@@ -251,7 +254,7 @@ class RevertButton implements IGlyphMarginWidget {
 				endColumn: 1,
 				endLineNumber: this._lineNumber,
 			},
-			zIndex: 0,
+			zIndex: 10001,
 		};
 	}
 }

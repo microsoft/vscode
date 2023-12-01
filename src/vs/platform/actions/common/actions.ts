@@ -104,6 +104,7 @@ export class MenuId {
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMInputBox = new MenuId('SCMInputBox');
 	static readonly SCMHistoryItem = new MenuId('SCMHistoryItem');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
