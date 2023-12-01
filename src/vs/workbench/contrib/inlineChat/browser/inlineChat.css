@@ -119,7 +119,7 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
 	align-self: baseline;
-	display: flex;
+	display: inline-flex;
 }
 
 .monaco-editor .inline-chat .status .label.hidden {
@@ -141,7 +141,6 @@
 	padding-left: 10px;
 	padding-right: 4px;
 	margin-left: auto;
-	align-self: center;
 }
 
 .monaco-editor .inline-chat .status .label .slash-command-pill CODE {
@@ -151,15 +150,8 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
-.monaco-editor .inline-chat .markdownMessage {
-	padding: 10px 5px;
-}
 
-.monaco-editor .inline-chat .markdownMessage.hidden {
-	display: none;
-}
-
-.monaco-editor .inline-chat .markdownMessage .message * {
+/* .monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;
 }
 
@@ -170,13 +162,10 @@
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
-}
+} */
 
-.monaco-editor .inline-chat .markdownMessage .message .interactive-result-code-block {
-	margin: 16px 0;
-}
 
-.monaco-editor .inline-chat .markdownMessage .message {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent .value {
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
@@ -185,11 +174,11 @@
 	user-select: text;
 }
 
-.monaco-editor .inline-chat .markdownMessage .message[state="cropped"] {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="cropped"] .value {
 	-webkit-line-clamp: var(--vscode-inline-chat-cropped, 3);
 }
 
-.monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="expanded"] .value {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
 }
 
@@ -310,7 +299,34 @@
 	display: none;
 }
 
+.monaco-editor .inline-chat-toolbar {
+	display: flex;
+}
+
+.monaco-editor .inline-chat-toolbar > .monaco-button{
+	margin-right: 6px;
+}
+
+.monaco-editor .inline-chat-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
 /* decoration styles */
+
+.monaco-editor .inline-chat-inserted-range {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.monaco-editor .inline-chat-inserted-range-linehighlight {
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.monaco-editor .inline-chat-original-zone2 {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	opacity: 0.8;
+}
 
 .monaco-editor .inline-chat-lines-deleted-range-inline {
 	text-decoration: line-through;

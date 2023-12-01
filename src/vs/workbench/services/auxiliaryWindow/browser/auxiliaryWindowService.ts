@@ -19,6 +19,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -36,8 +37,6 @@ export interface IAuxiliaryWindowService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
-
-	hasWindow(windowId: number): boolean;
 
 	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 }
@@ -117,7 +116,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	layout(): void {
-		this._onDidLayout.fire(getClientArea(this.container));
+		this._onDidLayout.fire(getClientArea(this.window.document.body));
 	}
 
 	override dispose(): void {
@@ -147,7 +146,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -188,6 +188,16 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		mark('code/auxiliaryWindow/didOpen');
 
+		type AuxiliaryWindowClassification = {
+			owner: 'bpasero';
+			comment: 'An event that fires when an auxiliary window is opened';
+			bounds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Has window bounds provided.' };
+		};
+		type AuxiliaryWindowOpenEvent = {
+			bounds: boolean;
+		};
+		this.telemetryService.publicLog2<AuxiliaryWindowOpenEvent, AuxiliaryWindowClassification>('auxiliaryWindowOpen', { bounds: !!options?.bounds });
+
 		return auxiliaryWindow;
 	}
 
@@ -197,18 +207,34 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
 		const activeWindow = getActiveWindow();
-
-		const width = options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width;
-		const height = options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height;
-
-		const bounds: IRectangle = {
-			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
-			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
-			width: Math.max(width, WindowMinimumSize.WIDTH),
-			height: Math.max(height, WindowMinimumSize.HEIGHT)
+		const activeWindowBounds = {
+			x: activeWindow.screenX,
+			y: activeWindow.screenY,
+			width: activeWindow.outerWidth,
+			height: activeWindow.outerHeight
 		};
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
+		const width = Math.max(options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width, WindowMinimumSize.WIDTH);
+		const height = Math.max(options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height, WindowMinimumSize.HEIGHT);
+
+		let newWindowBounds: IRectangle = {
+			x: options?.bounds?.x ?? (activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2),
+			y: options?.bounds?.y ?? (activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2),
+			width,
+			height
+		};
+
+		if (newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
+			// Offset the new window a bit so that it does not overlap
+			// with the active window
+			newWindowBounds = {
+				...newWindowBounds,
+				x: newWindowBounds.x + 30,
+				y: newWindowBounds.y + 30
+			};
+		}
+
+		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${newWindowBounds.x},top=${newWindowBounds.y},width=${newWindowBounds.width},height=${newWindowBounds.height}`);
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -217,7 +243,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
-						run: () => this.openWindow({ bounds })
+						run: () => this.openWindow(options)
 					}
 				],
 				cancelButton: true
@@ -347,10 +373,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
-	}
-
-	hasWindow(windowId: number): boolean {
-		return this.windows.has(windowId);
 	}
 }
 

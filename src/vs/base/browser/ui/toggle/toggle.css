@@ -49,6 +49,19 @@
 	background-size: 16px !important;
 }
 
+.monaco-action-bar .checkbox-action-item {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-action-bar .checkbox-action-item > .monaco-custom-toggle.monaco-checkbox {
+	margin-right: 4px;
+}
+
+.monaco-action-bar .checkbox-action-item > .checkbox-label {
+	font-size: 12px;
+}
+
 /* hide check when unchecked */
 .monaco-custom-toggle.monaco-checkbox:not(.checked)::before {
 	visibility: hidden;
