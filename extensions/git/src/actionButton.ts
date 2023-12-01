@@ -45,12 +45,10 @@ export class ActionButton {
 	private _state: ActionButtonState;
 	private get state() { return this._state; }
 	private set state(state: ActionButtonState) {
-		console.log('here');
 		if (isActionButtonStateEqual(this._state, state)) {
 			return;
 		}
 
-		console.log('here2');
 		this._state = state;
 		this._onDidChange.fire();
 	}
