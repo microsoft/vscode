@@ -40,7 +40,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import './colors';
 import { DelegatingEditor } from './delegatingEditorImpl';
 import { DiffEditorEditors } from './components/diffEditorEditors';
 import { DiffEditorOptions } from './diffEditorOptions';
