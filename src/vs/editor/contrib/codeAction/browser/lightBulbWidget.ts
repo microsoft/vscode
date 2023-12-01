@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -86,9 +86,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				return;
 			}
 
-			const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 			if (
-				(option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode)
+				this._showAiIconSetting()
 				&& this.state.actions.allAIFixes
 				&& this.state.actions.validActions.length === 1
 			) {
@@ -133,7 +132,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			// hide when told to do so
 			if (e.hasChanged(EditorOption.lightbulb)) {
-				if (!this._editor.getOption(EditorOption.lightbulb).enabled) {
+				if (this._enablementSetting() === ShowLightbulbIconMode.Off) {
 					this.hide();
 				}
 				this._updateLightBulbTitleAndIcon();
@@ -170,8 +169,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		const options = this._editor.getOptions();
-		if (!options.get(EditorOption.lightbulb).enabled) {
+		if (this._enablementSetting() === ShowLightbulbIconMode.Off) {
 			return this.hide();
 		}
 
@@ -183,7 +181,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		const { lineNumber, column } = model.validatePosition(atPosition);
 
 		const tabSize = model.getOptions().tabSize;
-		const fontInfo = options.get(EditorOption.fontInfo);
+		const fontInfo = this._editor.getOptions().get(EditorOption.fontInfo);
 		const lineContent = model.getLineContent(lineNumber);
 		const indent = computeIndentLevel(lineContent, tabSize);
 		const lineHasSpace = fontInfo.spaceWidth * indent > 22;
@@ -227,6 +225,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._updateLightBulbTitleAndIcon();
 	}
 
+	private _enablementSetting(): ShowLightbulbIconMode {
+		return this._editor.getOption(EditorOption.lightbulb).enabled;
+	}
+
+	private _showAiIconSetting(): boolean {
+		return !!this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
+	}
+
 	private _updateLightBulbTitleAndIcon(): void {
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
@@ -246,9 +252,10 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
-		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
-			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
+		const showAiIcon = this._showAiIconSetting();
+		if (showAiIcon) {
+			const showOnEmptyLines = this._enablementSetting() === ShowLightbulbIconMode.On;
+			if (showOnEmptyLines && this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
 				if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
 					if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
