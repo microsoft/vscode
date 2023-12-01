@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { Dimension, getWindow, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, getActiveWindow, getWindow, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -332,10 +332,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
 		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
-		const window = getWindow(e);
-		if (window.document.visibilityState === 'visible') {
+		const window = getActiveWindow();
+		if (window.document.visibilityState === 'visible' && window.document.hasFocus()) {
 			if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
-				return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
+				return; // refuse to create as long as the mouse was released over active focused window to reduce chance of opening by accident
 			}
 		}
 
