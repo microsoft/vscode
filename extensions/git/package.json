@@ -25,7 +25,6 @@
     "timeline",
     "contribMergeEditorMenus",
     "scmInputBoxActionButton",
-    "scmInputBoxValueProvider",
     "contribSourceControlInputBoxMenu"
   ],
   "categories": [
@@ -699,7 +698,7 @@
       {
         "command": "git.timeline.openCommit",
         "title": "%command.timelineOpenCommit%",
-        "icon": "$(tasklist)",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       },
       {
@@ -765,13 +764,13 @@
       {
         "command": "git.viewChanges",
         "title": "%command.viewChanges%",
-        "icon": "$(tasklist)",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
-        "icon": "$(tasklist)",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       }
     ],

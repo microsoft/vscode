@@ -215,6 +215,22 @@
 	border-bottom-width: 2px;
 }
 
+.monaco-editor .zone-widget.test-output-peek .type-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .monaco-editor-background,
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .inputarea.ime-input,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
+}
+
 .test-output-peek-message-container {
 	overflow: hidden;
 }

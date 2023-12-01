@@ -13,7 +13,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunHandleChanges, autorunWithStore, constObservable, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { PlaceholderViewZone, ViewZoneOverlayWidget, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorLayoutInfo } from 'vs/editor/common/config/editorOptions';
@@ -22,7 +22,7 @@ import { OffsetRange, OffsetRangeSet } from 'vs/editor/common/core/offsetRange';
 import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { localize } from 'vs/nls';
 
-export class MovedBlocksLinesPart extends Disposable {
+export class MovedBlocksLinesFeature extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
 
 	private readonly _element: SVGElement;
@@ -56,7 +56,7 @@ export class MovedBlocksLinesPart extends Disposable {
 
 			this._element.style.left = `${info.width - info.verticalScrollbarWidth}px`;
 			this._element.style.height = `${info.height}px`;
-			this._element.style.width = `${info.verticalScrollbarWidth + info.contentLeft - MovedBlocksLinesPart.movedCodeBlockPadding + this.width.read(reader)}px`;
+			this._element.style.width = `${info.verticalScrollbarWidth + info.contentLeft - MovedBlocksLinesFeature.movedCodeBlockPadding + this.width.read(reader)}px`;
 		}));
 
 		this._register(recomputeInitiallyAndOnChange(this._state));
@@ -192,7 +192,7 @@ export class MovedBlocksLinesPart extends Disposable {
 		const padding = 10;
 		const lineAreaLeft = infoOrig.verticalScrollbarWidth;
 		const lineAreaWidth = (layout.getTrackCount() - 1) * 10 + padding * 2;
-		const width = lineAreaLeft + lineAreaWidth + (infoMod.contentLeft - MovedBlocksLinesPart.movedCodeBlockPadding);
+		const width = lineAreaLeft + lineAreaWidth + (infoMod.contentLeft - MovedBlocksLinesFeature.movedCodeBlockPadding);
 
 		let idx = 0;
 		for (const line of lines) {

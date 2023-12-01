@@ -440,6 +440,31 @@ suite('AsyncDataTree', function () {
 		assert.deepStrictEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
 	});
 
+	test('issue #199264 - dispose during render', async () => {
+		const container = document.createElement('div');
+		const model1 = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+			}]
+		});
+		const model2 = new Model({
+			id: 'root',
+			children: [{
+				id: 'a', children: [{ id: 'aa' }, { id: 'ab' }, { id: 'ac' }]
+			}]
+		});
+
+		const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() }));
+		tree.layout(200);
+
+		await tree.setInput(model1.root);
+		const input = tree.setInput(model2.root);
+		tree.dispose();
+		await input;
+		assert.strictEqual(container.innerHTML, '');
+	});
+
 	test('issue #121567', async () => {
 		const container = document.createElement('div');
 

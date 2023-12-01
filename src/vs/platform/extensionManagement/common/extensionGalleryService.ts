@@ -399,6 +399,7 @@ function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExten
 
 function getDownloadAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset {
 	return {
+		// always use fallbackAssetUri for download asset to hit the Marketplace API so that downloads are counted
 		uri: `${version.fallbackAssetUri}/${AssetType.VSIX}?redirect=true${version.targetPlatform ? `&targetPlatform=${version.targetPlatform}` : ''}`,
 		fallbackUri: `${version.fallbackAssetUri}/${AssetType.VSIX}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
 	};

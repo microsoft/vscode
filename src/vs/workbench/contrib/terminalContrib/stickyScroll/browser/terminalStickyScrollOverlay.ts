@@ -39,6 +39,10 @@ const enum CssClasses {
 	Visible = 'visible'
 }
 
+const enum Constants {
+	StickyScrollPercentageCap = 0.4
+}
+
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
@@ -54,7 +58,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
-	private _maxLineCount: number = 5;
+	private _rawMaxLineCount: number = 5;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -81,7 +85,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// React to configuration changes
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
-				this._maxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
+				this._rawMaxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
 			}
 		}));
 
@@ -249,7 +253,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// partial line can be drawn on the top.
 		const isPartialCommand = !('getOutput' in command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount) - rowOffset;
+		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY === stickyScrollLineStart) {

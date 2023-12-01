@@ -258,6 +258,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.inputMaxLines': {
 			type: 'number',
 			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
+			minimum: 1,
+			maximum: 50,
 			default: 10
 		},
 		'scm.alwaysShowRepositories': {

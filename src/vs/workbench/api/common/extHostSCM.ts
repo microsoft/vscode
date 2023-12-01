@@ -8,7 +8,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { debounce } from 'vs/base/common/decorators';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemGroupDto } from './extHost.protocol';
@@ -80,19 +80,6 @@ function getHistoryItemIconDto(historyItem: vscode.SourceControlHistoryItem): Ur
 		return historyItem.icon;
 	} else {
 		const icon = historyItem.icon as { light: URI; dark: URI };
-		return { light: icon.light, dark: icon.dark };
-	}
-}
-
-function getSourceControlInputBoxValueProviderIcon(provider: vscode.SourceControlInputBoxValueProvider): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
-	if (!provider.icon) {
-		return undefined;
-	} else if (URI.isUri(provider.icon)) {
-		return provider.icon;
-	} else if (ThemeIcon.isThemeIcon(provider.icon)) {
-		return provider.icon;
-	} else {
-		const icon = provider.icon as { light: URI; dark: URI };
 		return { light: icon.light, dark: icon.dark };
 	}
 }
@@ -589,7 +576,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
-	private _historyProviderActionButtonDisposable = new MutableDisposable<DisposableStore>();
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -608,20 +594,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
 				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
-			}));
-
-			this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
-				checkProposedApiEnabled(this._extension, 'scmActionButton');
-
-				this._historyProviderActionButtonDisposable.value = new DisposableStore();
-				const internal = historyProvider.actionButton !== undefined ?
-					{
-						command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
-						description: historyProvider.actionButton.description,
-						enabled: historyProvider.actionButton.enabled
-					} : undefined;
-
-				this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
 			}));
 		}
 	}
@@ -823,7 +795,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 export class ExtHostSCM implements ExtHostSCMShape {
 
 	private static _handlePool: number = 0;
-	private static _inputBoxValueProviderHandlePool: number = 0;
 
 	private _proxy: MainThreadSCMShape;
 	private readonly _telemetry: MainThreadTelemetryShape;
@@ -832,8 +803,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
-
-	private _inputBoxValueProviders: Map<number, vscode.SourceControlInputBoxValueProvider> = new Map<number, vscode.SourceControlInputBoxValueProvider>();
 
 	private _selectedSourceControlHandle: number | undefined;
 
@@ -907,28 +876,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
 
 		return sourceControl;
-	}
-
-	registerSourceControlInputBoxValueProvider(extension: IExtensionDescription, sourceControlId: string, provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
-		this.logService.trace('ExtHostSCM#registerSourceControlInputBoxValueProvider', extension.identifier.value, provider.label);
-
-		const handle = ExtHostSCM._inputBoxValueProviderHandlePool++;
-		this._inputBoxValueProviders.set(handle, provider);
-		this._proxy.$registerSourceControlInputBoxValueProvider(handle, sourceControlId, provider.label, getSourceControlInputBoxValueProviderIcon(provider));
-
-		return toDisposable(() => {
-			this._proxy.$unregisterSourceControlInputBoxValueProvider(handle);
-			this._inputBoxValueProviders.delete(handle);
-		});
-	}
-
-	async $provideInputBoxValue(inputBoxValueProviderHandle: number, rootUri: UriComponents, context: vscode.SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
-		const provider = this._inputBoxValueProviders.get(inputBoxValueProviderHandle);
-		if (!provider) {
-			return undefined;
-		}
-
-		return await provider.provideValue(URI.revive(rootUri), context, token) ?? undefined;
 	}
 
 	// Deprecated

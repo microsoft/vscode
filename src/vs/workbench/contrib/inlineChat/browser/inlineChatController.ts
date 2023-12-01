@@ -34,7 +34,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -145,7 +144,6 @@ export class InlineChatController implements IEditorContribution {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -481,16 +479,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getPlaceholderText(): string {
-		let result = this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
-		if (typeof this._forcedPlaceholder === 'undefined' && InlineChatController._promptHistory.length > 0) {
-			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
-			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
-
-			if (kb1 && kb2) {
-				result = localize('default.placeholder.history', "{0} ({1}, {2} for history)", result, kb1, kb2);
-			}
-		}
-		return result;
+		return this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 	}
 
 
@@ -702,6 +691,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateFollowUps(undefined);
 			this._zone.value.widget.updateProgress(true);
 			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
+			await this._strategy.start();
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 

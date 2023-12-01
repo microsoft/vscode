@@ -99,6 +99,15 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
 
+		const ctxAllCollapsed = this._parentContextKeyService.createKey<boolean>(EditorContextKeys.multiDiffEditorAllCollapsed.key, false);
+		this._register(autorun((reader) => {
+			const viewModel = this._viewModel.read(reader);
+			if (viewModel) {
+				const allCollapsed = viewModel.items.read(reader).every(item => item.collapsed.read(reader));
+				ctxAllCollapsed.set(allCollapsed);
+			}
+		}));
+
 		this._register(autorun((reader) => {
 			const lastActiveDiffItem = this.lastActiveDiffItem.read(reader);
 			transaction(tx => {
