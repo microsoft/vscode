@@ -466,7 +466,7 @@ export function registerChatCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.sendText(context.code, false, true);
+			terminal.runCommand(context.code, false);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
