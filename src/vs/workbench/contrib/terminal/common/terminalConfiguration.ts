@@ -627,7 +627,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.StickyScrollEnabled]: {
-			markdownDescription: localize('terminal.integrated.stickyScroll.enabled', "Experimental: Shows the current command at the top of the terminal."),
+			markdownDescription: localize('terminal.integrated.stickyScroll.enabled', "Shows the current command at the top of the terminal."),
 			type: 'boolean',
 			default: product.quality !== 'stable'
 		},
