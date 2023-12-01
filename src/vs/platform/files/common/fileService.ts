@@ -710,7 +710,7 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private validateReadFileLimits(resource: URI, size: number, options?: IReadFileStreamOptions): void {
-		if (typeof options?.limits?.size === 'number' && size > options.limits.size) {
+		if (typeof options?.limits?.size === 'number' && size > (options.limits.size) * 5) {
 			throw new TooLargeFileOperationError(localize('fileTooLargeError', "Unable to read file '{0}' that is too large to open", this.resourceForError(resource)), FileOperationResult.FILE_TOO_LARGE, size, options);
 		}
 	}
