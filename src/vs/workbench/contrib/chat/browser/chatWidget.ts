@@ -403,7 +403,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
-				if (c.setInputState && state[c.id]) {
+				if (c.setInputState && typeof state === 'object' && state?.[c.id]) {
 					c.setInputState(state[c.id]);
 				}
 			});
