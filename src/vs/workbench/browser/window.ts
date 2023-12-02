@@ -44,7 +44,7 @@ export abstract class BaseWindow extends Disposable {
 
 	//#region focus handling in multi-window applications
 
-	private enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
+	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
 		const originalFocus = HTMLElement.prototype.focus;
 
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
