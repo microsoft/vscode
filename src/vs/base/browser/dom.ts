@@ -444,9 +444,9 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
-	const elDocument = element.ownerDocument;
-	const elWindow = elDocument.defaultView?.window;
+export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+	const elWindow = getWindow(element);
+	const elDocument = elWindow.document;
 
 	// Try with DOM clientWidth / clientHeight
 	if (element !== elDocument.body) {
@@ -471,6 +471,10 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
 	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
+	}
+
+	if (fallback) {
+		return getClientArea(fallback);
 	}
 
 	throw new Error('Unable to figure out browser width and height');
