@@ -20,6 +20,8 @@ suite('Window', () => {
 		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
 			super(window, dom);
 		}
+
+		override enableWindowFocusOnElementFocus(): void { }
 	}
 
 	test('multi window aware setTimeout()', async function () {
