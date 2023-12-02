@@ -1872,6 +1872,11 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(menu, options?.menuOptions, actions);
 
+			for (const action of actions) {
+				action.enabled = isEnabled();
+			}
+			this._dropdownAction.enabled = isEnabled();
+
 			let primaryAction: IAction | undefined = undefined;
 
 			if (actions.length === 1) {
@@ -1881,13 +1886,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
-			if (primaryAction && primaryAction.id !== SCMInputCommandId.CancelAction && !isEnabled()) {
-				primaryAction.enabled = false;
-			}
-
-			this._dropdownAction.enabled = isEnabled();
 			this._dropdownActions = actions.length === 1 ? [] : actions;
-
 			super.setActions(primaryAction ? [primaryAction] : [], []);
 
 			this._onDidChange.fire();
@@ -2445,7 +2444,13 @@ class SCMInputWidget {
 
 	private getToolbarWidth(): number {
 		const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton');
-		return showInputActionButton && this.toolbar?.isEmpty() === false ? 26 /* 22px action + 4px margin */ : 0;
+		if (!this.toolbar || !showInputActionButton || this.toolbar?.isEmpty() === true) {
+			return 0;
+		}
+
+		return this.toolbar.dropdownActions.length === 0 ?
+			26 /* 22px action + 4px margin */ :
+			39 /* 35px action + 4px margin */;
 	}
 
 	private computeLineHeight(fontSize: number): number {
