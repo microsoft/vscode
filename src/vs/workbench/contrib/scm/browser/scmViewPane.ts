@@ -2139,7 +2139,7 @@ class SCMInputWidget {
 	constructor(
 		container: HTMLElement,
 		overflowWidgetsDomNode: HTMLElement,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
 		@ITextModelService private textModelService: ITextModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
