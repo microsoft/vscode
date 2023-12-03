@@ -20,8 +20,10 @@ const notFound = (id: string) => localize('notFound', "Extension '{0}' not found
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-dotnettools.csharp');
 
 
-function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
-	if (withVersion) {
+function getId(manifest: IExtensionManifest, withVersion?: boolean, preRelease?: boolean): string {
+	if (withVersion && preRelease) {
+		return `${manifest.publisher}.${manifest.name}@${manifest.version}-prerelease`;
+	} else if (withVersion) {
 		return `${manifest.publisher}.${manifest.name}@${manifest.version}`;
 	} else {
 		return `${manifest.publisher}.${manifest.name}`;
@@ -74,7 +76,7 @@ export class ExtensionManagementCLI {
 		for (const extension of extensions) {
 			if (lastId !== extension.identifier.id) {
 				lastId = extension.identifier.id;
-				this.logger.info(getId(extension.manifest, showVersions));
+				this.logger.info(getId(extension.manifest, showVersions, extension.preRelease));
 			}
 		}
 	}
