@@ -876,7 +876,7 @@ export function isAncestorOfActiveElement(ancestor: Element): boolean {
  * document has focus or will be the main windows document.
  */
 export function isActiveDocument(element: Element): boolean {
-	return getDocument(element) === getActiveDocument();
+	return element.ownerDocument === getActiveDocument();
 }
 
 /**
@@ -886,11 +886,11 @@ export function isActiveDocument(element: Element): boolean {
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
-		return document;
+		return mainWindow.document;
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
 }
 
 /**
