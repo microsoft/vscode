@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow, getWindowId } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow, getWindowId, getActiveElement } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -1091,7 +1091,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		const activeElement = container.ownerDocument.activeElement;
+		const activeElement = getActiveElement();
 		if (!activeElement) {
 			return false;
 		}
