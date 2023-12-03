@@ -10,6 +10,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { mainWindow } from 'vs/base/browser/window';
+import { Barrier } from 'vs/base/common/async';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -19,6 +20,7 @@ class StandaloneLayoutService implements ILayoutService {
 	readonly onDidLayoutContainer = Event.None;
 	readonly onDidChangeActiveContainer = Event.None;
 	readonly onDidAddContainer = Event.None;
+	readonly activeContainerStylesLoaded = Barrier.Open;
 
 	get mainContainer(): HTMLElement {
 		return firstOrDefault(this._codeEditorService.listCodeEditors())?.getContainerDomNode() ?? mainWindow.document.body;

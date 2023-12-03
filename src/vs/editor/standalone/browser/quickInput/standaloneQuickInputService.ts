@@ -19,6 +19,7 @@ import { QuickInputController, IQuickInputControllerHost } from 'vs/platform/qui
 import { QuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+import { Barrier } from 'vs/base/common/async';
 
 class EditorScopedQuickInputService extends QuickInputService {
 
@@ -50,6 +51,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 				get onDidLayoutContainer() { return Event.map(editor.onDidLayoutChange, dimension => ({ container: widget.getDomNode(), dimension })); },
 				get onDidChangeActiveContainer() { return Event.None; },
 				get onDidAddContainer() { return Event.None; },
+				get activeContainerStylesLoaded() { return Barrier.Open; },
 				get mainContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				get activeContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				focus: () => editor.focus()

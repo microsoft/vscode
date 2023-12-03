@@ -42,12 +42,12 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { DeferredPromise, Promises } from 'vs/base/common/async';
+import { Barrier, DeferredPromise, Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindow, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
 
 //#region Layout Implementation
@@ -212,6 +212,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.computeContainerOffset(getWindow(this.activeContainer));
 	}
 
+	get activeContainerStylesLoaded() {
+		const active = this.activeContainer;
+		return this.auxWindows.get(active)?.stylesHaveLoaded || Barrier.Open;
+	}
+
 	private computeContainerOffset(targetWindow: Window) {
 		let top = 0;
 		let quickPickTop = 0;
@@ -240,6 +245,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	//#endregion
 
 	private readonly parts = new Map<string, Part>();
+	private readonly auxWindows = new Map</* container */ HTMLElement, IAuxiliaryWindow>();
 
 	private initialized = false;
 	private workbenchGrid!: SerializableGrid<ISerializableView>;
@@ -382,9 +388,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Auxiliary windows
 		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
 			const eventDisposables = disposables.add(new DisposableStore());
+			this.auxWindows.set(window.container, window);
 			this._onDidAddContainer.fire({ container: window.container, disposables: eventDisposables });
 
 			disposables.add(window.onDidLayout(dimension => this.handleContainerDidLayout(window.container, dimension)));
+			disposables.add(window.onWillClose(() => this.auxWindows.delete(window.container)));
 		}));
 	}
 
