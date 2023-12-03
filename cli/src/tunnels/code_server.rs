@@ -58,6 +58,7 @@ pub struct CodeServerArgs {
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
+	pub update_extensions: bool,
 	pub list_extensions: bool,
 	pub show_versions: bool,
 	pub category: Option<String>,
@@ -128,6 +129,9 @@ impl CodeServerArgs {
 		}
 		for extension in &self.uninstall_extensions {
 			args.push(format!("--uninstall-extension={}", extension));
+		}
+		if self.update_extensions {
+			args.push(String::from("--update-extensions"));
 		}
 		if self.list_extensions {
 			args.push(String::from("--list-extensions"));

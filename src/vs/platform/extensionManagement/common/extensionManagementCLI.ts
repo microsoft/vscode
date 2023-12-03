@@ -172,6 +172,10 @@ export class ExtensionManagementCLI {
 		}
 	}
 
+	public async updateExtensions(profileLocation?: URI): Promise<void> {
+		this.logger.info("Update extensions: TODO");
+	}
+
 	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, installedExtensions: ILocalExtension[]): Promise<IExtensionManifest | null> {
 
 		const manifest = await this.extensionManagementService.getManifest(vsix);
