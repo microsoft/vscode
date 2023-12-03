@@ -856,6 +856,10 @@ export function getActiveElement(): Element | null {
 /**
  * Returns whether the active element of the `document` that owns
  * the `element` is `element`.
+ *
+ * @see `isFocusedElement(element: Element): boolean` for the same
+ * method with an additional check for the elements owner document
+ * having focus.
  */
 export function isActiveElement(element: Element): boolean {
 	return element.ownerDocument.activeElement === element;
@@ -864,6 +868,10 @@ export function isActiveElement(element: Element): boolean {
 /**
  * Returns whether the active element of the `document` that owns
  * the `ancestor` is contained in `ancestor`.
+ *
+ * @see `isAncestorOfActiveElement(ancestor: Element): boolean`
+ * for the same method with an additional check for the elements
+ * owner document having focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
 	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
@@ -900,6 +908,20 @@ export function focusWindow(element: Node): void {
 	if (!window.document.hasFocus()) {
 		window.focus();
 	}
+}
+
+/**
+ * @see `isActiveElement(element: Element): boolean`
+ */
+export function isFocusedElement(element: Element): boolean {
+	return isActiveElement(element) && getWindow(element).document.hasFocus();
+}
+
+/**
+ * @see `isAncestorOfActiveElement(element: Element): boolean`
+ */
+export function isAncestorOfFocusedElement(ancestor: Element): boolean {
+	return isAncestorOfActiveElement(ancestor) && getWindow(ancestor).document.hasFocus();
 }
 
 const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();

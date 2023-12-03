@@ -127,6 +127,6 @@ export class ExceptionWidget extends ZoneWidget {
 			return false;
 		}
 
-		return dom.isAncestorOfActiveElement(this.container);
+		return dom.isAncestorOfFocusedElement(this.container);
 	}
 }

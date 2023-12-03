@@ -237,7 +237,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	public override focus(): void {
 		super.focus();
-		if (dom.isActiveElement(this.widget.getHTMLElement())) {
+		if (dom.isFocusedElement(this.widget.getHTMLElement())) {
 			return;
 		}
 

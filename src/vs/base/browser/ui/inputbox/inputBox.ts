@@ -287,7 +287,7 @@ export class InputBox extends Widget {
 	}
 
 	public hasFocus(): boolean {
-		return dom.isActiveElement(this.input);
+		return dom.isFocusedElement(this.input);
 	}
 
 	public select(range: IRange | null = null): void {
@@ -634,7 +634,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
 				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
 				const suffixedPlaceholder = this.placeholder + suffix;
-				if (options.showPlaceholderOnFocus && !dom.isActiveElement(this.input)) {
+				if (options.showPlaceholderOnFocus && !dom.isFocusedElement(this.input)) {
 					this.placeholder = suffixedPlaceholder;
 				}
 				else {

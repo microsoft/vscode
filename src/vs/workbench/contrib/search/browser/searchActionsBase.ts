@@ -16,7 +16,7 @@ export const category = { value: nls.localize('search', "Search"), original: 'Se
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
-	return !!(searchView && DOM.isAncestorOfActiveElement(searchView.getContainer()));
+	return !!(searchView && DOM.isAncestorOfFocusedElement(searchView.getContainer()));
 }
 
 export function appendKeyBindingLabel(label: string, inputKeyBinding: ResolvedKeybinding | undefined): string {

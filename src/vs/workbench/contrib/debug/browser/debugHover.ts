@@ -341,7 +341,7 @@ export class DebugHoverWidget implements IContentWidget {
 			return;
 		}
 
-		if (dom.isAncestorOfActiveElement(this.domNode)) {
+		if (dom.isAncestorOfFocusedElement(this.domNode)) {
 			this.editor.focus();
 		}
 		this._isVisible = false;
