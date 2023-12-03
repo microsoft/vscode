@@ -1276,7 +1276,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestorOfFocusedElement(this.getContainer())) {
+		if (dom.isAncestorOfActiveElement(this.getContainer())) {
 			return null;
 		}
 

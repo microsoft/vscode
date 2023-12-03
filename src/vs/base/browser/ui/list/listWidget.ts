@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isFocusedElement, isMouseEvent } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -1904,7 +1904,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return isFocusedElement(this.view.domNode);
+		return isActiveElement(this.view.domNode);
 	}
 
 	getHTMLElement(): HTMLElement {

@@ -179,7 +179,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			return false;
 		}
 
-		return !!value && (DOM.isAncestorOfFocusedElement(value.getDomNode() || DOM.isAncestorOfFocusedElement(value.getOverflowContainerDomNode())));
+		return !!value && (DOM.isAncestorOfActiveElement(value.getDomNode() || DOM.isAncestorOfActiveElement(value.getOverflowContainerDomNode())));
 	}
 
 	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, noRetry?: boolean): Promise<void> {

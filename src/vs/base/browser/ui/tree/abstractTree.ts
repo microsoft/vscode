@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isFocusedElement } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -2247,7 +2247,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	isDOMFocused(): boolean {
-		return isFocusedElement(this.getHTMLElement());
+		return isActiveElement(this.getHTMLElement());
 	}
 
 	layout(height?: number, width?: number): void {

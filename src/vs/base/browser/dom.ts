@@ -840,8 +840,9 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 }
 
 /**
- * Returns the active element across all child windows.
- * Use this instead of `document.activeElement` to handle multiple windows.
+ * Returns the active element across all child windows
+ * based on document focus. Falls back to the main
+ * window if not window has focus.
  */
 export function getActiveElement(): Element | null {
 	let result = getActiveDocument().activeElement;
@@ -854,15 +855,12 @@ export function getActiveElement(): Element | null {
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `element` is `element`.
- *
- * @see `isFocusedElement(element: Element): boolean` for the same
- * method with an additional check for the elements owner document
- * having focus.
+ * Returns true if the focused window active element matches
+ * the provided element. Falls back to the main window if no
+ * window has focus.
  */
 export function isActiveElement(element: Element): boolean {
-	return element.ownerDocument.activeElement === element;
+	return getActiveElement() === element;
 }
 
 /**
@@ -874,7 +872,7 @@ export function isActiveElement(element: Element): boolean {
  * owner document having focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
-	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+	return isAncestor(getActiveElement(), ancestor);
 }
 
 /**
@@ -908,20 +906,6 @@ export function focusWindow(element: Node): void {
 	if (!window.document.hasFocus()) {
 		window.focus();
 	}
-}
-
-/**
- * @see `isActiveElement(element: Element): boolean`
- */
-export function isFocusedElement(element: Element): boolean {
-	return isActiveElement(element) && getWindow(element).document.hasFocus();
-}
-
-/**
- * @see `isAncestorOfActiveElement(element: Element): boolean`
- */
-export function isAncestorOfFocusedElement(ancestor: Element): boolean {
-	return isAncestorOfActiveElement(ancestor) && getWindow(ancestor).document.hasFocus();
 }
 
 const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();

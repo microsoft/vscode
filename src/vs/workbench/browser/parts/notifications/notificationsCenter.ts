@@ -14,7 +14,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationsCenterController, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, isAncestorOfFocusedElement } from 'vs/base/browser/dom';
+import { Dimension, isAncestorOfActiveElement } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
@@ -223,7 +223,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 				notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:
-				focusEditor = isAncestorOfFocusedElement(notificationsCenterContainer);
+				focusEditor = isAncestorOfActiveElement(notificationsCenterContainer);
 				notificationsList.updateNotificationsList(e.index, 1);
 				e.item.updateVisibility(false);
 				break;
@@ -248,7 +248,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			return; // already hidden
 		}
 
-		const focusEditor = isAncestorOfFocusedElement(this.notificationsCenterContainer);
+		const focusEditor = isAncestorOfActiveElement(this.notificationsCenterContainer);
 
 		// Hide
 		this._isVisible = false;
