@@ -842,7 +842,7 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 /**
  * Returns the active element across all child windows
  * based on document focus. Falls back to the main
- * window if not window has focus.
+ * window if no window has focus.
  */
 export function getActiveElement(): Element | null {
 	let result = getActiveDocument().activeElement;
@@ -866,26 +866,28 @@ export function isActiveElement(element: Element): boolean {
 /**
  * Returns whether the active element of the `document` that owns
  * the `ancestor` is contained in `ancestor`.
- *
- * @see `isAncestorOfActiveElement(ancestor: Element): boolean`
- * for the same method with an additional check for the elements
- * owner document having focus.
+ */
+
+/**
+ * Returns true if the focused window active element is contained in
+ * `ancestor`. Falls back to the main window if no window has focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
 	return isAncestor(getActiveElement(), ancestor);
 }
 
 /**
- * Returns whether the element is in the active `document`.
+ * Returns whether the element is in the active `document`. The active
+ * document has focus or will be the main windows document.
  */
 export function isActiveDocument(element: Element): boolean {
-	return element.ownerDocument === getActiveDocument();
+	return getDocument(element) === getActiveDocument();
 }
 
 /**
- * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom
- * events to handle multiple windows.
+ * Returns the active document across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
@@ -896,6 +898,11 @@ export function getActiveDocument(): Document {
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
+/**
+ * Returns the active window across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main window.
+ */
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
