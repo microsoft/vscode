@@ -106,7 +106,7 @@ const fixEsmImportLine = (relative: string, line: string) => {
 	const quote1 = importMatch[2]
 	const path = importMatch[3]
 	const quote2 = importMatch[4]
-	const isVs = path.startsWith('vs')
+	const isVs = path.startsWith('vs/')
 	const isRelative = path.startsWith('.')
 	if (!isVs && !isRelative || path.endsWith('.js')) {
 		return line
