@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // ESM-comment-begin
-export const isESM = false;
+export const isESM = true;
 // ESM-comment-end
 // ESM-uncomment-begin
 // export const isESM = true;
