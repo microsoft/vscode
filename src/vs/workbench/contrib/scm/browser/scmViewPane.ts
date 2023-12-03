@@ -1769,8 +1769,12 @@ class HistoryItemViewChangesAction extends Action2 {
 
 registerAction2(HistoryItemViewChangesAction);
 
-const enum SCMInputCommandId {
+const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
+}
+
+const enum SCMInputWidgetStorageKey {
+	LastActionId = 'scm.input.lastActionId'
 }
 
 class SCMInputWidgetActionRunner extends ActionRunner {
@@ -1794,7 +1798,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 			if (this.runningActions.size !== 0) {
 				this._cts?.cancel();
 
-				if (action.id === SCMInputCommandId.CancelAction) {
+				if (action.id === SCMInputWidgetCommandId.CancelAction) {
 					return;
 				}
 			}
@@ -1817,7 +1821,7 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 			// Save last action
 			if (this._runningActions.size === 0) {
-				this.storageService.store('scm.input.lastActionId', action.id, StorageScope.PROFILE, StorageTarget.USER);
+				this.storageService.store(SCMInputWidgetStorageKey.LastActionId, action.id, StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}
 	}
@@ -1854,12 +1858,11 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 		this._dropdownAction = new Action(
 			'scmInputMoreActions',
-			localize('scmInputMoreActions', 'More Actions...'),
-			'codicon-chevron-down',
-			true);
+			localize('scmInputMoreActions', "More Actions..."),
+			'codicon-chevron-down');
 
 		const cancelAction = new MenuItemAction({
-			id: SCMInputCommandId.CancelAction,
+			id: SCMInputWidgetCommandId.CancelAction,
 			title: localize('scmInputCancelAction', "Cancel"),
 			icon: Codicon.debugStop,
 		}, undefined, undefined, undefined, contextKeyService, commandService);
@@ -1882,7 +1885,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			if (actions.length === 1) {
 				primaryAction = actions[0];
 			} else if (actions.length > 1) {
-				const lastActionId = storageService.get('scm.input.lastActionId', StorageScope.PROFILE, '');
+				const lastActionId = storageService.get(SCMInputWidgetStorageKey.LastActionId, StorageScope.PROFILE, '');
 				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
