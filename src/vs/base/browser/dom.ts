@@ -864,11 +864,6 @@ export function isActiveElement(element: Element): boolean {
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `ancestor` is contained in `ancestor`.
- */
-
-/**
  * Returns true if the focused window active element is contained in
  * `ancestor`. Falls back to the main window if no window has focus.
  */
