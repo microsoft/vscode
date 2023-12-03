@@ -21,7 +21,7 @@ suite('Window', () => {
 			super(window, dom);
 		}
 
-		override enableWindowFocusOnElementFocus(): void { }
+		protected override enableWindowFocusOnElementFocus(): void { }
 	}
 
 	test('multi window aware setTimeout()', async function () {
