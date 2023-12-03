@@ -173,7 +173,54 @@ export class ExtensionManagementCLI {
 	}
 
 	public async updateExtensions(profileLocation?: URI): Promise<void> {
-		this.logger.info("Update extensions: TODO");
+		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User, profileLocation);
+
+		const installedExtensionsQuery: IExtensionInfo[] = [];
+		for (const extension of installedExtensions) {
+			if (!!extension.identifier.uuid) { // No need to check new version for an unpublished extension
+				installedExtensionsQuery.push({
+					id: `${extension.manifest.publisher}.${extension.manifest.name}`,
+					preRelease: extension.isPreReleaseVersion
+				});
+			}
+		}
+
+		this.logger.info(localize('updateExtensionsQuery', "Update extensions: querying version for {0} extensions", installedExtensionsQuery.length));
+		const availableVersions = await this.extensionGalleryService.getExtensions(installedExtensionsQuery, { compatible: true }, CancellationToken.None);
+
+		const newVersionAvailable: [IGalleryExtension, boolean, string][] = [];
+		for (const newVersion of availableVersions) {
+			for (const oldVersion of installedExtensions) {
+				if (areSameExtensions(oldVersion.identifier, newVersion.identifier) && gt(newVersion.version, oldVersion.manifest.version)) {
+					newVersionAvailable.push([newVersion, oldVersion.isPreReleaseVersion, oldVersion.manifest.version]);
+				}
+			}
+		}
+
+		if (newVersionAvailable.length) {
+			this.logger.info(localize('updateExtensionsNewVersionsAvailable', "Update extensions: {0} extensions have new version available", newVersionAvailable.length));
+			const failed: string[] = [];
+			await Promise.all(newVersionAvailable.map(async extensionInfo => {
+				try {
+					if (extensionInfo[1]) {
+						this.logger.info(localize('updateExtensionsPrereleaseVersion', "Updating extension '{0}' from prerelease version {1} to version {2}", extensionInfo[0].identifier.id, extensionInfo[2], extensionInfo[0].version));
+					}
+					else {
+						this.logger.info(localize('updateExtensionsStandardVersion', "Updating extension '{0}' from version {1} to version {2}", extensionInfo[0].identifier.id, extensionInfo[2], extensionInfo[0].version));
+					}
+					await this.extensionManagementService.installFromGallery(extensionInfo[0]);
+				} catch (err) {
+					this.logger.error(err.message || err.stack || err);
+					failed.push(extensionInfo[0].identifier.id);
+				}
+			}));
+			if (failed.length) {
+				throw new Error(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', ')));
+			}
+		}
+		else {
+			this.logger.info(localize('updateExtensionsNoExtensions', "No extension to update"));
+		}
 	}
 
 	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, installedExtensions: ILocalExtension[]): Promise<IExtensionManifest | null> {
