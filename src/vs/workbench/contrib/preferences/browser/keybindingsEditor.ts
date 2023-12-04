@@ -503,7 +503,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			],
 			{
 				identityProvider: { getId: (e: IKeybindingItemEntry) => e.id },
-				horizontalScrolling: false,
+				horizontalScrolling: true,
 				accessibilityProvider: new AccessibilityProvider(this.configurationService),
 				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => e.keybindingItem.commandLabel || e.keybindingItem.command },
 				overrideStyles: {
