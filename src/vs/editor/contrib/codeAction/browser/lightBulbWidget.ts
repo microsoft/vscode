@@ -175,7 +175,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		const onlyAIActions = actions.allAIFixes;
 		const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
+		if (onlyAIActions && showAiIcon) {
 			return this.hide();
 		}
 
