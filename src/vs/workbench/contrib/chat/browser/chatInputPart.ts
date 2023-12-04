@@ -35,7 +35,7 @@ import { IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/ch
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -87,6 +87,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
+	private chatCursorAtTop: IContextKey<boolean>;
 	private providerId: string | undefined;
 
 	private cachedDimensions: dom.Dimension | undefined;
@@ -108,6 +109,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		this.inputEditorHasText = CONTEXT_CHAT_INPUT_HAS_TEXT.bindTo(contextKeyService);
+		this.chatCursorAtTop = CONTEXT_CHAT_INPUT_CURSOR_AT_TOP.bindTo(contextKeyService);
+
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -273,7 +276,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return;
 			}
 
-			this.historyNavigationBackwardsEnablement.set(e.position.column === 1 && e.position.lineNumber === 1);
+			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
+			this.historyNavigationBackwardsEnablement.set(atTop);
+			this.chatCursorAtTop.set(atTop);
 			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
 		}));
 
