@@ -56,8 +56,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private readonly _onClick = this._register(new Emitter<{ readonly x: number; readonly y: number; readonly actions: CodeActionSet; readonly trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
 
-	private _actions: CodeActionSet | undefined;
-	private _atPosition: IPosition | undefined;
 	private _state: LightBulbState.State = LightBulbState.Hidden;
 	private _iconClasses: string[] = [];
 
@@ -132,27 +130,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this.hide();
 		}));
 
-		this._register(this._editor.onDidChangeConfiguration(e => {
-			// hide when told to do so
-			if (e.hasChanged(EditorOption.lightbulb)) {
-				const selection = this._editor.getSelection();
-				if (!selection) {
-					this.hide();
-					return;
-				}
-				const shouldShowCodeActions = CodeActionOracle.showCodeActions(this._editor, selection);
-				if (!shouldShowCodeActions) {
-					this.hide();
-					return;
-				}
-				if (this._actions && this._atPosition) {
-					this.update(this._actions, {
-						type: CodeActionTriggerType.Auto,
-						triggerAction: CodeActionTriggerSource.Default
-					}, this._atPosition);
-				}
-			}
-		}));
 
 		this._register(Event.runAndSubscribe(this._keybindingService.onDidUpdateKeybindings, () => {
 			this._preferredKbLabel = this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
@@ -180,8 +157,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	public update(actions: CodeActionSet, trigger: CodeActionTrigger, atPosition: IPosition) {
-		this._actions = actions;
-		this._atPosition = atPosition;
 		if (actions.validActions.length <= 0) {
 			return this.hide();
 		}

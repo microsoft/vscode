@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -178,7 +178,11 @@ export class CodeActionModel extends Disposable {
 		this._register(this._editor.onDidChangeModel(() => this._update()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
 		this._register(this._registry.onDidChange(() => this._update()));
-
+		this._register(this._editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.lightbulb)) {
+				this._update();
+			}
+		}));
 		this._update();
 	}
 
