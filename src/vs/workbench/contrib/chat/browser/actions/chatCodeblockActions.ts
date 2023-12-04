@@ -28,7 +28,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, IDocumentContext, ChatAgentCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -114,7 +114,7 @@ export function registerChatCodeBlockActions() {
 					action: {
 						kind: 'copy',
 						codeBlockIndex: context.codeBlockIndex,
-						copyType: InteractiveSessionCopyKind.Toolbar,
+						copyKind: ChatAgentCopyKind.Toolbar,
 						copiedCharacters: context.code.length,
 						totalCharacters: context.code.length,
 						copiedText: context.code,
@@ -157,7 +157,7 @@ export function registerChatCodeBlockActions() {
 			action: {
 				kind: 'copy',
 				codeBlockIndex: context.codeBlockIndex,
-				copyType: InteractiveSessionCopyKind.Action,
+				copyKind: ChatAgentCopyKind.Action,
 				copiedText,
 				copiedCharacters: copiedText.length,
 				totalCharacters,
@@ -466,7 +466,7 @@ export function registerChatCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.sendText(context.code, false, true);
+			terminal.runCommand(context.code, false);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({

@@ -5,8 +5,8 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose, DisposableMap } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, ISCMInputValueProvider, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
+import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -452,27 +452,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 }
 
-class MainThreadSCMInputBoxValueProvider implements ISCMInputValueProvider {
-
-	constructor(
-		private readonly proxy: ExtHostSCMShape,
-		private readonly handle: number,
-		readonly label: string,
-		readonly icon?: URI | ThemeIcon | { light: URI; dark: URI }) { }
-
-	provideValue(rootUri: URI, context: ISCMInputValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
-		return this.proxy.$provideInputBoxValue(this.handle, rootUri, context, token);
-	}
-
-}
-
 @extHostNamedCustomer(MainContext.MainThreadSCM)
 export class MainThreadSCM implements MainThreadSCMShape {
 
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories = new Map<number, ISCMRepository>();
 	private _repositoryDisposables = new Map<number, IDisposable>();
-	private _inputBoxValueProviders = new DisposableMap<number>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -493,7 +478,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		dispose(this._repositoryDisposables.values());
 		this._repositoryDisposables.clear();
 
-		this._inputBoxValueProviders.dispose();
 		this._disposables.dispose();
 	}
 
@@ -541,23 +525,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		repository.dispose();
 		this._repositories.delete(handle);
-	}
-
-	$registerSourceControlInputBoxValueProvider(handle: number, sourceControlId: string, label: string, icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): void {
-		const provider = new MainThreadSCMInputBoxValueProvider(this._proxy, handle, label, getIconFromIconDto(icon));
-		const disposable = this.scmService.registerSCMInputValueProvider(sourceControlId, provider);
-
-		this._inputBoxValueProviders.set(handle, disposable);
-	}
-
-	$unregisterSourceControlInputBoxValueProvider(handle: number): void {
-		const provider = this._inputBoxValueProviders.get(handle);
-		if (!provider) {
-			return;
-		}
-
-		provider.dispose();
-		this._inputBoxValueProviders.deleteAndDispose(handle);
 	}
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void {
