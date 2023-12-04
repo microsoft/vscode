@@ -71,6 +71,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -241,15 +242,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return false;
 		}
 
-		const message = candidate.message;
 		this.showPeekFromUri({
 			type: TestUriType.ResultMessage,
-			documentUri: message.location!.uri,
+			documentUri: candidate.location.uri,
 			taskIndex: candidate.taskId,
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: message.location!.range, ...options });
+		}, undefined, { selection: candidate.location.range, ...options });
 		return true;
 	}
 
@@ -470,9 +470,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		const fallbackLocation = test.item.uri && test.item.range
+			? { uri: test.item.uri, range: test.item.range }
+			: undefined;
+
+		let best: { taskId: number; index: number; message: ITestMessage; location: IRichLocation } | undefined;
 		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
-			if (!isFailedState(task.state) || !message.location) {
+			const location = message.location || fallbackLocation;
+			if (!isFailedState(task.state) || !location) {
 				return;
 			}
 
@@ -480,7 +485,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 				return;
 			}
 
-			best = { taskId, index: messageIndex, message };
+			best = { taskId, index: messageIndex, message, location };
 		});
 
 		return best;
@@ -1091,6 +1096,10 @@ export class TestResultsView extends ViewPane {
 		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
 	}
 
+	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
+		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
+	}
+
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.content.fillBody(container);
@@ -1671,20 +1680,34 @@ class TestResultElement implements ITreeElement {
 	constructor(public readonly value: ITestResult) { }
 }
 
-const coverageLabel = localize('openTestCoverage', 'View Test Coverage');
+const openCoverageLabel = localize('openTestCoverage', 'View Test Coverage');
+const closeCoverageLabel = localize('closeTestCoverage', 'Close Test Coverage');
 
 class CoverageElement implements ITreeElement {
 	public readonly type = 'coverage';
 	public readonly context: undefined;
 	public readonly id = `coverage-${this.results.id}/${this.task.id}`;
-	public readonly label = coverageLabel;
-	public readonly onDidChange = Event.None;
-	public readonly icon = icons.testingCoverage;
+	public readonly onDidChange: Event<void>;
+
+	public get label() {
+		return this.isOpen ? closeCoverageLabel : openCoverageLabel;
+	}
+
+	public get icon() {
+		return this.isOpen ? widgetClose : icons.testingCoverage;
+	}
+
+	public get isOpen() {
+		return this.coverageService.selected.get()?.fromTaskId === this.task.id;
+	}
 
 	constructor(
 		private readonly results: ITestResult,
 		public readonly task: ITestRunTaskResults,
-	) { }
+		private readonly coverageService: ITestCoverageService,
+	) {
+		this.onDidChange = Event.fromObservableLight(coverageService.selected);
+	}
 
 }
 
@@ -1886,7 +1909,7 @@ class OutputPeekTree extends Disposable {
 			if (task.coverage.get()) {
 				result = Iterable.concat(
 					Iterable.single<ICompressedTreeElement<TreeElement>>({
-						element: new CoverageElement(results, task),
+						element: new CoverageElement(results, task, coverageService),
 					}),
 					result,
 				);
@@ -2076,6 +2099,9 @@ class OutputPeekTree extends Disposable {
 				this.requestReveal.fire(new MessageSubject(e.element.result, e.element.test, e.element.taskIndex, e.element.messageIndex));
 			} else if (e.element instanceof CoverageElement) {
 				const task = e.element.task;
+				if (e.element.isOpen) {
+					return coverageService.closeCoverage();
+				}
 				progressService.withProgress(
 					{ location: options.locationForProgress },
 					() => coverageService.openCoverage(task, true)

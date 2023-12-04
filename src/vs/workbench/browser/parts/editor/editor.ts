@@ -176,11 +176,12 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 export interface IEditorPartsView {
 
 	readonly mainPart: IEditorGroupsView;
-	registerEditorPart(part: IEditorPart): IDisposable;
+	registerPart(part: IEditorPart): IDisposable;
 
 	readonly activeGroup: IEditorGroupView;
 	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
+	getGroups(order?: GroupsOrder): IEditorGroupView[];
 
 	readonly count: number;
 

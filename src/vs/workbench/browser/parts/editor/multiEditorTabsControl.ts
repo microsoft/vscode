@@ -318,9 +318,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
+		let isNewWindowOperation = false;
 		this._register(new DragAndDropObserver(tabsContainer, {
 			onDragStart: e => {
-				this.onGroupDragStart(e, tabsContainer);
+				isNewWindowOperation = this.onGroupDragStart(e, tabsContainer);
 			},
 
 			onDrag: e => {
@@ -385,7 +386,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
 
-				this.onGroupDragEnd(e, lastDragEvent, tabsContainer);
+				this.onGroupDragEnd(e, lastDragEvent, tabsContainer, isNewWindowOperation);
 			},
 
 			onDrop: e => {
@@ -456,7 +457,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Find target anchor
 			let anchor: HTMLElement | StandardMouseEvent = tabsContainer;
 			if (isMouseEvent(e)) {
-				anchor = new StandardMouseEvent(getWindow(tabsContainer), e);
+				anchor = new StandardMouseEvent(getWindow(this.parent), e);
 			}
 
 			// Show it
@@ -1023,12 +1024,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
+		let isNewWindowOperation = false;
 		disposables.add(new DragAndDropObserver(tab, {
 			onDragStart: e => {
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (!editor) {
 					return;
 				}
+
+				isNewWindowOperation = this.isNewWindowOperation(e);
 
 				this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.groupView.id })], DraggedEditorIdentifier.prototype);
 
@@ -1037,11 +1041,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
-				this.doFillResourceDataTransfers([editor], e);
+				this.doFillResourceDataTransfers([editor], e, isNewWindowOperation);
 
 				// Fixes https://github.com/microsoft/vscode/issues/18733
 				tab.classList.add('dragged');
-				scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
+				scheduleAtNextAnimationFrame(getWindow(this.parent), () => tab.classList.remove('dragged'));
 			},
 
 			onDrag: e => {
@@ -1113,7 +1117,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (
-					!this.isNewWindowOperation(lastDragEvent ?? e) ||
+					!isNewWindowOperation ||
 					isWindowDraggedOver() ||
 					!editor
 				) {
@@ -1424,6 +1428,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		let name: string | undefined;
 		let forceLabel = false;
 		let fileDecorationBadges = Boolean(options.decorations?.badges);
+		const fileDecorationColors = Boolean(options.decorations?.colors);
 		let description: string;
 		if (options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
@@ -1455,7 +1460,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				italic: !this.tabsModel.isPinned(editor),
 				forceLabel,
 				fileDecorations: {
-					colors: Boolean(options.decorations?.colors),
+					colors: fileDecorationColors,
 					badges: fileDecorationBadges
 				}
 			}
@@ -1642,7 +1647,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// this a little bit we try at least to schedule this work on the next animation frame
 				// when we have restored or when idle otherwise.
 
-				const disposable = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), () => {
+				const disposable = scheduleAtNextAnimationFrame(getWindow(this.parent), () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
@@ -2111,7 +2116,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-			dropHandler.handleDrop(e, getWindow(this.titleContainer), () => this.groupView, () => this.groupView.focus(), options);
+			dropHandler.handleDrop(e, getWindow(this.parent), () => this.groupView, () => this.groupView.focus(), options);
 		}
 	}
 

@@ -48,9 +48,11 @@ export class ChatVariablesService implements IChatVariablesService {
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					// Maybe the dynamic reference should include a full IChatRequestVariableValue[] at the time it is inserted?
-					resolvedVariables[part.referenceText] = part.data;
-					parsedPrompt[i] = part.promptText;
+					const referenceName = this.getUniqueReferenceName(part.referenceText, resolvedVariables);
+					resolvedVariables[referenceName] = part.data;
+					const safeText = part.text.replace(/[\[\]]/g, '_');
+					const safeTarget = referenceName.replace(/[\(\)]/g, '_');
+					parsedPrompt[i] = `[${safeText}](values:${safeTarget})`;
 				} else {
 					parsedPrompt[i] = part.promptText;
 				}
@@ -62,6 +64,14 @@ export class ChatVariablesService implements IChatVariablesService {
 			variables: resolvedVariables,
 			prompt: parsedPrompt.join('').trim()
 		};
+	}
+
+	private getUniqueReferenceName(name: string, vars: Record<string, any>): string {
+		let i = 1;
+		while (vars[name]) {
+			name = `${name}_${i++}`;
+		}
+		return name;
 	}
 
 	hasVariable(name: string): boolean {

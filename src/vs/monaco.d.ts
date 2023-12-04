@@ -2569,8 +2569,11 @@ declare namespace monaco.editor {
 		 * be called when the container of the editor gets resized.
 		 *
 		 * If a dimension is passed in, the passed in value will be used.
+		 *
+		 * By default, this will also render the editor immediately.
+		 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 		 */
-		layout(dimension?: IDimension): void;
+		layout(dimension?: IDimension, postponeRendering?: boolean): void;
 		/**
 		 * Brings browser focus to the editor text
 		 */
@@ -2778,6 +2781,10 @@ declare namespace monaco.editor {
 		 * Replace all previous decorations with `newDecorations`.
 		 */
 		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
+		/**
+		 * Append `newDecorations` to this collection.
+		 */
+		append(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
 		 * Remove all previous decorations.
 		 */
@@ -4124,6 +4131,12 @@ declare namespace monaco.editor {
 		readonly minimapCanvasOuterHeight: number;
 	}
 
+	export enum ShowAiIconMode {
+		Off = 'off',
+		OnCode = 'onCode',
+		On = 'on'
+	}
+
 	/**
 	 * Configuration options for editor lightbulb
 	 */
@@ -4133,6 +4146,12 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+		experimental?: {
+			/**
+			 * Highlight AI code actions with AI icon
+			 */
+			showAiIcon?: ShowAiIconMode;
+		};
 	}
 
 	export interface IEditorStickyScrollOptions {

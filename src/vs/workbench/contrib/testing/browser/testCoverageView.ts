@@ -11,7 +11,6 @@ import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
 import { autorun } from 'vs/base/common/observable';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { basenameOrAuthority } from 'vs/base/common/resources';
@@ -33,9 +32,9 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ManagedTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
-import { AbstractFileCoverage, ComputedFileCoverage, FileCoverage, TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { ComputedFileCoverage, FileCoverage, TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
-import { DetailType, ICoveredCount, IFileCoverage, IFunctionCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { DetailType, IFunctionCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class TestCoverageView extends ViewPane {
@@ -82,53 +81,8 @@ export class TestCoverageView extends ViewPane {
 class TestCoverageInput {
 	public readonly tree: WellDefinedPrefixTree<ComputedFileCoverage>;
 
-	constructor(files: ResourceMap<FileCoverage>) {
-		const tree = this.tree = new WellDefinedPrefixTree();
-
-		// 1. Initial iteration
-		for (const file of files.values()) {
-			tree.insert(this.treePathForUri(file.uri), file);
-		}
-
-		// 2. Depth-first iteration to create computed nodes
-		const calculateComputed = (path: string[], node: TestCoverageFileNode): AbstractFileCoverage => {
-			if (node.value) {
-				return node.value;
-			}
-
-			const fileCoverage: IFileCoverage = {
-				uri: this.treePathToUri(path),
-				statement: ICoveredCount.empty(),
-			};
-
-			if (node.children) {
-				for (const [prefix, child] of node.children) {
-					path.push(prefix);
-					const v = calculateComputed(path, child);
-					path.pop();
-
-					ICoveredCount.sum(fileCoverage.statement, v.statement);
-					if (v.branch) { ICoveredCount.sum(fileCoverage.branch ??= ICoveredCount.empty(), v.branch); }
-					if (v.function) { ICoveredCount.sum(fileCoverage.function ??= ICoveredCount.empty(), v.function); }
-				}
-			}
-
-			return node.value = new ComputedFileCoverage(fileCoverage);
-		};
-
-		for (const node of tree.nodes) {
-			calculateComputed([], node);
-		}
-	}
-
-	private *treePathForUri(uri: URI) {
-		yield uri.scheme;
-		yield uri.authority;
-		yield* uri.path.split('/');
-	}
-
-	private treePathToUri(path: string[]) {
-		return URI.from({ scheme: path[0], authority: path[1], path: path.slice(2).join('/') });
+	constructor(coverage: TestCoverage) {
+		this.tree = coverage.tree;
 	}
 }
 
@@ -197,7 +151,7 @@ class TestCoverageTree extends Disposable {
 	}
 
 	public setInput(coverage: TestCoverage) {
-		this.tree.setInput(new TestCoverageInput(coverage.getAllFiles()));
+		this.tree.setInput(new TestCoverageInput(coverage));
 	}
 
 	public layout(height: number, width: number) {
@@ -234,7 +188,7 @@ class TestCoverageDataSource implements IAsyncDataSource<TestCoverageInput, Cove
 
 class TestCoverageCompressionDelegate implements ITreeCompressionDelegate<CoverageTreeElement> {
 	isIncompressible(element: CoverageTreeElement): boolean {
-		return isFunctionCoverage(element);
+		return isFunctionCoverage(element) || !element.children?.size;
 	}
 }
 
@@ -287,9 +241,7 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 
 	/** @inheritdoc */
 	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<CoverageTreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
-		const chain = node.element.elements;
-		const lastElement = chain[chain.length - 1];
-		this.doRender(lastElement as TestCoverageFileNode, templateData, node.filterData);
+		this.doRender(node.element.elements, templateData, node.filterData);
 	}
 
 	public disposeTemplate(templateData: TemplateData) {
@@ -297,15 +249,16 @@ class FileCoverageRenderer implements ICompressibleTreeRenderer<CoverageTreeElem
 	}
 
 	/** @inheritdoc */
-	private doRender(element: TestCoverageFileNode, templateData: TemplateData, filterData: FuzzyScore | undefined) {
-		const file = element.value!;
+	private doRender(element: CoverageTreeElement | CoverageTreeElement[], templateData: TemplateData, filterData: FuzzyScore | undefined) {
+		const stat = (element instanceof Array ? element[element.length - 1] : element) as TestCoverageFileNode;
+		const file = stat.value!;
+		const name = element instanceof Array ? element.map(e => basenameOrAuthority((e as TestCoverageFileNode).value!.uri)) : basenameOrAuthority(file.uri);
 
 		templateData.bars.setCoverageInfo(file);
-		templateData.label.setFile(file.uri, {
-			fileKind: element.children?.size ? FileKind.FOLDER : FileKind.FILE,
+		templateData.label.setResource({ resource: file.uri, name }, {
+			fileKind: stat.children?.size ? FileKind.FOLDER : FileKind.FILE,
 			matches: createMatches(filterData),
 			separator: this.labelService.getSeparator(file.uri.scheme, file.uri.authority),
-			hidePath: true,
 			extraClasses: ['test-coverage-list-item-label'],
 		});
 	}

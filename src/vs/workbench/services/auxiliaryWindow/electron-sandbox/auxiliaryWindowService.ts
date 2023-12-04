@@ -12,12 +12,12 @@ import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getActiveWindow } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -59,9 +59,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super(layoutService, dialogService, configurationService);
+		super(layoutService, dialogService, configurationService, telemetryService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
@@ -93,7 +94,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() !== auxiliaryWindow) {
+			if (!auxiliaryWindow.document.hasFocus()) {
 				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
 			}
 		};

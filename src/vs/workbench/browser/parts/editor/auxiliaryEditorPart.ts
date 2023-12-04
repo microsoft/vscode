@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -15,11 +16,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -37,11 +38,12 @@ export class AuxiliaryEditorPart {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@ITitleService private readonly titleService: ITitleService
+		@ITitleService private readonly titleService: ITitleService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 	}
 
-	async create(label: string, options?: IAuxiliaryWindowOpenOptions): Promise<{ part: AuxiliaryEditorPartImpl; disposables: DisposableStore }> {
+	async create(label: string, options?: IAuxiliaryWindowOpenOptions): Promise<{ readonly part: AuxiliaryEditorPartImpl; readonly instantiationService: IInstantiationService; readonly disposables: DisposableStore }> {
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -59,9 +61,9 @@ export class AuxiliaryEditorPart {
 
 		function updateStatusbarVisibility(fromEvent: boolean): void {
 			if (statusBarVisible) {
-				statusbarPart.container.style.display = 'block';
+				show(statusbarPart.container);
 			} else {
-				statusbarPart.container.style.display = 'none';
+				hide(statusbarPart.container);
 			}
 
 			updateEditorPartHeight(fromEvent);
@@ -88,7 +90,7 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label));
-		disposables.add(this.editorPartsView.registerEditorPart(editorPart));
+		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer, { restorePreviousState: false });
 
 		// Titlebar
@@ -111,11 +113,6 @@ export class AuxiliaryEditorPart {
 				updateStatusbarVisibility(true);
 			}
 		}));
-
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IStatusbarService, statusbarPart] // Editor status scoped to auxiliary window
-		));
-		disposables.add(scopedInstantiationService.createInstance(EditorStatus, editorPart));
 
 		updateStatusbarVisibility(false);
 
@@ -146,7 +143,17 @@ export class AuxiliaryEditorPart {
 		}));
 		auxiliaryWindow.layout();
 
-		return { part: editorPart, disposables };
+		// Have a InstantiationService that is scoped to the auxiliary window
+		const instantiationService = this.instantiationService.createChild(new ServiceCollection(
+			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
+			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
+		));
+
+		return {
+			part: editorPart,
+			instantiationService,
+			disposables
+		};
 	}
 }
 
@@ -173,18 +180,35 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
-	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean | undefined): void {
+	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
 
 		// Close aux window when last group removed
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1 && this.activeGroup === groupView) {
-			this.doClose(false /* do not merge any groups to main part */);
+			this.doRemoveLastGroup(preserveFocus);
 		}
 
 		// Otherwise delegate to parent implementation
 		else {
 			super.removeGroup(group, preserveFocus);
 		}
+	}
+
+	private doRemoveLastGroup(preserveFocus?: boolean): void {
+		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
+
+		// Activate next group
+		const mostRecentlyActiveGroups = this.editorPartsView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
+		if (nextActiveGroup) {
+			nextActiveGroup.groupsView.activateGroup(nextActiveGroup);
+
+			if (restoreFocus) {
+				nextActiveGroup.focus();
+			}
+		}
+
+		this.doClose(false /* do not merge any groups to main part */);
 	}
 
 	protected override saveState(): void {
@@ -196,7 +220,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	private doClose(mergeGroupsToMainPart: boolean): void {
-		if (mergeGroupsToMainPart) {
+		if (mergeGroupsToMainPart && this.groups.some(group => group.count > 0)) {
 			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
 		}
 

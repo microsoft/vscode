@@ -52,6 +52,5 @@ export interface IChatVariableResolveResult {
 
 export interface IDynamicVariable {
 	range: IRange;
-	// data: any; // File details for a file, something else for a different type of thing, is it typed?
 	data: IChatRequestVariableValue[];
 }

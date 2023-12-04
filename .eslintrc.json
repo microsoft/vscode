@@ -259,7 +259,7 @@
 		},
 		{
 			"files": [
-				"src/**/{browser,electron-sandbox}/*.ts"
+				"src/**/{browser,electron-sandbox}/**/*.ts"
 			],
 			"rules": {
 				"local/code-no-global-document-listener": "warn",

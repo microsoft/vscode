@@ -22,6 +22,7 @@
 
 .monaco-component .multiDiffEntry .collapse-button {
 	margin: 0 5px;
+	cursor: pointer;
 }
 
 .monaco-component .multiDiffEntry .collapse-button a {
