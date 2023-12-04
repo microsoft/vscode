@@ -1019,8 +1019,11 @@ export class DebugSession implements IDebugSession, IDisposable {
 										await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
 									}
 
-									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI && !getActiveWindow()) {
-										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
+										const activeWindow = getActiveWindow();
+										if (!activeWindow.document.hasFocus()) {
+											await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+										}
 									}
 								}
 							}

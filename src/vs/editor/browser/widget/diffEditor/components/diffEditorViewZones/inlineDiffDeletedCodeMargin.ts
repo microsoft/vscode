@@ -130,6 +130,8 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		};
 
 		this._register(addStandardDisposableListener(this._diffActions, 'mousedown', e => {
+			if (!e.leftButton) { return; }
+
 			const { top, height } = getDomNodePagePosition(this._diffActions);
 			const pad = Math.floor(lineHeight / 3);
 			e.preventDefault();
@@ -146,7 +148,7 @@ export class InlineDiffDeletedCodeMargin extends Disposable {
 		}));
 
 		this._register(_modifiedEditor.onMouseDown((e: IEditorMouseEvent) => {
-			if (!e.event.rightButton) { return; }
+			if (!e.event.leftButton) { return; }
 
 			if (e.target.type === MouseTargetType.CONTENT_VIEW_ZONE || e.target.type === MouseTargetType.GUTTER_VIEW_ZONE) {
 				const viewZoneId = e.target.detail.viewZoneId;

@@ -418,7 +418,7 @@ export class UnchangedRegion {
 	private readonly _shouldHideControls = derived(this, reader => /** @description isVisible */
 		this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
 
-	public readonly isDragged = observableValue<boolean>(this, false);
+	public readonly isDragged = observableValue<undefined | 'bottom' | 'top'>(this, undefined);
 
 	constructor(
 		public readonly originalLineNumber: number,

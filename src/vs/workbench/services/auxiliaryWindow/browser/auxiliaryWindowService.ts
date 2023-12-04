@@ -83,7 +83,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}));
 
 		this._register(addDisposableListener(this.window, EventType.RESIZE, () => {
-			const dimension = getClientArea(this.window.document.body);
+			const dimension = getClientArea(this.window.document.body, this.container);
 			position(this.container, 0, 0, 0, 0, 'relative');
 			size(this.container, dimension.width, dimension.height);
 
@@ -116,7 +116,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	layout(): void {
-		this._onDidLayout.fire(getClientArea(this.window.document.body));
+		this._onDidLayout.fire(getClientArea(this.window.document.body, this.container));
 	}
 
 	override dispose(): void {
@@ -207,18 +207,34 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
 		const activeWindow = getActiveWindow();
-
-		const width = options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width;
-		const height = options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height;
-
-		const bounds: IRectangle = {
-			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
-			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
-			width: Math.max(width, WindowMinimumSize.WIDTH),
-			height: Math.max(height, WindowMinimumSize.HEIGHT)
+		const activeWindowBounds = {
+			x: activeWindow.screenX,
+			y: activeWindow.screenY,
+			width: activeWindow.outerWidth,
+			height: activeWindow.outerHeight
 		};
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
+		const width = Math.max(options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width, WindowMinimumSize.WIDTH);
+		const height = Math.max(options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height, WindowMinimumSize.HEIGHT);
+
+		let newWindowBounds: IRectangle = {
+			x: options?.bounds?.x ?? (activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2),
+			y: options?.bounds?.y ?? (activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2),
+			width,
+			height
+		};
+
+		if (newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
+			// Offset the new window a bit so that it does not overlap
+			// with the active window
+			newWindowBounds = {
+				...newWindowBounds,
+				x: newWindowBounds.x + 30,
+				y: newWindowBounds.y + 30
+			};
+		}
+
+		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${newWindowBounds.x},top=${newWindowBounds.y},width=${newWindowBounds.width},height=${newWindowBounds.height}`);
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -227,7 +243,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
-						run: () => this.openWindow({ bounds })
+						run: () => this.openWindow(options)
 					}
 				],
 				cancelButton: true

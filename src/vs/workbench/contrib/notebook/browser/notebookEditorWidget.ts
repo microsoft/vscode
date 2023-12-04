@@ -2371,7 +2371,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			const focusElementId = options?.outputId ?? cell.id;
-			this._webview.focusOutput(focusElementId, options?.altOutputId, this._webviewFocused);
+			this._webview.focusOutput(focusElementId, options?.altOutputId, options?.outputWebviewFocused || this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;

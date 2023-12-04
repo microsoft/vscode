@@ -371,6 +371,11 @@ suite('Strings', () => {
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
 	});
 
+	test('truncateMiddle', () => {
+		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
+		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
+	});
+
 	test('replaceAsync', async () => {
 		let i = 0;
 		assert.strictEqual(await strings.replaceAsync('abcabcabcabc', /b(.)/g, async (match, after) => {
