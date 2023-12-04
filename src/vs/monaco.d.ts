@@ -4146,12 +4146,6 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: ShowLightbulbIconMode;
-		experimental?: {
-			/**
-			 * Highlight AI code actions with AI icon
-			 */
-			showAiIcon?: boolean;
-		};
 	}
 
 	export interface IEditorStickyScrollOptions {

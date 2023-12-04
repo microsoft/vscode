@@ -87,8 +87,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 
 			if (
-				this._showAiIconSetting()
-				&& this.state.actions.allAIFixes
+				this.state.actions.allAIFixes
 				&& this.state.actions.validActions.length === 1
 			) {
 				const action = this.state.actions.validActions[0].action;
@@ -173,12 +172,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		const onlyAIActions = actions.allAIFixes;
-		const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		if (onlyAIActions && showAiIcon) {
-			return this.hide();
-		}
-
 		const model = this._editor.getModel();
 		if (!model) {
 			return this.hide();
@@ -235,10 +228,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._editor.getOption(EditorOption.lightbulb).enabled;
 	}
 
-	private _showAiIconSetting(): boolean {
-		return !!this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-	}
-
 	private _updateLightBulbTitleAndIcon(): void {
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
@@ -258,43 +247,32 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
-		const showAiIcon = this._showAiIconSetting();
-		if (showAiIcon) {
-			const showOnEmptyLines = this._enablementSetting() === ShowLightbulbIconMode.On;
-			if (showOnEmptyLines && this.state.actions.allAIFixes) {
-				icon = Codicon.sparkleFilled;
-				if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
-					if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
-						const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
-						this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
-					} else {
-						this.title = nls.localize('codeActionTriggerAiAction', "Trigger AI Action");
-					}
+		const showOnEmptyLines = this._enablementSetting() === ShowLightbulbIconMode.On;
+		if (showOnEmptyLines && this.state.actions.allAIFixes) {
+			icon = Codicon.sparkleFilled;
+			if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+				if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
+					const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
+					this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
 				} else {
-					updateLightbulbTitle();
+					this.title = nls.localize('codeActionTriggerAiAction', "Trigger AI Action");
 				}
-			} else if (this.state.actions.hasAutoFix) {
-				if (this.state.actions.hasAIFix) {
-					icon = Codicon.lightbulbSparkleAutofix;
-				} else {
-					icon = Codicon.lightbulbAutofix;
-				}
-				updateAutoFixLightbulbTitle();
-			} else if (this.state.actions.hasAIFix) {
-				icon = Codicon.lightbulbSparkle;
-				updateLightbulbTitle();
 			} else {
-				icon = Codicon.lightBulb;
 				updateLightbulbTitle();
 			}
-		} else {
-			if (this.state.actions.hasAutoFix) {
+		} else if (this.state.actions.hasAutoFix) {
+			if (this.state.actions.hasAIFix) {
+				icon = Codicon.lightbulbSparkleAutofix;
+			} else {
 				icon = Codicon.lightbulbAutofix;
-				updateAutoFixLightbulbTitle();
-			} else {
-				icon = Codicon.lightBulb;
-				updateLightbulbTitle();
 			}
+			updateAutoFixLightbulbTitle();
+		} else if (this.state.actions.hasAIFix) {
+			icon = Codicon.lightbulbSparkle;
+			updateLightbulbTitle();
+		} else {
+			icon = Codicon.lightBulb;
+			updateLightbulbTitle();
 		}
 		this._iconClasses = ThemeIcon.asClassNameArray(icon);
 		this._domNode.classList.add(...this._iconClasses);

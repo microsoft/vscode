@@ -2735,13 +2735,6 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: ShowLightbulbIconMode;
-
-	experimental?: {
-		/**
-		 * Highlight AI code actions with AI icon
-		 */
-		showAiIcon?: boolean;
-	};
 }
 
 /**
@@ -2752,7 +2745,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode, experimental: { showAiIcon: false } };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2762,16 +2755,11 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					default: defaults.enabled,
 					enumDescriptions: [
 						nls.localize('editor.lightbulb.enabled.off', 'Disable the code action menu.'),
-						nls.localize('editor.lightbulb.enabled.onCode', 'Enable the code action menu. Does not show the menu on empty lines.'),
-						nls.localize('editor.lightbulb.enabled.on', 'Enable the code action menu. Shows the menu on empty lines.'),
+						nls.localize('editor.lightbulb.enabled.onCode', 'Enable the code action menu when the cursor is on lines with code.'),
+						nls.localize('editor.lightbulb.enabled.on', 'Enable the code action menu when the cursor is on lines with code or on empty lines.'),
 					],
 					description: nls.localize('enabled', "Enables the Code Action lightbulb in the editor.")
-				},
-				'editor.lightbulb.experimental.showAiIcon': {
-					type: 'boolean',
-					default: defaults.experimental.showAiIcon,
-					description: nls.localize('showAiIcons', "Show an AI icon along with the lightbulb when the code action menu contains an AI action.")
-				},
+				}
 			}
 		);
 	}
@@ -2787,10 +2775,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 				(input.enabled ? ShowLightbulbIconMode.OnCode : ShowLightbulbIconMode.Off) : this.defaultValue.enabled);
 
 		return {
-			enabled: enabled,
-			experimental: {
-				showAiIcon: boolean(input.experimental?.showAiIcon, !!this.defaultValue.experimental?.showAiIcon),
-			}
+			enabled: enabled
 		};
 	}
 }
