@@ -69,16 +69,15 @@ class CodeActionOracle extends Disposable {
 
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
+		const showOnEmptyLines = (): boolean => {
+			return this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
+		};
 		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
-			if (
-				line.length === 0
-				|| (/^\s*$/g.test(line) && column - 1 === line.length)
-			) {
+			if (line.length === 0) {
 				// empty line
-				const showOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
-				if (!showOnEmptyLines) {
+				if (!showOnEmptyLines()) {
 					return undefined;
 				}
 			} else if (column === 1) {
@@ -88,7 +87,11 @@ class CodeActionOracle extends Disposable {
 				}
 			} else if (column === model.getLineMaxColumn(lineNumber)) {
 				// look only left
-				if (/\s/.test(line[line.length - 1])) {
+				if (/^\s*$/g.test(line)) {
+					if (!showOnEmptyLines()) {
+						return undefined;
+					}
+				} else if (/\s/.test(line[line.length - 1])) {
 					return undefined;
 				}
 			} else {
