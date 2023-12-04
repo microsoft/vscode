@@ -1145,6 +1145,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+
 		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
 		editorGroupsService.toggleMaximizeGroup(group);
 	}
@@ -2503,24 +2504,21 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const activeEditorPane = editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
+		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		if (group && editor) {
+			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+			if (this.move) {
+				group.moveEditor(editor, auxiliaryEditorPart.activeGroup);
+			} else {
+				group.copyEditor(editor, auxiliaryEditorPart.activeGroup);
+			}
+
+			auxiliaryEditorPart.activeGroup.focus();
 		}
-
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-
-		if (this.move) {
-			activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
-		} else {
-			activeEditorPane.group.copyEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
-		}
-
-		auxiliaryEditorPart.activeGroup.focus();
 	}
 }
 
