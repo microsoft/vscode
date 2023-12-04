@@ -5,11 +5,6 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgentUserActionEvent {
-		readonly result: ChatAgentResult2;
-		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction | InteractiveSessionBugReportAction;
-	}
-
 	export interface ChatAgent2 {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
 		supportIssueReporting?: boolean;
@@ -76,5 +71,62 @@ declare module 'vscode' {
 		 * Create a chat agent with the extended progress type
 		 */
 		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+	}
+
+	/*
+	 * User action events
+	 */
+
+	export enum ChatAgentCopyKind {
+		// Keyboard shortcut or context menu
+		Action = 1,
+		Toolbar = 2
+	}
+
+	export interface ChatAgentCopyAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'copy';
+		codeBlockIndex: number;
+		copyKind: ChatAgentCopyKind;
+		copiedCharacters: number;
+		totalCharacters: number;
+		copiedText: string;
+	}
+
+	export interface ChatAgentInsertAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'insert';
+		codeBlockIndex: number;
+		totalCharacters: number;
+		newFile?: boolean;
+	}
+
+	export interface ChatAgentTerminalAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'runInTerminal';
+		codeBlockIndex: number;
+		languageId?: string;
+	}
+
+	export interface ChatAgentCommandAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'command';
+		command: ChatAgentCommandFollowup;
+	}
+
+	export interface ChatAgentSessionFollowupAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'followUp';
+		followup: ChatAgentReplyFollowup;
+	}
+
+	export interface ChatAgentBugReportAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'bug';
+	}
+
+	export interface ChatAgentUserActionEvent {
+		readonly result: ChatAgentResult2;
+		readonly action: ChatAgentCopyAction | ChatAgentInsertAction | ChatAgentTerminalAction | ChatAgentCommandAction | ChatAgentSessionFollowupAction | ChatAgentBugReportAction;
 	}
 }
