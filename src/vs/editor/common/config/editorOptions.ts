@@ -2785,6 +2785,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 			input.enabled :
 			(typeof input.enabled === 'boolean' ?
 				(input.enabled ? ShowLightbulbIconMode.OnCode : ShowLightbulbIconMode.Off) : this.defaultValue.enabled);
+
 		return {
 			enabled: enabled,
 			experimental: {
