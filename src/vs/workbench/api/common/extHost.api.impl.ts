@@ -1334,10 +1334,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChat.sendInteractiveRequestToProvider(providerId, message);
 			},
-			get onDidPerformUserAction() {
-				checkProposedApiEnabled(extension, 'interactiveUserActions');
-				return extHostChat.onDidPerformUserAction;
-			},
 			transferChatSession(session: vscode.InteractiveSession, toWorkspace: vscode.Uri) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChat.transferChatSession(session, toWorkspace);
@@ -1609,7 +1605,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LogLevel: LogLevel,
 			EditSessionIdentityMatch: EditSessionIdentityMatch,
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
-			InteractiveSessionCopyKind: extHostTypes.InteractiveSessionCopyKind,
+			ChatAgentCopyKind: extHostTypes.ChatAgentCopyKind,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,

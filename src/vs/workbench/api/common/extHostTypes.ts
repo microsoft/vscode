@@ -4111,7 +4111,7 @@ export enum InteractiveSessionVoteDirection {
 	Up = 1
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	Action = 1,
 	Toolbar = 2
 }
