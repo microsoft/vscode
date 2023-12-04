@@ -10,7 +10,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowAiIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -72,23 +72,26 @@ class CodeActionOracle extends Disposable {
 		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
-			if (!/^\s*$/g.test(line)) {
-				// Suppose the line is not made of only whitespace characters
-				if (column === 1) {
-					// look only right
-					if (/\s/.test(line[0])) {
-						return undefined;
-					}
-				} else if (column === model.getLineMaxColumn(lineNumber)) {
-					// look only left
-					if (/\s/.test(line[line.length - 1])) {
-						return undefined;
-					}
-				} else {
-					// look left and right
-					if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
-						return undefined;
-					}
+			if (line.length === 0) {
+				// empty line
+				const showAiIconOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).experimental?.showAiIcon === ShowAiIconMode.On;
+				if (!showAiIconOnEmptyLines) {
+					return undefined;
+				}
+			} else if (column === 1) {
+				// look only right
+				if (/\s/.test(line[0])) {
+					return undefined;
+				}
+			} else if (column === model.getLineMaxColumn(lineNumber)) {
+				// look only left
+				if (/\s/.test(line[line.length - 1])) {
+					return undefined;
+				}
+			} else {
+				// look left and right
+				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
+					return undefined;
 				}
 			}
 		}

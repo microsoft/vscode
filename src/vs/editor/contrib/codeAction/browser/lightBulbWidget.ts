@@ -230,21 +230,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateLightBulbTitleAndIcon(): void {
+		console.log('_updateLightBulbTitleAndIcon');
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
-		if (this.state.type !== LightBulbState.Type.Showing || !this._editor.hasModel()) {
+		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
-		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		const { lineNumber } = this._editor.getSelection().getPosition();
-		const line = this._editor.getModel().getLineContent(lineNumber);
-		if (/^\s*$/g.test(line)) {
-			const doNotShowIconOnEmptyLines = (option === ShowAiIconMode.Off || option === ShowAiIconMode.OnCode);
-			if (doNotShowIconOnEmptyLines) {
-				return;
-			}
-		}
-
 		const updateAutoFixLightbulbTitle = () => {
 			if (this._preferredKbLabel) {
 				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
@@ -258,6 +249,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
+		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
 			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
