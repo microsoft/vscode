@@ -17,7 +17,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$repos assignee:@me is:open type:issue -label:bug -label:\"info-needed\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream -label:polish -label:testplan-item -label:error-telemetry -label:engineering\n"
+    "value": "$repos assignee:@me is:open type:issue -label:bug -label:\"info-needed\" -label:feature-request -label:under-discussion -label:debt -label:plan-item -label:upstream -label:polish -label:testplan-item -label:error-telemetry -label:engineering -label:endgame-plan\n"
   },
   {
     "kind": 1,
