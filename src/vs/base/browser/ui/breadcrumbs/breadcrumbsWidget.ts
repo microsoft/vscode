@@ -17,6 +17,7 @@ export abstract class BreadcrumbsItem {
 	dispose(): void { }
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
+	abstract supportDrag(): boolean;
 }
 
 export interface IBreadcrumbsWidgetStyles {
@@ -28,7 +29,7 @@ export interface IBreadcrumbsWidgetStyles {
 }
 
 export interface IBreadcrumbsItemEvent {
-	type: 'select' | 'focus';
+	type: 'select' | 'focus' | 'dragStart';
 	item: BreadcrumbsItem;
 	node: HTMLElement;
 	payload: any;
@@ -42,10 +43,12 @@ export class BreadcrumbsWidget {
 
 	private readonly _onDidSelectItem = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidFocusItem = new Emitter<IBreadcrumbsItemEvent>();
+	private readonly _onWillStartDrag = new Emitter<IBreadcrumbsItemEvent>();
 	private readonly _onDidChangeFocus = new Emitter<boolean>();
 
 	readonly onDidSelectItem: Event<IBreadcrumbsItemEvent> = this._onDidSelectItem.event;
 	readonly onDidFocusItem: Event<IBreadcrumbsItemEvent> = this._onDidFocusItem.event;
+	readonly onWillStartDrag: Event<IBreadcrumbsItemEvent> = this._onWillStartDrag.event;
 	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
 
 	private readonly _items = new Array<BreadcrumbsItem>();
@@ -103,6 +106,7 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
+		this._onWillStartDrag.dispose();
 		this._domNode.remove();
 		this._nodes.length = 0;
 		this._freeNodes.length = 0;
@@ -333,6 +337,10 @@ export class BreadcrumbsWidget {
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
 		container.classList.add('monaco-breadcrumb-item');
+		if (item.supportDrag()) {
+			container.draggable = true;
+			this._disposables.add(dom.addStandardDisposableListener(container, 'dragstart', e => this._onCrumbDrag(e)));
+		}
 		const iconContainer = dom.$(ThemeIcon.asCSSSelector(this._separatorIcon));
 		container.appendChild(iconContainer);
 	}
@@ -349,5 +357,19 @@ export class BreadcrumbsWidget {
 				break;
 			}
 		}
+	}
+
+	private _onCrumbDrag(event: DragEvent): void {
+		if (!this._enabled) {
+			return;
+		}
+
+		if (!event.target || event.target instanceof HTMLDivElement === false) {
+			return;
+		}
+
+		const index = this._nodes.indexOf(event.target as HTMLDivElement);
+		const payload = event as any;
+		this._onWillStartDrag.fire({ type: 'dragStart', item: this._items[index], node: this._nodes[index], payload });
 	}
 }
