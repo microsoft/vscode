@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -29,7 +29,7 @@ type TriggeredCodeAction = {
 	readonly trigger: CodeActionTrigger;
 };
 
-class CodeActionOracle extends Disposable {
+export class CodeActionOracle extends Disposable {
 
 	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
 
@@ -67,35 +67,45 @@ class CodeActionOracle extends Disposable {
 			return undefined;
 		}
 
-		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
+		const showCodeActions = (trigger.type === CodeActionTriggerType.Auto) ?
+			CodeActionOracle.showCodeActions(this._editor, selection)
+			: true;
+		return showCodeActions ? selection : undefined;
+	}
+
+	public static showCodeActions(editor: ICodeEditor, selection: Selection): boolean {
+		const model = editor.getModel();
+		if (!model) {
+			return false;
+		}
+		if (selection.isEmpty()) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const showOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
+				const showOnEmptyLines = editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
 				if (!showOnEmptyLines) {
-					return undefined;
+					return false;
 				}
 			} else if (column === 1) {
 				// look only right
 				if (/\s/.test(line[0])) {
-					return undefined;
+					return false;
 				}
 			} else if (column === model.getLineMaxColumn(lineNumber)) {
 				// look only left
 				if (/\s/.test(line[line.length - 1])) {
-					return undefined;
+					return false;
 				}
 			} else {
 				// look left and right
 				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
-					return undefined;
+					return false;
 				}
 			}
 		}
-		return selection;
+		return true;
 	}
 }
 
