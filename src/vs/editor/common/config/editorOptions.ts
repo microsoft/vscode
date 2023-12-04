@@ -2781,7 +2781,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 			return this.defaultValue;
 		}
 		const input = _input as IEditorLightbulbOptions;
-		const enabled = input.enabled && input.enabled in ShowLightbulbIconMode ?
+		const enabled = input.enabled && Object.values(ShowLightbulbIconMode).includes(input.enabled) ?
 			input.enabled :
 			(typeof input.enabled === 'boolean' ?
 				(input.enabled ? ShowLightbulbIconMode.OnCode : ShowLightbulbIconMode.Off) : this.defaultValue.enabled);
