@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, Display, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isBigSurOrNewer, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
+import { release } from 'os';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,12 +32,11 @@ import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useNativeFullScreen, useWindowControlsOverlay } from 'vs/platform/window/common/window';
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
-import { Color } from 'vs/base/common/color';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStateService } from 'vs/platform/state/node/state';
@@ -82,16 +82,162 @@ const enum ReadyState {
 	READY
 }
 
-export abstract class BaseWindow extends Disposable {
+export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
-	protected abstract getWin(): BrowserWindow | null;
+	//#region Events
+
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
+
+	private readonly _onDidMaximize = this._register(new Emitter<void>());
+	readonly onDidMaximize = this._onDidMaximize.event;
+
+	private readonly _onDidUnmaximize = this._register(new Emitter<void>());
+	readonly onDidUnmaximize = this._onDidUnmaximize.event;
+
+	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
+	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
+	//#endregion
+
+	abstract readonly id: number;
+
+	protected _lastFocusTime = Date.now(); // window is shown on creation so take current time
+	get lastFocusTime(): number { return this._lastFocusTime; }
+
+	protected _win: BrowserWindow | null = null;
+	get win() { return this._win; }
+	protected setWin(win: BrowserWindow): void {
+		this._win = win;
+
+		// Window Events
+		this._register(Event.fromNodeEventEmitter(win, 'maximize')(() => this._onDidMaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'unmaximize')(() => this._onDidUnmaximize.fire()));
+		this._register(Event.fromNodeEventEmitter(win, 'closed')(() => {
+			this._onDidClose.fire();
+
+			this.dispose();
+		}));
+		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
+			this._lastFocusTime = Date.now();
+		}));
+
+		// Sheet Offsets
+		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
+		if (isMacintosh && useCustomTitleStyle) {
+			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		// Update the window controls immediately based on cached values
+		if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
+			const cachedWindowControlHeight = this.stateService.getItem<number>((BaseWindow.windowControlHeightStateStorageKey));
+			if (cachedWindowControlHeight) {
+				this.updateWindowControls({ height: cachedWindowControlHeight });
+			}
+		}
+
+		// Windows Custom System Context Menu
+		// See https://github.com/electron/electron/issues/24893
+		//
+		// The purpose of this is to allow for the context menu in the Windows Title Bar
+		//
+		// Currently, all mouse events in the title bar are captured by the OS
+		// thus we need to capture them here with a window hook specific to Windows
+		// and then forward them to the correct window.
+		if (isWindows && useCustomTitleStyle) {
+			const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
+
+			// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
+			win.hookWindowMessage(WM_INITMENU, () => {
+				const [x, y] = win.getPosition();
+				const cursorPos = screen.getCursorScreenPoint();
+				const cx = cursorPos.x - x;
+				const cy = cursorPos.y - y;
+
+				// In some cases, show the default system context menu
+				// 1) The mouse position is not within the title bar
+				// 2) The mouse position is within the title bar, but over the app icon
+				// We do not know the exact title bar height but we make an estimate based on window height
+				const shouldTriggerDefaultSystemContextMenu = () => {
+					// Use the custom context menu when over the title bar, but not over the app icon
+					// The app icon is estimated to be 30px wide
+					// The title bar is estimated to be the max of 35px and 15% of the window height
+					if (cx > 30 && cy >= 0 && cy <= Math.max(win.getBounds().height * 0.15, 35)) {
+						return false;
+					}
+
+					return true;
+				};
+
+				if (!shouldTriggerDefaultSystemContextMenu()) {
+
+					// This is necessary to make sure the native system context menu does not show up.
+					win.setEnabled(false);
+					win.setEnabled(true);
+
+					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
+				}
+
+				return 0;
+			});
+		}
+
+		// Open devtools if instructed from command line args
+		if (this.environmentMainService.args['open-devtools'] === true) {
+			win.webContents.openDevTools();
+		}
+	}
+
+	constructor(
+		protected readonly configurationService: IConfigurationService,
+		protected readonly stateService: IStateService,
+		protected readonly environmentMainService: IEnvironmentMainService
+	) {
+		super();
+	}
+
+	private representedFilename: string | undefined;
+
+	setRepresentedFilename(filename: string): void {
+		if (isMacintosh) {
+			this.win?.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	getRepresentedFilename(): string | undefined {
+		if (isMacintosh) {
+			return this.win?.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
+	}
+
+	private documentEdited: boolean | undefined;
+
+	setDocumentEdited(edited: boolean): void {
+		if (isMacintosh) {
+			this.win?.setDocumentEdited(edited);
+		}
+
+		this.documentEdited = edited;
+	}
+
+	isDocumentEdited(): boolean {
+		if (isMacintosh) {
+			return Boolean(this.win?.isDocumentEdited());
+		}
+
+		return !!this.documentEdited;
+	}
 
 	focus(options?: { force: boolean }): void {
 		if (isMacintosh && options?.force) {
 			app.focus({ steal: true });
 		}
 
-		const win = this.getWin();
+		const win = this.win;
 		if (!win) {
 			return;
 		}
@@ -102,11 +248,166 @@ export abstract class BaseWindow extends Disposable {
 
 		win.focus();
 	}
+
+	handleTitleDoubleClick(): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// Respect system settings on mac with regards to title click on windows title
+		if (isMacintosh) {
+			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
+			switch (action) {
+				case 'Minimize':
+					win.minimize();
+					break;
+				case 'None':
+					break;
+				case 'Maximize':
+				default:
+					if (win.isMaximized()) {
+						win.unmaximize();
+					} else {
+						win.maximize();
+					}
+			}
+		}
+
+		// Linux/Windows: just toggle maximize/minimized state
+		else {
+			if (win.isMaximized()) {
+				win.unmaximize();
+			} else {
+				win.maximize();
+			}
+		}
+	}
+
+	//#region WCO
+
+	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
+
+	private readonly hasWindowControlOverlay = useWindowControlsOverlay(this.configurationService);
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		// Cache the height for speeds lookups on startup
+		if (options.height) {
+			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
+		}
+
+		// Windows: window control overlay (WCO)
+		if (isWindows && this.hasWindowControlOverlay) {
+			win.setTitleBarOverlay({
+				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
+				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
+				height: options.height ? options.height - 1 : undefined // account for window border
+			});
+		}
+
+		// macOS: traffic lights
+		else if (isMacintosh && options.height !== undefined) {
+			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			if (!verticalOffset) {
+				win.setWindowButtonPosition(null);
+			} else {
+				win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
+			}
+		}
+	}
+
+	//#endregion
+
+	//#region Fullscreen
+
+	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
+	// where on macOS the window will report a wrong state for `isFullScreen()` while
+	// transitioning into and out of native full screen.
+	protected transientIsNativeFullScreen: boolean | undefined = undefined;
+	protected joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
+
+	toggleFullScreen(): void {
+		this.setFullScreen(!this.isFullScreen);
+	}
+
+	protected setFullScreen(fullscreen: boolean): void {
+
+		// Set fullscreen state
+		if (useNativeFullScreen(this.configurationService)) {
+			this.setNativeFullScreen(fullscreen);
+		} else {
+			this.setSimpleFullScreen(fullscreen);
+		}
+	}
+
+	get isFullScreen(): boolean {
+		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
+			return this.transientIsNativeFullScreen;
+		}
+
+		const win = this.win;
+		const isFullScreen = win?.isFullScreen();
+		const isSimpleFullScreen = win?.isSimpleFullScreen();
+
+		return Boolean(isFullScreen || isSimpleFullScreen);
+	}
+
+	private setNativeFullScreen(fullscreen: boolean): void {
+		const win = this.win;
+		if (win?.isSimpleFullScreen()) {
+			win?.setSimpleFullScreen(false);
+		}
+
+		this.doSetNativeFullScreen(fullscreen);
+	}
+
+	private doSetNativeFullScreen(fullscreen: boolean): void {
+		if (isMacintosh) {
+			this.transientIsNativeFullScreen = fullscreen;
+			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
+			Promise.race([
+				this.joinNativeFullScreenTransition.p,
+				// still timeout after some time in case the transition is unusually slow
+				// this can easily happen for an OS update where macOS tries to reopen
+				// previous applications and that can take multiple seconds, probably due
+				// to security checks. its worth noting that if this takes more than
+				// 10 seconds, users would see a window that is not-fullscreen but without
+				// custom titlebar...
+				timeout(10000)
+			]).finally(() => {
+				this.transientIsNativeFullScreen = undefined;
+			});
+		}
+
+		const win = this.win;
+		win?.setFullScreen(fullscreen);
+	}
+
+	private setSimpleFullScreen(fullscreen: boolean): void {
+		const win = this.win;
+		if (win?.isFullScreen()) {
+			this.doSetNativeFullScreen(false);
+		}
+
+		win?.setSimpleFullScreen(fullscreen);
+		win?.webContents.focus(); // workaround issue where focus is not going into window
+	}
+
+	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		this._win = null!; // Important to dereference the window object to allow for GC
+	}
 }
 
 export class CodeWindow extends BaseWindow implements ICodeWindow {
-
-	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
 	//#region Events
 
@@ -115,12 +416,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private readonly _onDidSignalReady = this._register(new Emitter<void>());
 	readonly onDidSignalReady = this._onDidSignalReady.event;
-
-	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
-	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
-
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
 
 	private readonly _onDidDestroy = this._register(new Emitter<void>());
 	readonly onDidDestroy = this._onDidDestroy.event;
@@ -133,15 +428,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private _id: number;
 	get id(): number { return this._id; }
 
-	private _win: BrowserWindow;
-	get win(): BrowserWindow | null { return this._win; }
-
-	protected getWin(): BrowserWindow | null {
-		return this._win;
-	}
-
-	private _lastFocusTime = -1;
-	get lastFocusTime(): number { return this._lastFocusTime; }
+	protected override _win: BrowserWindow;
 
 	get backupPath(): string | undefined { return this._config?.backupPath; }
 
@@ -176,17 +463,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
-	// where on macOS the window will report a wrong state for `isFullScreen()` while
-	// transitioning into and out of native full screen.
-	private transientIsNativeFullScreen: boolean | undefined = undefined;
-	private joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
-
-	private representedFilename: string | undefined;
-	private documentEdited: boolean | undefined;
-
-	private readonly hasWindowControlOverlay: boolean = false;
-
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[] = [];
@@ -202,13 +478,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IPolicyService private readonly policyService: IPolicyService,
 		@IUserDataProfilesMainService private readonly userDataProfilesService: IUserDataProfilesMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
@@ -218,10 +494,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super();
+		super(configurationService, stateService, environmentMainService);
 
 		//#region create browser window
 		{
@@ -234,8 +510,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			// after the call to maximize/fullscreen (see below)
 			const isFullscreenOrMaximized = (this.windowState.mode === WindowMode.Maximized || this.windowState.mode === WindowMode.Fullscreen);
 
-			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
-
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
 				webPreferences: {
@@ -245,40 +519,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				}
 			});
 
-			if (isMacintosh && !this.useNativeFullScreen()) {
-				options.fullscreenable = false; // enables simple fullscreen mode
-			}
-
-			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
-			if (useNativeTabs) {
-				options.tabbingIdentifier = this.productService.nameShort; // this opts in to sierra tabs
-			}
-
-			const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
-			if (useCustomTitleStyle) {
-				options.titleBarStyle = 'hidden';
-				if (!isMacintosh) {
-					options.frame = false;
-				}
-
-				if (useWindowControlsOverlay(this.configurationService)) {
-
-					// This logic will not perfectly guess the right colors
-					// to use on initialization, but prefer to keep things
-					// simple as it is temporary and not noticeable
-
-					const titleBarColor = this.themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? this.themeMainService.getBackgroundColor();
-					const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
-
-					options.titleBarOverlay = {
-						height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-						color: titleBarColor,
-						symbolColor
-					};
-
-					this.hasWindowControlOverlay = true;
-				}
-			}
 
 			// Create the browser window
 			mark('code/willCreateCodeBrowserWindow');
@@ -286,63 +526,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			mark('code/didCreateCodeBrowserWindow');
 
 			this._id = this._win.id;
-
-			if (isMacintosh && useCustomTitleStyle) {
-				this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
-			}
-
-			// Update the window controls immediately based on cached values
-			if (useCustomTitleStyle && ((isWindows && useWindowControlsOverlay(this.configurationService)) || isMacintosh)) {
-				const cachedWindowControlHeight = this.stateService.getItem<number>((CodeWindow.windowControlHeightStateStorageKey));
-				if (cachedWindowControlHeight) {
-					this.updateWindowControls({ height: cachedWindowControlHeight });
-				}
-			}
-
-			// Windows Custom System Context Menu
-			// See https://github.com/electron/electron/issues/24893
-			//
-			// The purpose of this is to allow for the context menu in the Windows Title Bar
-			//
-			// Currently, all mouse events in the title bar are captured by the OS
-			// thus we need to capture them here with a window hook specific to Windows
-			// and then forward them to the correct window.
-			if (isWindows && useCustomTitleStyle) {
-				const WM_INITMENU = 0x0116; // https://docs.microsoft.com/en-us/windows/win32/menurc/wm-initmenu
-
-				// This sets up a listener for the window hook. This is a Windows-only API provided by electron.
-				this._win.hookWindowMessage(WM_INITMENU, () => {
-					const [x, y] = this._win.getPosition();
-					const cursorPos = screen.getCursorScreenPoint();
-					const cx = cursorPos.x - x;
-					const cy = cursorPos.y - y;
-
-					// In some cases, show the default system context menu
-					// 1) The mouse position is not within the title bar
-					// 2) The mouse position is within the title bar, but over the app icon
-					// We do not know the exact title bar height but we make an estimate based on window height
-					const shouldTriggerDefaultSystemContextMenu = () => {
-						// Use the custom context menu when over the title bar, but not over the app icon
-						// The app icon is estimated to be 30px wide
-						// The title bar is estimated to be the max of 35px and 15% of the window height
-						if (cx > 30 && cy >= 0 && cy <= Math.max(this._win.getBounds().height * 0.15, 35)) {
-							return false;
-						}
-
-						return true;
-					};
-
-					if (!shouldTriggerDefaultSystemContextMenu()) {
-						// This is necessary to make sure the native system context menu does not show up.
-						this._win.setEnabled(false);
-						this._win.setEnabled(true);
-
-						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
-					}
-
-					return 0;
-				});
-			}
+			this.setWin(this._win);
 
 			// TODO@electron (Electron 4 regression): when running on multiple displays where the target display
 			// to open the window has a larger resolution than the primary display, the window will not size
@@ -353,6 +537,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			// However, when running with native tabs with multiple windows we cannot use this workaround
 			// because there is a potential that the new window will be added as native tab instead of being
 			// a window on its own. In that case calling setBounds() would cause https://github.com/microsoft/vscode/issues/75830
+			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
 			if ((isMacintosh || isWindows) && hasMultipleDisplays && (!useNativeTabs || BrowserWindow.getAllWindows().length === 1)) {
 				if ([this.windowState.width, this.windowState.height, this.windowState.x, this.windowState.y].every(value => typeof value === 'number')) {
 					this._win.setBounds({
@@ -374,10 +560,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
-					this.logConditionally('WindowMode.Fullscreen');
 					this.setFullScreen(true);
-				} else {
-					this.logConditionally('WindowMode.Maximized');
 				}
 
 				// to reduce flicker from the default window size
@@ -390,11 +573,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 		//#endregion
 
-		// Open devtools if instructed from command line args
-		if (this.environmentMainService.args['open-devtools'] === true) {
-			this._win.webContents.openDevTools();
-		}
-
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
 
@@ -403,45 +581,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
-	}
-
-	private logConditionally(msg: string): void {
-		// TODO@bpasero remove me eventually
-		if (this.configurationService.getValue('window.logFullScreenTransitions')) {
-			this.logService.info(`window-fullscreen-bug: ${msg})`);
-		}
-	}
-
-	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
-			this._win.setRepresentedFilename(filename);
-		} else {
-			this.representedFilename = filename;
-		}
-	}
-
-	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
-			return this._win.getRepresentedFilename();
-		}
-
-		return this.representedFilename;
-	}
-
-	setDocumentEdited(edited: boolean): void {
-		if (isMacintosh) {
-			this._win.setDocumentEdited(edited);
-		}
-
-		this.documentEdited = edited;
-	}
-
-	isDocumentEdited(): boolean {
-		if (isMacintosh) {
-			return this._win.isDocumentEdited();
-		}
-
-		return !!this.documentEdited;
 	}
 
 	private readyState = ReadyState.NONE;
@@ -506,13 +645,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			event.preventDefault();
 		});
 
-		// Window close
-		this._win.on('closed', () => {
-			this._onDidClose.fire();
-
-			this.dispose();
-		});
-
 		// Remember that we loaded
 		this._win.webContents.on('did-finish-load', () => {
 
@@ -524,44 +656,33 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			}
 		});
 
-		// Window Focus
-		this._win.on('focus', () => {
-			this._lastFocusTime = Date.now();
-		});
-
 		// Window (Un)Maximize
-		this._win.on('maximize', (e: ElectronEvent) => {
+		this._register(this.onDidMaximize(() => {
 			if (this._config) {
 				this._config.maximized = true;
 			}
+		}));
 
-			app.emit('browser-window-maximize', e, this._win);
-		});
-
-		this._win.on('unmaximize', (e: ElectronEvent) => {
+		this._register(this.onDidUnmaximize(() => {
 			if (this._config) {
 				this._config.maximized = false;
 			}
-
-			app.emit('browser-window-unmaximize', e, this._win);
-		});
+		}));
 
 		// Window Fullscreen
-		this._win.on('enter-full-screen', () => {
+		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
-			this.logConditionally(`enter-full-screen: ${Date.now()}`);
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
-		});
+		}));
 
-		this._win.on('leave-full-screen', () => {
+		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
-			this.logConditionally(`leave-full-screen: ${Date.now()}`);
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
-		});
+		}));
 
 		// Handle configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
@@ -1069,33 +1190,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return state;
 	}
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void {
-
-		// Cache the height for speeds lookups on startup
-		if (options.height) {
-			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
-		}
-
-		// Windows: window control overlay (WCO)
-		if (isWindows && this.hasWindowControlOverlay) {
-			this._win.setTitleBarOverlay({
-				color: options.backgroundColor?.trim() === '' ? undefined : options.backgroundColor,
-				symbolColor: options.foregroundColor?.trim() === '' ? undefined : options.foregroundColor,
-				height: options.height ? options.height - 1 : undefined // account for window border
-			});
-		}
-
-		// macOS: traffic lights
-		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
-			if (!verticalOffset) {
-				this._win.setWindowButtonPosition(null);
-			} else {
-				this._win.setWindowButtonPosition({ x: verticalOffset, y: verticalOffset });
-			}
-		}
-	}
-
 	private restoreWindowState(state?: IWindowState): [IWindowState, boolean? /* has multiple displays */] {
 		mark('code/willRestoreCodeWindowState');
 
@@ -1265,18 +1359,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return { x, y, width, height };
 	}
 
-	toggleFullScreen(): void {
-		this.setFullScreen(!this.isFullScreen);
-	}
-
-	private setFullScreen(fullscreen: boolean): void {
-
-		// Set fullscreen state
-		if (this.useNativeFullScreen()) {
-			this.setNativeFullScreen(fullscreen);
-		} else {
-			this.setSimpleFullScreen(fullscreen);
-		}
+	protected override setFullScreen(fullscreen: boolean): void {
+		super.setFullScreen(fullscreen);
 
 		// Events
 		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen', CancellationToken.None);
@@ -1285,76 +1369,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		if (this.currentMenuBarVisibility) {
 			this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 		}
-	}
-
-	get isFullScreen(): boolean {
-		this.logConditionally(`isFullScreen(): begin at ${Date.now()}`);
-
-		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
-			this.logConditionally(`isFullScreen(): returning transientIsNativeFullScreen = ${this.transientIsNativeFullScreen}`);
-
-			return this.transientIsNativeFullScreen;
-		}
-
-		const isFullScreen = this._win.isFullScreen();
-		const isSimpleFullScreen = this._win.isSimpleFullScreen();
-
-		this.logConditionally(`isFullScreen(): returning natively, isFullScreen = ${isFullScreen}, isSimpleFullScreen = ${isSimpleFullScreen}`);
-
-		return isFullScreen || isSimpleFullScreen;
-	}
-
-	private setNativeFullScreen(fullscreen: boolean): void {
-		if (this._win.isSimpleFullScreen()) {
-			this._win.setSimpleFullScreen(false);
-		}
-
-		this.doSetNativeFullScreen(fullscreen);
-	}
-
-	private doSetNativeFullScreen(fullscreen: boolean): void {
-		if (isMacintosh) {
-			this.logConditionally(`doSetNativeFullScreen(${fullscreen}): begin at ${Date.now()}`);
-
-			this.transientIsNativeFullScreen = fullscreen;
-			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
-			Promise.race([
-				this.joinNativeFullScreenTransition.p,
-				timeout(1000) // still timeout after some time in case we miss the event
-			]).finally(() => {
-				this.logConditionally(`doSetNativeFullScreen(${fullscreen}): finish at ${Date.now()}`);
-
-				this.transientIsNativeFullScreen = undefined;
-			});
-		}
-
-		this._win.setFullScreen(fullscreen);
-	}
-
-	private setSimpleFullScreen(fullscreen: boolean): void {
-		if (this._win.isFullScreen()) {
-			this.doSetNativeFullScreen(false);
-		}
-
-		this._win.setSimpleFullScreen(fullscreen);
-		this._win.webContents.focus(); // workaround issue where focus is not going into window
-	}
-
-	private useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-			return true; // default
-		}
-
-		if (windowConfig.nativeTabs) {
-			return true; // https://github.com/electron/electron/issues/16142
-		}
-
-		return windowConfig.nativeFullScreen !== false;
-	}
-
-	isMinimized(): boolean {
-		return this._win.isMinimized();
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
@@ -1414,37 +1428,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.setMenuBarVisibility(false);
 				this._win.autoHideMenuBar = false;
 				break;
-		}
-	}
-
-	handleTitleDoubleClick(): void {
-
-		// Respect system settings on mac with regards to title click on windows title
-		if (isMacintosh) {
-			const action = systemPreferences.getUserDefault('AppleActionOnDoubleClick', 'string');
-			switch (action) {
-				case 'Minimize':
-					this._win.minimize();
-					break;
-				case 'None':
-					break;
-				case 'Maximize':
-				default:
-					if (this._win.isMaximized()) {
-						this._win.unmaximize();
-					} else {
-						this._win.maximize();
-					}
-			}
-		}
-
-		// Linux/Windows: just toggle maximize/minimized state
-		else {
-			if (this._win.isMaximized()) {
-				this._win.unmaximize();
-			} else {
-				this._win.maximize();
-			}
 		}
 	}
 
@@ -1558,7 +1541,5 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Deregister the loggers for this window
 		this.loggerMainService.deregisterLoggers(this.id);
-
-		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }

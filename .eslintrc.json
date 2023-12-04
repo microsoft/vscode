@@ -48,25 +48,6 @@
 			"orientation",
 			"context"
 		], // non-complete list of globals that are easy to access unintentionally
-		"no-restricted-syntax": [
-			"warn",
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
-				"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
-				"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
-				"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
-				"message": "Use DOM.isDragEvent() to support multi-window scenarios."
-			}
-		],
 		"no-var": "warn",
 		"jsdoc/no-types": "warn",
 		"semi": "off",
@@ -147,7 +128,8 @@
 						{
 							"message": "Expression must be awaited",
 							"functions": [
-								"assertSnapshot"
+								"assertSnapshot",
+								"assertHeap"
 							]
 						}
 					]
@@ -277,6 +259,309 @@
 		},
 		{
 			"files": [
+				"src/**/{browser,electron-sandbox}/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-global-document-listener": "warn",
+				"no-restricted-syntax": [
+					"warn",
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
+						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
+						"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
+						"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
+						"message": "Use DOM.isDragEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='activeElement']",
+						"message": "Use <targetWindow>.document.activeElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='contains']",
+						"message": "Use <targetWindow>.document.contains to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='styleSheets']",
+						"message": "Use <targetWindow>.document.styleSheets to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='fullscreenElement']",
+						"message": "Use <targetWindow>.document.fullscreenElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='body']",
+						"message": "Use <targetWindow>.document.body to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='addEventListener']",
+						"message": "Use <targetWindow>.document.addEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='removeEventListener']",
+						"message": "Use <targetWindow>.document.removeEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='hasFocus']",
+						"message": "Use <targetWindow>.document.hasFocus to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='head']",
+						"message": "Use <targetWindow>.document.head to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='exitFullscreen']",
+						"message": "Use <targetWindow>.document.exitFullscreen to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementById']",
+						"message": "Use <targetWindow>.document.getElementById to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByClassName']",
+						"message": "Use <targetWindow>.document.getElementsByClassName to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByName']",
+						"message": "Use <targetWindow>.document.getElementsByName to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByTagName']",
+						"message": "Use <targetWindow>.document.getElementsByTagName to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByTagNameNS']",
+						"message": "Use <targetWindow>.document.getElementsByTagNameNS to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getSelection']",
+						"message": "Use <targetWindow>.document.getSelection to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='open']",
+						"message": "Use <targetWindow>.document.open to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='close']",
+						"message": "Use <targetWindow>.document.close to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='documentElement']",
+						"message": "Use <targetWindow>.document.documentElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='visibilityState']",
+						"message": "Use <targetWindow>.document.visibilityState to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='querySelector']",
+						"message": "Use <targetWindow>.document.querySelector to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='querySelectorAll']",
+						"message": "Use <targetWindow>.document.querySelectorAll to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='elementFromPoint']",
+						"message": "Use <targetWindow>.document.elementFromPoint to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='elementsFromPoint']",
+						"message": "Use <targetWindow>.document.elementsFromPoint to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onkeydown']",
+						"message": "Use <targetWindow>.document.onkeydown to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onkeyup']",
+						"message": "Use <targetWindow>.document.onkeyup to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onmousedown']",
+						"message": "Use <targetWindow>.document.onmousedown to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onmouseup']",
+						"message": "Use <targetWindow>.document.onmouseup to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='execCommand']",
+						"message": "Use <targetWindow>.document.execCommand to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					}
+				],
+				"no-restricted-globals": [
+					"warn",
+					"name",
+					"length",
+					"event",
+					"closed",
+					"external",
+					"status",
+					"origin",
+					"orientation",
+					"context",
+					{
+						"name": "setInterval",
+						"message": "Use <targetWindow>.setInterval to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "clearInterval",
+						"message": "Use <targetWindow>.clearInterval to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "requestAnimationFrame",
+						"message": "Use <targetWindow>.requestAnimationFrame to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "cancelAnimationFrame",
+						"message": "Use <targetWindow>.cancelAnimationFrame to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "requestIdleCallback",
+						"message": "Use <targetWindow>.requestIdleCallback to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "cancelIdleCallback",
+						"message": "Use <targetWindow>.cancelIdleCallback to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "window",
+						"message": "Use <targetWindow> to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "addEventListener",
+						"message": "Use <targetWindow>.addEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "removeEventListener",
+						"message": "Use <targetWindow>.removeEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "getComputedStyle",
+						"message": "Use <targetWindow>.getComputedStyle to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "focus",
+						"message": "Use <targetWindow>.focus to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "blur",
+						"message": "Use <targetWindow>.blur to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "close",
+						"message": "Use <targetWindow>.close to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "dispatchEvent",
+						"message": "Use <targetWindow>.dispatchEvent to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "getSelection",
+						"message": "Use <targetWindow>.getSelection to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "matchMedia",
+						"message": "Use <targetWindow>.matchMedia to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "open",
+						"message": "Use <targetWindow>.open to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "parent",
+						"message": "Use <targetWindow>.parent to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "postMessage",
+						"message": "Use <targetWindow>.postMessage to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "devicePixelRatio",
+						"message": "Use <targetWindow>.devicePixelRatio to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "frames",
+						"message": "Use <targetWindow>.frames to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "frameElement",
+						"message": "Use <targetWindow>.frameElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "innerHeight",
+						"message": "Use <targetWindow>.innerHeight to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "innerWidth",
+						"message": "Use <targetWindow>.innerWidth to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "outerHeight",
+						"message": "Use <targetWindow>.outerHeight to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "outerWidth",
+						"message": "Use <targetWindow>.outerWidth to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "opener",
+						"message": "Use <targetWindow>.opener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "origin",
+						"message": "Use <targetWindow>.origin to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screen",
+						"message": "Use <targetWindow>.screen to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenLeft",
+						"message": "Use <targetWindow>.screenLeft to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenTop",
+						"message": "Use <targetWindow>.screenTop to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenX",
+						"message": "Use <targetWindow>.screenX to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenY",
+						"message": "Use <targetWindow>.screenY to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "scrollX",
+						"message": "Use <targetWindow>.scrollX to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "scrollY",
+						"message": "Use <targetWindow>.scrollY to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "top",
+						"message": "Use <targetWindow>.top to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "visualViewport",
+						"message": "Use <targetWindow>.visualViewport to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					}
+				]
+			}
+		},
+		{
+			"files": [
 				"src/**/*.ts"
 			],
 			"rules": {
@@ -339,14 +624,14 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"xterm",
-							"xterm-addon-canvas",
-							"xterm-addon-image",
-							"xterm-addon-search",
-							"xterm-addon-serialize",
-							"xterm-addon-unicode11",
-							"xterm-addon-webgl",
-							"xterm-headless",
+							"@xterm/addon-canvas",
+							"@xterm/addon-image",
+							"@xterm/addon-search",
+							"@xterm/addon-serialize",
+							"@xterm/addon-unicode11",
+							"@xterm/addon-webgl",
+							"@xterm/headless",
+							"@xterm/xterm",
 							"yauzl",
 							"yazl",
 							"zlib"
@@ -543,11 +828,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
@@ -572,11 +857,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",

@@ -35,9 +35,10 @@ import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/d
 import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Codicon } from 'vs/base/common/codicons';
+import { mainWindow } from 'vs/base/browser/window';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
@@ -72,7 +73,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super(themeService);
 
 		this.$el = dom.$('div.debug-toolbar');
-		this.$el.style.top = `${layoutService.offset.top}px`;
+		this.$el.style.top = `${layoutService.mainContainerOffset.top}px`;
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 
@@ -132,6 +133,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			if (e.affectsConfiguration('debug.toolBarLocation')) {
 				this.updateScheduler.schedule();
 			}
+			if (e.affectsConfiguration(LayoutSettings.EDITOR_TABS_MODE) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
+				this._yRange = undefined;
+				this.setYCoordinate();
+			}
 		}));
 		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
@@ -143,14 +148,14 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			// log in telemetry
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: e.action.id, from: 'debugActionsWidget' });
 		}));
-		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.RESIZE, () => this.setCoordinates()));
 
 		this._register(dom.addDisposableGenericMouseUpListener(this.dragArea, (event: MouseEvent) => {
-			const mouseClickEvent = new StandardMouseEvent(event);
+			const mouseClickEvent = new StandardMouseEvent(dom.getWindow(this.dragArea), event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.clientWidth;
-				this.setCoordinates(0.5 * window.innerWidth - 0.5 * widgetWidth, 0);
+				this.setCoordinates(0.5 * mainWindow.innerWidth - 0.5 * widgetWidth, 0);
 				this.storePosition();
 			}
 		}));
@@ -158,15 +163,15 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(dom.addDisposableGenericMouseDownListener(this.dragArea, (event: MouseEvent) => {
 			this.dragArea.classList.add('dragged');
 
-			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(window, (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(mainWindow, (e: MouseEvent) => {
+				const mouseMoveEvent = new StandardMouseEvent(mainWindow, e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.offset.top));
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - 14);
 			});
 
-			const mouseUpListener = dom.addDisposableGenericMouseUpListener(window, (e: MouseEvent) => {
+			const mouseUpListener = dom.addDisposableGenericMouseUpListener(mainWindow, (e: MouseEvent) => {
 				this.storePosition();
 				this.dragArea.classList.remove('dragged');
 
@@ -182,8 +187,13 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private storePosition(): void {
 		const left = dom.getComputedStyle(this.$el).left;
 		if (left) {
-			const position = parseFloat(left) / window.innerWidth;
+			const position = parseFloat(left) / mainWindow.innerWidth;
 			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		if (this.yCoordinate) {
+			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, this.yCoordinate, StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(DEBUG_TOOLBAR_Y_KEY, StorageScope.PROFILE);
 		}
 	}
 
@@ -208,12 +218,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private setYCoordinate(y = this.yCoordinate): void {
-		const titlebarOffset = this.layoutService.offset.top;
-		this.$el.style.top = `${titlebarOffset + y}px`;
-		this.yCoordinate = y;
-	}
-
 	private setCoordinates(x?: number, y?: number): void {
 		if (!this.isVisible) {
 			return;
@@ -221,21 +225,47 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		const widgetWidth = this.$el.clientWidth;
 		if (x === undefined) {
 			const positionPercentage = this.storageService.get(DEBUG_TOOLBAR_POSITION_KEY, StorageScope.PROFILE);
-			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * window.innerWidth : (0.5 * window.innerWidth - 0.5 * widgetWidth);
+			x = positionPercentage !== undefined ? parseFloat(positionPercentage) * mainWindow.innerWidth : (0.5 * mainWindow.innerWidth - 0.5 * widgetWidth);
 		}
 
-		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
+		x = Math.max(0, Math.min(x, mainWindow.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style.left = `${x}px`;
 
 		if (y === undefined) {
 			y = this.storageService.getNumber(DEBUG_TOOLBAR_Y_KEY, StorageScope.PROFILE, 0);
 		}
-		const titleAreaHeight = 35;
-		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
-			const moveToTop = y < titleAreaHeight;
-			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		this.setYCoordinate(y);
+	}
+
+	private setYCoordinate(y = this.yCoordinate): void {
+		const [yMin, yMax] = this.yRange;
+		y = Math.max(yMin, Math.min(y, yMax));
+		this.$el.style.top = `${y}px`;
+		this.yCoordinate = y;
+	}
+
+	private _yRange: [number, number] | undefined;
+	private get yRange(): [number, number] {
+		if (!this._yRange) {
+			const isTitleBarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow);
+			const yMin = isTitleBarVisible ? 0 : this.layoutService.mainContainerOffset.top;
+			let yMax = 0;
+
+			if (isTitleBarVisible) {
+				if (this.configurationService.getValue(LayoutSettings.COMMAND_CENTER) === true) {
+					yMax += 35;
+				} else {
+					yMax += 28;
+				}
+			}
+
+			if (this.configurationService.getValue(LayoutSettings.EDITOR_TABS_MODE) !== EditorTabsMode.NONE) {
+				yMax += 35;
+			}
+			this._yRange = [yMin, yMax];
 		}
+		return this._yRange;
 	}
 
 	private show(): void {
@@ -245,7 +275,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.layoutService.container.appendChild(this.$el);
+			this.layoutService.mainContainer.appendChild(this.$el);
 		}
 
 		this.isVisible = true;
@@ -347,7 +377,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenterCenter, {
 });
 
 registerDebugToolBarItem(CONTINUE_ID, CONTINUE_LABEL, 10, icons.debugContinue, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
-registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, icons.debugPause, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'), CONTEXT_DEBUG_STATE.isEqualTo('running'));
+registerDebugToolBarItem(PAUSE_ID, PAUSE_LABEL, 10, icons.debugPause, CONTEXT_DEBUG_STATE.notEqualsTo('stopped'), ContextKeyExpr.and(CONTEXT_DEBUG_STATE.isEqualTo('running'), CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG.toNegated()));
 registerDebugToolBarItem(STOP_ID, STOP_LABEL, 70, icons.debugStop, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), undefined, { id: DISCONNECT_ID, title: DISCONNECT_LABEL, icon: icons.debugDisconnect, precondition: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated(), CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED), });
 registerDebugToolBarItem(DISCONNECT_ID, DISCONNECT_LABEL, 70, icons.debugDisconnect, CONTEXT_FOCUSED_SESSION_IS_ATTACH, undefined, { id: STOP_ID, title: STOP_LABEL, icon: icons.debugStop, precondition: ContextKeyExpr.and(CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED), });
 registerDebugToolBarItem(STEP_OVER_ID, STEP_OVER_LABEL, 20, icons.debugStepOver, undefined, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));

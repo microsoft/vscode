@@ -643,7 +643,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
 		const checkboxStateHandler = this._register(new CheckboxStateHandler());
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, this.manuallyManageCheckboxes);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes);
 		this._register(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
 
 		const widgetAriaLabel = this._title;
@@ -1093,7 +1093,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
 	private _hasCheckbox: boolean = false;
-	private _renderedElements = new Map<string, { original: ITreeNode<ITreeItem, FuzzyScore>; rendered: ITreeExplorerTemplateData }>(); // tree item handle to template data
+	private _renderedElements = new Map<string, { original: ITreeNode<ITreeItem, FuzzyScore>; rendered: ITreeExplorerTemplateData }[]>(); // tree item handle to template data
 
 	constructor(
 		private treeViewId: string,
@@ -1102,7 +1102,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private actionViewItemProvider: IActionViewItemProvider,
 		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
-		private readonly manuallyManageCheckboxes: boolean,
+		private readonly manuallyManageCheckboxes: () => boolean,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1268,8 +1268,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this.setAlignment(templateData.container, node);
 		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
 
-		// remember rendered element
-		this._renderedElements.set(element.element.handle, { original: element, rendered: templateData });
+		// remember rendered element, an element can be rendered multiple times
+		const renderedItems = this._renderedElements.get(element.element.handle) ?? [];
+		this._renderedElements.set(element.element.handle, [...renderedItems, { original: element, rendered: templateData }]);
 	}
 
 	private rerender() {
@@ -1277,8 +1278,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		// but have to create a copy of the keys first
 		const keys = new Set(this._renderedElements.keys());
 		for (const key of keys) {
-			const value = this._renderedElements.get(key);
-			if (value) {
+			const values = this._renderedElements.get(key) ?? [];
+			for (const value of values) {
 				this.disposeElement(value.original, 0, value.rendered);
 				this.renderElement(value.original, 0, value.rendered);
 			}
@@ -1351,7 +1352,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	private updateCheckboxes(items: ITreeItem[]) {
 		const additionalItems: ITreeItem[] = [];
 
-		if (!this.manuallyManageCheckboxes) {
+		if (!this.manuallyManageCheckboxes()) {
 			for (const item of items) {
 				if (item.checkbox !== undefined) {
 
@@ -1406,9 +1407,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 		items = items.concat(additionalItems);
 		items.forEach(item => {
-			const renderedItem = this._renderedElements.get(item.handle);
-			if (renderedItem) {
-				renderedItem.rendered.checkbox?.render(item);
+			const renderedItems = this._renderedElements.get(item.handle);
+			if (renderedItems) {
+				renderedItems.forEach(renderedItems => renderedItems.rendered.checkbox?.render(item));
 			}
 		});
 		this._onDidChangeCheckboxState.fire(items);
@@ -1417,7 +1418,19 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
 		templateData.elementDisposable.clear();
 
-		this._renderedElements.delete(resource.element.handle);
+		const itemRenders = this._renderedElements.get(resource.element.handle) ?? [];
+		const renderedIndex = itemRenders.findIndex(renderedItem => templateData === renderedItem.rendered);
+
+		if (renderedIndex < 0) {
+			throw new Error('Disposing unknown element');
+		}
+
+		if (itemRenders.length === 1) {
+			this._renderedElements.delete(resource.element.handle);
+		} else {
+			itemRenders.splice(renderedIndex, 1);
+		}
+
 		this.treeViewsService.removeRenderedTreeItemElement(resource.element);
 
 		templateData.checkbox?.dispose();

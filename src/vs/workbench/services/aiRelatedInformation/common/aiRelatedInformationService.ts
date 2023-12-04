@@ -83,7 +83,7 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 				AiRelatedInformationService.DEFAULT_TIMEOUT,
 				() => {
 					cancellablePromises.forEach(p => p.cancel());
-					throw new Error('Related information provider timed out');
+					this.logService.warn('[AiRelatedInformationService]: Related information provider timed out');
 				}
 			);
 			if (!results) {

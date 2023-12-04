@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleValue } from 'vs/base/common/async';
+import { GlobalIdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -255,7 +255,7 @@ export class InstantiationService implements IInstantiationService {
 			// return "empty events" when the service isn't instantiated yet
 			const earlyListeners = new Map<string, LinkedList<Parameters<Event<any>>>>();
 
-			const idle = new IdleValue<any>(() => {
+			const idle = new GlobalIdleValue<any>(() => {
 				const result = child._createInstance<T>(ctor, args, _trace);
 
 				// early listeners that we kept are now being subscribed to

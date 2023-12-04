@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
@@ -186,6 +186,7 @@ export interface ICommandDetectionCapability {
 	 * case the terminal's initial cwd should be used.
 	 */
 	getCwdForLine(line: number): string | undefined;
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined;
 	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
@@ -247,25 +248,30 @@ interface IBaseTerminalCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	markProperties: IMarkProperties | undefined;
+	executedX: number | undefined;
+	startX: number | undefined;
 }
 
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
-	marker?: IXtermMarker;
+	readonly promptStartMarker?: IMarker;
+	readonly marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
-	executedMarker?: IXtermMarker;
-	aliases?: string[][];
-	wasReplayed?: boolean;
+	readonly executedMarker?: IXtermMarker;
+	readonly aliases?: string[][];
+	readonly wasReplayed?: boolean;
 
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
+	getPromptRowCount(): number;
+	getCommandRowCount(): number;
 }
 
 export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable converted for serialization
 	startLine: number | undefined;
-	startX: number | undefined;
+	promptStartLine: number | undefined;
 	endLine: number | undefined;
 	executedLine: number | undefined;
 }

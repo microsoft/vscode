@@ -7,7 +7,7 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -196,9 +196,9 @@ class EditBreakpointAction extends EditorAction {
 	}
 }
 
-class OpenDisassemblyViewAction extends EditorAction2 {
+class OpenDisassemblyViewAction extends Action2 {
 
-	public static readonly ID = 'editor.debug.action.openDisassemblyView';
+	public static readonly ID = 'debug.action.openDisassemblyView';
 
 	constructor() {
 		super({
@@ -230,11 +230,9 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
-		if (editor.hasModel()) {
-			const editorService = accessor.get(IEditorService);
-			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
-		}
+	run(accessor: ServicesAccessor): void {
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
 	}
 }
 

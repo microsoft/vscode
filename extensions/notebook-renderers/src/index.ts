@@ -7,6 +7,7 @@ import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-not
 import { createOutputContent, appendOutput, scrollableClass } from './textHelper';
 import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, OutputWithAppend, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
+import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
@@ -172,8 +173,10 @@ function renderError(
 	if (err.stack) {
 		outputElement.classList.add('traceback');
 
+		const stackTrace = formatStackTrace(err.stack);
+
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const content = createOutputContent(outputInfo.id, err.stack ?? '', { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml });
+		const content = createOutputContent(outputInfo.id, stackTrace ?? '', { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml });
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {

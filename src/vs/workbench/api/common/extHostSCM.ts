@@ -26,10 +26,23 @@ import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
 
 type ProviderHandle = number;
 type GroupHandle = number;
 type ResourceStateHandle = number;
+
+function isUri(thing: any): thing is vscode.Uri {
+	return thing instanceof URI;
+}
+
+function uriEquals(a: vscode.Uri, b: vscode.Uri): boolean {
+	if (a.scheme === Schemas.file && b.scheme === Schemas.file && isLinux) {
+		return a.toString() === b.toString();
+	}
+
+	return a.toString().toLowerCase() === b.toString().toLowerCase();
+}
 
 function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): UriComponents | ThemeIcon | undefined {
 	if (!decorations) {
@@ -42,6 +55,19 @@ function getIconResource(decorations?: vscode.SourceControlResourceThemableDecor
 		return decorations.iconPath;
 	} else {
 		return undefined;
+	}
+}
+
+function getInputBoxActionButtonIcon(actionButton?: vscode.SourceControlInputBoxActionButton): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
+	if (!actionButton?.icon) {
+		return undefined;
+	} else if (URI.isUri(actionButton.icon)) {
+		return actionButton.icon;
+	} else if (ThemeIcon.isThemeIcon(actionButton.icon)) {
+		return actionButton.icon;
+	} else {
+		const icon = actionButton.icon as { light: URI; dark: URI };
+		return { light: icon.light, dark: icon.dark };
 	}
 }
 
@@ -153,6 +179,10 @@ function compareCommands(a: vscode.Command, b: vscode.Command): number {
 			continue;
 		}
 
+		if (isUri(aArg) && isUri(bArg) && uriEquals(aArg, bArg)) {
+			continue;
+		}
+
 		return aArg < bArg ? -1 : 1;
 	}
 
@@ -208,18 +238,6 @@ function commandEquals(a: vscode.Command, b: vscode.Command): boolean {
 
 function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Command[]): boolean {
 	return equals(a, b, commandEquals);
-}
-
-function historyItemGroupEquals(a: vscode.SourceControlHistoryItemGroup | undefined, b: vscode.SourceControlHistoryItemGroup | undefined): boolean {
-	if (a === b) {
-		return true;
-	}
-
-	if (!a || !b) {
-		return false;
-	}
-
-	return a.id === b.id && a.label === b.label && a.upstream?.id === b.upstream?.id && a.upstream?.label === b.upstream?.label;
 }
 
 export interface IValidateInput {
@@ -313,13 +331,36 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
+	private _actionButton: vscode.SourceControlInputBoxActionButton | undefined;
+	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
+
+	get actionButton(): vscode.SourceControlInputBoxActionButton | undefined {
+		checkProposedApiEnabled(this._extension, 'scmInputBoxActionButton');
+		return this._actionButton;
+	}
+
+	set actionButton(actionButton: vscode.SourceControlInputBoxActionButton | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmInputBoxActionButton');
+		this._actionButtonDisposables.value = new DisposableStore();
+
+		this._actionButton = actionButton;
+
+		const internal = actionButton !== undefined ?
+			{
+				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+				icon: getInputBoxActionButtonIcon(actionButton),
+				enabled: actionButton.enabled
+			} : undefined;
+		this.#proxy.$setInputBoxActionButton(this._sourceControlHandle, internal ?? null);
+	}
+
 	get document(): vscode.TextDocument {
 		checkProposedApiEnabled(this._extension, 'scmTextDocument');
 
 		return this.#extHostDocuments.getDocument(this._documentUri);
 	}
 
-	constructor(private _extension: IExtensionDescription, _extHostDocuments: ExtHostDocuments, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
+	constructor(private _extension: IExtensionDescription, private _commands: ExtHostCommands, _extHostDocuments: ExtHostDocuments, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
 		this.#extHostDocuments = _extHostDocuments;
 		this.#proxy = proxy;
 	}
@@ -425,7 +466,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 				let command: ICommandDto | undefined;
 				if (r.command) {
-					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff') {
+					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff' || r.command.command === 'vscode.changes') {
 						const disposables = new DisposableStore();
 						command = this._commands.converter.toInternal(r.command, disposables);
 						this._resourceStatesDisposablesMap.set(handle, disposables);
@@ -535,7 +576,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
 	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
-	private _historyProviderActionButtonDisposable = new MutableDisposable<DisposableStore>();
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
 		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
@@ -552,26 +592,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		if (historyProvider) {
 			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-				if (historyItemGroupEquals(this._historyProviderCurrentHistoryItemGroup, historyProvider?.currentHistoryItemGroup)) {
-					return;
-				}
-
 				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
-			}));
-
-			this._historyProviderDisposable.value.add(historyProvider.onDidChangeActionButton(() => {
-				checkProposedApiEnabled(this._extension, 'scmActionButton');
-
-				this._historyProviderActionButtonDisposable.value = new DisposableStore();
-				const internal = historyProvider.actionButton !== undefined ?
-					{
-						command: this._commands.converter.toInternal(historyProvider.actionButton.command, this._historyProviderActionButtonDisposable.value),
-						description: historyProvider.actionButton.description,
-						enabled: historyProvider.actionButton.enabled
-					} : undefined;
-
-				this.#proxy.$onDidChangeHistoryProviderActionButton(this.handle, internal ?? null);
 			}));
 		}
 	}
@@ -680,7 +702,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			query: _rootUri ? `rootUri=${encodeURIComponent(_rootUri.toString())}` : undefined
 		});
 
-		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
+		this._inputBox = new ExtHostSCMInputBox(_extension, _commands, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
 		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, inputBoxDocumentUri);
 	}
 
@@ -966,14 +988,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 		const historyItems = await historyProvider?.provideHistoryItems(historyItemGroupId, options, token);
 
-		return historyItems?.map(item => ({
-			id: item.id,
-			parentIds: item.parentIds,
-			label: item.label,
-			description: item.description,
-			icon: getHistoryItemIconDto(item),
-			timestamp: item.timestamp,
-		})) ?? undefined;
+		return historyItems?.map(item => ({ ...item, icon: getHistoryItemIconDto(item) })) ?? undefined;
 	}
 
 	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {

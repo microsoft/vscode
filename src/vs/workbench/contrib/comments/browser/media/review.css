@@ -338,7 +338,7 @@
 	white-space: nowrap;
 	border: 0px;
 	outline: 1px solid transparent;
-	background-color: var(--vscode-peekViewTitle-background);
+	background-color: var(--vscode-editorCommentsWidget-replyInputBackground);
 	color: var(--vscode-editor-foreground);
 	font-size: inherit;
 	font-family: var(--monaco-monospace-font);
@@ -352,7 +352,7 @@
 .review-widget .body .comment-form .monaco-editor,
 .review-widget .body .comment-form .monaco-editor .monaco-editor-background,
 .review-widget .body .edit-container .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-peekViewTitle-background);
+	background-color: var(--vscode-editorCommentsWidget-replyInputBackground);
 }
 
 .review-widget .body .comment-form .monaco-editor,

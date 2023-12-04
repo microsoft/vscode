@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
@@ -39,7 +39,7 @@ import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Position } from 'vs/editor/common/core/position';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
@@ -55,6 +55,7 @@ import { WhitespaceOverlay } from 'vs/editor/browser/viewParts/whitespace/whites
 import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyphMargin';
 import { GlyphMarginLane } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CodeWindow } from 'vs/base/browser/window';
 
 
 export interface IContentWidgetData {
@@ -240,15 +241,6 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _flushAccumulatedAndRenderNow(): void {
-		if (this._shouldRecomputeGlyphMarginLanes) {
-			this._shouldRecomputeGlyphMarginLanes = false;
-			this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
-		}
-		inputLatency.onRenderStart();
-		this._renderNow();
-	}
-
 	private _computeGlyphMarginLaneCount(): number {
 		const model = this._context.viewModel.model;
 		type Glyph = { range: Range; lane: GlyphMarginLane };
@@ -431,18 +423,54 @@ export class View extends ViewEventHandler {
 	}
 
 	private _scheduleRender(): void {
+		if (this._store.isDisposed) {
+			throw new BugIndicatingError();
+		}
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
+			const rendering = this._createCoordinatedRendering();
+			this._renderAnimationFrame = EditorRenderingCoordinator.INSTANCE.scheduleCoordinatedRendering({
+				window: dom.getWindow(this.domNode.domNode),
+				prepareRenderText: () => {
+					if (this._store.isDisposed) {
+						throw new BugIndicatingError();
+					}
+					try {
+						return rendering.prepareRenderText();
+					} finally {
+						this._renderAnimationFrame = null;
+					}
+				},
+				renderText: () => {
+					if (this._store.isDisposed) {
+						throw new BugIndicatingError();
+					}
+					return rendering.renderText();
+				},
+				prepareRender: (viewParts: ViewPart[], ctx: RenderingContext) => {
+					if (this._store.isDisposed) {
+						throw new BugIndicatingError();
+					}
+					return rendering.prepareRender(viewParts, ctx);
+				},
+				render: (viewParts: ViewPart[], ctx: RestrictedRenderingContext) => {
+					if (this._store.isDisposed) {
+						throw new BugIndicatingError();
+					}
+					return rendering.render(viewParts, ctx);
+				}
+			});
 		}
 	}
 
-	private _onRenderScheduled(): void {
-		this._renderAnimationFrame = null;
-		this._flushAccumulatedAndRenderNow();
-	}
-
-	private _renderNow(): void {
-		safeInvokeNoArg(() => this._actualRender());
+	private _flushAccumulatedAndRenderNow(): void {
+		const rendering = this._createCoordinatedRendering();
+		safeInvokeNoArg(() => rendering.prepareRenderText());
+		const data = safeInvokeNoArg(() => rendering.renderText());
+		if (data) {
+			const [viewParts, ctx] = data;
+			safeInvokeNoArg(() => rendering.prepareRender(viewParts, ctx));
+			safeInvokeNoArg(() => rendering.render(viewParts, ctx));
+		}
 	}
 
 	private _getViewPartsToRender(): ViewPart[] {
@@ -456,52 +484,61 @@ export class View extends ViewEventHandler {
 		return result;
 	}
 
-	private _actualRender(): void {
-		if (!this.domNode.domNode.isConnected) {
-			return;
-		}
+	private _createCoordinatedRendering() {
+		return {
+			prepareRenderText: () => {
+				if (this._shouldRecomputeGlyphMarginLanes) {
+					this._shouldRecomputeGlyphMarginLanes = false;
+					this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
+				}
+				inputLatency.onRenderStart();
+			},
+			renderText: (): [ViewPart[], RenderingContext] | null => {
+				if (!this.domNode.domNode.isConnected) {
+					return null;
+				}
+				let viewPartsToRender = this._getViewPartsToRender();
+				if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
+					// Nothing to render
+					return null;
+				}
+				const partialViewportData = this._context.viewLayout.getLinesViewportData();
+				this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
-		let viewPartsToRender = this._getViewPartsToRender();
+				const viewportData = new ViewportData(
+					this._selections,
+					partialViewportData,
+					this._context.viewLayout.getWhitespaceViewportData(),
+					this._context.viewModel
+				);
 
-		if (!this._viewLines.shouldRender() && viewPartsToRender.length === 0) {
-			// Nothing to render
-			return;
-		}
+				if (this._contentWidgets.shouldRender()) {
+					// Give the content widgets a chance to set their max width before a possible synchronous layout
+					this._contentWidgets.onBeforeRender(viewportData);
+				}
 
-		const partialViewportData = this._context.viewLayout.getLinesViewportData();
-		this._context.viewModel.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
+				if (this._viewLines.shouldRender()) {
+					this._viewLines.renderText(viewportData);
+					this._viewLines.onDidRender();
 
-		const viewportData = new ViewportData(
-			this._selections,
-			partialViewportData,
-			this._context.viewLayout.getWhitespaceViewportData(),
-			this._context.viewModel
-		);
+					// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
+					viewPartsToRender = this._getViewPartsToRender();
+				}
 
-		if (this._contentWidgets.shouldRender()) {
-			// Give the content widgets a chance to set their max width before a possible synchronous layout
-			this._contentWidgets.onBeforeRender(viewportData);
-		}
-
-		if (this._viewLines.shouldRender()) {
-			this._viewLines.renderText(viewportData);
-			this._viewLines.onDidRender();
-
-			// Rendering of viewLines might cause scroll events to occur, so collect view parts to render again
-			viewPartsToRender = this._getViewPartsToRender();
-		}
-
-		const renderingContext = new RenderingContext(this._context.viewLayout, viewportData, this._viewLines);
-
-		// Render the rest of the parts
-		for (const viewPart of viewPartsToRender) {
-			viewPart.prepareRender(renderingContext);
-		}
-
-		for (const viewPart of viewPartsToRender) {
-			viewPart.render(renderingContext);
-			viewPart.onDidRender();
-		}
+				return [viewPartsToRender, new RenderingContext(this._context.viewLayout, viewportData, this._viewLines)];
+			},
+			prepareRender: (viewPartsToRender: ViewPart[], ctx: RenderingContext) => {
+				for (const viewPart of viewPartsToRender) {
+					viewPart.prepareRender(ctx);
+				}
+			},
+			render: (viewPartsToRender: ViewPart[], ctx: RestrictedRenderingContext) => {
+				for (const viewPart of viewPartsToRender) {
+					viewPart.render(ctx);
+					viewPart.onDidRender();
+				}
+			}
+		};
 	}
 
 	// --- BEGIN CodeEditor helpers
@@ -654,10 +691,96 @@ export class View extends ViewEventHandler {
 
 }
 
-function safeInvokeNoArg(func: Function): any {
+function safeInvokeNoArg<T>(func: () => T): T | null {
 	try {
 		return func();
 	} catch (e) {
 		onUnexpectedError(e);
+		return null;
+	}
+}
+
+interface ICoordinatedRendering {
+	readonly window: CodeWindow;
+	prepareRenderText(): void;
+	renderText(): [ViewPart[], RenderingContext] | null;
+	prepareRender(viewParts: ViewPart[], ctx: RenderingContext): void;
+	render(viewParts: ViewPart[], ctx: RestrictedRenderingContext): void;
+}
+
+class EditorRenderingCoordinator {
+
+	public static INSTANCE = new EditorRenderingCoordinator();
+
+	private _coordinatedRenderings: ICoordinatedRendering[] = [];
+	private _animationFrameRunners = new Map<CodeWindow, IDisposable>();
+
+	private constructor() { }
+
+	scheduleCoordinatedRendering(rendering: ICoordinatedRendering): IDisposable {
+		this._coordinatedRenderings.push(rendering);
+		this._scheduleRender(rendering.window);
+		return {
+			dispose: () => {
+				const renderingIndex = this._coordinatedRenderings.indexOf(rendering);
+				if (renderingIndex === -1) {
+					return;
+				}
+				this._coordinatedRenderings.splice(renderingIndex, 1);
+
+				if (this._coordinatedRenderings.length === 0) {
+					// There are no more renderings to coordinate => cancel animation frames
+					for (const [_, disposable] of this._animationFrameRunners) {
+						disposable.dispose();
+					}
+					this._animationFrameRunners.clear();
+				}
+			}
+		};
+	}
+
+	private _scheduleRender(window: CodeWindow): void {
+		if (!this._animationFrameRunners.has(window)) {
+			const runner = () => {
+				this._animationFrameRunners.delete(window);
+				this._onRenderScheduled();
+			};
+			this._animationFrameRunners.set(window, dom.runAtThisOrScheduleAtNextAnimationFrame(window, runner, 100));
+		}
+	}
+
+	private _onRenderScheduled(): void {
+		const coordinatedRenderings = this._coordinatedRenderings.slice(0);
+		this._coordinatedRenderings = [];
+
+		for (const rendering of coordinatedRenderings) {
+			safeInvokeNoArg(() => rendering.prepareRenderText());
+		}
+
+		const datas: ([ViewPart[], RenderingContext] | null)[] = [];
+		for (let i = 0, len = coordinatedRenderings.length; i < len; i++) {
+			const rendering = coordinatedRenderings[i];
+			datas[i] = safeInvokeNoArg(() => rendering.renderText());
+		}
+
+		for (let i = 0, len = coordinatedRenderings.length; i < len; i++) {
+			const rendering = coordinatedRenderings[i];
+			const data = datas[i];
+			if (!data) {
+				continue;
+			}
+			const [viewParts, ctx] = data;
+			safeInvokeNoArg(() => rendering.prepareRender(viewParts, ctx));
+		}
+
+		for (let i = 0, len = coordinatedRenderings.length; i < len; i++) {
+			const rendering = coordinatedRenderings[i];
+			const data = datas[i];
+			if (!data) {
+				continue;
+			}
+			const [viewParts, ctx] = data;
+			safeInvokeNoArg(() => rendering.render(viewParts, ctx));
+		}
 	}
 }

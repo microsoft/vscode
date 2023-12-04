@@ -34,6 +34,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import * as sinon from 'sinon';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -165,5 +166,38 @@ suite('FileDialogService', function () {
 		const workspaceService: IWorkspaceEditingService = instantiationService.createInstance(BrowserWorkspaceEditingService);
 		assert.strictEqual((await workspaceService.pickNewWorkspacePath())?.path.startsWith(testFile.path), true);
 		assert.strictEqual(await dialogService.pickWorkspaceAndOpen({}), undefined);
+	});
+
+	test('Remote - filters default files/folders to RA (#195938)', async function () {
+		class TestSimpleFileDialog implements ISimpleFileDialog {
+			async showOpenDialog(): Promise<URI | undefined> {
+				return testFile;
+			}
+			async showSaveDialog(): Promise<URI | undefined> {
+				return testFile;
+			}
+		}
+		instantiationService.set(IWorkbenchEnvironmentService, new class extends mock<BrowserWorkbenchEnvironmentService>() {
+			override get remoteAuthority() {
+				return 'testRemote';
+			}
+		});
+		instantiationService.stub(IPathService, new class {
+			defaultUriScheme: string = Schemas.vscodeRemote;
+			userHome = async () => URI.file('/user/home');
+		} as IPathService);
+
+
+		const dialogService = instantiationService.createInstance(TestFileDialogService, new TestSimpleFileDialog());
+		const historyService = instantiationService.get(IHistoryService);
+		const getLastActiveWorkspaceRoot = sinon.spy(historyService, 'getLastActiveWorkspaceRoot');
+		const getLastActiveFile = sinon.spy(historyService, 'getLastActiveFile');
+
+		await dialogService.defaultFilePath();
+		assert.deepStrictEqual(getLastActiveFile.args, [[Schemas.vscodeRemote, 'testRemote']]);
+		assert.deepStrictEqual(getLastActiveWorkspaceRoot.args, [[Schemas.vscodeRemote, 'testRemote']]);
+
+		await dialogService.defaultFolderPath();
+		assert.deepStrictEqual(getLastActiveWorkspaceRoot.args[1], [Schemas.vscodeRemote, 'testRemote']);
 	});
 });

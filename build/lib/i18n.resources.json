@@ -75,6 +75,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/multiDiffEditor",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/emmet",
 			"project": "vscode-workbench"
 		},
@@ -83,7 +87,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/voiceRecognition",
+			"name": "vs/workbench/services/auxiliaryWindow",
 			"project": "vscode-workbench"
 		},
 		{
@@ -212,6 +216,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/tags",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/speech",
 			"project": "vscode-workbench"
 		},
 		{
@@ -536,6 +544,10 @@
 		},
 		{
 			"name": "vs/workbench/services/secrets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accountEntitlements",
 			"project": "vscode-workbench"
 		}
 	]

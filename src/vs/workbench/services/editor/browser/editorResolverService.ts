@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorResolution, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, EditorInputWithOptions, IResourceSideBySideEditorInput, isEditorInputWithOptions, isEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput, isResourceMergeEditorInput, IUntypedEditorInput, SideBySideEditor, isResourceDiffListEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
@@ -263,7 +263,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
 	}
 
-	private getAllUserAssociations(): EditorAssociations {
+	getAllUserAssociations(): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
 		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
 		const userAssociations = inspectedEditorAssociations.userValue ?? {};
@@ -460,6 +460,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				return;
 			}
 			const inputWithOptions = await selectedEditor.editorFactoryObject.createDiffEditorInput(editor, group);
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
+		}
+
+		// If it's a diff list editor we trigger the create diff list editor input
+		if (isResourceDiffListEditorInput(editor)) {
+			if (!selectedEditor.editorFactoryObject.createMultiDiffEditorInput) {
+				return;
+			}
+			const inputWithOptions = await selectedEditor.editorFactoryObject.createMultiDiffEditorInput(editor, group);
 			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 

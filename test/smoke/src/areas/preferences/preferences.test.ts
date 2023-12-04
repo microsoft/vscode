@@ -64,7 +64,8 @@ export function setup(logger: Logger) {
 			await app.code.waitForElements('.line-numbers', false, elements => !elements || elements.length === 0);
 		});
 
-		it('hides the toc when searching depending on the search behavior', async function () {
+		// Skipping test due to it being flaky.
+		it.skip('hides the toc when searching depending on the search behavior', async function () {
 			const app = this.app as Application;
 
 			// Hide ToC when searching

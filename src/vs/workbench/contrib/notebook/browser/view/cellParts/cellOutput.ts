@@ -286,7 +286,7 @@ class CellOutputElement extends Disposable {
 			return;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getLayoutConfiguration().consolidatedOutputButton;
+		const useConsolidatedButton = this.notebookEditor.notebookOptions.getDisplayOptions().consolidatedOutputButton;
 
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
@@ -715,9 +715,6 @@ export class CellOutputContainer extends CellContentPart {
 		} else {
 			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 		}
-
-		const editorHeight = this.templateData.editor.getContentHeight();
-		this.viewCell.editorHeight = editorHeight;
 
 		this._relayoutCell();
 		// if it's clearing all outputs, or outputs are all rendered synchronously

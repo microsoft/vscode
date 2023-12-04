@@ -13,6 +13,7 @@ export const enum Testing {
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 	DecorationsContributionId = 'editor.contrib.testingDecorations',
+	CoverageViewId = 'workbench.view.testCoverage',
 
 	ResultsPanelId = 'workbench.panel.testResults',
 	ResultsViewId = 'workbench.panel.testResults.view',
@@ -57,6 +58,7 @@ export const enum TestCommandId {
 	CollapseAllAction = 'testing.collapseAll',
 	ConfigureTestProfilesAction = 'testing.configureProfile',
 	ContinousRunUsingForTest = 'testing.continuousRunUsingForTest',
+	CoverageClose = 'testing.coverage.close',
 	DebugAction = 'testing.debug',
 	DebugAllAction = 'testing.debugAll',
 	DebugAtCursor = 'testing.debugAtCursor',
