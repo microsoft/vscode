@@ -254,7 +254,7 @@ pub enum ExtensionSubcommand {
 	Install(InstallExtensionArgs),
 	/// Uninstall an extension.
 	Uninstall(UninstallExtensionArgs),
-	/// Update the marketplace-installed extensions.
+	/// Update the installed extensions.
 	Update,
 }
 
