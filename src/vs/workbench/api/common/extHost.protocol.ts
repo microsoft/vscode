@@ -1287,7 +1287,6 @@ export interface ExtHostChatShape {
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
 	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$releaseSession(sessionId: number): void;
-	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
 }
 
 export interface ExtHostUrlsShape {

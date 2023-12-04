@@ -39,6 +39,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -140,6 +141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IEditorService private readonly editorService: IEditorService,
 		@IProductService productService: IProductService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -814,7 +816,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
-		markdown = new MarkdownString(markdown.value, {
+		// inject keybinding hints for command links
+		const value = markdown.value.replace(/\[([^\]]+)\]\(command:([^\)]+)\)/g, (match, label, command) => {
+			const keybinding = this.keybindingService.lookupKeybinding(command);
+			const keybindingLabel = keybinding?.getLabel();
+			if (keybindingLabel) {
+				// ideally we would use the keybindingLabel renderer but dompurify sanitizes the styling
+				return `${match} (\`${keybindingLabel}\`)`;
+			}
+			return match;
+		});
+
+		markdown = new MarkdownString(value, {
 			isTrusted: {
 				// Disable all other config options except isTrusted
 				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []

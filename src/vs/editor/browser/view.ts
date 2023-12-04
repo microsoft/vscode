@@ -713,7 +713,7 @@ class EditorRenderingCoordinator {
 	public static INSTANCE = new EditorRenderingCoordinator();
 
 	private _coordinatedRenderings: ICoordinatedRendering[] = [];
-	private _animationFrameRunner: IDisposable | null = null;
+	private _animationFrameRunners = new Map<CodeWindow, IDisposable>();
 
 	private constructor() { }
 
@@ -729,23 +729,23 @@ class EditorRenderingCoordinator {
 				this._coordinatedRenderings.splice(renderingIndex, 1);
 
 				if (this._coordinatedRenderings.length === 0) {
-					// There are no more renderings to coordinate => cancel animation frame
-					if (this._animationFrameRunner !== null) {
-						this._animationFrameRunner.dispose();
-						this._animationFrameRunner = null;
+					// There are no more renderings to coordinate => cancel animation frames
+					for (const [_, disposable] of this._animationFrameRunners) {
+						disposable.dispose();
 					}
+					this._animationFrameRunners.clear();
 				}
 			}
 		};
 	}
 
 	private _scheduleRender(window: CodeWindow): void {
-		if (this._animationFrameRunner === null) {
+		if (!this._animationFrameRunners.has(window)) {
 			const runner = () => {
-				this._animationFrameRunner = null;
+				this._animationFrameRunners.delete(window);
 				this._onRenderScheduled();
 			};
-			this._animationFrameRunner = dom.runAtThisOrScheduleAtNextAnimationFrame(window, runner, 100);
+			this._animationFrameRunners.set(window, dom.runAtThisOrScheduleAtNextAnimationFrame(window, runner, 100));
 		}
 	}
 
