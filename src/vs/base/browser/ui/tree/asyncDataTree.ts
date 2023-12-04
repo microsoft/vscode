@@ -1048,6 +1048,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			collapsed = false;
 		} else if (node.forceExpanded) {
 			collapsed = false;
+			node.forceExpanded = false;
 		} else {
 			collapsed = node.defaultCollapseState;
 		}
