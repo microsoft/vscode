@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
@@ -43,10 +43,8 @@ class ScreenReaderModeStatusEntry extends Disposable {
 }
 
 export class AccessibilityStatus extends Disposable implements IWorkbenchContribution {
-
 	private screenReaderNotification: INotificationHandle | null = null;
 	private promptedScreenReader: boolean = false;
-
 	private readonly screenReaderModeElements = new Set<ScreenReaderModeStatusEntry>();
 
 	constructor(
@@ -68,7 +66,9 @@ export class AccessibilityStatus extends Disposable implements IWorkbenchContrib
 
 	private createScreenReaderModeElement(instantiationService: IInstantiationService, disposables: DisposableStore): ScreenReaderModeStatusEntry {
 		const entry = disposables.add(instantiationService.createInstance(ScreenReaderModeStatusEntry));
+
 		this.screenReaderModeElements.add(entry);
+		disposables.add(toDisposable(() => this.screenReaderModeElements.delete(entry)));
 
 		return entry;
 	}
