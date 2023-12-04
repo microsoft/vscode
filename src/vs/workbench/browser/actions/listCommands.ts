@@ -450,8 +450,8 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 				tree.toggleCollapsed(focus[0]);
 			}
 		}
-		tree.setSelection(focus, fakeKeyboardEvent);
 		tree.setAnchor(focus[0]);
+		tree.setSelection(focus, fakeKeyboardEvent);
 	}
 }
 

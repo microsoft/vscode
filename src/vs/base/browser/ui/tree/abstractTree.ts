@@ -2372,11 +2372,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	setSelection(elements: TRef[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.model.getNode(e));
-		this.selection.set(nodes, browserEvent);
-
 		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
 		this.view.setSelection(indexes, browserEvent, true);
+
+		const nodes = elements.map(e => this.model.getNode(e));
+		this.selection.set(nodes, browserEvent);
 	}
 
 	getSelection(): T[] {
