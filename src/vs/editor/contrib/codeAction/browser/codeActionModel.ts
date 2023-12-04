@@ -72,7 +72,10 @@ class CodeActionOracle extends Disposable {
 		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
-			if (line.length === 0) {
+			if (
+				line.length === 0
+				|| (/^\s*$/g.test(line) && column - 1 === line.length)
+			) {
 				// empty line
 				const showOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
 				if (!showOnEmptyLines) {

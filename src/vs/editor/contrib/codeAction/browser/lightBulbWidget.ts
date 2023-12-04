@@ -175,7 +175,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		const onlyAIActions = actions.allAIFixes;
 		const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
-		if (onlyAIActions && showAiIcon) {
+		if (onlyAIActions && !showAiIcon) {
 			return this.hide();
 		}
 
@@ -240,7 +240,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateLightBulbTitleAndIcon(): void {
-		console.log('_updateLightBulbTitleAndIcon');
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
 		if (this.state.type !== LightBulbState.Type.Showing) {
