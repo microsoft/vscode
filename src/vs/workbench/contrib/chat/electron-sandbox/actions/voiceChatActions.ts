@@ -169,7 +169,7 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(chatView.providerId)),
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
-			updateInput: text => chatView.updateInput(text),
+			updateInput: text => chatView.setInput(text),
 			getInput: () => chatView.getInput(),
 			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatView.resetInputPlaceholder()
@@ -183,7 +183,7 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: quickChatService.onDidClose,
 			focusInput: () => quickChat.focusInput(),
 			acceptInput: () => quickChat.acceptInput(),
-			updateInput: text => quickChat.updateInput(text),
+			updateInput: text => quickChat.setInput(text),
 			getInput: () => quickChat.getInput(),
 			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
 			clearInputPlaceholder: () => quickChat.resetInputPlaceholder()

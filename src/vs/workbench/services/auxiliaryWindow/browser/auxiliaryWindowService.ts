@@ -86,7 +86,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}));
 
 		this._register(addDisposableListener(this.window, EventType.RESIZE, () => {
-			const dimension = getClientArea(this.window.document.body);
+			const dimension = getClientArea(this.window.document.body, this.container);
 			position(this.container, 0, 0, 0, 0, 'relative');
 			size(this.container, dimension.width, dimension.height);
 
@@ -119,7 +119,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	layout(): void {
-		this._onDidLayout.fire(getClientArea(this.window.document.body));
+		this._onDidLayout.fire(getClientArea(this.window.document.body, this.container));
 	}
 
 	override dispose(): void {
