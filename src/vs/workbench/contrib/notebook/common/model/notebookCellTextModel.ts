@@ -296,7 +296,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			}
 
 			this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
-			this._onDidChangeOutputs.fire({ start: splice.start + commonLen, deleteCount: splice.deleteCount - commonLen, newOutputs: splice.newOutputs.slice(commonLen) });
+			this._onDidChangeOutputs.fire(splice);
 		} else {
 			this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
 			this._onDidChangeOutputs.fire(splice);

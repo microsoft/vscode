@@ -633,7 +633,7 @@ export class CellOutputContainer extends CellContentPart {
 		if (firstGroupEntries.length + newlyInserted.length + secondGroupEntries.length > this.options.limit) {
 			// exceeds limit again
 			if (firstGroupEntries.length + newlyInserted.length > this.options.limit) {
-				[...deletedEntries, ...secondGroupEntries].forEach(entry => {
+				[...secondGroupEntries].forEach(entry => {
 					entry.element.detach();
 					entry.element.dispose();
 				});
@@ -653,7 +653,7 @@ export class CellOutputContainer extends CellContentPart {
 				// part of secondGroupEntries are pushed out of view
 				// now we have to be creative as secondGroupEntries might not use dedicated containers
 				const elementsPushedOutOfView = secondGroupEntries.slice(this.options.limit - firstGroupEntries.length - newlyInserted.length);
-				[...deletedEntries, ...elementsPushedOutOfView].forEach(entry => {
+				[...elementsPushedOutOfView].forEach(entry => {
 					entry.element.detach();
 					entry.element.dispose();
 				});
@@ -673,12 +673,6 @@ export class CellOutputContainer extends CellContentPart {
 				}
 			}
 		} else {
-			// after splice, it doesn't exceed
-			deletedEntries.forEach(entry => {
-				entry.element.detach();
-				entry.element.dispose();
-			});
-
 			const reRenderRightBoundary = firstGroupEntries.length + newlyInserted.length;
 
 			const newlyInsertedEntries = newlyInserted.map(insert => {
@@ -721,6 +715,12 @@ export class CellOutputContainer extends CellContentPart {
 		// shrink immediately as the final output height will be zero.
 		// if it's rerun, then the output clearing might be temporary, so we don't shrink immediately
 		this._validateFinalOutputHeight(context === CellOutputUpdateContext.Other && this.viewCell.outputsViewModels.length === 0);
+		// after splice, it doesn't exceed
+		deletedEntries.forEach(entry => {
+			entry.element.detach();
+			entry.element.dispose();
+		});
+
 	}
 
 	private _generateShowMoreElement(disposables: DisposableStore): HTMLElement {
