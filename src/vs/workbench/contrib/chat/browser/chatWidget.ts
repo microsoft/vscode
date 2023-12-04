@@ -504,7 +504,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.resetInputPlaceholder();
 	}
 
-	updateInput(value = ''): void {
+	setInput(value = ''): void {
 		this.inputPart.setValue(value);
 	}
 
