@@ -1462,17 +1462,26 @@ class InlayHintsAdapter {
 		if (typeof hint.label === 'string') {
 			result.label = hint.label;
 		} else {
-			result.label = hint.label.map(part => {
-				const result: languages.InlayHintLabelPart = { label: part.value };
-				result.tooltip = typeConvert.MarkdownString.fromStrict(part.tooltip);
+			const parts: languages.InlayHintLabelPart[] = [];
+			result.label = parts;
+
+			for (const part of hint.label) {
+				if (!part.value) {
+					console.warn('INVALID inlay hint, empty label part', this._extension.identifier.value);
+					continue;
+				}
+				const part2: languages.InlayHintLabelPart = {
+					label: part.value,
+					tooltip: typeConvert.MarkdownString.fromStrict(part.tooltip)
+				};
 				if (Location.isLocation(part.location)) {
-					result.location = typeConvert.location.from(part.location);
+					part2.location = typeConvert.location.from(part.location);
 				}
 				if (part.command) {
-					result.command = this._commands.toInternal(part.command, disposables);
+					part2.command = this._commands.toInternal(part.command, disposables);
 				}
-				return result;
-			});
+				parts.push(part2);
+			}
 		}
 		return result;
 	}
