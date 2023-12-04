@@ -29,7 +29,7 @@ type TriggeredCodeAction = {
 	readonly trigger: CodeActionTrigger;
 };
 
-export class CodeActionOracle extends Disposable {
+class CodeActionOracle extends Disposable {
 
 	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
 
@@ -67,45 +67,35 @@ export class CodeActionOracle extends Disposable {
 			return undefined;
 		}
 
+		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		const showCodeActions = (trigger.type === CodeActionTriggerType.Auto) ?
-			CodeActionOracle.showCodeActions(this._editor, selection)
-			: true;
-		return showCodeActions ? selection : undefined;
-	}
-
-	public static showCodeActions(editor: ICodeEditor, selection: Selection): boolean {
-		const model = editor.getModel();
-		if (!model) {
-			return false;
-		}
-		if (selection.isEmpty()) {
+		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const showOnEmptyLines = editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
+				const showOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
 				if (!showOnEmptyLines) {
-					return false;
+					return undefined;
 				}
 			} else if (column === 1) {
 				// look only right
 				if (/\s/.test(line[0])) {
-					return false;
+					return undefined;
 				}
 			} else if (column === model.getLineMaxColumn(lineNumber)) {
 				// look only left
 				if (/\s/.test(line[line.length - 1])) {
-					return false;
+					return undefined;
 				}
 			} else {
 				// look left and right
 				if (/\s/.test(line[column - 2]) && /\s/.test(line[column - 1])) {
-					return false;
+					return undefined;
 				}
 			}
 		}
-		return true;
+		return selection;
 	}
 }
 
