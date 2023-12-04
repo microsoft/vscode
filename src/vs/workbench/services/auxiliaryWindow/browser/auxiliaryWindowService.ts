@@ -46,7 +46,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
 	readonly onWillClose: Event<void>;
-	readonly stylesHaveLoaded: Barrier;
+	readonly whenStylesHaveLoaded: Promise<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
@@ -65,14 +65,17 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	readonly whenStylesHaveLoaded: Promise<void>;
+
 	constructor(
 		readonly window: CodeWindow,
 		readonly container: HTMLElement,
-		readonly stylesHaveLoaded: Barrier,
+		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(window);
 
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
 		this.registerListeners();
 	}
 
@@ -320,8 +323,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
 			if (originalNode.tagName === 'LINK') {
 				pendingLinkSettles++;
-				clonedNode.addEventListener('load', onLinkSettled);
-				clonedNode.addEventListener('error', onLinkSettled);
+				disposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
+				disposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
 			}
 
 			mapOriginalToClone.set(originalNode, clonedNode);

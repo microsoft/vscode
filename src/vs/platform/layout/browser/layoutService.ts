@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDimension } from 'vs/base/browser/dom';
-import { Barrier } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -96,11 +95,11 @@ export interface ILayoutService {
 	readonly activeContainerOffset: ILayoutOffsetInfo;
 
 	/**
-	 * A Barrier opened when the stylesheets for the active container have been
-	 * loaded. Aux windows load their styles asynchronously, so this barrier
-	 * may initially be closed.
+	 * A promise resolved when the stylesheets for the active container have been
+	 * loaded. Aux windows load their styles asynchronously, so there may be
+	 * an initial delay before resolution happens.
 	 */
-	readonly activeContainerStylesLoaded: Barrier;
+	readonly whenActiveContainerStylesLoaded: Promise<void>;
 
 	/**
 	 * Focus the primary component of the active container.
