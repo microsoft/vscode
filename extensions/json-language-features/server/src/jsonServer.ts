@@ -360,7 +360,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			return []; // ignore empty documents
 		}
 		const jsonDocument = getJSONDocument(textDocument);
-		const documentSettings: DocumentLanguageSettings = (textDocument.languageId === 'jsonc' || textDocument.languageId === 'snippets') ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
+		const documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'warning' } : { comments: 'error', trailingCommas: 'error' };
 		return await languageService.doValidation(textDocument, jsonDocument, documentSettings);
 	}
 
