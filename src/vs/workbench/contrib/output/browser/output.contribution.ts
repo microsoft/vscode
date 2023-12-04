@@ -263,7 +263,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.action.openActiveOutputFile`,
+					id: `workbench.action.openActiveLogOutputFile`,
 					title: nls.localize2('openActiveOutputFile', "Open Output as Editor"),
 					menu: [{
 						id: MenuId.ViewTitle,
