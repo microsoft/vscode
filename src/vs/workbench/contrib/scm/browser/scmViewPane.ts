@@ -3110,10 +3110,10 @@ export class SCMViewPane extends ViewPane {
 
 					if (element && this.tree.hasNode(element)) {
 						// Refresh specific repository
-						await this.tree.updateChildren(element);
+						await this.tree.updateChildren(element, false);
 					} else {
 						// Refresh the entire tree
-						await this.tree.updateChildren(undefined);
+						await this.tree.updateChildren(undefined, false);
 					}
 
 					if (focusedInput) {
