@@ -2912,7 +2912,6 @@ export class SCMViewPane extends ViewPane {
 			const repositoryDisposables = new DisposableStore();
 
 			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren(repository)));
-			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
