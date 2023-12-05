@@ -416,7 +416,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (data === '\x7f') {
 			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta > 0) {
 				handled = true;
-				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta - 1) + this._additionalInput.substring(this._cursorIndexDelta--);
+				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta - 1) + this._additionalInput.substring(this._cursorIndexDelta);
+				this._cursorIndexDelta--
 				handledCursorDelta--;
 			}
 		}
