@@ -81,8 +81,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _additionalInput?: string;
 	private _cursorIndexDelta: number = 0;
 	private _inputQueue?: string[];
-	private _cachedCompletions: Set<string> = new Set();
-	private _currentCompletions?: string[];
 
 	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
@@ -274,14 +272,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 	}
 
-	private _cacheCurrentCompletion(): void {
-		this._cachedCompletions.add(JSON.stringify(this._currentCompletions));
-	}
-
-	private _isRepeatCompletion(completions: string[]): boolean {
-		return this._cachedCompletions.has(JSON.stringify(completions));
-	}
-
 	private _handleCompletionModel(model: SimpleCompletionModel): void {
 		if (model.items.length === 0 || !this._terminal?.element) {
 			return;
@@ -293,11 +283,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			});
 			return;
 		}
-		const currentCompletions = model.items.map(item => item.completion.label);
-		if (this._isRepeatCompletion(currentCompletions)) {
-			return;
-		}
-		this._currentCompletions = currentCompletions;
 		const suggestWidget = this._ensureSuggestWidget(this._terminal);
 		this._additionalInput = undefined;
 		const dimensions = this._getTerminalDimensions();
@@ -370,6 +355,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// Send the completion
 			this._onAcceptedCompletion.fire([
+				// Disable suggestions
+				'\x1b[24~y',
 				// Right arrow to the end of the additional input
 				'\x1b[C'.repeat(Math.max((this._additionalInput?.length ?? 0) - this._cursorIndexDelta, 0)),
 				// Backspace to remove additional input
@@ -378,12 +365,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				'\x7F'.repeat(suggestion.model.replacementLength),
 				// Write the completion
 				suggestion.item.completion.label,
+				// Enable suggestions
+				'\x1b[24~z',
 			].join(''));
-
-			// Disable completions triggering the widget temporarily to avoid completion requests
-			// caused by the completion itself to show
-			this._cacheCurrentCompletion();
-			timeout(300).then(e => this._cachedCompletions = new Set());
 		}
 	}
 
