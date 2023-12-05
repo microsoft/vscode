@@ -146,7 +146,7 @@ name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 resources:
   containers:
     - container: snapcraft
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:ab4a88c4d85e0d7a85acabba59543f7143f575bab2c0b2b07f5b77d4a7e491ff
       endpoint: VSCodeHub
   pipelines:
     - pipeline: vscode-7pm-kick-off
@@ -461,6 +461,8 @@ stages:
               NPM_ARCH: x64
             steps:
               - template: alpine/product-build-alpine.yml
+                parameters:
+                  VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
 
         - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
           - job: LinuxAlpineArm64
@@ -470,6 +472,8 @@ stages:
               NPM_ARCH: arm64
             steps:
               - template: alpine/product-build-alpine.yml
+                parameters:
+                  VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
     - stage: macOS
