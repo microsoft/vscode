@@ -1031,9 +1031,17 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	const meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+	return createHeadElement('meta', container) as HTMLMetaElement;
+}
+
+export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
+	return createHeadElement('link', container) as HTMLLinkElement;
+}
+
+function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+	const element = document.createElement(tagName);
+	container.appendChild(element);
+	return element;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;
