@@ -118,7 +118,6 @@ export class OutputViewPane extends ViewPane {
 		this.editor.layout(new Dimension(width, height));
 	}
 
-
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
 		if (!visible) {

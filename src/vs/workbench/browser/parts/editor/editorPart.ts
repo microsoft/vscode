@@ -5,7 +5,7 @@
 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, getWindow } from 'vs/base/browser/dom';
+import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -545,13 +545,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			return false;
 		}
 
-		const activeElement = target.ownerDocument.activeElement;
+		const activeElement = getActiveElement();
 		if (activeElement === target.ownerDocument.body) {
 			return true; // always restore focus if nothing is focused currently
 		}
 
 		// otherwise check for the active element being an ancestor of the target
-		return isAncestor(activeElement, target);
+		return isAncestorOfActiveElement(target);
 	}
 
 	private isTwoDimensionalGrid(): boolean {

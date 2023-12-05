@@ -20,6 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { Barrier } from 'vs/base/common/async';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -45,6 +46,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
 	readonly onWillClose: Event<void>;
+	readonly whenStylesHaveLoaded: Promise<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
@@ -63,13 +65,17 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	readonly whenStylesHaveLoaded: Promise<void>;
+
 	constructor(
 		readonly window: CodeWindow,
 		readonly container: HTMLElement,
+		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(window);
 
+		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
 		this.registerListeners();
 	}
 
@@ -165,9 +171,9 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		ensureCodeWindow(targetWindow, resolvedWindowId);
 
 		const containerDisposables = new DisposableStore();
-		const container = this.createContainer(targetWindow, containerDisposables);
+		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables);
 
-		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container);
+		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded);
 
 		const registryDisposables = new DisposableStore();
 		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
@@ -201,8 +207,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
-	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, this.configurationService);
+	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
@@ -257,13 +263,13 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
 	}
 
-	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
+	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore): { stylesLoaded: Barrier; container: HTMLElement } {
 		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
-		this.applyCSS(auxiliaryWindow, disposables);
-
-		return this.applyHTML(auxiliaryWindow, disposables);
+		const { stylesLoaded } = this.applyCSS(auxiliaryWindow, disposables);
+		const container = this.applyHTML(auxiliaryWindow, disposables);
+		return { stylesLoaded, container };
 	}
 
 	protected patchMethods(auxiliaryWindow: CodeWindow): void {
@@ -292,24 +298,44 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore): void {
+	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
 
-		function cloneNode(originalNode: Node): void {
+		const stylesLoaded = new Barrier();
+		stylesLoaded.wait().then(() => mark('code/auxiliaryWindow/didLoadCSSStyles'));
+
+		let pendingLinkSettles = 0;
+		function onLinkSettled(_event?: globalThis.Event) {
+			// network errors from loading stylesheets will be written to the console
+			// already, we probably don't need to log them manually.
+			if (!--pendingLinkSettles) {
+				stylesLoaded.open();
+			}
+		}
+
+		function cloneNode(originalNode: Element): void {
 			if (isGlobalStylesheet(originalNode)) {
 				return; // global stylesheets are handled by `cloneGlobalStylesheets` below
 			}
 
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
+			if (originalNode.tagName === 'LINK') {
+				pendingLinkSettles++;
+				disposables.add(addDisposableListener(clonedNode, 'load', onLinkSettled));
+				disposables.add(addDisposableListener(clonedNode, 'error', onLinkSettled));
+			}
+
 			mapOriginalToClone.set(originalNode, clonedNode);
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
+		pendingLinkSettles++; // outer increment handles cases where there's nothing to load, and ensures it can't settle prematurely
 		for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 			cloneNode(originalNode);
 		}
+		onLinkSettled();
 
 		// Global stylesheets in <head> are cloned in a special way because the mutation
 		// observer is not firing for changes done via `style.sheet` API. Only text changes
@@ -356,6 +382,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}));
 
 		mark('code/auxiliaryWindow/didApplyCSS');
+
+		return { stylesLoaded };
 	}
 
 	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
