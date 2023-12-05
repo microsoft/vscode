@@ -20,6 +20,7 @@
 
 	// Browser
 	else {
+		// @ts-ignore
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
