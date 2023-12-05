@@ -118,7 +118,7 @@ suite('parseArgs', () => {
 				_: { type: 'string[]' }
 			}),
 			_: { type: 'string[]' }
-		} satisfies OptionDescriptions<TestArgs1>;
+		} as OptionDescriptions<TestArgs1>;
 		assertParse(
 			options1,
 			['testcmd', '--testArg=foo'],
@@ -148,7 +148,7 @@ suite('parseArgs', () => {
 			}),
 			testX: { type: 'boolean', global: true, description: '' },
 			_: { type: 'string[]' }
-		} satisfies OptionDescriptions<TestArgs2>;
+		} as OptionDescriptions<TestArgs2>;
 		assertParse(
 			options2,
 			['testcmd', '--testArg=foo', '--testX'],
