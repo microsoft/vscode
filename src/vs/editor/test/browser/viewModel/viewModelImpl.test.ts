@@ -355,4 +355,22 @@ suite('ViewModel', () => {
 			}
 		);
 	});
+
+	test('issue #193262: Incorrect implementation of modifyPosition', () => {
+		testViewModel(
+			[
+				'just some text'
+			],
+			{
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 5
+			},
+			(viewModel, model) => {
+				assert.deepStrictEqual(
+					new Position(3, 1),
+					viewModel.modifyPosition(new Position(3, 2), -1)
+				);
+			}
+		);
+	});
 });
