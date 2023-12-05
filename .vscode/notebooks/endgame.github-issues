@@ -142,6 +142,6 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:open label:candidate\n"
+    "value": "$REPOS $MILESTONE is:issue is:open label:candidate\n"
   }
 ]
