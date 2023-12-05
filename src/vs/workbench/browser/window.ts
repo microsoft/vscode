@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getActiveWindow, getWindow, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
@@ -38,8 +38,34 @@ export abstract class BaseWindow extends Disposable {
 	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
 		super();
 
+		this.enableWindowFocusOnElementFocus(targetWindow);
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 	}
+
+	//#region focus handling in multi-window applications
+
+	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
+		const originalFocus = HTMLElement.prototype.focus;
+
+		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
+
+			// If the active focused window is not the same as the
+			// window of the element to focus, make sure to focus
+			// that window first before focusing the element.
+			const activeWindow = getActiveWindow();
+			if (activeWindow.document.hasFocus()) {
+				const elementWindow = getWindow(this);
+				if (activeWindow !== elementWindow) {
+					elementWindow.focus();
+				}
+			}
+
+			// Pass to original focus() method
+			originalFocus.apply(this, [options]);
+		};
+	}
+
+	//#endregion
 
 	//#region timeout handling in multi-window applications
 
