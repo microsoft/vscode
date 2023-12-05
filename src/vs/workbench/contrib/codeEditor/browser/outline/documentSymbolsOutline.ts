@@ -324,11 +324,14 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 				}
 			}));
 			this._outlineDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
-					if (this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
-						this._applyMarkersToOutline(model);
-					} else {
+				if (e.affectsConfiguration(OutlineConfigKeys.problemsEnabled) || e.affectsConfiguration('problems.visibility')) {
+					const problem = this._configurationService.getValue('problems.visibility');
+					const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
+
+					if (!problem || !config) {
 						model.updateMarker([]);
+					} else {
+						this._applyMarkersToOutline(model);
 					}
 					this._onDidChange.fire({});
 				}
@@ -373,7 +376,9 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	}
 
 	private _applyMarkersToOutline(model: OutlineModel | undefined): void {
-		if (!model || !this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
+		const problem = this._configurationService.getValue('problems.visibility');
+		const config = this._configurationService.getValue(OutlineConfigKeys.problemsEnabled);
+		if (!model || !problem || !config) {
 			return;
 		}
 		const markers: IOutlineMarker[] = [];

@@ -24,9 +24,10 @@ import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/brows
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpoint, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { URI } from 'vs/base/common/uri';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
 const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
@@ -37,16 +38,20 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private _hasInlineChatSession: boolean = false;
+	private _hasActiveDebugSession: boolean = false;
+	private _debugSessions: Set<IDebugSession> = new Set();
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
 
+	public static readonly TOOLBAR_SETTING_ID = 'inlineChat.showToolbarIcon';
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	private static readonly GUTTER_ICON_OPAQUE_CLASSNAME = 'codicon-inline-chat-opaque';
 	private static readonly GUTTER_ICON_TRANSPARENT_CLASSNAME = 'codicon-inline-chat-transparent';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -71,6 +76,20 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._register(this._inlineChatSessionService.onDidEndSession((e) => {
 			if (e === this._editor) {
 				this._hasInlineChatSession = false;
+				this._onEnablementOrModelChanged();
+			}
+		}));
+		this._register(this._debugService.onWillNewSession((session) => {
+			this._debugSessions.add(session);
+			if (!this._hasActiveDebugSession) {
+				this._hasActiveDebugSession = true;
+				this._onEnablementOrModelChanged();
+			}
+		}));
+		this._register(this._debugService.onDidEndSession((session) => {
+			this._debugSessions.delete(session);
+			if (this._debugSessions.size === 0) {
+				this._hasActiveDebugSession = false;
 				this._onEnablementOrModelChanged();
 			}
 		}));
@@ -99,7 +118,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			return;
 		}
 		this._inlineChatKeybinding = keybinding;
-		const hoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
+		const hoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat ({0})', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
 		this._gutterDecorationTransparent.glyphMarginHoverMessage = hoverMessage;
 		this._gutterDecorationOpaque.glyphMarginHoverMessage = hoverMessage;
 	}
@@ -111,7 +130,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (!this._editor.hasModel() || this._hasActiveDebugSession || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;

@@ -18,7 +18,6 @@ import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/cont
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -60,6 +59,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
 	readonly onDidChangeResourceGroups: Event<void>;
@@ -86,12 +86,6 @@ export interface ISCMInputValueProviderContext {
 	readonly resources: readonly URI[];
 }
 
-export interface ISCMInputValueProvider {
-	readonly label: string;
-	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined>;
-}
-
 export const enum InputValidationType {
 	Error = 0,
 	Warning = 1,
@@ -115,12 +109,6 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
-}
-
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
 }
 
 export interface ISCMActionButtonDescriptor {
@@ -155,9 +143,6 @@ export interface ISCMInput {
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
-
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;
 
@@ -184,11 +169,6 @@ export interface ISCMService {
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 	getRepository(id: string): ISCMRepository | undefined;
-
-	readonly onDidChangeInputValueProviders: Event<void>;
-	readonly inputValueProviders: Iterable<ISCMInputValueProvider>;
-
-	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {

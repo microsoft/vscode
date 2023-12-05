@@ -76,10 +76,6 @@ parameters:
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
-  - name: VSCODE_PUBLISH_TO_MOONCAKE
-    displayName: "Publish to Azure China"
-    type: boolean
-    default: true
   - name: VSCODE_RELEASE
     displayName: "Release build if successful"
     type: boolean
@@ -116,8 +112,6 @@ variables:
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
-  - name: VSCODE_PUBLISH_TO_MOONCAKE
-    value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_7PM_BUILD
@@ -138,8 +132,6 @@ variables:
     value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
     value: https://vscode.documents.azure.com:443/
-  - name: MOONCAKE_CDN_URL
-    value: https://vscode.cdn.azure.cn
   - name: VSCODE_MIXIN_REPO
     value: microsoft/vscode-distro
   - name: skipComponentGovernanceDetection

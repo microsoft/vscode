@@ -15,27 +15,29 @@ import { NotebookVariablesView } from 'vs/workbench/contrib/notebook/browser/con
 import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 export class NotebookVariables extends Disposable implements IWorkbenchContribution {
-	private listener: IDisposable;
+	private listener: IDisposable | undefined;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this.initializeView();
 
 		this.listener = this.editorService.onDidEditorsChange(() => {
-			if (this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
-				this.listener.dispose();
-				this.initializeView();
+			if (configurationService.getValue('notebook.experimental.notebookVariablesView')
+				&& this.editorService.activeEditorPane?.getId() === 'workbench.editor.notebook') {
+				if (this.initializeView()) {
+					this.listener?.dispose();
+				}
 			}
 		});
 	}
 
-	private async initializeView() {
-
+	private initializeView() {
 		const debugViewContainer = Registry.as<IViewContainersRegistry>('workbench.registry.view.containers').get(debugContainerId);
 
 		if (debugViewContainer) {
@@ -46,8 +48,10 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 			};
 
 			viewsRegistry.registerViews([viewDescriptor], debugViewContainer);
+			return true;
 		}
 
+		return false;
 	}
 
 }

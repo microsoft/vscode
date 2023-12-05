@@ -302,7 +302,8 @@ export class HoverWidget extends Widget {
 
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
-		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
+		const hoverFocused = this._hoverContainer.contains(this._hoverContainer.ownerDocument.activeElement);
+		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
 		if (accessibleViewHint) {
 
 			status(accessibleViewHint);

@@ -353,7 +353,17 @@ export class SuggestController implements IEditorContribution {
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
+				item.completion.additionalTextEdits.map(edit => {
+					let range = Range.lift(edit.range);
+					if (range.startLineNumber === item.position.lineNumber && range.startColumn > item.position.column) {
+						// shift additional edit when it is "after" the completion insertion position
+						const columnDelta = this.editor.getPosition()!.column - item.position.column;
+						const startColumnDelta = columnDelta;
+						const endColumnDelta = Range.spansMultipleLines(range) ? 0 : columnDelta;
+						range = new Range(range.startLineNumber, range.startColumn + startColumnDelta, range.endLineNumber, range.endColumn + endColumnDelta);
+					}
+					return EditOperation.replaceMove(range, edit.text);
+				})
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 

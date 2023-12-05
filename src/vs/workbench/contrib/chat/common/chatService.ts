@@ -36,6 +36,7 @@ export interface IChatResponseErrorDetails {
 	message: string;
 	responseIsIncomplete?: boolean;
 	responseIsFiltered?: boolean;
+	responseIsRedacted?: boolean;
 }
 
 export interface IChatResponse {
@@ -130,9 +131,29 @@ export interface IChatProgressMessage {
 	kind: 'progressMessage';
 }
 
+export interface IChatAgentVulnerabilityDetails {
+	title: string;
+	description: string;
+}
+
+export interface IChatAgentContentWithVulnerabilities {
+	content: string;
+	vulnerabilities?: IChatAgentVulnerabilityDetails[];
+	kind: 'vulnerability';
+}
+
+// TODO@roblourens Temp until I get MarkdownString out of ChatModel
+export interface IChatAgentMarkdownContentWithVulnerability {
+	content: IMarkdownString;
+	vulnerabilities?: IChatAgentVulnerabilityDetails[];
+	kind: 'markdownVuln';
+}
+
 export type IChatProgress =
 	| IChatContent
 	| IChatMarkdownContent
+	| IChatAgentContentWithVulnerabilities
+	| IChatAgentMarkdownContentWithVulnerability
 	| IChatTreeData
 	| IChatAsyncContent
 	| IChatUsedContext
@@ -148,35 +169,6 @@ export interface IChatProvider {
 	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
 	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
-}
-
-export interface ISlashCommand {
-	command: string;
-	sortText?: string;
-	detail?: string;
-
-	/**
-	 * Whether the command should execute as soon
-	 * as it is entered. Defaults to `false`.
-	 */
-	executeImmediately?: boolean;
-	/**
-	 * Whether executing the command puts the
-	 * chat into a persistent mode, where the
-	 * slash command is prepended to the chat input.
-	 */
-	shouldRepopulate?: boolean;
-	/**
-	 * Placeholder text to render in the chat input
-	 * when the slash command has been repopulated.
-	 * Has no effect if `shouldRepopulate` is `false`.
-	 */
-	followupPlaceholder?: string;
-	/**
-	 * The slash command(s) that this command wants to be
-	 * deprioritized in favor of.
-	 */
-	yieldsTo?: ReadonlyArray<{ readonly command: string }>;
 }
 
 export interface IChatReplyFollowup {
@@ -208,7 +200,7 @@ export interface IChatVoteAction {
 	reportIssue?: boolean;
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	// Keyboard shortcut or context menu
 	Action = 1,
 	Toolbar = 2
@@ -217,7 +209,7 @@ export enum InteractiveSessionCopyKind {
 export interface IChatCopyAction {
 	kind: 'copy';
 	codeBlockIndex: number;
-	copyType: InteractiveSessionCopyKind;
+	copyKind: ChatAgentCopyKind;
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;

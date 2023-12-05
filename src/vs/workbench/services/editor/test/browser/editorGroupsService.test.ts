@@ -431,7 +431,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(rootGroup.count, 1);
 
-		const result = part.mergeAllGroups();
+		const result = part.mergeAllGroups(part.activeGroup);
 		assert.strictEqual(result.id, rootGroup.id);
 		assert.strictEqual(rootGroup.count, 3);
 

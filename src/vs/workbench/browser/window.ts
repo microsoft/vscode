@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getActiveWindow, getWindow, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { matchesScheme, Schemas } from 'vs/base/common/network';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -19,7 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -38,8 +38,34 @@ export abstract class BaseWindow extends Disposable {
 	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
 		super();
 
+		this.enableWindowFocusOnElementFocus(targetWindow);
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 	}
+
+	//#region focus handling in multi-window applications
+
+	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
+		const originalFocus = HTMLElement.prototype.focus;
+
+		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
+
+			// If the active focused window is not the same as the
+			// window of the element to focus, make sure to focus
+			// that window first before focusing the element.
+			const activeWindow = getActiveWindow();
+			if (activeWindow.document.hasFocus()) {
+				const elementWindow = getWindow(this);
+				if (activeWindow !== elementWindow) {
+					elementWindow.focus();
+				}
+			}
+
+			// Pass to original focus() method
+			originalFocus.apply(this, [options]);
+		};
+	}
+
+	//#endregion
 
 	//#region timeout handling in multi-window applications
 

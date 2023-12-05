@@ -863,7 +863,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// chat
 		styleSheets.push(`
 		.monaco-workbench .notebookOverlay .cell-chat-part {
-			margin: 0 ${cellRightMargin}px 8px 6px;
+			margin: 0 ${cellRightMargin}px 6px 6px;
 		}
 		`);
 
@@ -1167,7 +1167,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._backgroundMarkdownRenderRunning = true;
-		DOM.runWhenWindowIdle(DOM.getWindow(this._body), (deadline) => {
+		DOM.runWhenWindowIdle(DOM.getWindow(this.getDomNode()), (deadline) => {
 			this._backgroundMarkdownRenderingWithDeadline(deadline);
 		});
 	}
@@ -1462,7 +1462,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 			hasPendingChangeContentHeight = true;
 
-			this._localStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._body), () => {
+			this._localStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
 			}, 100));
@@ -2270,7 +2270,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		};
 
 		if (this._list.inRenderingTransaction) {
-			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._body), doLayout);
+			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), doLayout);
 
 			this._pendingLayouts?.set(cell, toDisposable(() => {
 				layoutDisposable.dispose();
@@ -2371,7 +2371,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			const focusElementId = options?.outputId ?? cell.id;
-			this._webview.focusOutput(focusElementId, options?.altOutputId, this._webviewFocused);
+			this._webview.focusOutput(focusElementId, options?.altOutputId, options?.outputWebviewFocused || this._webviewFocused);
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Output;
@@ -2977,7 +2977,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._pendingOutputHeightAcks.set(outputId, { cellId: cellInfo.cellId, outputId, height });
 
 		if (wasEmpty) {
-			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._body), () => {
+			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
 				this._debug('ack height');
 				this._updateScrollHeight();
 

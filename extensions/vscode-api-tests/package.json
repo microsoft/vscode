@@ -53,8 +53,7 @@
     "workspaceTrust",
     "telemetry",
     "testingActiveProfile",
-    "windowActivity",
-    "interactiveUserActions"
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],

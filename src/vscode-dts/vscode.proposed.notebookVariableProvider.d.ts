@@ -9,7 +9,10 @@ declare module 'vscode' {
 		variableProvider?: NotebookVariableProvider;
 	}
 
-	type VariablesRequestKind = 'named' | 'indexed';
+	export enum NotebookVariablesRequestKind {
+		Named = 1,
+		Indexed = 2
+	}
 
 	interface VariablesResult {
 		variable: Variable;
@@ -18,10 +21,10 @@ declare module 'vscode' {
 	}
 
 	interface NotebookVariableProvider {
-		onDidChangeVariables: Event<void>;
+		onDidChangeVariables: Event<NotebookDocument>;
 
 		/** When parent is undefined, this is requesting global Variables. When a variable is passed, it's requesting child props of that Variable. */
-		provideVariables(notebook: NotebookDocument, parent: Variable | undefined, kind: VariablesRequestKind, start: number, token: CancellationToken): AsyncIterable<VariablesResult>;
+		provideVariables(notebook: NotebookDocument, parent: Variable | undefined, kind: NotebookVariablesRequestKind, start: number, token: CancellationToken): AsyncIterable<VariablesResult>;
 	}
 
 	interface Variable {
