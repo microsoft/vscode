@@ -19,7 +19,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -220,10 +220,29 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	private doClose(mergeGroupsToMainPart: boolean): void {
-		if (mergeGroupsToMainPart && this.groups.some(group => group.count > 0)) {
-			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
+		if (mergeGroupsToMainPart) {
+			this.mergeGroupsToMainPart();
 		}
 
 		this._onWillClose.fire();
+	}
+
+	private mergeGroupsToMainPart(): void {
+		if (!this.groups.some(group => group.count > 0)) {
+			return;
+		}
+
+		// Merge all aux groups into an unlocked group of main part
+		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (!group.isLocked) {
+				this.mergeAllGroups(group);
+				return;
+			}
+		}
+
+		// If no unlocked group exists, create a new one
+		const newGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, GroupDirection.RIGHT);
+		this.mergeAllGroups(newGroup);
+
 	}
 }
