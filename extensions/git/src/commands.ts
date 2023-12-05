@@ -3631,26 +3631,6 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.generateCommitMessage', { repository: true })
-	async generateCommitMessage(repository: Repository): Promise<void> {
-		if (!repository || !this.model.commitMessageProvider) {
-			return;
-		}
-
-		await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
-			await repository.generateCommitMessage();
-		});
-	}
-
-	@command('git.generateCommitMessageCancel', { repository: true })
-	generateCommitMessageCancel(repository: Repository): void {
-		if (!repository || !this.model.commitMessageProvider) {
-			return;
-		}
-
-		repository.generateCommitMessageCancel();
-	}
-
 	@command('git.viewChanges', { repository: true })
 	viewChanges(repository: Repository): void {
 		this._viewChanges('Git: Changes', repository.workingTreeGroup.resourceStates);
