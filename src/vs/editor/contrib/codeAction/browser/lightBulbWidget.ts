@@ -211,7 +211,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
-			position: { lineNumber: effectiveLineNumber, column: !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1 },
+			position: { lineNumber: effectiveLineNumber, column: effectiveLineNumber <= model.getLineCount() && !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1 },
 			preference: LightBulbWidget._posPref
 		});
 		this._editor.layoutContentWidget(this);
