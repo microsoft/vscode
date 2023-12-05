@@ -1900,10 +1900,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private canLock(): boolean {
-		if (this.groupsView.isAuxiliary) {
-			return true; // always allow locking in auxiliary parts, even single groups
-		}
-
 		return this.editorPartsView.groups.length > 1; // only allow locking if more than 1 group is opened
 	}
 
