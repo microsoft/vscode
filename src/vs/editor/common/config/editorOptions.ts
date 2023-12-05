@@ -2732,7 +2732,10 @@ export enum ShowLightbulbIconMode {
 export interface IEditorLightbulbOptions {
 	/**
 	 * Enable the lightbulb code action.
-	 * Defaults to true.
+	 * The three possible values are `off`, `on` and `onCode` and the default is `onCode`.
+	 * `off` disables the code action menu.
+	 * `on` shows the code action menu on code and on empty lines.
+	 * `onCode` shows the code action menu on code only.
 	 */
 	enabled?: ShowLightbulbIconMode;
 }
@@ -2755,8 +2758,8 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					default: defaults.enabled,
 					enumDescriptions: [
 						nls.localize('editor.lightbulb.enabled.off', 'Disable the code action menu.'),
-						nls.localize('editor.lightbulb.enabled.onCode', 'Enable the code action menu when the cursor is on lines with code.'),
-						nls.localize('editor.lightbulb.enabled.on', 'Enable the code action menu when the cursor is on lines with code or on empty lines.'),
+						nls.localize('editor.lightbulb.enabled.onCode', 'Show the code action menu when the cursor is on lines with code.'),
+						nls.localize('editor.lightbulb.enabled.on', 'Show the code action menu when the cursor is on lines with code or on empty lines.'),
 					],
 					description: nls.localize('enabled', "Enables the Code Action lightbulb in the editor.")
 				}
