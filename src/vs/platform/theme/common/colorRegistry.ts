@@ -142,7 +142,7 @@ class ColorRegistry implements IColorRegistry {
 		}
 		if (needsTransparency) {
 			propertySchema.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
-			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure the selection';
+			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure content';
 		}
 		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);
