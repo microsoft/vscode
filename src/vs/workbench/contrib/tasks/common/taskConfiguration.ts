@@ -1606,6 +1606,9 @@ namespace CustomTask {
 		if (CommandConfiguration.hasCommand(task.command) || task.configurationProperties.dependsOn === undefined) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.configurationProperties.name);
 		}
+		if (task.configurationProperties.name) {
+			task.command.name = task.configurationProperties.name;
+		}
 		if (task.configurationProperties.problemMatchers === undefined && globals.problemMatcher !== undefined) {
 			task.configurationProperties.problemMatchers = Objects.deepClone(globals.problemMatcher);
 			task.hasDefinedMatchers = true;
