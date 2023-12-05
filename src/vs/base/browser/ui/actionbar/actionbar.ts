@@ -201,7 +201,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			// Recompute focused item
-			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
+			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab) || event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				this.updateFocusedItem();
 			}
 		}));
