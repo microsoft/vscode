@@ -59,27 +59,7 @@ export class PointerEventHandler extends MouseHandler {
 
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
-
-		if (target.position) {
-			// this.viewController.moveTo(target.position);
-			this.viewController.dispatchMouse({
-				position: target.position,
-				mouseColumn: target.position.column,
-				startedOnLineNumbers: false,
-				revealType: NavigationCommandRevealType.Minimal,
-				mouseDownCount: event.tapCount,
-				inSelectionMode: false,
-				altKey: false,
-				ctrlKey: false,
-				metaKey: false,
-				shiftKey: false,
-
-				leftButton: false,
-				middleButton: false,
-				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
-			});
-		}
+		this._dispatchGesture(event, /*inSelectionMode*/false);
 	}
 
 	private onChange(event: GestureEvent): void {
@@ -87,24 +67,28 @@ export class PointerEventHandler extends MouseHandler {
 			this._context.viewModel.viewLayout.deltaScrollNow(-event.translationX, -event.translationY);
 		}
 		if (this._lastPointerType === 'pen') {
-			const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
-			if (target.position) {
-				this.viewController.dispatchMouse({
-					position: target.position,
-					mouseColumn: target.position.column,
-					startedOnLineNumbers: false,
-					revealType: NavigationCommandRevealType.Minimal,
-					mouseDownCount: event.tapCount,
-					inSelectionMode: true,
-					altKey: false,
-					ctrlKey: false,
-					metaKey: false,
-					shiftKey: false,
-					leftButton: false,
-					middleButton: false,
-					onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
-				});
-			}
+			this._dispatchGesture(event, /*inSelectionMode*/true);
+		}
+	}
+
+	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		if (target.position) {
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: target.position.column,
+				startedOnLineNumbers: false,
+				revealType: NavigationCommandRevealType.Minimal,
+				mouseDownCount: event.tapCount,
+				inSelectionMode,
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				shiftKey: false,
+				leftButton: false,
+				middleButton: false,
+				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
+			});
 		}
 	}
 
@@ -156,7 +140,7 @@ export class PointerHandler extends Disposable {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
-		if ((BrowserFeatures.pointerEvents)) {
+		if (BrowserFeatures.pointerEvents) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if (mainWindow.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
