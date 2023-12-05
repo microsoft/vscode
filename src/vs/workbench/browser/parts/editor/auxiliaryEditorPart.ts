@@ -14,7 +14,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
-import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, IEditorGroupsView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
@@ -221,19 +221,19 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 	private doClose(mergeGroupsToMainPart: boolean): void {
 		if (mergeGroupsToMainPart) {
-			this.mergeGroupsToMainPart();
+			this.mergeGroupsIntoGroupView(this.editorPartsView.mainPart);
 		}
 
 		this._onWillClose.fire();
 	}
 
-	private mergeGroupsToMainPart(): void {
+	private mergeGroupsIntoGroupView(targetView: IEditorGroupsView): void {
 		if (!this.groups.some(group => group.count > 0)) {
 			return;
 		}
 
-		// Merge all aux groups into an unlocked group of main part
-		for (const group of this.editorPartsView.mainPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+		// Merge all aux groups into an unlocked group of the main part
+		for (const group of targetView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (!group.isLocked) {
 				this.mergeAllGroups(group);
 				return;
@@ -241,8 +241,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		}
 
 		// If no unlocked group exists, create a new one
-		const newGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, GroupDirection.RIGHT);
+		const newGroup = targetView.addGroup(targetView.activeGroup, GroupDirection.RIGHT);
 		this.mergeAllGroups(newGroup);
-
 	}
 }
