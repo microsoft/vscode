@@ -217,6 +217,10 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 			// so moving the mouse has no effect
 			return;
 		}
+		if (mouseEvent.event.altKey) {
+			// When the alt key is pressed, hover remains open
+			return;
+		}
 
 		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
