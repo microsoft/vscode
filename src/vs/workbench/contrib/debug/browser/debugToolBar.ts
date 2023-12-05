@@ -281,7 +281,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private get yRange(): [number, number] {
 		if (!this._yRange) {
 			const isTitleBarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, dom.getWindow(this.layoutService.activeContainer));
-			const yMin = isTitleBarVisible ? 0 : this.layoutService.mainContainerOffset.top;
+			const yMin = isTitleBarVisible ? this.layoutService.mainContainerOffset.top : 0;
 			let yMax = 0;
 
 			if (isTitleBarVisible) {
