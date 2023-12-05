@@ -812,8 +812,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.updateContainer();
 
 		// Update locked state: clear when we are at just 1 group
-		// in case we are in the main editor part
-		if (this.count === 1 && !this.isAuxiliary) {
+		if (this.editorPartsView.count === 1) {
 			firstOrDefault(this.groups)?.lock(false);
 		}
 

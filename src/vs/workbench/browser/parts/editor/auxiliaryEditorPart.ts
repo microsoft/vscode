@@ -241,6 +241,8 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		for (const group of targetView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (!group.isLocked) {
 				this.mergeAllGroups(group);
+				group.focus();
+				targetView.activateGroup(group);
 				return;
 			}
 		}
