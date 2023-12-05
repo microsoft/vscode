@@ -339,7 +339,7 @@ export class DisassemblyView extends EditorPane {
 	async goToInstructionAndOffset(instructionReference: string, offset: number, focus?: boolean) {
 		let addr = this._referenceToMemoryAddress.get(instructionReference);
 		if (addr === undefined) {
-			await this.loadDisassembledInstructions(instructionReference, 0, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+			await this.loadDisassembledInstructions(instructionReference, 0, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2);
 			addr = this._referenceToMemoryAddress.get(instructionReference);
 		}
 
