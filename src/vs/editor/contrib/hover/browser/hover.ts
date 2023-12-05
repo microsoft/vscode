@@ -206,6 +206,12 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		this._mouseMoveEvent = mouseEvent;
+		const isLocked = mouseEvent.event.altKey;
+		this._contentWidget?.widget.toggleLocked(isLocked);
+		if (mouseEvent.event.altKey) {
+			// When the alt key is pressed, hover remains open
+			return;
+		}
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
@@ -215,10 +221,6 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		if (this._isHoverSticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
-			return;
-		}
-		if (mouseEvent.event.altKey) {
-			// When the alt key is pressed, hover remains open
 			return;
 		}
 
