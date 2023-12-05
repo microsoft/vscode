@@ -1,3 +1,11 @@
+parameters:
+  - name: VSCODE_BUILD_ALPINE
+    type: boolean
+    default: false
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    type: boolean
+    default: false
+
 steps:
   - task: NodeTool@0
     inputs:
@@ -87,9 +95,12 @@ steps:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH)
+      ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
+        VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:9460a68ee75616af694fbfcb44705f3a9e2d2428d1c485cec69d574326db85a6
+      ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
+        VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent@sha256:363166a7958f99ff581a62d94dec42217c16f1aed00e11875e30a59c178e52f9
       VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
-    displayName: Install build dependencies
+    displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: node build/azure-pipelines/distro/mixin-npm
