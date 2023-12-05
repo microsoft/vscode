@@ -513,6 +513,7 @@ function registerListeners() {
 	 * @type {string[]}
 	 */
 	const macOpenFiles = [];
+	// @ts-ignore
 	global['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
@@ -539,6 +540,7 @@ function registerListeners() {
 		app.on('open-url', onOpenUrl);
 	});
 
+	// @ts-ignore
 	global['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 
