@@ -257,6 +257,8 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
+			cts?.cancel();
+
 			// update less aggressive when typing
 			const delay = Math.max(scheduler.delay, 1250);
 			scheduler.schedule(delay);
