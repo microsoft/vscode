@@ -232,7 +232,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			return;
 		}
 
-		// Merge all aux groups into an unlocked group of the main part
+		// Merge all aux groups into an unlocked group
 		for (const group of targetView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (!group.isLocked) {
 				this.mergeAllGroups(group);
