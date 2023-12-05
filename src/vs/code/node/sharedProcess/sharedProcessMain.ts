@@ -106,6 +106,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
@@ -114,8 +115,6 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { nodeSocketFactory } from 'vs/platform/remote/node/nodeSocketFactory';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IVoiceRecognitionService, VoiceRecognitionService } from 'vs/platform/voiceRecognition/node/voiceRecognitionService';
-import { VoiceTranscriptionManager } from 'vs/code/node/sharedProcess/contrib/voiceTranscriber';
 import { SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
@@ -183,8 +182,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 			instantiationService.createInstance(LogsDataCleaner),
 			instantiationService.createInstance(LocalizationsUpdater),
 			instantiationService.createInstance(ExtensionsContributions),
-			instantiationService.createInstance(UserDataProfilesCleaner),
-			instantiationService.createInstance(VoiceTranscriptionManager, this.onDidWindowConnectRaw.event)
+			instantiationService.createInstance(UserDataProfilesCleaner)
 		));
 	}
 
@@ -277,7 +275,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
 		// Native Host
-		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'));
+		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
 		// Download
@@ -303,7 +301,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 			telemetryService = new TelemetryService({
 				appenders,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, internalTelemetry),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, this.configuration.sqmId, internalTelemetry),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService, productService);
@@ -366,9 +364,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		// Remote Tunnel
 		services.set(IRemoteTunnelService, new SyncDescriptor(RemoteTunnelService));
-
-		// Voice Recognition
-		services.set(IVoiceRecognitionService, new SyncDescriptor(VoiceRecognitionService));
 
 		return new InstantiationService(services);
 	}

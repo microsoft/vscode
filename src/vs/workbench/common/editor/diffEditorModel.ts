@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IResolvableEditorModel } from 'vs/platform/editor/common/editor';
 
 /**
  * The base editor model for the diff editor. It is made up of two editor models, the original version
@@ -12,13 +12,13 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
  */
 export class DiffEditorModel extends EditorModel {
 
-	protected readonly _originalModel: IEditorModel | undefined;
-	get originalModel(): IEditorModel | undefined { return this._originalModel; }
+	protected readonly _originalModel: IResolvableEditorModel | undefined;
+	get originalModel(): IResolvableEditorModel | undefined { return this._originalModel; }
 
-	protected readonly _modifiedModel: IEditorModel | undefined;
-	get modifiedModel(): IEditorModel | undefined { return this._modifiedModel; }
+	protected readonly _modifiedModel: IResolvableEditorModel | undefined;
+	get modifiedModel(): IResolvableEditorModel | undefined { return this._modifiedModel; }
 
-	constructor(originalModel: IEditorModel | undefined, modifiedModel: IEditorModel | undefined) {
+	constructor(originalModel: IResolvableEditorModel | undefined, modifiedModel: IResolvableEditorModel | undefined) {
 		super();
 
 		this._originalModel = originalModel;
@@ -33,7 +33,7 @@ export class DiffEditorModel extends EditorModel {
 	}
 
 	override isResolved(): boolean {
-		return !!(this.originalModel?.isResolved() && this.modifiedModel?.isResolved());
+		return !!(this._originalModel?.isResolved() && this._modifiedModel?.isResolved());
 	}
 
 	override dispose(): void {

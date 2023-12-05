@@ -21,10 +21,10 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
@@ -43,7 +43,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
-			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
+			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
 			this._register(autorunWithStore((reader, store) => {
@@ -106,7 +106,7 @@ function createScreenReaderHelp(): IDisposable {
 		const keys = ['audioCues.diffLineDeleted', 'audioCues.diffLineInserted', 'audioCues.diffLineModified'];
 		const content = [
 			localize('msg1', "You are in a diff editor."),
-			localize('msg2', "View the next {0} or previous {1} diff in diff review mode that is optimized for screen readers.", next, previous),
+			localize('msg2', "View the next ({0}) or previous ({1}) diff in diff review mode, which is optimized for screen readers.", next, previous),
 			localize('msg3', "To control which audio cues should be played, the following settings can be configured: {0}.", keys.join(', ')),
 		];
 		const commentCommandInfo = getCommentCommandInfo(keybindingService, contextKeyService, codeEditor);
@@ -114,6 +114,7 @@ function createScreenReaderHelp(): IDisposable {
 			content.push(commentCommandInfo);
 		}
 		accessibleViewService.show({
+			id: AccessibleViewProviderId.DiffEditor,
 			verbositySettingKey: AccessibilityVerbositySettingId.DiffEditor,
 			provideContent: () => content.join('\n\n'),
 			onClose: () => {

@@ -7,19 +7,19 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, ITransaction, autorunWithStore, derived, observableSignal, observableSignalFromEvent, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { ISerializedLineRange, LineRange } from 'vs/editor/common/core/lineRange';
 import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
 import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 import { MovedText } from 'vs/editor/common/diff/linesDiffComputer';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { DetailedLineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IDiffEditorModel, IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { combineTextEditInfos } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/combineTextEditInfos';
 import { DiffEditorOptions } from './diffEditorOptions';
+import { optimizeSequenceDiffs } from 'vs/editor/common/diff/defaultLinesDiffComputer/heuristicSequenceOptimizations';
 
 export class DiffEditorViewModel extends Disposable implements IDiffEditorViewModel {
 	private readonly _isDiffUpToDate = observableValue<boolean>(this, false);
@@ -67,7 +67,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	private readonly _cancellationTokenSource = new CancellationTokenSource();
 
 	private readonly _diffProvider = derived(this, reader => {
-		const diffProvider = this._diffProviderFactoryService.createDiffProvider(this._editor, {
+		const diffProvider = this._diffProviderFactoryService.createDiffProvider({
 			diffAlgorithm: this._options.diffAlgorithm.read(reader)
 		});
 		const onChangeSignal = observableSignalFromEvent('onDidChange', diffProvider.onDidChange);
@@ -80,7 +80,6 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 	constructor(
 		public readonly model: IDiffEditorModel,
 		private readonly _options: DiffEditorOptions,
-		private readonly _editor: IDiffEditor,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 	) {
 		super();
@@ -103,12 +102,10 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			const lastUnchangedRegions = this._unchangedRegions.get();
 			const lastUnchangedRegionsOrigRanges = lastUnchangedRegions.originalDecorationIds
 				.map(id => model.original.getDecorationRange(id))
-				.filter(r => !!r)
-				.map(r => LineRange.fromRange(r!));
+				.map(r => r ? LineRange.fromRange(r) : undefined);
 			const lastUnchangedRegionsModRanges = lastUnchangedRegions.modifiedDecorationIds
 				.map(id => model.modified.getDecorationRange(id))
-				.filter(r => !!r)
-				.map(r => LineRange.fromRange(r!));
+				.map(r => r ? LineRange.fromRange(r) : undefined);
 
 			const originalDecorationIds = model.original.deltaDecorations(
 				lastUnchangedRegions.originalDecorationIds,
@@ -122,8 +119,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 
 			for (const r of newUnchangedRegions) {
 				for (let i = 0; i < lastUnchangedRegions.regions.length; i++) {
-					if (r.originalUnchangedRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i])
-						&& r.modifiedUnchangedRange.intersectsStrict(lastUnchangedRegionsModRanges[i])) {
+					if (lastUnchangedRegionsOrigRanges[i] && r.originalUnchangedRange.intersectsStrict(lastUnchangedRegionsOrigRanges[i]!)
+						&& lastUnchangedRegionsModRanges[i] && r.modifiedUnchangedRange.intersectsStrict(lastUnchangedRegionsModRanges[i]!)) {
 						r.setHiddenModifiedRange(lastUnchangedRegions.regions[i].getHiddenModifiedRange(undefined), tx);
 						break;
 					}
@@ -155,6 +152,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 			}
 
+			this._isDiffUpToDate.set(false, undefined);
 			debouncer.schedule();
 		}));
 		this._register(model.original.onDidChangeContent((e) => {
@@ -173,6 +171,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 			}
 
+			this._isDiffUpToDate.set(false, undefined);
 			debouncer.schedule();
 		}));
 
@@ -189,6 +188,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			documentDiffProvider.onChangeSignal.read(reader);
 
 			readHotReloadableExport(DefaultLinesDiffComputer, reader);
+			readHotReloadableExport(optimizeSequenceDiffs, reader);
 
 			this._isDiffUpToDate.set(false, undefined);
 
@@ -214,10 +214,12 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				return;
 			}
 
+			result = normalizeDocumentDiff(result, model.original, model.modified);
 			result = applyOriginalEdits(result, originalTextEditInfos, model.original, model.modified) ?? result;
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
 
 			transaction(tx => {
+				/** @description write diff result */
 				updateUnchangedRegions(result, tx);
 
 				this._lastDiff = result;
@@ -281,6 +283,35 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			}
 		});
 	}
+}
+
+function normalizeDocumentDiff(diff: IDocumentDiff, original: ITextModel, modified: ITextModel): IDocumentDiff {
+	return {
+		changes: diff.changes.map(c => new DetailedLineRangeMapping(
+			c.original,
+			c.modified,
+			c.innerChanges ? c.innerChanges.map(i => normalizeRangeMapping(i, original, modified)) : undefined
+		)),
+		moves: diff.moves,
+		identical: diff.identical,
+		quitEarly: diff.quitEarly,
+	};
+}
+
+function normalizeRangeMapping(rangeMapping: RangeMapping, original: ITextModel, modified: ITextModel): RangeMapping {
+	let originalRange = rangeMapping.originalRange;
+	let modifiedRange = rangeMapping.modifiedRange;
+	if (
+		(originalRange.endColumn !== 1 || modifiedRange.endColumn !== 1) &&
+		originalRange.endColumn === original.getLineMaxColumn(originalRange.endLineNumber)
+		&& modifiedRange.endColumn === modified.getLineMaxColumn(modifiedRange.endLineNumber)
+		&& originalRange.endLineNumber < original.getLineCount()
+		&& modifiedRange.endLineNumber < modified.getLineCount()
+	) {
+		originalRange = originalRange.setEndPosition(originalRange.endLineNumber + 1, 1);
+		modifiedRange = modifiedRange.setEndPosition(modifiedRange.endLineNumber + 1, 1);
+	}
+	return new RangeMapping(originalRange, modifiedRange);
 }
 
 interface SerializedState {
@@ -387,7 +418,7 @@ export class UnchangedRegion {
 	private readonly _shouldHideControls = derived(this, reader => /** @description isVisible */
 		this.visibleLineCountTop.read(reader) + this.visibleLineCountBottom.read(reader) === this.lineCount && !this.isDragged.read(reader));
 
-	public readonly isDragged = observableValue<boolean>(this, false);
+	public readonly isDragged = observableValue<undefined | 'bottom' | 'top'>(this, undefined);
 
 	constructor(
 		public readonly originalLineNumber: number,

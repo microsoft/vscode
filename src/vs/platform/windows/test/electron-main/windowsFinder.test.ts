@@ -34,6 +34,8 @@ suite('WindowsFinder', () => {
 	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
 			onWillLoad: Event<ILoadEvent> = Event.None;
+			onDidMaximize = Event.None;
+			onDidUnmaximize = Event.None;
 			onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
 			onDidSignalReady: Event<void> = Event.None;
 			onDidClose: Event<void> = Event.None;
@@ -62,7 +64,6 @@ suite('WindowsFinder', () => {
 			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
 			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
-			isMinimized(): boolean { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }

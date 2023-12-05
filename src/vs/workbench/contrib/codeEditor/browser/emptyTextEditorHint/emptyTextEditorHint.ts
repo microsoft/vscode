@@ -43,14 +43,20 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 		key: 'workbench.editor.untitled.hint',
 		migrateFn: (value, _accessor) => ([
 			[emptyTextEditorHintSetting, { value }],
+			['workbench.editor.untitled.hint', { value: undefined }]
 		])
 	},
 	{
 		key: 'accessibility.verbosity.untitledHint',
 		migrateFn: (value, _accessor) => ([
 			[AccessibilityVerbositySettingId.EmptyEditorHint, { value }],
+			['accessibility.verbosity.untitledHint', { value: undefined }]
 		])
 	}]);
+
+export interface IEmptyTextEditorHintOptions {
+	readonly clickable?: boolean;
+}
 
 export const emptyTextEditorHintSetting = 'workbench.editor.empty.hint';
 export class EmptyTextEditorHintContribution implements IEditorContribution {
@@ -66,14 +72,16 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
+		@IInlineChatSessionService private readonly inlineChatSessionService: IInlineChatSessionService,
 		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
+		@IProductService protected readonly productService: IProductService,
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
+		this.toDispose.push(this.editor.onDidChangeModelContent(() => this.update()));
+		this.toDispose.push(this.inlineChatService.onDidChangeProviders(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(emptyTextEditorHintSetting)) {
@@ -92,6 +100,10 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}));
 	}
 
+	protected _getOptions(): IEmptyTextEditorHintOptions {
+		return { clickable: true };
+	}
+
 	protected _shouldRenderHint() {
 		const configValue = this.configurationService.getValue(emptyTextEditorHintSetting);
 		if (configValue === 'hidden') {
@@ -108,13 +120,21 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 			return false;
 		}
 
-		const conflictingDecoration = this.editor.getLineDecorations(1)?.find((d) =>
+		if (this.inlineChatSessionService.getSession(this.editor, model.uri)) {
+			return false;
+		}
+
+		if (this.editor.getModel()?.getValueLength()) {
+			return false;
+		}
+
+		const hasConflictingDecorations = Boolean(this.editor.getLineDecorations(1)?.find((d) =>
 			d.options.beforeContentClassName
 			|| d.options.afterContentClassName
 			|| d.options.before?.content
 			|| d.options.after?.content
-		);
-		if (conflictingDecoration) {
+		));
+		if (hasConflictingDecorations) {
 			return false;
 		}
 
@@ -124,11 +144,11 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 	}
 
 	protected update(): void {
-		this.textHintContentWidget?.dispose();
-
-		if (this._shouldRenderHint()) {
+		const shouldRenderHint = this._shouldRenderHint();
+		if (shouldRenderHint && !this.textHintContentWidget) {
 			this.textHintContentWidget = new EmptyTextEditorHintContentWidget(
 				this.editor,
+				this._getOptions(),
 				this.editorGroupsService,
 				this.commandService,
 				this.configurationService,
@@ -137,6 +157,9 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.telemetryService,
 				this.productService
 			);
+		} else if (!shouldRenderHint && this.textHintContentWidget) {
+			this.textHintContentWidget.dispose();
+			this.textHintContentWidget = undefined;
 		}
 	}
 
@@ -157,6 +180,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly options: IEmptyTextEditorHintOptions,
 		private readonly editorGroupsService: IEditorGroupsService,
 		private readonly commandService: ICommandService,
 		private readonly configurationService: IConfigurationService,
@@ -166,8 +190,6 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		private readonly productService: IProductService
 	) {
 		this.toDispose = new DisposableStore();
-		this.toDispose.add(this.inlineChatService.onDidChangeProviders(() => this.onDidChangeModelContent()));
-		this.toDispose.add(this.editor.onDidChangeModelContent(() => this.onDidChangeModelContent()));
 		this.toDispose.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
 				this.editor.applyFontInfo(this.domNode);
@@ -179,17 +201,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 				status(this.ariaLabel);
 			}
 		}));
-		this.onDidChangeModelContent();
-	}
-
-	private onDidChangeModelContent(): void {
-		if (!this.editor.getModel()?.getValueLength()) {
-			this.editor.addContentWidget(this);
-			this.isVisible = true;
-		} else {
-			this.editor.removeContentWidget(this);
-			this.isVisible = false;
-		}
+		this.editor.addContentWidget(this);
 	}
 
 	getId(): string {
@@ -231,11 +243,17 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			const actionPart = localize('emptyHintText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
-				const hintPart = $('a', undefined, fragment);
-				hintPart.style.fontStyle = 'italic';
-				hintPart.style.cursor = 'pointer';
-				hintPart.onclick = handleClick;
-				return hintPart;
+				if (this.options.clickable) {
+					const hintPart = $('a', undefined, fragment);
+					hintPart.style.fontStyle = 'italic';
+					hintPart.style.cursor = 'pointer';
+					hintPart.onclick = handleClick;
+					return hintPart;
+				} else {
+					const hintPart = $('span', undefined, fragment);
+					hintPart.style.fontStyle = 'italic';
+					return hintPart;
+				}
 			});
 
 			hintElement.appendChild(before);
@@ -244,8 +262,11 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			label.set(keybindingHint);
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
-			label.element.style.cursor = 'pointer';
-			label.element.onclick = handleClick;
+
+			if (this.options.clickable) {
+				label.element.style.cursor = 'pointer';
+				label.element.onclick = handleClick;
+			}
 
 			hintElement.appendChild(after);
 

@@ -102,4 +102,14 @@ suite('URI Identity', function () {
 		assertCanonical(URI.parse('foo://bar/BAZZ#DDD'), b.with({ fragment: 'DDD' })); // lower-case path, but fragment is kept
 	});
 
+	test.skip('[perf] CPU pegged after some builds #194853', function () {
+
+		const n = 100 + (2 ** 16);
+		for (let i = 0; i < n; i++) {
+			const uri = URI.parse(`foo://bar/${i}`);
+			const uri2 = _service.asCanonicalUri(uri);
+
+			assert.ok(uri2);
+		}
+	});
 });

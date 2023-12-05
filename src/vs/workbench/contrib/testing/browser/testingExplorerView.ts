@@ -489,11 +489,12 @@ class ResultSummaryView extends Disposable {
 		const { results } = this.resultService;
 		const { count, root, status, duration, rerun } = this.elements;
 		if (!results.length) {
-			this.container.innerText = localize('noResults', 'No test results yet.');
 			if (this.elementsWereAttached) {
 				this.container.removeChild(root);
 				this.elementsWereAttached = false;
 			}
+			this.container.innerText = localize('noResults', 'No test results yet.');
+			this.badgeDisposable.clear();
 			return;
 		}
 
@@ -752,7 +753,7 @@ class TestingExplorerViewModel extends Disposable {
 		}));
 
 		this._register(this.tree.onDidChangeSelection(evt => {
-			if (evt.browserEvent instanceof MouseEvent && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
+			if (dom.isMouseEvent(evt.browserEvent) && (evt.browserEvent.altKey || evt.browserEvent.shiftKey)) {
 				return; // don't focus when alt-clicking to multi select
 			}
 
@@ -1279,8 +1280,8 @@ class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelPro
 }
 
 class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
-	getHeight(_element: TestExplorerTreeElement) {
-		return 22;
+	getHeight(element: TestExplorerTreeElement) {
+		return element instanceof TestTreeErrorMessage ? 17 + 10 : 22;
 	}
 
 	getTemplateId(element: TestExplorerTreeElement) {
@@ -1321,6 +1322,8 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 	}
 
 	renderElement({ element }: ITreeNode<TestTreeErrorMessage, FuzzyScore>, _: number, data: IErrorTemplateData): void {
+		dom.clearNode(data.label);
+
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {

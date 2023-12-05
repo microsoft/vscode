@@ -616,4 +616,56 @@ suite('SuggestController', function () {
 
 		await p2;
 	});
+
+	test('Ranges where additionalTextEdits are applied are not appropriate when characters are typed #177591', async function () {
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'aaa',
+						insertText: 'aaa',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							range: Range.fromPositions(pos.delta(0, 10)),
+							text: 'aaa'
+						}]
+					}]
+				};
+			}
+		}));
+
+		{ // PART1 - no typing
+			editor.setValue(`123456789123456789`);
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			const p1 = Event.toPromise(controller.model.onDidSuggest);
+			controller.triggerSuggest();
+
+			const e = await p1;
+			assert.strictEqual(e.completionModel.items.length, 1);
+			assert.strictEqual(e.completionModel.items[0].textLabel, 'aaa');
+
+			controller.acceptSelectedSuggestion(false, false);
+
+			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
+		}
+
+		{ // PART2 - typing
+			editor.setValue(`123456789123456789`);
+			editor.setSelection(new Selection(1, 1, 1, 1));
+			const p1 = Event.toPromise(controller.model.onDidSuggest);
+			controller.triggerSuggest();
+
+			const e = await p1;
+			assert.strictEqual(e.completionModel.items.length, 1);
+			assert.strictEqual(e.completionModel.items[0].textLabel, 'aaa');
+
+			editor.trigger('keyboard', 'type', { text: 'aa' });
+
+			controller.acceptSelectedSuggestion(false, false);
+
+			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
+		}
+	});
 });

@@ -219,6 +219,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				await this.syncRemoteProfiles(syncProfiles, manifest, merge, executionId, token);
 			}
 		} finally {
+			if (this.status !== SyncStatus.HasConflicts) {
+				this.setStatus(SyncStatus.Idle);
+			}
 			this._onSyncErrors.fire(this._syncErrors);
 		}
 	}

@@ -20,10 +20,14 @@ export const ICONS = [
 	Codicon.recordKeys,
 	Codicon.deviceMobile,
 	Codicon.watch,
+	Codicon.vr,
+	Codicon.piano,
 
 	/* languages */
 	Codicon.ruby,
 	Codicon.code,
+	Codicon.coffee,
+	Codicon.snake,
 
 	/* project types */
 	Codicon.window,
@@ -37,6 +41,10 @@ export const ICONS = [
 	Codicon.globe,
 	Codicon.database,
 	Codicon.notebook,
+	Codicon.robot,
+	Codicon.game,
+	Codicon.chip,
+	Codicon.music,
 
 	/* misc */
 	Codicon.gift,
@@ -83,5 +91,6 @@ export const ICONS = [
 	Codicon.paintcan,
 	Codicon.archive,
 	Codicon.mic,
+	Codicon.jersey,
 
 ];

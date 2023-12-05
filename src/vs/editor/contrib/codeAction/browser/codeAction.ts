@@ -48,6 +48,11 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	}
 
 	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+		if (a.isAI && !b.isAI) {
+			return 1;
+		} else if (!a.isAI && b.isAI) {
+			return -1;
+		}
 		if (isNonEmptyArray(a.diagnostics)) {
 			return isNonEmptyArray(b.diagnostics) ? ManagedCodeActionSet.codeActionsPreferredComparator(a, b) : -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
@@ -75,6 +80,14 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
 	public get hasAutoFix() {
 		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+	}
+
+	public get hasAIFix() {
+		return this.validActions.some(({ action: fix }) => !!fix.isAI);
+	}
+
+	public get allAIFixes() {
+		return this.validActions.every(({ action: fix }) => !!fix.isAI);
 	}
 }
 
@@ -117,7 +130,7 @@ export async function getCodeActions(
 				return emptyCodeActionsResponse;
 			}
 
-			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
+			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action, model, rangeOrSelection));
 			const documentation = getDocumentationFromProvider(provider, filteredActions, filter.include);
 			return {
 				actions: filteredActions.map(action => new CodeActionItem(action, provider)),

@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable } from './util';
+import { IDisposable, filterEvent } from './util';
 import { toGitUri } from './uri';
-import { SyncActionButton } from './actionButton';
-import { RefType, Status } from './api/git';
+import { Branch, RefType, Status } from './api/git';
+import { emojify, ensureEmojis } from './emoji';
+import { Operation } from './operation';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
-
-	private readonly _onDidChangeActionButton = new EventEmitter<void>();
-	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
 
 	private readonly _onDidChangeCurrentHistoryItemGroup = new EventEmitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void> = this._onDidChangeCurrentHistoryItemGroup.event;
@@ -22,13 +20,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
-	private _actionButton: SourceControlActionButton | undefined;
-	get actionButton(): SourceControlActionButton | undefined { return this._actionButton; }
-	set actionButton(button: SourceControlActionButton | undefined) {
-		this._actionButton = button;
-		this._onDidChangeActionButton.fire();
-	}
-
+	private _HEAD: Branch | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
@@ -42,26 +34,37 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	private disposables: Disposable[] = [];
 
 	constructor(protected readonly repository: Repository) {
-		const actionButton = new SyncActionButton(repository);
-		this.actionButton = actionButton.button;
-		this.disposables.push(actionButton);
-
 		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
-		this.disposables.push(actionButton.onDidChange(() => this.actionButton = actionButton.button));
+		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this._onDidChangeCurrentHistoryItemGroup.fire()));
 
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
-		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit) { return; }
+		// Check if HEAD has changed
+		if (this._HEAD?.name === this.repository.HEAD?.name &&
+			this._HEAD?.commit === this.repository.HEAD?.commit &&
+			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
+			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
+			return;
+		}
+
+		this._HEAD = this.repository.HEAD;
+
+		// Check if HEAD supports incoming/outgoing (not a tag, not detached)
+		if (!this._HEAD?.name || !this._HEAD?.commit || this._HEAD.type === RefType.Tag) {
+			this.currentHistoryItemGroup = undefined;
+			return;
+		}
 
 		this.currentHistoryItemGroup = {
-			id: `refs/heads/${this.repository.HEAD.name}`,
-			label: this.repository.HEAD.name,
-			upstream: this.repository.HEAD.upstream ?
+			id: `refs/heads/${this._HEAD.name}`,
+			label: this._HEAD.name,
+			upstream: this._HEAD.upstream ?
 				{
-					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-					label: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+					id: `refs/remotes/${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
+					label: `${this._HEAD.upstream.remote}/${this._HEAD.upstream.name}`,
 				} : undefined
 		};
 	}
@@ -76,10 +79,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		const optionsRef = options.limit.id;
+		const historyItemGroupIdRef = await this.repository.revParse(historyItemGroupId) ?? '';
+
 		const [commits, summary] = await Promise.all([
-			this.repository.log({ range: `${optionsRef}..${historyItemGroupId}`, sortByAuthorDate: true }),
-			this.getSummaryHistoryItem(optionsRef, historyItemGroupId)
+			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, shortStats: true, sortByAuthorDate: true }),
+			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
 		]);
+
+		await ensureEmojis();
 
 		const historyItems = commits.length === 0 ? [] : [summary];
 		historyItems.push(...commits.map(commit => {
@@ -89,10 +96,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return {
 				id: commit.hash,
 				parentIds: commit.parents,
-				label: subject,
+				label: emojify(subject),
 				description: commit.authorName,
-				icon: new ThemeIcon('account'),
-				timestamp: commit.authorDate?.getTime()
+				icon: new ThemeIcon('git-commit'),
+				timestamp: commit.authorDate?.getTime(),
+				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
 			};
 		}));
 
@@ -100,13 +108,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItemChanges(historyItemId: string): Promise<SourceControlHistoryItemChange[]> {
-		const [ref1, ref2] = historyItemId.includes('..')
-			? historyItemId.split('..')
-			: [`${historyItemId}^`, historyItemId];
+		// The "All Changes" history item uses a special id
+		// which is a commit range instead of a single commit id
+		let [originalRef, modifiedRef] = historyItemId.includes('..')
+			? historyItemId.split('..') : [undefined, historyItemId];
+
+		if (!originalRef) {
+			const commit = await this.repository.getCommit(modifiedRef);
+			originalRef = commit.parents.length > 0 ? commit.parents[0] : `${modifiedRef}^`;
+		}
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffBetween(ref1, ref2);
+		const changes = await this.repository.diffBetween(originalRef, modifiedRef);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -116,8 +130,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			// History item change
 			historyItemChanges.push({
 				uri: historyItemUri,
-				originalUri: toGitUri(change.originalUri, ref1),
-				modifiedUri: toGitUri(change.originalUri, ref2),
+				originalUri: toGitUri(change.originalUri, originalRef),
+				modifiedUri: toGitUri(change.originalUri, modifiedRef),
 				renameUri: change.renameUri,
 			});
 
@@ -163,7 +177,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const ancestor = await this.repository.getMergeBase(refId1, refId2);
-		if (ancestor === '') {
+		if (!ancestor) {
 			return undefined;
 		}
 
@@ -184,8 +198,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
-		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), description: diffShortStat };
+		const statistics = await this.repository.diffBetweenShortStat(ref1, ref2);
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
 	}
 
 	dispose(): void {

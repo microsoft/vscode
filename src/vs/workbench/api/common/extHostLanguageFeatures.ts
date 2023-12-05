@@ -34,7 +34,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCancellationError, NotImplementedError } from 'vs/base/common/errors';
 import { raceCancellationError } from 'vs/base/common/async';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { localize } from 'vs/nls';
 import { IAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 
@@ -104,15 +104,16 @@ class DocumentSymbolAdapter {
 
 class CodeLensAdapter {
 
-	private static _badCmd: vscode.Command = { command: 'missing', title: '!!MISSING: command!!' };
-
 	private readonly _cache = new Cache<vscode.CodeLens>('CodeLens');
 	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _commands: CommandsConverter,
-		private readonly _provider: vscode.CodeLensProvider
+		private readonly _provider: vscode.CodeLensProvider,
+		private readonly _extension: IExtensionDescription,
+		private readonly _extTelemetry: ExtHostTelemetry,
+		private readonly _logService: ILogService,
 	) { }
 
 	async provideCodeLenses(resource: URI, token: CancellationToken): Promise<extHostProtocol.ICodeLensListDto | undefined> {
@@ -164,7 +165,15 @@ class CodeLensAdapter {
 			// disposed in the meantime
 			return undefined;
 		}
-		symbol.command = this._commands.toInternal(resolvedLens.command ?? CodeLensAdapter._badCmd, disposables);
+
+		if (!resolvedLens.command) {
+			const error = new Error('INVALID code lens resolved, lacks command: ' + this._extension.identifier.value);
+			this._extTelemetry.onExtensionError(this._extension.identifier, error);
+			this._logService.error(error);
+			return undefined;
+		}
+
+		symbol.command = this._commands.toInternal(resolvedLens.command, disposables);
 		return symbol;
 	}
 
@@ -327,6 +336,27 @@ class DocumentHighlightAdapter {
 	}
 }
 
+class MultiDocumentHighlightAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.MultiDocumentHighlightProvider
+	) { }
+
+	async provideMultiDocumentHighlights(resource: URI, position: IPosition, otherResources: URI[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const otherDocuments = otherResources.map(r => this._documents.getDocument(r));
+		const pos = typeConvert.Position.to(position);
+
+		const value = await this._provider.provideMultiDocumentHighlights(doc, pos, otherDocuments, token);
+		if (Array.isArray(value)) {
+			return value.map(typeConvert.MultiDocumentHighlight.from);
+		}
+		return undefined;
+	}
+}
+
 class LinkedEditingRangeAdapter {
 	constructor(
 		private readonly _documents: ExtHostDocuments,
@@ -453,6 +483,7 @@ class CodeActionAdapter {
 					edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit, undefined),
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
+					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
 					disabled: candidate.disabled?.reason
 				});
 			}
@@ -1363,7 +1394,7 @@ class InlayHintsAdapter {
 		const hints = await this._provider.provideInlayHints(doc, range, token);
 		if (!Array.isArray(hints) || hints.length === 0) {
 			// bad result
-			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for ${ran}`);
+			this._logService.trace(`[InlayHints] NO inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
 			return undefined;
 		}
 		if (token.isCancellationRequested) {
@@ -1379,7 +1410,7 @@ class InlayHintsAdapter {
 				result.hints.push(this._convertInlayHint(hints[i], [pid, i]));
 			}
 		}
-		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for ${ran}`);
+		this._logService.trace(`[InlayHints] ${result.hints.length} inlay hints from '${this._extension.identifier.value}' for range ${JSON.stringify(ran)}`);
 		return result;
 	}
 
@@ -1440,17 +1471,26 @@ class InlayHintsAdapter {
 		if (typeof hint.label === 'string') {
 			result.label = hint.label;
 		} else {
-			result.label = hint.label.map(part => {
-				const result: languages.InlayHintLabelPart = { label: part.value };
-				result.tooltip = typeConvert.MarkdownString.fromStrict(part.tooltip);
+			const parts: languages.InlayHintLabelPart[] = [];
+			result.label = parts;
+
+			for (const part of hint.label) {
+				if (!part.value) {
+					console.warn('INVALID inlay hint, empty label part', this._extension.identifier.value);
+					continue;
+				}
+				const part2: languages.InlayHintLabelPart = {
+					label: part.value,
+					tooltip: typeConvert.MarkdownString.fromStrict(part.tooltip)
+				};
 				if (Location.isLocation(part.location)) {
-					result.location = typeConvert.location.from(part.location);
+					part2.location = typeConvert.location.from(part.location);
 				}
 				if (part.command) {
-					result.command = this._commands.toInternal(part.command, disposables);
+					part2.command = this._commands.toInternal(part.command, disposables);
 				}
-				return result;
-			});
+				parts.push(part2);
+			}
 		}
 		return result;
 	}
@@ -1852,8 +1892,9 @@ class MappedEditsAdapter {
 }
 
 type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentPasteEditProvider | DocumentFormattingAdapter
-	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
+	| DocumentHighlightAdapter | MultiDocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter
+	| DocumentPasteEditProvider | DocumentFormattingAdapter | RangeFormattingAdapter
+	| OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| CompletionsAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | TypeHierarchyAdapter
@@ -1888,6 +1929,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
 	}
+
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
@@ -1973,7 +2015,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		const handle = this._nextHandle();
 		const eventHandle = typeof provider.onDidChangeCodeLenses === 'function' ? this._nextHandle() : undefined;
 
-		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider), extension));
+		this._adapter.set(handle, new AdapterData(new CodeLensAdapter(this._documents, this._commands.converter, provider, extension, this._extensionTelemetry, this._logService), extension));
 		this._proxy.$registerCodeLensSupport(handle, this._transformDocumentSelector(selector, extension), eventHandle);
 		let result = this._createDisposable(handle);
 
@@ -2092,8 +2134,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._createDisposable(handle);
 	}
 
+	registerMultiDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.MultiDocumentHighlightProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new MultiDocumentHighlightAdapter(this._documents, provider), extension);
+		this._proxy.$registerMultiDocumentHighlightProvider(handle, this._transformDocumentSelector(selector, extension));
+		return this._createDisposable(handle);
+	}
+
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> {
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined, token);
+	}
+
+	$provideMultiDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, otherModels: UriComponents[], token: CancellationToken): Promise<languages.MultiDocumentHighlight[] | undefined> {
+		return this._withAdapter(handle, MultiDocumentHighlightAdapter, adapter => adapter.provideMultiDocumentHighlights(URI.revive(resource), position, otherModels.map(model => URI.revive(model)), token), undefined, token);
 	}
 
 	// --- linked editing

@@ -515,7 +515,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.clearLong', "Clear Terminal"),
 						icon: Codicon.clearAll
 					},
-					group: 'navigation',
+					group: 'execute',
 					order: 4,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
@@ -529,7 +529,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.runActiveFile', "Run Active File"),
 						icon: Codicon.run
 					},
-					group: 'navigation',
+					group: 'execute',
 					order: 5,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
@@ -543,7 +543,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.runSelectedText', "Run Selected Text"),
 						icon: Codicon.selection
 					},
-					group: 'navigation',
+					group: 'execute',
 					order: 6,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
@@ -569,7 +569,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditorActiveTab,
+						id: TerminalCommandId.MoveToEditor,
 						title: terminalStrings.moveToEditor.value
 					},
 					group: ContextMenuGroup.Create,
@@ -610,8 +610,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SizeToContentWidthActiveTab,
-						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width")
+						id: TerminalCommandId.SizeToContentWidth,
+						title: terminalStrings.toggleSizeToContentWidth
 					},
 					group: ContextMenuGroup.Edit
 				}
@@ -631,7 +631,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.UnsplitActiveTab,
+						id: TerminalCommandId.Unsplit,
 						title: terminalStrings.unsplit.value
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal),
@@ -666,7 +666,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.rename
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -675,7 +675,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.changeColor
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -684,7 +684,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.changeIcon
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
@@ -692,7 +692,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.toggleSizeToContentWidth
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -779,6 +779,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		submenuActions.unshift(defaultSubmenuProfileAction);
 	}
 
-	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
+	const dropdownAction = new Action('refresh profiles', localize('launchProfile', 'Launch Profile...'), 'codicon-chevron-down', true);
 	return { dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };
 }

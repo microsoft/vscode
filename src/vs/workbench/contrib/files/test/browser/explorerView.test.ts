@@ -89,6 +89,7 @@ suite('Files - ExplorerView', () => {
 			container,
 			templateDisposables: new DisposableStore(),
 			elementDisposables: new DisposableStore(),
+			contribs: [],
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event

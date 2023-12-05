@@ -559,9 +559,12 @@ export interface IEditorOptions {
 	selectionHighlight?: boolean;
 	/**
 	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
+	 * Defaults to 'singleFile'.
+	 * 'off' disables occurrence highlighting
+	 * 'singleFile' triggers occurrence highlighting in the current document
+	 * 'multiFile'  triggers occurrence highlighting across valid open documents
 	 */
-	occurrencesHighlight?: boolean;
+	occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -1305,9 +1308,9 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached"),
-					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader"),
-					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached"),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached."),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached."),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
@@ -2089,7 +2092,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					type: 'integer',
 					minimum: 0,
 					default: defaults.hidingDelay,
-					description: nls.localize('hover.hidingDelay', "Controls the delay in milliseconds after thich the hover is hidden. Requires `editor.hover.sticky` to be enabled.")
+					description: nls.localize('hover.hidingDelay', "Controls the delay in milliseconds after which the hover is hidden. Requires `editor.hover.sticky` to be enabled.")
 				},
 				'editor.hover.above': {
 					type: 'boolean',
@@ -2717,6 +2720,12 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 
 //#region lightbulb
 
+export enum ShowAiIconMode {
+	Off = 'off',
+	OnCode = 'onCode',
+	On = 'on'
+}
+
 /**
  * Configuration options for editor lightbulb
  */
@@ -2726,6 +2735,13 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+
+	experimental?: {
+		/**
+		 * Highlight AI code actions with AI icon
+		 */
+		showAiIcon?: ShowAiIconMode;
+	};
 }
 
 /**
@@ -2736,7 +2752,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, experimental: { showAiIcon: ShowAiIconMode.Off } };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2744,6 +2760,17 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
+				},
+				'editor.lightbulb.experimental.showAiIcon': {
+					type: 'string',
+					enum: [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On],
+					default: defaults.experimental.showAiIcon,
+					enumDescriptions: [
+						nls.localize('editor.lightbulb.showAiIcon.off', 'Don not show the AI icon.'),
+						nls.localize('editor.lightbulb.showAiIcon.onCode', 'Show an AI icon when the code action menu contains an AI action, but only on code.'),
+						nls.localize('editor.lightbulb.showAiIcon.on', 'Show an AI icon when the code action menu contains an AI action, on code and empty lines.'),
+					],
+					description: nls.localize('showAiIcons', "Show an AI icon along with the lightbulb when the code action menu contains an AI action.")
 				},
 			}
 		);
@@ -2755,7 +2782,10 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			experimental: {
+				showAiIcon: stringSet(input.experimental?.showAiIcon, this.defaultValue.experimental?.showAiIcon, [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On])
+			}
 		};
 	}
 }
@@ -2816,7 +2846,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.scrollWithEditor': {
 					type: 'boolean',
 					default: defaults.scrollWithEditor,
-					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of the sticky scroll widget with the editor's horizontal scrollbar.")
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of Sticky Scroll with the editor's horizontal scrollbar.")
 				},
 			}
 		);
@@ -3624,6 +3654,12 @@ export interface IEditorScrollbarOptions {
 	 * Defaults to false.
 	 */
 	scrollByPage?: boolean;
+
+	/**
+	 * When set, the horizontal scrollbar will not increase content height.
+	 * Defaults to false.
+	 */
+	ignoreHorizontalScrollbarInContentHeight?: boolean;
 }
 
 export interface InternalEditorScrollbarOptions {
@@ -3640,6 +3676,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
 	readonly scrollByPage: boolean;
+	readonly ignoreHorizontalScrollbarInContentHeight: boolean;
 }
 
 function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
@@ -3669,7 +3706,8 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 			verticalSliderSize: 14,
 			handleMouseWheel: true,
 			alwaysConsumeMouseWheel: true,
-			scrollByPage: false
+			scrollByPage: false,
+			ignoreHorizontalScrollbarInContentHeight: false,
 		};
 		super(
 			EditorOption.scrollbar, 'scrollbar', defaults,
@@ -3710,6 +3748,11 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 					type: 'boolean',
 					default: defaults.scrollByPage,
 					description: nls.localize('scrollbar.scrollByPage', "Controls whether clicks scroll by page or jump to click position.")
+				},
+				'editor.scrollbar.ignoreHorizontalScrollbarInContentHeight': {
+					type: 'boolean',
+					default: defaults.ignoreHorizontalScrollbarInContentHeight,
+					description: nls.localize('scrollbar.ignoreHorizontalScrollbarInContentHeight', "When set, the horizontal scrollbar will not increase the size of the editor's content.")
 				}
 			}
 		);
@@ -3736,6 +3779,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 			scrollByPage: boolean(input.scrollByPage, this.defaultValue.scrollByPage),
+			ignoreHorizontalScrollbarInContentHeight: boolean(input.ignoreHorizontalScrollbarInContentHeight, this.defaultValue.ignoreHorizontalScrollbarInContentHeight),
 		};
 	}
 }
@@ -3953,7 +3997,7 @@ export interface IInlineSuggestOptions {
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
-	showToolbar?: 'always' | 'onHover';
+	showToolbar?: 'always' | 'onHover' | 'never';
 
 	suppressSuggestions?: boolean;
 
@@ -3992,10 +4036,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.showToolbar': {
 					type: 'string',
 					default: defaults.showToolbar,
-					enum: ['always', 'onHover'],
+					enum: ['always', 'onHover', 'never'],
 					enumDescriptions: [
 						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
 						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
@@ -4016,7 +4061,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
-			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 		};
@@ -4892,7 +4937,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 				'editor.dropIntoEditor.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `Shift`-key (instead of opening the file in an editor)."),
 				},
 				'editor.dropIntoEditor.showDropSelector': {
 					type: 'string',
@@ -5598,9 +5643,18 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
 		}
 	)),
-	occurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
-		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
+	occurrencesHighlight: register(new EditorStringEnumOption(
+		EditorOption.occurrencesHighlight, 'occurrencesHighlight',
+		'singleFile' as 'off' | 'singleFile' | 'multiFile',
+		['off', 'singleFile', 'multiFile'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('occurrencesHighlight.off', "Does not highlight occurrences."),
+				nls.localize('occurrencesHighlight.singleFile', "Highlights occurrences only in the current file."),
+				nls.localize('occurrencesHighlight.multiFile', "Experimental: Highlights occurrences across all valid open files.")
+			],
+			markdownDescription: nls.localize('occurrencesHighlight', "Controls whether occurrences should be highlighted across open files.")
+		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,

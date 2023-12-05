@@ -28,7 +28,7 @@ import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentSe
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from './simpleCommentEditor';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
@@ -45,11 +45,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	private _commentFormActions!: CommentFormActions;
 	private _commentEditorActions!: CommentFormActions;
 	private _reviewThreadReplyButton!: HTMLElement;
-	private _editorHeight = STARTING_EDITOR_HEIGHT;
+	private _editorHeight = MIN_EDITOR_HEIGHT;
 
 	constructor(
 		readonly owner: string,
 		container: HTMLElement,
+		private readonly _parentEditor: LayoutableEditor,
 		private _commentThread: languages.CommentThread<T>,
 		private _scopedInstatiationService: IInstantiationService,
 		private _contextKeyService: IContextKeyService,
@@ -105,7 +106,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
 		if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this.form);
-		} else if (this._commentThread.comments && this._commentThread.comments.length === 0) {
+		} else if ((this._commentThread.comments && this._commentThread.comments.length === 0) || this._pendingComment) {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));
@@ -117,7 +118,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private calculateEditorHeight(): boolean {
-		const newEditorHeight = calculateEditorHeight(this.commentEditor, this._editorHeight);
+		const newEditorHeight = calculateEditorHeight(this._parentEditor, this.commentEditor, this._editorHeight);
 		if (newEditorHeight !== this._editorHeight) {
 			this._editorHeight = newEditorHeight;
 			return true;
@@ -149,6 +150,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expandReplyArea();
+		this.commentEditor.setValue(comment);
 	}
 
 	public layout(widthInPixel: number) {
@@ -277,9 +284,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}));
 
 		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
-			this._actionRunDelegate?.();
+			await this._actionRunDelegate?.();
 
-			action.run({
+			await action.run({
 				thread: this._commentThread,
 				text: this.commentEditor.getValue(),
 				$mid: MarshalledId.CommentThreadReply

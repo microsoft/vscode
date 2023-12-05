@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -26,10 +26,11 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
-
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -121,11 +122,11 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
+		@IProductService private readonly productService: IProductService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
-		const interval = setInterval(() => this.garbageCollect(), THIRTY_SECONDS);
+		const interval = disposableWindowInterval(mainWindow, () => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
 		if (urlToHandleValue) {
 			this.storageService.remove(URL_TO_HANDLE, StorageScope.WORKSPACE);
@@ -134,7 +135,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 		this.disposable = combinedDisposable(
 			urlService.registerHandler(this),
-			toDisposable(() => clearInterval(interval))
+			interval
 		);
 
 		const cache = ExtensionUrlBootstrapHandler.cache;
@@ -166,7 +167,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const trusted = options?.trusted
-			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.productService.trustedExtensionProtocolHandlers?.includes(extensionId)
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {

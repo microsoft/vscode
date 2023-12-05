@@ -19,7 +19,7 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { CommitActionButton } from './actionButton';
+import { ActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
@@ -673,6 +673,12 @@ export class Repository implements Disposable {
 	private _onDidChangeBranchProtection = new EventEmitter<void>();
 	readonly onDidChangeBranchProtection: Event<void> = this._onDidChangeBranchProtection.event;
 
+	private _onDidStartCommitMessageGeneration = new EventEmitter<void>();
+	readonly onDidStartCommitMessageGeneration: Event<void> = this._onDidStartCommitMessageGeneration.event;
+
+	private _onDidEndCommitMessageGeneration = new EventEmitter<void>();
+	readonly onDidEndCommitMessageGeneration: Event<void> = this._onDidEndCommitMessageGeneration.event;
+
 	@memoize
 	get onDidChangeOperations(): Event<void> {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
@@ -850,6 +856,7 @@ export class Repository implements Disposable {
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
+
 		this.disposables.push(this._sourceControl);
 
 		this.updateInputBoxPlaceholder();
@@ -935,10 +942,10 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const commitActionButton = new CommitActionButton(this, this.commitCommandCenter);
-		this.disposables.push(commitActionButton);
-		commitActionButton.onDidChange(() => this._sourceControl.actionButton = commitActionButton.button);
-		this._sourceControl.actionButton = commitActionButton.button;
+		const actionButton = new ActionButton(this, this.commitCommandCenter);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
@@ -1057,19 +1064,19 @@ export class Repository implements Disposable {
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {
-		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
+		return this.run(Operation.Config(true), () => this.repository.getConfigs('local'));
 	}
 
 	getConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key));
+		return this.run(Operation.Config(true), () => this.repository.config('local', key));
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('global', key));
+		return this.run(Operation.Config(true), () => this.repository.config('global', key));
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+		return this.run(Operation.Config(false), () => this.repository.config('local', key, value));
 	}
 
 	log(options?: LogOptions): Promise<Commit[]> {
@@ -1084,6 +1091,11 @@ export class Repository implements Disposable {
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
+	}
+
+	@throttle
+	async refresh(): Promise<void> {
+		await this.run(Operation.Refresh);
 	}
 
 	diff(cached?: boolean): Promise<string> {
@@ -1129,11 +1141,11 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 
-	diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+	diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
 	}
 
@@ -1602,8 +1614,31 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
+	async getCommitFiles(ref: string): Promise<string[]> {
+		return await this.repository.getCommitFiles(ref);
+	}
+
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
+	}
+
+	async getDiff(): Promise<string[]> {
+		const diff: string[] = [];
+		if (this.indexGroup.resourceStates.length !== 0) {
+			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffIndexWithHEAD(file));
+			}
+		} else {
+			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffWithHEAD(file));
+			}
+		}
+
+		return diff;
+	}
+
+	async revParse(ref: string): Promise<string | undefined> {
+		return await this.run(Operation.RevParse, () => this.repository.revParse(ref));
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {

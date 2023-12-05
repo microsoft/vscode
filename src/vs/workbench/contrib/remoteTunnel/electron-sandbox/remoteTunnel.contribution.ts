@@ -270,6 +270,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		);
 	}
 
+	private getPreferredTokenFromSession(session: ExistingSessionItem) {
+		return session.session.accessToken || session.session.idToken;
+	}
 
 	private async startTunnel(asService: boolean): Promise<ConnectionInfo | undefined> {
 		if (this.connectionInfo) {
@@ -327,7 +330,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 									break;
 							}
 						});
-						const token = authenticationSession.session.idToken ?? authenticationSession.session.accessToken;
+						const token = this.getPreferredTokenFromSession(authenticationSession);
 						const account: IRemoteTunnelSession = { sessionId: authenticationSession.session.id, token, providerId: authenticationSession.providerId, accountLabel: authenticationSession.session.account.label };
 						this.remoteTunnelService.startTunnel({ active: true, asService, session: account }).then(status => {
 							if (!completed && (status.type === 'connected' || status.type === 'disconnected')) {
@@ -352,10 +355,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
 		const sessions = await this.getAllSessions();
-		if (sessions.length === 1) {
-			return sessions[0];
-		}
-
 		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
@@ -448,7 +447,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		if (session) {
 			const sessionItem = (await this.getAllSessions()).find(s => s.session.id === session.sessionId);
 			if (sessionItem) {
-				return sessionItem.session.idToken ?? sessionItem.session.accessToken;
+				return this.getPreferredTokenFromSession(sessionItem);
 			}
 		}
 		return undefined;

@@ -557,7 +557,6 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-base64 0.13.0 - MIT/Apache-2.0
 base64 0.21.2 - MIT OR Apache-2.0
 https://github.com/marshallpierce/rust-base64
 
@@ -4591,7 +4590,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-native-tls 0.2.10 - MIT/Apache-2.0
+native-tls 0.2.11 - MIT/Apache-2.0
 https://github.com/sfackler/rust-native-tls
 
 Copyright (c) 2016 The rust-native-tls Developers
@@ -6934,7 +6933,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-reqwest 0.11.18 - MIT OR Apache-2.0
+reqwest 0.11.22 - MIT OR Apache-2.0
 https://github.com/seanmonstar/reqwest
 
 Copyright (c) 2016 Sean McArthur
@@ -7640,7 +7639,7 @@ Apache License
 
 ---------------------------------------------------------
 
-rustix 0.37.19 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+rustix 0.37.25 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 https://github.com/bytecodealliance/rustix
 
 Permission is hereby granted, free of charge, to any
@@ -8032,99 +8031,6 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
----------------------------------------------------------
-
----------------------------------------------------------
-
-sha-1 0.10.0 - MIT OR Apache-2.0
-https://github.com/RustCrypto/hashes
-
-All crates licensed under either of
-
- * [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
- * [MIT license](http://opensource.org/licenses/MIT)
-
-at your option.
-
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
-
-[//]: # (badges)
-
-[chat-image]: https://img.shields.io/badge/zulip-join_chat-blue.svg
-[chat-link]: https://rustcrypto.zulipchat.com/#narrow/stream/260041-hashes
-[license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
-[deps-image]: https://deps.rs/repo/github/RustCrypto/hashes/status.svg
-[deps-link]: https://deps.rs/repo/github/RustCrypto/hashes
-[msrv-1.41]: https://img.shields.io/badge/rustc-1.41.0+-blue.svg
-[msrv-1.56]: https://img.shields.io/badge/rustc-1.56.0+-blue.svg
-[msrv-1.57]: https://img.shields.io/badge/rustc-1.57.0+-blue.svg
-
-[//]: # (crates)
-
-[`ascon‑hash`]: ./ascon-hash
-[`belt‑hash`]: ./belt-hash
-[`blake2`]: ./blake2
-[`fsb`]: ./fsb
-[`gost94`]: ./gost94
-[`groestl`]: ./groestl
-[`jh`]: ./jh
-[`k12`]: ./k12
-[`md2`]: ./md2
-[`md4`]: ./md4
-[`md5`]: ./md5
-[`ripemd`]: ./ripemd
-[`sha1`]: ./sha1
-[`sha2`]: ./sha2
-[`sha3`]: ./sha3
-[`shabal`]: ./shabal
-[`skein`]: ./skein
-[`sm3`]: ./sm3
-[`streebog`]: ./streebog
-[`tiger`]: ./tiger
-[`whirlpool`]: ./whirlpool
-
-[//]: # (footnotes)
-
-[1]: https://en.wikipedia.org/wiki/Cryptographic_hash_function
-[`blake3`]: https://github.com/BLAKE3-team/BLAKE3
-[`base16ct`]: https://docs.rs/base16ct
-[`base64ct`]: https://docs.rs/base64ct
-[`digest`]: https://docs.rs/digest
-[`Digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html
-[`Digest::digest`]: https://docs.rs/digest/0.10.0/digest/trait.Digest.html#tymethod.digest
-[`DynDigest`]: https://docs.rs/digest/0.10.0/digest/trait.DynDigest.html
-[`generic-array`]: https://docs.rs/generic-array
-[HMAC]: https://en.wikipedia.org/wiki/Hash-based_message_authentication_code
-[`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html
-[`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html
-[`hmac`]: https://docs.rs/hmac
-[RustCrypto/MACs]: https://github.com/RustCrypto/MACs
-
-[//]: # (algorithms)
-
-[Ascon]: https://ascon.iaik.tugraz.at
-[BelT]: https://ru.wikipedia.org/wiki/BelT
-[BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
-[FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
-[GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
-[Grøstl]: https://en.wikipedia.org/wiki/Grøstl
-[JH]: https://www3.ntu.edu.sg/home/wuhj/research/jh
-[KangarooTwelve]: https://keccak.team/kangarootwelve.html
-[MD2]: https://en.wikipedia.org/wiki/MD2_(cryptography)
-[MD4]: https://en.wikipedia.org/wiki/MD4
-[MD5]: https://en.wikipedia.org/wiki/MD5
-[RIPEMD]: https://en.wikipedia.org/wiki/RIPEMD
-[SHA-1]: https://en.wikipedia.org/wiki/SHA-1
-[SHA-2]: https://en.wikipedia.org/wiki/SHA-2
-[SHA-3]: https://en.wikipedia.org/wiki/SHA-3
-[SHABAL]: https://www.cs.rit.edu/~ark/20090927/Round2Candidates/Shabal.pdf
-[Skein]: https://schneier.com/academic/skein
-[SM3]: https://en.wikipedia.org/wiki/SM3_(hash_function)
-[Streebog]: https://en.wikipedia.org/wiki/Streebog
-[Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
-[Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -8693,6 +8599,70 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
+system-configuration 0.5.1 - MIT OR Apache-2.0
+https://github.com/mullvad/system-configuration-rs
+
+Copyright (c) 2017 Amagicom AB
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
+system-configuration-sys 0.5.0 - MIT OR Apache-2.0
+https://github.com/mullvad/system-configuration-rs
+
+Copyright (c) 2017 Amagicom AB
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+---------------------------------------------------------
+
+---------------------------------------------------------
+
 tar 0.4.38 - MIT/Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
@@ -9005,7 +8975,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tokio-native-tls 0.3.0 - MIT
+tokio-native-tls 0.3.1 - MIT
 https://github.com/tokio-rs/tls
 
 The MIT License (MIT)
@@ -9073,7 +9043,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tokio-tungstenite 0.17.2 - MIT
+tokio-tungstenite 0.20.1 - MIT
 https://github.com/snapview/tokio-tungstenite
 
 The MIT License (MIT)
@@ -9327,7 +9297,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tungstenite 0.17.3 - MIT/Apache-2.0
+tungstenite 0.20.1 - MIT OR Apache-2.0
 https://github.com/snapview/tungstenite-rs
 
 Copyright (c) 2017 Alexey Galakhov
@@ -9354,7 +9324,7 @@ THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tunnels 3141ad7be00e18c4231f7c4fb6c11f9219ac49af
+tunnels 97233d20448e1c3cb0e0fd9114acf68c7e5c0249
 https://github.com/microsoft/dev-tunnels
 
 MIT License
@@ -9699,8 +9669,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-uuid 0.8.2 - Apache-2.0 OR MIT
-uuid 1.3.3 - Apache-2.0 OR MIT
+uuid 1.4.1 - Apache-2.0 OR MIT
 https://github.com/uuid-rs/uuid
 
 Copyright (c) 2014 The Rust Project Developers
@@ -10072,7 +10041,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-wasm-streams 0.2.3 - MIT OR Apache-2.0
+wasm-streams 0.3.0 - MIT OR Apache-2.0
 https://github.com/MattiasBuelens/wasm-streams/
 
 Permission is hereby granted, free of charge, to any
@@ -10590,7 +10559,6 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-winreg 0.10.1 - MIT
 winreg 0.50.0 - MIT
 https://github.com/gentoo90/winreg-rs
 

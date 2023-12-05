@@ -211,7 +211,7 @@
 	margin-right: 2px; /* margin for outline */
 }
 
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item .extension-action:not(.icon) {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.checkbox-action-item) .extension-action:not(.icon) {
 	border-radius: 0;
 	padding-top: 0;
 	padding-bottom: 0;
@@ -223,8 +223,15 @@
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.action-dropdown-item,
-.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item) > .extension-action {
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.checkbox-action-item,
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.action-dropdown-item):not(.checkbox-action-item) > .extension-action {
 	margin-right: 6px;
+}
+
+.extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item.checkbox-action-item > .extension-action {
+	height: 18px;
+	width: 18px;
+	margin-top: 2px;
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item > .extension-action.label,

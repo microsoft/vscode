@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { getMachineId } from 'vs/base/node/id';
+import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
 import { getMac } from 'vs/base/node/macAddress';
 import { flakySuite } from 'vs/base/test/node/testUtils';
 
@@ -14,6 +14,13 @@ flakySuite('ID', () => {
 		const errors = [];
 		const id = await getMachineId(err => errors.push(err));
 		assert.ok(id);
+		assert.strictEqual(errors.length, 0);
+	});
+
+	test('getSqmId', async function () {
+		const errors = [];
+		const id = await getSqmMachineId(err => errors.push(err));
+		assert.ok(typeof id === 'string');
 		assert.strictEqual(errors.length, 0);
 	});
 

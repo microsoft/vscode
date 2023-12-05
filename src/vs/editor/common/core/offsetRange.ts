@@ -5,10 +5,15 @@
 
 import { BugIndicatingError } from 'vs/base/common/errors';
 
+export interface IOffsetRange {
+	readonly start: number;
+	readonly endExclusive: number;
+}
+
 /**
  * A range of offsets (0-based).
 */
-export class OffsetRange {
+export class OffsetRange implements IOffsetRange {
 	public static addRange(range: OffsetRange, sortedRanges: OffsetRange[]): void {
 		let i = 0;
 		while (i < sortedRanges.length && sortedRanges[i].endExclusive < range.start) {
@@ -36,6 +41,10 @@ export class OffsetRange {
 
 	public static ofLength(length: number): OffsetRange {
 		return new OffsetRange(0, length);
+	}
+
+	public static ofStartAndLength(start: number, length: number): OffsetRange {
+		return new OffsetRange(start, start + length);
 	}
 
 	constructor(public readonly start: number, public readonly endExclusive: number) {
@@ -107,6 +116,14 @@ export class OffsetRange {
 		const start = Math.max(this.start, other.start);
 		const end = Math.min(this.endExclusive, other.endExclusive);
 		return start <= end;
+	}
+
+	public isBefore(other: OffsetRange): boolean {
+		return this.endExclusive <= other.start;
+	}
+
+	public isAfter(other: OffsetRange): boolean {
+		return this.start >= other.endExclusive;
 	}
 
 	public slice<T>(arr: T[]): T[] {
