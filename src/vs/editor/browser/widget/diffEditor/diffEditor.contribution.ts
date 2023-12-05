@@ -280,17 +280,6 @@ export class AccessibleDiffViewerPrev extends Action2 {
 export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
-	const activeCodeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
-	if (!activeCodeEditor) {
-		return null;
-	}
-
-	for (let i = 0, len = diffEditors.length; i < len; i++) {
-		const diffEditor = <IDiffEditor>diffEditors[i];
-		if (diffEditor.getModifiedEditor().getId() === activeCodeEditor.getId() || diffEditor.getOriginalEditor().getId() === activeCodeEditor.getId()) {
-			return diffEditor;
-		}
-	}
 
 	const activeElement = getActiveElement();
 	if (activeElement) {
