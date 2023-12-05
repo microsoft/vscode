@@ -14,6 +14,7 @@ import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 suite('ResourceEditorInput', () => {
 
@@ -28,9 +29,10 @@ suite('ResourceEditorInput', () => {
 			resource: URI,
 			@ILabelService labelService: ILabelService,
 			@IFileService fileService: IFileService,
-			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+			@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 		) {
-			super(resource, resource, labelService, fileService, filesConfigurationService);
+			super(resource, resource, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 		}
 	}
 

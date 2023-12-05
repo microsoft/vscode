@@ -17,14 +17,14 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -46,6 +46,7 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -90,6 +91,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -325,6 +327,18 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this.logService.warn('NotebookEditorWidget#setInput failed', e);
 			if (isEditorOpenError(e)) {
 				throw e;
+			}
+
+			// Handle case where a file is too large to open without confirmation
+			if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+				let message: string;
+				if (e instanceof TooLargeFileOperationError) {
+					message = localize('notebookTooLargeForHeapErrorWithSize', "The notebook is not displayed in the notebook editor because it is very large ({0}).", ByteSize.formatSize(e.size));
+				} else {
+					message = localize('notebookTooLargeForHeapErrorWithoutSize', "The notebook is not displayed in the notebook editor because it is very large.");
+				}
+
+				throw createTooLargeFileError(this.group, input, options, message, this._preferencesService);
 			}
 
 			const error = createEditorOpenError(e instanceof Error ? e : new Error((e ? e.message : '')), [
