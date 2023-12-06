@@ -16,7 +16,7 @@ export const JavaLibrariesToLookFor: { predicate: (groupId: string, artifactId: 
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.microsoft.azure' && artifactId === 'azure', 'tag': 'azure' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.microsoft.azure' && artifactId.startsWith('azure-mgmt-'), 'tag': 'azure' },
 	{ 'predicate': (groupId, artifactId) => groupId.startsWith('com.microsoft.azure') && artifactId.startsWith('azure-mgmt-'), 'tag': 'azure' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId.startsWith('azure-resourcemanager'), 'tag': 'azure' }, // azure track2 sdk
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.resourcemanager' && artifactId.startsWith('azure-resourcemanager'), 'tag': 'azure' }, // azure track2 sdk
 	// java ee
 	{ 'predicate': (groupId, artifactId) => groupId === 'javax' && artifactId === 'javaee-api', 'tag': 'javaee' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'javax.xml.bind' && artifactId === 'jaxb-api', 'tag': 'javaee' },
@@ -29,9 +29,6 @@ export const JavaLibrariesToLookFor: { predicate: (groupId: string, artifactId: 
 	{ 'predicate': (groupId, artifactId) => groupId === 'org.eclipse.persistence' && artifactId === 'eclipselink', 'tag': 'jpa' },
 	// lombok
 	{ 'predicate': (groupId, artifactId) => groupId === 'org.projectlombok', 'tag': 'lombok' },
-	// mockito
-	{ 'predicate': (groupId, artifactId) => groupId === 'org.mockito', 'tag': 'mockito' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'org.powermock', 'tag': 'mockito' },
 	// redis
 	{ 'predicate': (groupId, artifactId) => groupId === 'org.springframework.data' && artifactId === 'spring-data-redis', 'tag': 'redis' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'redis.clients' && artifactId === 'jedis', 'tag': 'redis' },
@@ -47,45 +44,19 @@ export const JavaLibrariesToLookFor: { predicate: (groupId: string, artifactId: 
 	{ 'predicate': (groupId, artifactId) => groupId === 'junit' && artifactId === 'junit', 'tag': 'unitTest' },
 	{ 'predicate': (groupId, artifactId) => groupId === 'org.testng' && artifactId === 'testng', 'tag': 'unitTest' },
 	// cosmos
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-data-cosmos', 'tag': 'azure-cosmos' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-cosmos', 'tag': 'azure-cosmos' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-cosmos', 'tag': 'azure-cosmos' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'zure-cosmos-test', 'tag': 'azure-cosmos' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-spring-data-cosmos-core', 'tag': 'azure-cosmos' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId.includes('cosmos'), 'tag': 'azure-cosmos' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId.includes('cosmos'), 'tag': 'azure-cosmos' },
 	// storage account
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-storage', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-blob', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-file-share', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-queue', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-blob-batch', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-blob-changefeed', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-blob-cryptography', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-blob-nio', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-file-datalake', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-storage-internal-avro', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-storage-blob', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-storage-file-share', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-storage-queue', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-integration-storage-queue', 'tag': 'azure-storage' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-integration-azure-storage-queue', 'tag': 'azure-storage' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId.includes('azure-storage'), 'tag': 'azure-storage' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId.includes('storage'), 'tag': 'azure-storage' },
 	// service bus
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-messaging-servicebus', 'tag': 'azure-servicebus' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-servicebus', 'tag': 'azure-servicebus' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-integration-servicebus', 'tag': 'azure-servicebus' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-integration-azure-servicebus', 'tag': 'azure-servicebus' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-stream-binder-servicebus', 'tag': 'azure-servicebus' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-servicebus-jms', 'tag': 'azure-servicebus' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId.includes('servicebus'), 'tag': 'azure-servicebus' },
 	// event hubs
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-messaging-eventhubs', 'tag': 'azure-eventhubs' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-messaging-eventhubs-parent', 'tag': 'azure-eventhubs' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-eventhubs', 'tag': 'azure-eventhubs' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-starter-integration-eventhubs', 'tag': 'azure-eventhubs' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-integration-azure-eventhubs', 'tag': 'azure-eventhubs' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId === 'spring-cloud-azure-stream-binder-eventhubs', 'tag': 'azure-eventhubs' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId.startsWith('azure-messaging-eventhubs'), 'tag': 'azure-eventhubs' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure.spring' && artifactId.includes('eventhubs'), 'tag': 'azure-eventhubs' },
 	// open ai
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.theokanning.openai-gpt3-java' && artifactId === 'api', 'tag': 'openai' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.theokanning.openai-gpt3-java' && artifactId === 'client', 'tag': 'openai' },
-	{ 'predicate': (groupId, artifactId) => groupId === 'com.theokanning.openai-gpt3-java' && artifactId === 'service', 'tag': 'openai' },
+	{ 'predicate': (groupId, artifactId) => groupId === 'com.theokanning.openai-gpt3-java', 'tag': 'openai' },
 	// azure open ai
 	{ 'predicate': (groupId, artifactId) => groupId === 'com.azure' && artifactId === 'azure-ai-openai', 'tag': 'azure-openai' },
 	// Azure Functions
