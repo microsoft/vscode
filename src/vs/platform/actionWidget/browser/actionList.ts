@@ -37,6 +37,7 @@ export interface IActionListItem<T> {
 	readonly label?: string;
 	readonly keybinding?: ResolvedKeybinding;
 	canPreview?: boolean | undefined;
+	snippet?: boolean | undefined;
 }
 
 interface IActionMenuTemplateData {
@@ -106,6 +107,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 	renderElement(element: IActionListItem<T>, _index: number, data: IActionMenuTemplateData): void {
 		if (element.group?.icon) {
 			data.icon.className = ThemeIcon.asClassName(element.group.icon);
+
+			if (element.snippet) {
+				data.icon.className = 'codicon surround-with';
+			}
+
 			if (element.group.icon.color) {
 				data.icon.style.color = asCssVariable(element.group.icon.color.id);
 			}

@@ -25,6 +25,7 @@ export class CodeActionKind {
 	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 	public static readonly SourceFixAll = CodeActionKind.Source.append('fixAll');
 	public static readonly SurroundWith = CodeActionKind.Refactor.append('surround');
+	public static readonly SurroundWithSnippet = CodeActionKind.SurroundWith.append('snippet');
 
 	constructor(
 		public readonly value: string

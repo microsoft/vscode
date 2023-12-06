@@ -24,7 +24,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 	private static readonly _MAX_CODE_ACTIONS = 4;
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
-		kind: CodeActionKind.SurroundWith.value,
+		kind: CodeActionKind.SurroundWithSnippet.value,
 		title: SurroundWithSnippetEditorAction.options.title.value,
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,
@@ -53,7 +53,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 				break;
 			}
 			actions.push({
-				title: localize('codeAction', "Surround With: {0}", snippet.name),
+				title: localize('codeAction', "{0}", snippet.name),
 				kind: CodeActionKind.SurroundWith.value,
 				edit: asWorkspaceEdit(model, range, snippet)
 			});
