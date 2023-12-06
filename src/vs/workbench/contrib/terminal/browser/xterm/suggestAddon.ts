@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -401,7 +400,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta > 0) {
 				handled = true;
 				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta - 1) + this._additionalInput.substring(this._cursorIndexDelta);
-				this._cursorIndexDelta--
+				this._cursorIndexDelta--;
 				handledCursorDelta--;
 			}
 		}
