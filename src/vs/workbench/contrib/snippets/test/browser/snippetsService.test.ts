@@ -819,4 +819,36 @@ suite('SnippetsService', function () {
 		const first = result.suggestions[0];
 		assert.strictEqual((<CompletionItemRanges>first.range).insert.startColumn, 5);
 	});
+
+	test.skip('Autocomplete suggests based on the last letter of a word and it depends on the typing speed #191070', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(false, ['fooLang'], '/whiletrue', '/whiletrue', '', 'one', '', SnippetSource.User, generateUuid()),
+			new Snippet(false, ['fooLang'], '/sc not expanding', '/sc not expanding', '', 'two', '', SnippetSource.User, generateUuid()),
+		]);
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
+		const model = disposables.add(instantiateTextModel(instantiationService, '', 'fooLang'));
+
+		{ // PREFIX: w
+			model.setValue('w');
+			const result1 = await provider.provideCompletionItems(
+				model,
+				new Position(1, 2),
+				{ triggerKind: CompletionTriggerKind.Invoke }
+			);
+			assert.strictEqual(result1.suggestions.length, 1);
+			assert.strictEqual(result1.suggestions[0].insertText, 'one');
+		}
+
+		{ // PREFIX: where
+			model.setValue('where');
+			const result2 = await provider.provideCompletionItems(
+				model,
+				new Position(1, 6),
+				{ triggerKind: CompletionTriggerKind.Invoke }
+			);
+			assert.strictEqual(result2.suggestions.length, 1);
+			assert.strictEqual(result2.suggestions[1].insertText, 'one'); // /whiletrue matches where (WHilEtRuE)
+		}
+	});
 });
