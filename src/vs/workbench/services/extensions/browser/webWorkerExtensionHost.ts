@@ -86,7 +86,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		let suffix = `?${suffixSearchParams.toString()}`;
 
 		const iframeModulePath = 'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html';
-		const locale = localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase();
+		const locale = platform.language;
 		if (platform.isWeb) {
 			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
 			const commit = this._productService.commit;
