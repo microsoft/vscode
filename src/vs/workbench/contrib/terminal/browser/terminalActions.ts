@@ -810,8 +810,12 @@ export function registerTerminalActions() {
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
 		run: async (c, accessor) => {
 			let color: string | undefined;
+			let i = 0;
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				color = await terminal.changeColor(color);
+				const skipQuickPick = i !== 0;
+				// Always show the quickpick on the first iteration
+				color = await terminal.changeColor(color, skipQuickPick);
+				i++;
 			}
 		}
 	});
@@ -1391,9 +1395,11 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.tabsFocus
 		},
 		run: async (c, accessor) => {
-			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				c.service.safeDisposeTerminal(terminal);
+			const disposePromises: Promise<void>[] = [];
+			for (const terminal of getSelectedInstances(accessor, true) ?? []) {
+				disposePromises.push(c.service.safeDisposeTerminal(terminal));
 			}
+			await Promise.all(disposePromises);
 			c.groupService.focusTabs();
 		}
 	});
@@ -1717,18 +1723,20 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
-	// Get inline tab instance
-	if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
+	// Get selected tab list instance(s)
+	const list = listService.lastFocusedList;
+	const selections = list?.getSelection();
+	// Get inline tab instance if there are not tab list selections #196578
+	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
 		const instance = terminalGroupService.activeInstance;
 		return instance ? [terminalGroupService.activeInstance] : undefined;
 	}
 
-	// Get tab list instance
-	if (!listService.lastFocusedList?.getSelection()) {
+	if (!list || !selections) {
 		return undefined;
 	}
-	const selections = listService.lastFocusedList.getSelection();
-	const focused = listService.lastFocusedList.getFocus();
+	const focused = list.getFocus();
+
 
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1

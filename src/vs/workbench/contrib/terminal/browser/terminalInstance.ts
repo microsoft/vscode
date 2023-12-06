@@ -2199,11 +2199,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return;
 	}
 
-	async changeColor(color?: string): Promise<string | undefined> {
+	async changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined> {
 		if (color) {
 			this.shellLaunchConfig.color = color;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
 			return color;
+		} else if (skipQuickPick) {
+			// Reset this tab's color
+			this.shellLaunchConfig.color = '';
+			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return;
 		}
 		const icon = this._getIcon();
 		if (!icon) {

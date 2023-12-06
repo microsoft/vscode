@@ -972,7 +972,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
-	changeColor(color?: string): Promise<string | undefined>;
+	changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined>;
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
