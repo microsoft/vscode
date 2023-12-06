@@ -17,6 +17,8 @@ const checkNot = (one: any, other: any, msg: string) => {
 
 suite('Objects', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('equals', () => {
 		check(null, null, 'null');
 		check(undefined, undefined, 'undefined');
