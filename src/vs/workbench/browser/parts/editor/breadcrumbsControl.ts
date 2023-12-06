@@ -287,7 +287,7 @@ export class BreadcrumbsControl {
 		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const wasHidden = this.isHidden();
 
-		if (!uri || !this._fileService.hasProvider(uri)) {
+		if (!uri) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
@@ -299,6 +299,7 @@ export class BreadcrumbsControl {
 			}
 		}
 
+		const hideIfEmpty = !this._fileService.hasProvider(uri);
 		// display uri which can be derived from certain inputs
 		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
@@ -323,19 +324,26 @@ export class BreadcrumbsControl {
 			};
 			const items = model.getElements().map(element => element instanceof FileElement ? new FileItem(model, element, options, this._labels) : new OutlineItem(model, element, options));
 			if (items.length === 0) {
-				this._widget.setEnabled(false);
-				this._widget.setItems([new class extends BreadcrumbsItem {
-					render(container: HTMLElement): void {
-						container.innerText = localize('empty', "no elements");
-					}
-					equals(other: BreadcrumbsItem): boolean {
-						return other === this;
-					}
-					dispose(): void {
+				if (hideIfEmpty) {
+					this._ckBreadcrumbsPossible.set(false);
+					this.hide();
+				} else {
+					this._ckBreadcrumbsPossible.set(true);
+					this._widget.setEnabled(false);
+					this._widget.setItems([new class extends BreadcrumbsItem {
+						render(container: HTMLElement): void {
+							container.innerText = localize('empty', "no elements");
+						}
+						equals(other: BreadcrumbsItem): boolean {
+							return other === this;
+						}
+						dispose(): void {
 
-					}
-				}]);
+						}
+					}]);
+				}
 			} else {
+				this.show();
 				this._widget.setEnabled(true);
 				this._widget.setItems(items);
 				this._widget.reveal(items[items.length - 1]);
