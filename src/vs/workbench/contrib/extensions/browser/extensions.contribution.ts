@@ -253,6 +253,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
 				default: false
+			},
+			'extensions.enableFromConfig': {
+				type: 'boolean',
+				description: localize('extensionsEnableFromConfig', "Enable extensions based on a configuration file."),
+				default: true,
+				scope: ConfigurationScope.APPLICATION,
+			},
+			'extensions.configFilePath': {
+				type: 'string',
+				description: localize('extensionsConfigFilePath', "Specify the path to the configuration file for managing extensions."),
+				default: './extensions-config.json',
+				scope: ConfigurationScope.APPLICATION,
 			}
 		}
 	});
