@@ -12,6 +12,7 @@ import { IPath, normalize } from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -645,6 +646,8 @@ suite('Configuration Resolver Service', () => {
 		const resolvedResult = await configurationResolverService!.resolveWithEnvironment({ ...env }, undefined, configuration);
 		assert.deepStrictEqual(resolvedResult, 'echo VAL_1VAL_2');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 
