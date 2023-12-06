@@ -88,7 +88,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
-		const confirmSaveUntitledWorkspace = this.configurationService.getValue('window.confirmSaveUntitledWorkspace') !== false;
+		const confirmSaveUntitledWorkspace = this.configurationService.getValue<boolean>('window.confirmSaveUntitledWorkspace') !== false;
 		if (!confirmSaveUntitledWorkspace) {
 			return false; // no confirmation configured
 		}

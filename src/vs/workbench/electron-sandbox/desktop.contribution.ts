@@ -154,7 +154,6 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 			'window.confirmSaveUntitledWorkspace': {
 				'type': 'boolean',
 				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('confirmSaveUntitledWorkspace', "Controls whether a confirmation dialog shows asking to save or discard an opened untitled workspace in the window when switching to another workspace."),
 			},
 			'window.openWithoutArgumentsInNewWindow': {
