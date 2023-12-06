@@ -911,6 +911,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	public goToBottom(): void {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
 	}
+
+	public toggleLocked(locked: boolean): void {
+		this._hover.containerDomNode.classList.toggle('locked', locked);
+	}
 }
 
 export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
