@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as objects from 'vs/base/common/objects';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const check = (one: any, other: any, msg: string) => {
 	assert(objects.equals(one, other), msg);
