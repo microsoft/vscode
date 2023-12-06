@@ -57,7 +57,7 @@ import { compare, format } from 'vs/base/common/strings';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -2199,7 +2199,7 @@ class SCMInputWidget {
 				LinkDetector.ID,
 				MenuPreventer.ID,
 				MessageController.ID,
-				ModesHoverController.ID,
+				HoverController.ID,
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
