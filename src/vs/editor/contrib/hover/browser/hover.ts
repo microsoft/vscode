@@ -236,8 +236,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			// When the alt key is pressed, hover remains visible
 			return;
 		}
-		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing
-		) {
+		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
 		if (this._hoverState.mouseDown && this._hoverState.contentHoverFocused) {
