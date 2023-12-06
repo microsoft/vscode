@@ -15,7 +15,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { ContentHoverWidget, ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHover';
+import { ResizableContentHoverWidget, ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover';
 import { MarginHoverWidget } from 'vs/editor/contrib/hover/browser/marginHover';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -44,7 +44,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 	private readonly _toUnhook = new DisposableStore();
 
-	private _contentWidget: ContentHoverController | null;
+	private _contentWidget: ContentHoverWidget | null;
 
 	getWidgetContent(): string | undefined { return this._contentWidget?.getWidgetContent(); }
 
@@ -132,7 +132,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 		const target = mouseEvent.target;
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ResizableContentHoverWidget.ID) {
 			this._hoverClicked = true;
 			// mouse down on top of content hover widget
 			return;
@@ -173,7 +173,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		if (
 			this._isHoverSticky
 			&& target.type === MouseTargetType.CONTENT_WIDGET
-			&& target.detail === ContentHoverWidget.ID
+			&& target.detail === ResizableContentHoverWidget.ID
 		) {
 			// mouse moved on top of content hover widget
 			return true;
@@ -189,7 +189,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		if (
 			!this._isHoverSticky
 			&& target.type === MouseTargetType.CONTENT_WIDGET
-			&& target.detail === ContentHoverWidget.ID
+			&& target.detail === ResizableContentHoverWidget.ID
 			&& this._contentWidget?.isColorPickerVisible
 		) {
 			// though the hover is not sticky, the color picker needs to.
@@ -264,7 +264,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 		const contentWidget = this._getOrCreateContentWidget();
 
-		if (contentWidget.maybeShowAt(mouseEvent)) {
+		if (contentWidget.showsOrWillShow(mouseEvent)) {
 			this._glyphWidget?.hide();
 			return;
 		}
@@ -324,9 +324,9 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		this._contentWidget?.hide();
 	}
 
-	private _getOrCreateContentWidget(): ContentHoverController {
+	private _getOrCreateContentWidget(): ContentHoverWidget {
 		if (!this._contentWidget) {
-			this._contentWidget = this._instantiationService.createInstance(ContentHoverController, this._editor);
+			this._contentWidget = this._instantiationService.createInstance(ContentHoverWidget, this._editor);
 		}
 		return this._contentWidget;
 	}
