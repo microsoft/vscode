@@ -93,6 +93,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // no confirmation configured
 		}
 
+		let canceled = false;
 		const { result, checkboxChecked } = await this.dialogService.prompt<boolean>({
 			type: Severity.Warning,
 			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
@@ -136,14 +137,18 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				}
 			],
 			cancelButton: {
-				run: () => true // veto
+				run: () => {
+					canceled = true;
+
+					return true; // veto
+				}
 			},
 			checkbox: {
 				label: localize('doNotAskAgain', "Do not ask me again")
 			}
 		});
 
-		if (checkboxChecked) {
+		if (!canceled && checkboxChecked) {
 			await this.configurationService.updateValue('window.confirmSaveUntitledWorkspace', false, ConfigurationTarget.USER);
 		}
 
