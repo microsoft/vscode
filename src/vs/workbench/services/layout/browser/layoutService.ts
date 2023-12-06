@@ -23,6 +23,17 @@ export const enum Parts {
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
 
+export const enum ZenModeSettings {
+	SHOW_TABS = 'zenMode.showTabs',
+	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',
+	HIDE_STATUSBAR = 'zenMode.hideStatusBar',
+	HIDE_ACTIVITYBAR = 'zenMode.hideActivityBar',
+	CENTER_LAYOUT = 'zenMode.centerLayout',
+	FULLSCREEN = 'zenMode.fullScreen',
+	RESTORE = 'zenMode.restore',
+	SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',
+}
+
 export const enum LayoutSettings {
 	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
