@@ -13,10 +13,12 @@ import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench
 import { DisposableStore, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { PickerQuickAccessProvider, FastAndSlowPicks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('QuickAccess', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -38,17 +40,20 @@ suite('QuickAccess', () => {
 
 	class TestProviderDefault implements IQuickAccessProvider {
 
-		constructor(@IQuickInputService private readonly quickInputService: IQuickInputService, disposables: DisposableStore) { }
+		constructor(@IQuickInputService private readonly quickInputService: IQuickInputService) { }
 
 		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			providerDefaultCalled = true;
-			token.onCancellationRequested(() => providerDefaultCanceled = true);
+
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => providerDefaultCanceled = true));
 
 			// bring up provider #3
 			setTimeout(() => this.quickInputService.quickAccess.show(providerDescriptor3.prefix));
 
-			return toDisposable(() => providerDefaultDisposed = true);
+			store.add(toDisposable(() => providerDefaultDisposed = true));
+			return store;
 		}
 	}
 
@@ -56,9 +61,12 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider1Called = true;
-			token.onCancellationRequested(() => provider1Canceled = true);
 
-			return toDisposable(() => provider1Disposed = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider1Canceled = true));
+
+			store.add(toDisposable(() => provider1Disposed = true));
+			return store;
 		}
 	}
 
@@ -66,9 +74,12 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
-			token.onCancellationRequested(() => provider2Canceled = true);
 
-			return toDisposable(() => provider2Disposed = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider2Canceled = true));
+
+			store.add(toDisposable(() => provider2Disposed = true));
+			return store;
 		}
 	}
 
@@ -76,12 +87,15 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider3Called = true;
-			token.onCancellationRequested(() => provider3Canceled = true);
+
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider3Canceled = true));
 
 			// hide without picking
 			setTimeout(() => picker.hide());
 
-			return toDisposable(() => provider3Disposed = true);
+			store.add(toDisposable(() => provider3Disposed = true));
+			return store;
 		}
 	}
 
@@ -91,13 +105,8 @@ suite('QuickAccess', () => {
 	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'changed', helpEntries: [] };
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('registry', () => {
