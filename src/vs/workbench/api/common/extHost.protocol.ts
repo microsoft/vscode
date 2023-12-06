@@ -211,7 +211,7 @@ export interface MainThreadDecorationsShape extends IDisposable {
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
-	$onVirtualDocumentChange(uri: UriComponents, value: string): void;
+	$onVirtualDocumentChange(uri: UriComponents, value: string): Promise<void>;
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
