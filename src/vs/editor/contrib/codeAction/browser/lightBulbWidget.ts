@@ -201,7 +201,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (!lineHasSpace) {
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				effectiveLineNumber -= 1;
-			} else if (!isFolded(lineNumber + 1)) {
+			} else if (!isFolded(lineNumber + 1) && lineNumber + 1 <= model.getLineCount()) {
 				effectiveLineNumber += 1;
 			} else if (column * fontInfo.spaceWidth < 22) {
 				// cannot show lightbulb above/below and showing
@@ -211,7 +211,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
-			position: { lineNumber: effectiveLineNumber, column: effectiveLineNumber <= model.getLineCount() && !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1 },
+			position: { lineNumber: effectiveLineNumber, column: !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1 },
 			preference: LightBulbWidget._posPref
 		});
 		this._editor.layoutContentWidget(this);
