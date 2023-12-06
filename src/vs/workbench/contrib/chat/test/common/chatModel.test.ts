@@ -122,6 +122,8 @@ suite('ChatModel', () => {
 });
 
 suite('Response', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('content, markdown', async () => {
 		const response = new Response([]);
 		response.updateContent({ content: 'text', kind: 'content' });

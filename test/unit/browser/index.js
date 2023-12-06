@@ -26,6 +26,7 @@ const minimist = require('minimist');
  * @type {{
  * run: string;
  * grep: string;
+ * runGlob: string;
  * browser: string;
  * reporter: string;
  * 'reporter-options': string;
@@ -38,7 +39,7 @@ const minimist = require('minimist');
 */
 const args = minimist(process.argv.slice(2), {
 	boolean: ['build', 'debug', 'sequential', 'help'],
-	string: ['run', 'grep', 'browser', 'reporter', 'reporter-options', 'tfs'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
 	default: {
 		build: false,
 		browser: ['chromium', 'firefox', 'webkit'],
@@ -47,6 +48,7 @@ const args = minimist(process.argv.slice(2), {
 	},
 	alias: {
 		grep: ['g', 'f'],
+		runGlob: ['glob', 'runGrep'],
 		debug: ['debug-browser'],
 		help: 'h'
 	},
@@ -125,7 +127,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = args.run || defaultGlob;
+		const pattern = args.runGlob || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {

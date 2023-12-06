@@ -93,7 +93,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor>.content .monaco-editor .inline-chat .progress .monaco-progress-container {
+.monaco-workbench .part.editor > .content .monaco-editor .inline-chat .progress .monaco-progress-container {
 	top: 0;
 }
 

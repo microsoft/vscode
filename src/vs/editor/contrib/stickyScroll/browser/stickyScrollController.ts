@@ -368,13 +368,16 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				// not hovering a sticky scroll line
 				return;
 			}
+			if (!this._editor.hasModel() || !this._stickyRangeProjectedOnEditor) {
+				return;
+			}
 			if (this._candidateDefinitionsLength > 1) {
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
 				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
-			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
 	}
 

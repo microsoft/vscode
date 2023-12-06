@@ -13,12 +13,12 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/decorations';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
+import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditor/inlineDiffDeletedCodeMargin';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
+import { InlineDiffDeletedCodeMargin } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/inlineDiffDeletedCodeMargin';
+import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { IObservableViewZone, animatedObservable, joinCombine } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -29,7 +29,7 @@ import { BackgroundTokenizationState } from 'vs/editor/common/tokenizationTextMo
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { DiffEditorOptions } from './diffEditorOptions';
+import { DiffEditorOptions } from '../../diffEditorOptions';
 
 /**
  * Ensures both editors have the same height by aligning unchanged lines.
@@ -38,7 +38,7 @@ import { DiffEditorOptions } from './diffEditorOptions';
  *
  * Make sure to add the view zones!
  */
-export class ViewZoneManager extends Disposable {
+export class DiffEditorViewZones extends Disposable {
 	private readonly _originalTopPadding = observableValue(this, 0);
 	private readonly _originalScrollTop: IObservable<number>;
 	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);

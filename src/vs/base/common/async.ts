@@ -426,7 +426,6 @@ export class ThrottledDelayer<T> {
  * A barrier that is initially closed and then becomes opened permanently.
  */
 export class Barrier {
-
 	private _isOpen: boolean;
 	private _promise: Promise<boolean>;
 	private _completePromise!: (v: boolean) => void;

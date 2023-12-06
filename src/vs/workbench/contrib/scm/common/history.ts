@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
 	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
@@ -15,11 +15,7 @@ export interface ISCMHistoryProviderMenus {
 
 export interface ISCMHistoryProvider {
 
-	readonly onDidChangeActionButton: Event<void>;
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void>;
-
-	get actionButton(): ISCMActionButtonDescriptor | undefined;
-	set actionButton(button: ISCMActionButtonDescriptor | undefined);
 
 	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
 	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);

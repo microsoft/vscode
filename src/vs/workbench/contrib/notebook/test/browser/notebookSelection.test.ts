@@ -15,12 +15,15 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('NotebookSelection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('focus is never empty', function () {
 		const selectionCollection = new NotebookCellSelectionCollection();
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
 
 		selectionCollection.setState(null, [], true, 'model');
 		assert.deepStrictEqual(selectionCollection.focus, { start: 0, end: 0 });
+		selectionCollection.dispose();
 	});
 });
 

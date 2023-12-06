@@ -17,7 +17,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
+import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -899,6 +899,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 						scrollState.restore(this._editor);
 					}
 					: undefined;
+
+				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
+					this._showDiff(true, true);
+				}));
 
 				const zoneLineNumber = this._zone.position!.lineNumber;
 				const myDistance = zoneLineNumber <= modifiedRange.startLineNumber

@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { ETAG_DISABLED, FileOperationError, FileOperationResult, IFileReadLimits, IFileService, IFileStatWithMetadata, IFileStreamContent, IWriteFileOptions, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopyBackup, IWorkingCopyBackupMeta, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -262,6 +262,12 @@ export interface IStoredFileWorkingCopyResolveOptions {
 	 * Go to disk bypassing any cache of the stored file working copy if any.
 	 */
 	readonly forceReadFromFile?: boolean;
+
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
 }
 
 /**
@@ -571,7 +577,10 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		// Resolve Content
 		try {
-			const content = await this.fileService.readFileStream(this.resource, { etag });
+			const content = await this.fileService.readFileStream(this.resource, {
+				etag,
+				limits: options?.limits
+			});
 
 			// Clear orphaned state when resolving was successful
 			this.setOrphaned(false);
