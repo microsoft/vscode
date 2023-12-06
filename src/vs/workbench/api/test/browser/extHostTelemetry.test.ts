@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { DEFAULT_LOG_LEVEL, LogLevel } from 'vs/platform/log/common/log';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
@@ -22,6 +23,7 @@ interface TelemetryLoggerSpy {
 }
 
 suite('ExtHostTelemetry', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const mockEnvironment: IEnvironment = {
 		isExtensionDevelopmentDebug: false,
@@ -70,6 +72,7 @@ suite('ExtHostTelemetry', function () {
 			override telemetryInfo = mockTelemetryInfo;
 			override remote = mockRemote;
 		}, new TestTelemetryLoggerService(DEFAULT_LOG_LEVEL));
+		store.add(extensionTelemetry);
 		extensionTelemetry.$initializeTelemetryLevel(TelemetryLevel.USAGE, true, { usage: true, error: true });
 		return extensionTelemetry;
 	};
@@ -89,7 +92,12 @@ suite('ExtHostTelemetry', function () {
 			}
 		};
 
+		if (extHostTelemetry) {
+			store.add(extHostTelemetry);
+		}
+
 		const logger = extensionTelemetry.instantiateLogger(mockExtensionIdentifier, appender, options);
+		store.add(logger);
 		return logger;
 	};
 
@@ -143,6 +151,7 @@ suite('ExtHostTelemetry', function () {
 		assert.strictEqual(config.isCrashEnabled, true);
 		assert.strictEqual(config.isUsageEnabled, false);
 		assert.strictEqual(config.isErrorsEnabled, true);
+		extensionTelemetry.dispose();
 	});
 
 	test('Simple log event to TelemetryLogger', function () {
