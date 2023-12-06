@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Mime } from '../../util/mimes';
-import { createEditAddingLinksForUriList, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink, validateLink } from './shared';
+import { createEditAddingLinksForUriList, findValidUriInText, getPasteUrlAsFormattedLinkSetting, PasteUrlAsFormattedLink } from './shared';
 
 class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -28,11 +28,16 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 
 		const item = dataTransfer.get(Mime.textPlain);
 		const urlList = await item?.asString();
-		if (token.isCancellationRequested || !urlList || !validateLink(urlList).isValid) {
+		if (token.isCancellationRequested || !urlList) {
 			return;
 		}
 
-		const pasteEdit = await createEditAddingLinksForUriList(document, ranges, validateLink(urlList).cleanedUrlList, true, pasteUrlSetting === PasteUrlAsFormattedLink.Smart, token);
+		const uriText = findValidUriInText(urlList);
+		if (!uriText) {
+			return;
+		}
+
+		const pasteEdit = createEditAddingLinksForUriList(document, ranges, uriText, true, pasteUrlSetting === PasteUrlAsFormattedLink.Smart);
 		if (!pasteEdit) {
 			return;
 		}

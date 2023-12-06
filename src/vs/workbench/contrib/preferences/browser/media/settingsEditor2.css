@@ -531,7 +531,11 @@
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {
@@ -597,7 +601,12 @@
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 2px 5px;
+	border-radius: 4px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a,

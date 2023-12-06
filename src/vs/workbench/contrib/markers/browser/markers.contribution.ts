@@ -33,6 +33,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -120,6 +121,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
+		'problems.visibility': {
+			type: 'boolean',
+			default: true,
+			tags: ['experimental'],
+			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
+		}
 	}
 });
 
@@ -552,14 +559,44 @@ registerAction2(class extends Action2 {
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
 	private markersStatusItem: IStatusbarEntryAccessor;
+	private markersStatusItemOff: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markerService.onMarkerChanged(() => this.markersStatusItem.update(this.getMarkersItem()));
+
+		const addStatusBarEntry = () => {
+			this.markersStatusItemOff = this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49);
+		};
+
+		// Add the status bar entry if the problems is not visible
+		let config = this.configurationService.getValue('problems.visibility');
+		if (!config) {
+			addStatusBarEntry();
+		}
+
+		this._register(this.markerService.onMarkerChanged(() => {
+			this.markersStatusItem.update(this.getMarkersItem());
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('problems.visibility')) {
+				this.markersStatusItem.update(this.getMarkersItem());
+
+				// Update based on what setting was changed to.
+				config = this.configurationService.getValue('problems.visibility');
+				if (!config && !this.markersStatusItemOff) {
+					addStatusBarEntry();
+				} else if (config && this.markersStatusItemOff) {
+					this.markersStatusItemOff.dispose();
+					this.markersStatusItemOff = undefined;
+				}
+			}
+		}));
 	}
 
 	private getMarkersItem(): IStatusbarEntry {
@@ -571,6 +608,22 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 			ariaLabel: tooltip,
 			tooltip,
 			command: 'workbench.actions.view.toggleProblems'
+		};
+	}
+
+	private getMarkersItemTurnedOff(): IStatusbarEntry {
+		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
+		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
+		const openSettingsCommand = 'workbench.action.openSettings';
+		const configureSettingsLabel = '@id:problems.visibility';
+		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
+		return {
+			name: localize('status.problemsVisibility', "Problems Visibility"),
+			text: '$(whole-word)',
+			ariaLabel: tooltip,
+			tooltip,
+			kind: 'warning',
+			command: { title: openSettingsCommand, arguments: [configureSettingsLabel], id: openSettingsCommand }
 		};
 	}
 
@@ -641,8 +694,12 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		if (total > 0) {
+			const message = localize('totalProblems', 'Total {0} Problems', total);
+			this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		} else {
+			this.activity.value = undefined;
+		}
 	}
 }
 

@@ -493,7 +493,7 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, resolvedConfig.type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
 					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
 						await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
@@ -1041,6 +1041,12 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
+	}
+
+	async updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void> {
+		this.model.updateDataBreakpoint(id, update);
+		this.debugStorage.storeBreakpoints(this.model);
+		await this.sendDataBreakpoints();
 	}
 
 	async removeDataBreakpoints(id?: string): Promise<void> {

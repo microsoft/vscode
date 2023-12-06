@@ -23,6 +23,10 @@ export class NativeRequestService extends RequestService {
 	override async resolveProxy(url: string): Promise<string | undefined> {
 		return this.nativeHostService.resolveProxy(url);
 	}
+
+	override async loadCertificates(): Promise<string[]> {
+		return this.nativeHostService.loadCertificates();
+	}
 }
 
 registerSingleton(IRequestService, NativeRequestService, InstantiationType.Delayed);

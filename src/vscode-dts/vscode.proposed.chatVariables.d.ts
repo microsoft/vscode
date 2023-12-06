@@ -17,7 +17,11 @@ declare module 'vscode' {
 
 	export interface ChatVariableValue {
 		level: ChatVariableLevel;
-		value: string;
+		/**
+		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
+		 */
+		kind?: string;
+		value: string | Uri | any;
 		description?: string;
 	}
 

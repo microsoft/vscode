@@ -67,6 +67,8 @@ export class InlayHintItem {
 
 export class InlayHintsFragments {
 
+	private static _emptyInlayHintList: InlayHintList = Object.freeze({ dispose() { }, hints: [] });
+
 	static async create(registry: LanguageFeatureRegistry<InlayHintsProvider>, model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsFragments> {
 
 		const data: [InlayHintList, InlayHintsProvider][] = [];
@@ -74,8 +76,8 @@ export class InlayHintsFragments {
 		const promises = registry.ordered(model).reverse().map(provider => ranges.map(async range => {
 			try {
 				const result = await provider.provideInlayHints(model, range, token);
-				if (result?.hints.length) {
-					data.push([result, provider]);
+				if (result?.hints.length || provider.onDidChangeInlayHints) {
+					data.push([result ?? InlayHintsFragments._emptyInlayHintList, provider]);
 				}
 			} catch (err) {
 				onUnexpectedExternalError(err);

@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentService, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { Comment, CommentInput, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from 'vs/editor/common/languages';
+import { CommentService, ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
+import { Comment, CommentInput, CommentReaction, CommentThread, CommentThreadCollapsibleState, CommentThreadState } from 'vs/editor/common/languages';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -17,6 +17,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 class TestCommentThread implements CommentThread<IRange> {
 	isDocumentCommentThread(): this is CommentThread<IRange> {
@@ -42,6 +44,31 @@ class TestCommentThread implements CommentThread<IRange> {
 	isTemplate: boolean = false;
 	label: string | undefined = undefined;
 	contextValue: string | undefined = undefined;
+}
+
+class TestCommentController implements ICommentController {
+	id: string = 'test';
+	label: string = 'Test Comments';
+	features = {};
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	deleteCommentThreadMain(commentThreadId: string): void {
+		throw new Error('Method not implemented.');
+	}
+	toggleReaction(uri: URI, thread: CommentThread<IRange>, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo> {
+		throw new Error('Method not implemented.');
+	}
+	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo> {
+		throw new Error('Method not implemented.');
+	}
+
 }
 
 export class TestViewDescriptorService implements Partial<IViewDescriptorService> {
@@ -91,6 +118,7 @@ suite('Comments View', function () {
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 		commentService = instantiationService.createInstance(CommentService);
 		instantiationService.stub(ICommentService, commentService);
+		commentService.registerCommentController('test', new TestCommentController());
 	});
 
 

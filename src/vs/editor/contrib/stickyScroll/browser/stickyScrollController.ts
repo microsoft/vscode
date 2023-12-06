@@ -98,7 +98,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}));
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
-			this._onContextMenu(event);
+			this._onContextMenu(dom.getWindow(stickyScrollDomNode), event);
 		}));
 		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService);
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
@@ -368,18 +368,21 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				// not hovering a sticky scroll line
 				return;
 			}
+			if (!this._editor.hasModel() || !this._stickyRangeProjectedOnEditor) {
+				return;
+			}
 			if (this._candidateDefinitionsLength > 1) {
 				if (this._focused) {
 					this._disposeFocusStickyScrollStore();
 				}
 				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
-			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel()!.uri, range: this._stickyRangeProjectedOnEditor! });
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
 	}
 
-	private _onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+	private _onContextMenu(targetWindow: Window, e: MouseEvent) {
+		const event = new StandardMouseEvent(targetWindow, e);
 
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,
@@ -435,7 +438,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
 				this._showEndForLine = null;
-				this._renderStickyScroll();
+				this._renderStickyScroll(-1);
 			}));
 		}
 	}

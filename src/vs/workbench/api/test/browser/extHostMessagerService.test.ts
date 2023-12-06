@@ -12,6 +12,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -132,4 +133,6 @@ suite('ExtHostMessageService', function () {
 			assert.strictEqual(handle, 42);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

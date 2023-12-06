@@ -9,7 +9,7 @@ import { IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -186,9 +186,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
-		if (this.model.setItems(items)) {
-			this.updateCompositeSwitcher();
-		}
+		this.model.setItems(items);
+		this.updateCompositeSwitcher();
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {
@@ -228,9 +227,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}));
 
 		// Contextmenu for composites
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(getWindow(parent), e)));
 		this._register(Gesture.addTarget(parent));
-		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(getWindow(parent), e)));
 
 		// Register a drop target on the whole bar to prevent forbidden feedback
 		let insertDropBefore: Before2D | undefined = undefined;
@@ -566,9 +565,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			}
 		});
 		compositesToRemove.reverse().forEach(index => {
-			const actionViewItem = compositeSwitcherBar.viewItems[index];
 			compositeSwitcherBar.pull(index);
-			actionViewItem.dispose();
 			this.visibleComposites.splice(index, 1);
 		});
 
@@ -577,9 +574,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			const currentIndex = this.visibleComposites.indexOf(compositeId);
 			if (newIndex !== currentIndex) {
 				if (currentIndex !== -1) {
-					const actionViewItem = compositeSwitcherBar.viewItems[currentIndex];
 					compositeSwitcherBar.pull(currentIndex);
-					actionViewItem.dispose();
 					this.visibleComposites.splice(currentIndex, 1);
 				}
 
@@ -590,10 +585,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Add overflow action as needed
 		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction) {
-			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
+			this.compositeOverflowAction = this._register(this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
 				this.compositeOverflowActionViewItem?.showMenu();
-			});
-			this.compositeOverflowActionViewItem = this.instantiationService.createInstance(
+			}));
+			this.compositeOverflowActionViewItem = this._register(this.instantiationService.createInstance(
 				CompositeOverflowActivityActionViewItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
@@ -605,7 +600,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.options.getOnCompositeClickAction,
 				this.options.colors,
 				this.options.activityHoverOptions
-			);
+			));
 
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
@@ -625,10 +620,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
-	private showContextMenu(e: MouseEvent | GestureEvent): void {
+	private showContextMenu(targetWindow: Window, e: MouseEvent | GestureEvent): void {
 		EventHelper.stop(e, true);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(targetWindow, e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			getActions: () => this.getContextMenuActions(e)
@@ -681,37 +676,10 @@ class CompositeBarModel {
 		this.setItems(items);
 	}
 
-	setItems(items: ICompositeBarItem[]): boolean {
-		const result: ICompositeBarModelItem[] = [];
-		let hasChanges: boolean = false;
-		if (!this.items || this.items.length === 0) {
-			this._items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
-			hasChanges = true;
-		} else {
-			const existingItems = this.items;
-			for (let index = 0; index < items.length; index++) {
-				const newItem = items[index];
-				const existingItem = existingItems.filter(({ id }) => id === newItem.id)[0];
-				if (existingItem) {
-					if (
-						existingItem.pinned !== newItem.pinned ||
-						index !== existingItems.indexOf(existingItem)
-					) {
-						existingItem.pinned = newItem.pinned;
-						result.push(existingItem);
-						hasChanges = true;
-					} else {
-						result.push(existingItem);
-					}
-				} else {
-					result.push(this.createCompositeBarItem(newItem.id, newItem.name, newItem.order, newItem.pinned, newItem.visible));
-					hasChanges = true;
-				}
-			}
-			this._items = result;
-		}
-
-		return hasChanges;
+	setItems(items: ICompositeBarItem[]): void {
+		this._items = [];
+		this._items = items
+			.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
 	}
 
 	get visibleItems(): ICompositeBarModelItem[] {

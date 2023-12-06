@@ -386,9 +386,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public getLastInstance(task: Task): Task | undefined {
-		const recentKey = task.getRecentlyUsedKey();
+		const recentKey = task.getKey();
 		return Object.values(this._activeTasks).reverse().find(
-			(value) => recentKey && recentKey === value.task.getRecentlyUsedKey())?.task;
+			(value) => recentKey && recentKey === value.task.getKey())?.task;
 	}
 
 	public getBusyTasks(): Task[] {
@@ -408,9 +408,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _getInstances(task: Task): IActiveTerminalData[] {
-		const recentKey = task.getRecentlyUsedKey();
+		const recentKey = task.getKey();
 		return Object.values(this._activeTasks).filter(
-			(value) => recentKey && recentKey === value.task.getRecentlyUsedKey());
+			(value) => recentKey && recentKey === value.task.getKey());
 	}
 
 	private _removeFromActiveTasks(task: Task | string): void {
@@ -587,12 +587,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
 		} else {
 			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
-		}
-
-		if (dependencyTask.configurationProperties.hide) {
-			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
-		} else {
-			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
 		}
 	}
 
@@ -1046,6 +1040,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
 			await this._terminalService.revealActiveTerminal();
+			if (task.command.presentation.focus) {
+				this._terminalService.focusActiveInstance();
+			}
 		}
 		this._activeTasks[task.getMapKey()].terminal = terminal;
 		this._fireTaskEvent(TaskEvent.changed());
@@ -1180,10 +1177,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
+					const folder = cwd ? path.posix.basename(cwd.toString()) : workspaceFolder.name;
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
-					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
+
+					}, 'Executing task in folder {0}: {1}', folder, commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				} else {
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executing.shellIntegration',

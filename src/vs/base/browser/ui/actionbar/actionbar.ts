@@ -22,6 +22,7 @@ export interface IActionViewItem extends IDisposable {
 	isEnabled(): boolean;
 	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
+	showHover?(): void;
 }
 
 export interface IActionViewItemProvider {
@@ -200,7 +201,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			// Recompute focused item
-			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
+			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab) || event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
 				this.updateFocusedItem();
 			}
 		}));
@@ -234,7 +235,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	private refreshRole(): void {
-		if (this.length() >= 2) {
+		if (this.length() >= 1) {
 			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 		} else {
 			this.actionsList.setAttribute('role', 'presentation');
@@ -282,6 +283,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const elem = this.actionsList.children[i];
 			if (DOM.isAncestor(DOM.getActiveElement(), elem)) {
 				this.focusedItem = i;
+				this.viewItems[this.focusedItem]?.showHover?.();
 				break;
 			}
 		}
@@ -544,8 +546,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (this.previouslyFocusedItem !== undefined && this.previouslyFocusedItem !== this.focusedItem) {
 			this.viewItems[this.previouslyFocusedItem]?.blur();
 		}
-
-		const actionViewItem = this.focusedItem !== undefined && this.viewItems[this.focusedItem];
+		const actionViewItem = this.focusedItem !== undefined ? this.viewItems[this.focusedItem] : undefined;
 		if (actionViewItem) {
 			let focusItem = true;
 
@@ -560,7 +561,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (actionViewItem.action.id === Separator.ID) {
 				focusItem = false;
 			}
-
+			if (focusItem) {
+				actionViewItem.showHover?.();
+			}
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;

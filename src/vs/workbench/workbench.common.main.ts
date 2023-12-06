@@ -47,7 +47,6 @@ import 'vs/workbench/browser/parts/paneCompositePartService';
 import 'vs/workbench/browser/parts/banner/bannerPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import 'vs/workbench/browser/parts/views/viewsService';
-import 'vs/workbench/browser/iconSelectBox';
 
 //#endregion
 
@@ -233,6 +232,9 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
 
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
+
 // Mapped Edits
 import 'vs/workbench/contrib/mappedEdits/common/mappedEdits.contribution';
 
@@ -377,5 +379,8 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
+
+// Account Entitlements
+import 'vs/workbench/contrib/accountEntitlements/browser/accountsEntitlements.contribution';
 
 //#endregion

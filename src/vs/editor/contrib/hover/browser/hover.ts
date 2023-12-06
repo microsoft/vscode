@@ -58,6 +58,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
+	private _isLocked: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -83,14 +84,9 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 				this._hookEvents();
 			}
 		}));
-		this._register(this._editor.onMouseLeave(() => {
-			this._mouseMoveEvent = undefined;
-			this._reactToEditorMouseMoveRunner.cancel();
-		}));
 	}
 
 	private _hookEvents(): void {
-		const hideWidgetsEventHandler = () => this._hideWidgets();
 
 		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
@@ -101,14 +97,24 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		} else {
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
 
 		this._toUnhook.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
-		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onDidChangeModel(() => {
+			this._cancelScheduler();
+			this._hideWidgets();
+		}));
+		this._toUnhook.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
+	}
+
+	private _cancelScheduler() {
+		this._mouseMoveEvent = undefined;
+		this._reactToEditorMouseMoveRunner.cancel();
 	}
 
 	private _unhookEvents(): void {
@@ -150,6 +156,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		this._cancelScheduler();
 		const targetEm = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
 		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetEm)) {
 			// When the content widget is resizing
@@ -201,6 +208,10 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		this._mouseMoveEvent = mouseEvent;
+		if (this._isLocked) {
+			// When the alt key is pressed, hover remains visible
+			return;
+		}
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
@@ -276,6 +287,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		if (!this._editor.hasModel()) {
 			return;
 		}
+		this._toggleLockedState(e.altKey);
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
@@ -285,6 +297,17 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 			&& !mightTriggerFocus) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
+		}
+	}
+
+	private _onKeyUp(e: IKeyboardEvent): void {
+		this._toggleLockedState(!e.altKey);
+	}
+
+	private _toggleLockedState(locked: boolean) {
+		if (this._isLocked !== locked) {
+			this._isLocked = locked;
+			this._contentWidget?.widget.toggleLocked(this._isLocked);
 		}
 	}
 
@@ -366,6 +389,12 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 	}
 }
 
+enum HoverFocusBehavior {
+	NoAutoFocus = 'noAutoFocus',
+	FocusIfVisible = 'focusIfVisible',
+	AutoFocusImmediately = 'autoFocusImmediately'
+}
+
 class ShowOrFocusHoverAction extends EditorAction {
 
 	constructor() {
@@ -376,8 +405,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 				comment: [
 					'Label for action that will trigger the showing/focusing of a hover in the editor.',
 					'If the hover is not visible, it will show the hover.',
-					'This allows for users to show the hover without using the mouse.',
-					'If the hover is already visible, it will take focus.'
+					'This allows for users to show the hover without using the mouse.'
 				]
 			}, "Show or Focus Hover"),
 			metadata: {
@@ -388,9 +416,14 @@ class ShowOrFocusHoverAction extends EditorAction {
 						type: 'object',
 						properties: {
 							'focus': {
-								description: 'Controls if when triggered with the keyboard, the hover should take focus immediately.',
-								type: 'boolean',
-								default: false
+								description: 'Controls if and when the hover should take focus upon being triggered by this action.',
+								enum: [HoverFocusBehavior.NoAutoFocus, HoverFocusBehavior.FocusIfVisible, HoverFocusBehavior.AutoFocusImmediately],
+								enumDescriptions: [
+									nls.localize('showOrFocusHover.focus.noAutoFocus', 'The hover will not automatically take focus.'),
+									nls.localize('showOrFocusHover.focus.focusIfVisible', 'The hover will take focus only if it is already visible.'),
+									nls.localize('showOrFocusHover.focus.autoFocusImmediately', 'The hover will automatically take focus when it appears.'),
+								],
+								default: HoverFocusBehavior.FocusIfVisible,
 							}
 						},
 					}
@@ -414,14 +447,31 @@ class ShowOrFocusHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		const position = editor.getPosition();
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled || !!args?.focus;
+
+		const focusArgument = args?.focus;
+		let focusOption = HoverFocusBehavior.FocusIfVisible;
+		if (focusArgument in HoverFocusBehavior) {
+			focusOption = focusArgument;
+		} else if (typeof focusArgument === 'boolean' && focusArgument) {
+			focusOption = HoverFocusBehavior.AutoFocusImmediately;
+		}
+
+		const showContentHover = (focus: boolean) => {
+			const position = editor.getPosition();
+			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+		};
+
+		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
 		if (controller.isHoverVisible) {
-			controller.focus();
+			if (focusOption !== HoverFocusBehavior.NoAutoFocus) {
+				controller.focus();
+			} else {
+				showContentHover(accessibilitySupportEnabled);
+			}
 		} else {
-			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+			showContentHover(accessibilitySupportEnabled || focusOption === HoverFocusBehavior.AutoFocusImmediately);
 		}
 	}
 }

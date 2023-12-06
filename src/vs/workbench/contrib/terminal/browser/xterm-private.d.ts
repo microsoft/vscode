@@ -5,12 +5,13 @@
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import { IBufferCell } from 'xterm';
+import { IBufferCell } from '@xterm/xterm';
 
 export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XtermAttributes };
 
 export interface IXtermCore {
 	viewport?: {
+		readonly scrollBarWidth: number;
 		_innerRefresh(): void;
 	};
 	_onData: IEventEmitter<string>;

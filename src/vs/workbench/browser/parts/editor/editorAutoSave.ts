@@ -14,7 +14,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
@@ -33,8 +32,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ILogService private readonly logService: ILogService,
-		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -51,6 +49,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 	private registerListeners(): void {
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChange()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
 
@@ -65,6 +64,10 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		if (!focused) {
 			this.maybeTriggerAutoSave(SaveReason.WINDOW_CHANGE);
 		}
+	}
+
+	private onActiveWindowChange(): void {
+		this.maybeTriggerAutoSave(SaveReason.WINDOW_CHANGE);
 	}
 
 	private onDidActiveEditorChange(): void {
@@ -198,7 +201,6 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			// Save if dirty
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-				this._accessibleNotificationService.notifySaved(false);
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
 		}, this.autoSaveAfterDelay);

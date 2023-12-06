@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
@@ -15,6 +14,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
+import { mainWindow } from 'vs/base/browser/window';
 
 /**
  * Currently only tested on iOS 13/ iPadOS.
@@ -59,32 +59,36 @@ export class PointerEventHandler extends MouseHandler {
 
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		this._dispatchGesture(event, /*inSelectionMode*/false);
+	}
 
+	private onChange(event: GestureEvent): void {
+		if (this._lastPointerType === 'touch') {
+			this._context.viewModel.viewLayout.deltaScrollNow(-event.translationX, -event.translationY);
+		}
+		if (this._lastPointerType === 'pen') {
+			this._dispatchGesture(event, /*inSelectionMode*/true);
+		}
+	}
+
+	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 		if (target.position) {
-			// this.viewController.moveTo(target.position);
 			this.viewController.dispatchMouse({
 				position: target.position,
 				mouseColumn: target.position.column,
 				startedOnLineNumbers: false,
 				revealType: NavigationCommandRevealType.Minimal,
 				mouseDownCount: event.tapCount,
-				inSelectionMode: false,
+				inSelectionMode,
 				altKey: false,
 				ctrlKey: false,
 				metaKey: false,
 				shiftKey: false,
-
 				leftButton: false,
 				middleButton: false,
 				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
 			});
-		}
-	}
-
-	private onChange(e: GestureEvent): void {
-		if (this._lastPointerType === 'touch') {
-			this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 		}
 	}
 
@@ -136,9 +140,9 @@ export class PointerHandler extends Disposable {
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
-		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
+		if (BrowserFeatures.pointerEvents) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
-		} else if (window.TouchEvent) {
+		} else if (mainWindow.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
 		} else {
 			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));

@@ -79,7 +79,7 @@ async function insertLink(activeEditor: vscode.TextEditor, selectedFiles: vscode
 function createInsertLinkEdit(activeEditor: vscode.TextEditor, selectedFiles: vscode.Uri[], insertAsMedia: boolean, title = '', placeholderValue = 0, pasteAsMarkdownLink = true, isExternalLink = false) {
 	const snippetEdits = coalesce(activeEditor.selections.map((selection, i): vscode.SnippetTextEdit | undefined => {
 		const selectionText = activeEditor.document.getText(selection);
-		const snippet = createUriListSnippet(activeEditor.document, selectedFiles, [], title, placeholderValue, pasteAsMarkdownLink, isExternalLink, {
+		const snippet = createUriListSnippet(activeEditor.document, selectedFiles.map(uri => ({ uri })), title, placeholderValue, pasteAsMarkdownLink, isExternalLink, {
 			insertAsMedia,
 			placeholderText: selectionText,
 			placeholderStartIndex: (i + 1) * selectedFiles.length,

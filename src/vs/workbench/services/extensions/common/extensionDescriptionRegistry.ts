@@ -79,18 +79,11 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 			this._extensionsArr.push(extensionDescription);
 
 			const activationEvents = this._activationEventsReader.readActivationEvents(extensionDescription);
-			if (Array.isArray(activationEvents)) {
-				for (let activationEvent of activationEvents) {
-					// TODO@joao: there's no easy way to contribute this
-					if (activationEvent === 'onUri') {
-						activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
-					}
-
-					if (!this._activationMap.has(activationEvent)) {
-						this._activationMap.set(activationEvent, []);
-					}
-					this._activationMap.get(activationEvent)!.push(extensionDescription);
+			for (const activationEvent of activationEvents) {
+				if (!this._activationMap.has(activationEvent)) {
+					this._activationMap.set(activationEvent, []);
 				}
+				this._activationMap.get(activationEvent)!.push(extensionDescription);
 			}
 		}
 	}
@@ -261,14 +254,8 @@ export class ExtensionDescriptionRegistrySnapshot {
 }
 
 export interface IActivationEventsReader {
-	readActivationEvents(extensionDescription: IExtensionDescription): string[] | undefined;
+	readActivationEvents(extensionDescription: IExtensionDescription): string[];
 }
-
-export const basicActivationEventsReader: IActivationEventsReader = {
-	readActivationEvents: (extensionDescription: IExtensionDescription): string[] | undefined => {
-		return extensionDescription.activationEvents;
-	}
-};
 
 export class LockableExtensionDescriptionRegistry implements IReadOnlyExtensionDescriptionRegistry {
 

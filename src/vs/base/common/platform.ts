@@ -53,18 +53,13 @@ export interface INodeProcess {
 }
 
 declare const process: INodeProcess;
-declare const global: unknown;
-declare const self: unknown;
 
-/**
- * @deprecated use `globalThis` instead
- */
-export const globals: any = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
+const $globalThis: any = globalThis;
 
 let nodeProcess: INodeProcess | undefined = undefined;
-if (typeof globals.vscode !== 'undefined' && typeof globals.vscode.process !== 'undefined') {
+if (typeof $globalThis.vscode !== 'undefined' && typeof $globalThis.vscode.process !== 'undefined') {
 	// Native environment (sandboxed)
-	nodeProcess = globals.vscode.process;
+	nodeProcess = $globalThis.vscode.process;
 } else if (typeof process !== 'undefined') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
@@ -167,7 +162,8 @@ export const isLinuxSnap = _isLinuxSnap;
 export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
-export const isWebWorker = (_isWeb && typeof globals.importScripts === 'function');
+export const isWebWorker = (_isWeb && typeof $globalThis.importScripts === 'function');
+export const webWorkerOrigin = isWebWorker ? $globalThis.origin : undefined;
 export const isIOS = _isIOS;
 export const isMobile = _isMobile;
 /**
@@ -226,7 +222,7 @@ export const platformLocale = _platformLocale;
  */
 export const translationsConfigFile = _translationsConfigFile;
 
-export const setTimeout0IsFaster = (typeof globals.postMessage === 'function' && !globals.importScripts);
+export const setTimeout0IsFaster = (typeof $globalThis.postMessage === 'function' && !$globalThis.importScripts);
 
 /**
  * See https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html#:~:text=than%204%2C%20then-,set%20timeout%20to%204,-.
@@ -241,7 +237,8 @@ export const setTimeout0 = (() => {
 			callback: () => void;
 		}
 		const pending: IQueueElement[] = [];
-		globals.addEventListener('message', (e: MessageEvent) => {
+
+		$globalThis.addEventListener('message', (e: any) => {
 			if (e.data && e.data.vscodeScheduleAsyncWork) {
 				for (let i = 0, len = pending.length; i < len; i++) {
 					const candidate = pending[i];
@@ -260,7 +257,7 @@ export const setTimeout0 = (() => {
 				id: myId,
 				callback: callback
 			});
-			globals.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
+			$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
 		};
 	}
 	return (callback: () => void) => setTimeout(callback);
@@ -292,3 +289,7 @@ export const isFirefox = !!(userAgent && userAgent.indexOf('Firefox') >= 0);
 export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari') >= 0));
 export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
 export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);
+
+export function isBigSurOrNewer(osVersion: string): boolean {
+	return parseFloat(osVersion) >= 20;
+}
