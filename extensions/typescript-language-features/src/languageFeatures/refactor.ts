@@ -221,7 +221,7 @@ class MoveToFileRefactorCommand implements Command {
 			quickPick.items = [
 				selectExistingFileItem,
 				selectNewFileItem,
-				{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
+				{ label: vscode.l10n.t("destination files"), kind: vscode.QuickPickItemKind.Separator },
 				...coalesce(destinationItems)
 			];
 		};
