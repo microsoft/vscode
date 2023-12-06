@@ -37,7 +37,7 @@ suite('PreferencesService', () => {
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
 		const instantiationService = testInstantiationService.createChild(collection);
-		testObject = instantiationService.createInstance(PreferencesService);
+		testObject = disposables.add(instantiationService.createInstance(PreferencesService));
 	});
 	test('options are preserved when calling openEditor', async () => {
 		testObject.openSettings({ jsonEditor: false, query: 'test query' });

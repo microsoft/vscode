@@ -240,7 +240,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
-		const input = this.settingsEditor2Input;
+		const input = this._register(this.settingsEditor2Input);
 		options = {
 			...options,
 			focusSearch: true
