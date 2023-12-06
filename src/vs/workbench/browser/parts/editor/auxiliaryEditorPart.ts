@@ -206,11 +206,6 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			if (restoreFocus) {
 				nextActiveGroup.focus();
 			}
-
-			// If only one group is left and it's locked, unlock it
-			if (nextActiveGroup.isLocked && mostRecentlyActiveGroups.length === 2) {
-				nextActiveGroup.lock(false);
-			}
 		}
 
 		this.doClose(false /* do not merge any groups to main part */);

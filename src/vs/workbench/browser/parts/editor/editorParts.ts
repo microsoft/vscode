@@ -94,13 +94,24 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
-		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
+		disposables.add(part.onDidRemoveGroup(group => this.handleOnDidRemoveGroup(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
+	}
+
+	private handleOnDidRemoveGroup(group: IEditorGroupView): void {
+
+		// Reset locked state when only one group is remaining
+		if (this.count === 1 && this.mainPart.activeGroup.isLocked) {
+			this.mainPart.activeGroup.lock(false);
+		}
+
+		// Events
+		this._onDidRemoveGroup.fire(group);
 	}
 
 	private doUpdateMostRecentActive(part: EditorPart, makeMostRecentlyActive?: boolean): void {
