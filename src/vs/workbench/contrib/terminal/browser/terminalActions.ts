@@ -1723,8 +1723,8 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
-	// Get selected tab list instance(s)
 	const list = listService.lastFocusedList;
+	// Get selected tab list instance(s)
 	const selections = list?.getSelection();
 	// Get inline tab instance if there are not tab list selections #196578
 	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
@@ -1736,7 +1736,6 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 		return undefined;
 	}
 	const focused = list.getFocus();
-
 
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1
