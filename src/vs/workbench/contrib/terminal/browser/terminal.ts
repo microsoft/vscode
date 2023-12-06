@@ -655,6 +655,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidChangeSelection: Event<ITerminalInstance>;
 	onDidRunText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
+	onDidSendText: Event<string>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
@@ -985,36 +986,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
-
-	/**
-	 * Selects the previous suggestion if the suggest widget is visible.
-	 */
-	selectPreviousSuggestion(): void;
-
-	/**
-	 * Selects the previous page suggestion if the suggest widget is visible.
-	 */
-	selectPreviousPageSuggestion(): void;
-
-	/**
-	 * Selects the next suggestion if the suggest widget is visible.
-	 */
-	selectNextSuggestion(): void;
-
-	/**
-	 * Selects the next page suggestion if the suggest widget is visible.
-	 */
-	selectNextPageSuggestion(): void;
-
-	/**
-	 * Accepts the current suggestion if the suggest widget is visible.
-	 */
-	acceptSelectedSuggestion(): Promise<void>;
-
-	/**
-	 * Hides the suggest widget.
-	 */
-	hideSuggestWidget(): void;
 }
 
 export const enum XtermTerminalConstants {
