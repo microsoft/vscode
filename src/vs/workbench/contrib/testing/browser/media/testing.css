@@ -42,7 +42,8 @@
 }
 
 .test-explorer .test-item .label,
-.test-output-peek-tree .test-peek-item .name {
+.test-output-peek-tree .test-peek-item .name,
+.test-coverage-list-item-label {
 	flex-grow: 1;
 	width: 0;
 	overflow: hidden;
@@ -214,6 +215,22 @@
 	border-bottom-width: 2px;
 }
 
+.monaco-editor .zone-widget.test-output-peek .type-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .monaco-editor-background,
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .inputarea.ime-input,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
+}
+
 .test-output-peek-message-container {
 	overflow: hidden;
 }
@@ -337,4 +354,49 @@
 }
 .monaco-editor .testing-inline-message-severity-1 {
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+/** -- coverage  */
+
+.test-coverage-list-item {
+	display: flex;
+}
+
+.test-coverage-bars {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	margin-right: 0.8em;
+}
+
+.test-coverage-bars .bar {
+	width: 16px;
+	height: 8px;
+	border: 1px solid currentColor;
+	border-radius: 2px;
+	position: relative;
+	overflow: hidden;
+}
+
+.test-coverage-bars .bar::before {
+	content: '';
+	background: currentColor;
+	width: var(--test-bar-width);
+	height: 100%;
+	position: absolute;
+	opacity: 0.7;
+}
+
+/** -- coverage in the explorer  */
+
+.explorer-item-with-test-coverage {
+	display: flex;
+}
+
+.explorer-item-with-test-coverage .explorer-item {
+	flex-grow: 1;
+}
+.explorer-item-with-test-coverage .monaco-icon-label::after {
+	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
 }

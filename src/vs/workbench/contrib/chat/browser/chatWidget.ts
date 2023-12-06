@@ -27,7 +27,7 @@ import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
-import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION, CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
@@ -39,9 +39,10 @@ function revealLastElement(list: WorkbenchObjectTree<any>) {
 	list.scrollTop = list.scrollHeight - list.renderHeight;
 }
 
-export interface IViewState {
+export type IChatInputState = Record<string, any>;
+export interface IChatViewState {
 	inputValue?: string;
-	// renderData
+	inputState?: IChatInputState;
 }
 
 export interface IChatWidgetStyles {
@@ -53,6 +54,16 @@ export interface IChatWidgetStyles {
 
 export interface IChatWidgetContrib extends IDisposable {
 	readonly id: string;
+
+	/**
+	 * A piece of state which is related to the input editor of the chat widget
+	 */
+	getInputState?(): any;
+
+	/**
+	 * Called with the result of getInputState when navigating input history.
+	 */
+	setInputState?(s: any): void;
 }
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -246,7 +257,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
-							(isResponseVM(element) ? `_${element.response.contentReferences.length}` : '');
+							(isResponseVM(element) ? `_${element.contentReferences.length}` : '');
 					},
 				}
 			});
@@ -354,12 +365,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
+		const selected = e.element;
+		const scopedContextKeyService = this.contextKeyService.createOverlay([
+			[CONTEXT_RESPONSE_FILTERED.key, isResponseVM(selected) && !!selected.errorDetails?.responseIsFiltered]
+		]);
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.ChatContext,
 			menuActionOptions: { shouldForwardArgs: true },
-			contextKeyService: this.contextKeyService,
+			contextKeyService: scopedContextKeyService,
 			getAnchor: () => e.anchor,
-			getActionsContext: () => e.element,
+			getActionsContext: () => selected,
 		});
 	}
 
@@ -386,6 +401,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this.inputPart.render(container, '', this);
 
+		this._register(this.inputPart.onDidLoadInputState(state => {
+			this.contribs.forEach(c => {
+				if (c.setInputState && typeof state === 'object' && state?.[c.id]) {
+					c.setInputState(state[c.id]);
+				}
+			});
+		}));
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {
@@ -419,7 +441,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.style.setProperty('--vscode-interactive-session-foreground', this.editorOptions.configuration.foreground?.toString() ?? '');
 	}
 
-	setModel(model: IChatModel, viewState: IViewState): void {
+	setModel(model: IChatModel, viewState: IChatViewState): void {
 		if (!this.container) {
 			throw new Error('Call render() before setModel()');
 		}
@@ -435,11 +457,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
+			// Ensure that view state is saved here, because we will load it again when a new model is assigned
+			this.inputPart.saveState();
+
 			// Disposes the viewmodel and listeners
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.setState(model.providerId, viewState.inputValue ?? '');
+		this.inputPart.setState(model.providerId, viewState.inputValue);
+		this.contribs.forEach(c => {
+			if (c.setInputState && viewState.inputState?.[c.id]) {
+				c.setInputState(viewState.inputState?.[c.id]);
+			}
+		});
 
 		if (this.tree) {
 			this.onDidChangeItems();
@@ -474,7 +504,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.viewModel?.resetInputPlaceholder();
 	}
 
-	updateInput(value = ''): void {
+	setInput(value = ''): void {
 		this.inputPart.setValue(value);
 	}
 
@@ -490,6 +520,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._acceptInput({ prefix });
 	}
 
+	private collectInputState(): IChatInputState {
+		const inputState: IChatInputState = {};
+		this.contribs.forEach(c => {
+			if (c.getInputState) {
+				inputState[c.id] = c.getInputState();
+			}
+		});
+		return inputState;
+	}
+
 	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined): Promise<void> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
@@ -503,7 +543,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 
 			if (result) {
-				this.inputPart.acceptInput(isUserQuery ? input : undefined);
+				const inputState = this.collectInputState();
+				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
@@ -669,9 +710,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.saveState();
 	}
 
-	getViewState(): IViewState {
+	getViewState(): IChatViewState {
 		this.inputPart.saveState();
-		return { inputValue: this.getInput() };
+		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
 }
 

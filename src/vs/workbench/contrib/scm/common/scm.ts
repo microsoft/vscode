@@ -18,7 +18,6 @@ import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/cont
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -60,6 +59,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
 	readonly onDidChangeResourceGroups: Event<void>;
@@ -79,6 +79,11 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
+}
+
+export interface ISCMInputValueProviderContext {
+	readonly resourceGroupId: string;
+	readonly resources: readonly URI[];
 }
 
 export const enum InputValidationType {
@@ -104,12 +109,6 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
-}
-
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
 }
 
 export interface ISCMActionButtonDescriptor {
@@ -143,9 +142,6 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
-
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
 
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;

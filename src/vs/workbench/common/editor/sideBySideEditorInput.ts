@@ -128,11 +128,31 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
+		let title: string;
 		if (this.hasIdenticalSides) {
-			return this.primary.getTitle(verbosity) ?? this.getName();
+			title = this.primary.getTitle(verbosity) ?? this.getName();
+		} else {
+			title = super.getTitle(verbosity);
 		}
 
-		return super.getTitle(verbosity);
+		const preferredTitle = this.getPreferredTitle();
+		if (preferredTitle) {
+			title = `${preferredTitle} (${title})`;
+		}
+
+		return title;
+	}
+
+	protected getPreferredTitle(): string | undefined {
+		if (this.preferredName && this.preferredDescription) {
+			return `${this.preferredName} ${this.preferredDescription}`;
+		}
+
+		if (this.preferredName || this.preferredDescription) {
+			return this.preferredName ?? this.preferredDescription;
+		}
+
+		return undefined;
 	}
 
 	override getLabelExtraClasses(): string[] {

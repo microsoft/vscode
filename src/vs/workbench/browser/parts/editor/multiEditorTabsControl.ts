@@ -31,8 +31,8 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -55,7 +55,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -147,12 +147,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@IHostService hostService: IHostService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, editorGroupService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -319,9 +318,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
+		let isNewWindowOperation = false;
 		this._register(new DragAndDropObserver(tabsContainer, {
 			onDragStart: e => {
-				this.onGroupDragStart(e, tabsContainer);
+				isNewWindowOperation = this.onGroupDragStart(e, tabsContainer);
 			},
 
 			onDrag: e => {
@@ -386,7 +386,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
 
-				this.onGroupDragEnd(e, lastDragEvent, tabsContainer);
+				this.onGroupDragEnd(e, lastDragEvent, tabsContainer, isNewWindowOperation);
 			},
 
 			onDrop: e => {
@@ -457,7 +457,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Find target anchor
 			let anchor: HTMLElement | StandardMouseEvent = tabsContainer;
 			if (isMouseEvent(e)) {
-				anchor = new StandardMouseEvent(getWindow(tabsContainer), e);
+				anchor = new StandardMouseEvent(getWindow(this.parent), e);
 			}
 
 			// Show it
@@ -1024,12 +1024,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
+		let isNewWindowOperation = false;
 		disposables.add(new DragAndDropObserver(tab, {
 			onDragStart: e => {
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (!editor) {
 					return;
 				}
+
+				isNewWindowOperation = this.isNewWindowOperation(e);
 
 				this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.groupView.id })], DraggedEditorIdentifier.prototype);
 
@@ -1038,11 +1041,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
-				this.doFillResourceDataTransfers([editor], e);
+				this.doFillResourceDataTransfers([editor], e, isNewWindowOperation);
 
 				// Fixes https://github.com/microsoft/vscode/issues/18733
 				tab.classList.add('dragged');
-				scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
+				scheduleAtNextAnimationFrame(getWindow(this.parent), () => tab.classList.remove('dragged'));
 			},
 
 			onDrag: e => {
@@ -1114,16 +1117,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (
-					!this.isNewWindowOperation(lastDragEvent ?? e) ||
+					!isNewWindowOperation ||
 					isWindowDraggedOver() ||
 					!editor
 				) {
 					return; // drag to open in new window is disabled
 				}
 
-				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-					bounds: { x: e.screenX, y: e.screenY }
-				});
+				const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);
+				if (!auxiliaryEditorPart) {
+					return;
+				}
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
 				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {
@@ -1208,7 +1212,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				description: editor.getDescription(verbosity),
 				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
 				title: editor.getTitle(Verbosity.LONG),
-				ariaLabel: computeEditorAriaLabel(editor, tabIndex, this.groupView, this.editorGroupService.count)
+				ariaLabel: computeEditorAriaLabel(editor, tabIndex, this.groupView, this.editorPartsView.count)
 			});
 
 			if (editor === this.tabsModel.activeEditor) {
@@ -1424,6 +1428,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		let name: string | undefined;
 		let forceLabel = false;
 		let fileDecorationBadges = Boolean(options.decorations?.badges);
+		const fileDecorationColors = Boolean(options.decorations?.colors);
 		let description: string;
 		if (options.pinnedTabSizing === 'compact' && this.tabsModel.isSticky(tabIndex)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
@@ -1455,7 +1460,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				italic: !this.tabsModel.isPinned(editor),
 				forceLabel,
 				fileDecorations: {
-					colors: Boolean(options.decorations?.colors),
+					colors: fileDecorationColors,
 					badges: fileDecorationBadges
 				}
 			}
@@ -1642,20 +1647,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				// this a little bit we try at least to schedule this work on the next animation frame
 				// when we have restored or when idle otherwise.
 
-				const layoutFunction = () => {
+				const disposable = scheduleAtNextAnimationFrame(getWindow(this.parent), () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
-				};
-
-				let scheduledLayout: IDisposable;
-				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
-				} else {
-					scheduledLayout = runWhenWindowIdle(getWindow(this.tabsContainer), layoutFunction);
-				}
-
-				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
+				});
+				this.layoutScheduler.value = { options, dispose: () => disposable.dispose() };
 			}
 
 			// Make sure to keep options updated
@@ -2119,7 +2116,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-			dropHandler.handleDrop(e, getWindow(this.titleContainer), () => this.groupView, () => this.groupView.focus(), options);
+			dropHandler.handleDrop(e, getWindow(this.parent), () => this.groupView, () => this.groupView.focus(), options);
 		}
 	}
 

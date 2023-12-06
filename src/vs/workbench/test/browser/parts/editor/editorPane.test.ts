@@ -18,8 +18,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { URI } from 'vs/base/common/uri';
 import { EditorPaneDescriptor, EditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { TestStorageService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -320,7 +319,7 @@ suite('EditorPane', () => {
 				super();
 			}
 			override get typeId() { return 'testEditorInputForMementoTest'; }
-			override async resolve(): Promise<IEditorModel | null> { return null; }
+			override async resolve(): Promise<IDisposable | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -358,7 +357,7 @@ suite('EditorPane', () => {
 				super();
 			}
 			override get typeId() { return 'testEditorInputForMementoTest'; }
-			override async resolve(): Promise<IEditorModel | null> { return null; }
+			override async resolve(): Promise<IDisposable | null> { return null; }
 
 			override matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;

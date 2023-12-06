@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, getTitleBarStyle, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,6 +18,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { join } from 'vs/base/common/path';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { Color } from 'vs/base/common/color';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -29,7 +30,9 @@ export interface IWindowsMainService {
 
 	readonly onDidOpenWindow: Event<ICodeWindow>;
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
-	readonly onDidTriggerSystemContextMenu: Event<{ window: ICodeWindow; x: number; y: number }>;
+	readonly onDidMaximizeWindow: Event<ICodeWindow>;
+	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
+	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
 	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
@@ -157,6 +160,39 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 		if (windowSettings?.clickThroughInactive === false) {
 			options.acceptFirstMouse = false;
+		}
+	}
+
+	if (isMacintosh && !useNativeFullScreen(configurationService)) {
+		options.fullscreenable = false; // enables simple fullscreen mode
+	}
+
+	const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
+	if (useNativeTabs) {
+		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
+	}
+
+	const useCustomTitleStyle = getTitleBarStyle(configurationService) === 'custom';
+	if (useCustomTitleStyle) {
+		options.titleBarStyle = 'hidden';
+		if (!isMacintosh) {
+			options.frame = false;
+		}
+
+		if (useWindowControlsOverlay(configurationService)) {
+
+			// This logic will not perfectly guess the right colors
+			// to use on initialization, but prefer to keep things
+			// simple as it is temporary and not noticeable
+
+			const titleBarColor = themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+
+			options.titleBarOverlay = {
+				height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
+				color: titleBarColor,
+				symbolColor
+			};
 		}
 	}
 

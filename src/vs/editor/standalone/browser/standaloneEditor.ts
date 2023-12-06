@@ -102,7 +102,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneD
 
 export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
 	const instantiationService = StandaloneServices.initialize(override || {});
-	return new MultiDiffEditorWidget(domElement, instantiationService);
+	return new MultiDiffEditorWidget(domElement, {}, instantiationService);
 }
 
 /**
@@ -564,6 +564,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		InjectedTextCursorStops: standaloneEnums.InjectedTextCursorStops,
 		PositionAffinity: standaloneEnums.PositionAffinity,
+		ShowAiIconMode: standaloneEnums.ShowAiIconMode,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,

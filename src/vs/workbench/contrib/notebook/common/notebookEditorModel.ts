@@ -136,7 +136,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				}
 				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
 			} else {
-				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
+				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
+					limits: options?.limits,
+					reload: options?.forceReadFromFile ? { async: false, force: true } : undefined
+				});
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
@@ -152,7 +155,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				reload: {
 					async: !options?.forceReadFromFile,
 					force: options?.forceReadFromFile
-				}
+				},
+				limits: options?.limits
 			});
 		}
 

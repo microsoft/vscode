@@ -165,13 +165,8 @@
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
 	],
-
-	// Temporarily enabled for self-hosting
-	"terminal.integrated.enableStickyScroll": true,
-
-	// Temporarily enabled for self-hosting
-	"scm.experimental.showSyncInformation": {
-		"incoming": true,
-		"outgoing": true
-	}
+	"[github-issues]": {
+		"editor.wordWrap": "on"
+	},
+	"css.format.spaceAroundSelectorSeparator": true,
 }

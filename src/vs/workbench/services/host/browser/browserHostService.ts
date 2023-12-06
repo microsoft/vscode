@@ -9,9 +9,10 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/window/common/window';
 import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
+import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
@@ -37,48 +38,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { mainWindow } from 'vs/base/browser/window';
-
-/**
- * A workspace to open in the workbench can either be:
- * - a workspace file with 0-N folders (via `workspaceUri`)
- * - a single folder (via `folderUri`)
- * - empty (via `undefined`)
- */
-export type IWorkspace = IWorkspaceToOpen | IFolderToOpen | undefined;
-
-export interface IWorkspaceProvider {
-
-	/**
-	 * The initial workspace to open.
-	 */
-	readonly workspace: IWorkspace;
-
-	/**
-	 * Arbitrary payload from the `IWorkspaceProvider.open` call.
-	 */
-	readonly payload?: object;
-
-	/**
-	 * Return `true` if the provided [workspace](#IWorkspaceProvider.workspace) is trusted, `false` if not trusted, `undefined` if unknown.
-	 */
-	readonly trusted: boolean | undefined;
-
-	/**
-	 * Asks to open a workspace in the current or a new window.
-	 *
-	 * @param workspace the workspace to open.
-	 * @param options optional options for the workspace to open.
-	 * - `reuse`: whether to open inside the current window or a new window
-	 * - `payload`: arbitrary payload that should be made available
-	 * to the opening window via the `IWorkspaceProvider.payload` property.
-	 * @param payload optional payload to send to the workspace to open.
-	 *
-	 * @returns true if successfully opened, false otherwise.
-	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
-}
+import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
 
 enum HostShutdownReason {
 
@@ -187,14 +147,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 			const focusTracker = disposables.add(trackFocus(window));
 			const visibilityTracker = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
 
-			Event.latch(Event.any(
+			Event.any(
 				Event.map(focusTracker.onDidFocus, () => this.hasFocus, disposables),
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
-			), undefined, disposables)(focus => emitter.fire(focus));
+				Event.map(this.onDidChangeActiveWindow, () => this.hasFocus, disposables),
+			)(focus => emitter.fire(focus));
 		}, { window: mainWindow, disposables: this._store }));
 
-		return emitter.event;
+		return Event.latch(emitter.event, undefined, this._store);
 	}
 
 	get hasFocus(): boolean {
@@ -215,7 +176,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	//#region Window
 
 	@memoize
-	get onDidChangeActiveWindow(): Event<void> {
+	get onDidChangeActiveWindow(): Event<number> {
 		const emitter = this._register(new Emitter<number>());
 
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
@@ -240,7 +201,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}, { window: mainWindow, disposables: this._store }));
 
-		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
+		return Event.latch(emitter.event, undefined, this._store);
 	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
@@ -540,6 +501,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async moveTop(targetWindow: Window): Promise<void> {
 		// There seems to be no API to bring a window to front in browsers
+	}
+
+	async getCursorScreenPoint(): Promise<undefined> {
+		return undefined;
 	}
 
 	//#endregion

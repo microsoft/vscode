@@ -104,6 +104,7 @@ export class MenuId {
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMInputBox = new MenuId('SCMInputBox');
 	static readonly SCMHistoryItem = new MenuId('SCMHistoryItem');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
@@ -181,6 +182,7 @@ export class MenuId {
 	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
 	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
+	static readonly TerminalStickyScrollContext = new MenuId('TerminalStickyScrollContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
@@ -195,6 +197,7 @@ export class MenuId {
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
+	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

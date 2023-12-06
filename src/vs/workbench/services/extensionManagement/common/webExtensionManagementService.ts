@@ -289,7 +289,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
 					: metadata?.preRelease /* Respect the existing pre-release flag if it was set */);
 		}
-		metadata.pinned = this.options.installGivenVersion ? true : undefined;
+		metadata.pinned = this.options.installGivenVersion ? true : (this.options.pinned ?? metadata.pinned);
 
 		this._profileLocation = metadata.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : this.options.profileLocation;
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.profileLocation)

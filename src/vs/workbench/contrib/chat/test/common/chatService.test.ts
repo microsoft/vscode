@@ -71,7 +71,8 @@ const chatAgentWithUsedContext: IChatAgent = {
 						new Range(1, 1, 2, 2)
 					]
 				}
-			]
+			],
+			kind: 'usedContext'
 		});
 
 		return {};

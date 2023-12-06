@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { Dimension, getWindow, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, getActiveWindow, getWindow, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -40,8 +40,9 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -119,7 +120,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		private readonly parent: HTMLElement,
+		protected readonly parent: HTMLElement,
 		protected readonly editorPartsView: IEditorPartsView,
 		protected readonly groupsView: IEditorGroupsView,
 		protected readonly groupView: IEditorGroupView,
@@ -132,7 +133,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -265,10 +266,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		editorActionsToolbar.setActions([], []);
 	}
 
-	protected onGroupDragStart(e: DragEvent, element: HTMLElement): void {
+	protected onGroupDragStart(e: DragEvent, element: HTMLElement): boolean {
 		if (e.target !== element) {
-			return; // only if originating from tabs container
+			return false; // only if originating from tabs container
 		}
+
+		const isNewWindowOperation = this.isNewWindowOperation(e);
 
 		// Set editor group as transfer
 		this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
@@ -279,13 +282,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Drag all tabs of the group if tabs are enabled
 		let hasDataTransfer = false;
 		if (this.groupsView.partOptions.showTabs === 'multiple') {
-			hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
+			hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e, isNewWindowOperation);
 		}
 
 		// Otherwise only drag the active editor
 		else {
 			if (this.groupView.activeEditor) {
-				hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
+				hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e, isNewWindowOperation);
 			}
 		}
 
@@ -303,22 +306,25 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 			applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
 		}
+
+		return isNewWindowOperation;
 	}
 
-	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement): Promise<void> {
+	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement, isNewWindowOperation: boolean): Promise<void> {
 		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 
 		if (
 			e.target !== element ||
-			!this.isNewWindowOperation(previousDragEvent ?? e) ||
+			!isNewWindowOperation ||
 			isWindowDraggedOver()
 		) {
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-			bounds: { x: e.screenX, y: e.screenY }
-		});
+		const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, element);
+		if (!auxiliaryEditorPart) {
+			return;
+		}
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
@@ -326,6 +332,36 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		});
 
 		targetGroup.focus();
+	}
+
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
+		const window = getActiveWindow();
+		if (window.document.visibilityState === 'visible' && window.document.hasFocus()) {
+			if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
+				return; // refuse to create as long as the mouse was released over active focused window to reduce chance of opening by accident
+			}
+		}
+
+		const offsetX = offsetElement.offsetWidth / 2;
+		const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
+
+		const bounds = {
+			x: point.x - offsetX,
+			y: point.y - offsetY
+		};
+
+		if (display) {
+			if (bounds.x < display.x) {
+				bounds.x = display.x; // prevent overflow to the left
+			}
+
+			if (bounds.y < display.y) {
+				bounds.y = display.y; // prevent overflow to the top
+			}
+		}
+
+		return this.editorPartsView.createAuxiliaryEditorPart({ bounds });
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
@@ -346,9 +382,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return (!isCopy || sourceGroup === this.groupView.id);
 	}
 
-	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
+	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent, disableStandardTransfer: boolean): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, { disableStandardTransfer: this.isNewWindowOperation(e) });
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, { disableStandardTransfer });
 
 			return true;
 		}

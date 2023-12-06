@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getActiveWindow, getWindow, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { matchesScheme, Schemas } from 'vs/base/common/network';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
@@ -19,7 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -27,9 +27,110 @@ import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 
-export class BrowserWindow extends Disposable {
+export abstract class BaseWindow extends Disposable {
+
+	private static TIMEOUT_HANDLES = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
+	private static readonly TIMEOUT_DISPOSABLES = new Map<number, Set<IDisposable>>();
+
+	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
+		super();
+
+		this.enableWindowFocusOnElementFocus(targetWindow);
+		this.enableMultiWindowAwareTimeout(targetWindow, dom);
+	}
+
+	//#region focus handling in multi-window applications
+
+	protected enableWindowFocusOnElementFocus(targetWindow: CodeWindow): void {
+		const originalFocus = HTMLElement.prototype.focus;
+
+		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
+
+			// If the active focused window is not the same as the
+			// window of the element to focus, make sure to focus
+			// that window first before focusing the element.
+			const activeWindow = getActiveWindow();
+			if (activeWindow.document.hasFocus()) {
+				const elementWindow = getWindow(this);
+				if (activeWindow !== elementWindow) {
+					elementWindow.focus();
+				}
+			}
+
+			// Pass to original focus() method
+			originalFocus.apply(this, [options]);
+		};
+	}
+
+	//#endregion
+
+	//#region timeout handling in multi-window applications
+
+	/**
+	 * Override `setTimeout` and `clearTimeout` on the provided window to make
+	 * sure timeouts are dispatched to all opened windows. Some browsers may decide
+	 * to throttle timeouts in minimized windows, so with this we can ensure the
+	 * timeout is scheduled without being throttled (unless all windows are minimized).
+	 */
+	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+		const originalSetTimeout = targetWindow.setTimeout;
+		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', { get: () => originalSetTimeout });
+
+		const originalClearTimeout = targetWindow.clearTimeout;
+		Object.defineProperty(targetWindow, 'vscodeOriginalClearTimeout', { get: () => originalClearTimeout });
+
+		targetWindow.setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
+			if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
+				return originalSetTimeout.apply(this, [handler, timeout, ...args]);
+			}
+
+			const timeoutDisposables = new Set<IDisposable>();
+			const timeoutHandle = BaseWindow.TIMEOUT_HANDLES++;
+			BaseWindow.TIMEOUT_DISPOSABLES.set(timeoutHandle, timeoutDisposables);
+
+			const handlerFn = createSingleCallFunction(handler, () => {
+				dispose(timeoutDisposables);
+				BaseWindow.TIMEOUT_DISPOSABLES.delete(timeoutHandle);
+			});
+
+			for (const { window, disposables } of dom.getWindows()) {
+				if (isAuxiliaryWindow(window) && window.document.visibilityState === 'hidden') {
+					continue; // skip over hidden windows (but never over main window)
+				}
+
+				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
+
+				const timeoutDisposable = toDisposable(() => {
+					(window as any).vscodeOriginalClearTimeout(handle);
+					timeoutDisposables.delete(timeoutDisposable);
+				});
+
+				disposables.add(timeoutDisposable);
+				timeoutDisposables.add(timeoutDisposable);
+			}
+
+			return timeoutHandle;
+		};
+
+		targetWindow.clearTimeout = function (this: unknown, timeoutHandle: number | undefined): void {
+			const timeoutDisposables = typeof timeoutHandle === 'number' ? BaseWindow.TIMEOUT_DISPOSABLES.get(timeoutHandle) : undefined;
+			if (timeoutDisposables) {
+				dispose(timeoutDisposables);
+				BaseWindow.TIMEOUT_DISPOSABLES.delete(timeoutHandle!);
+			} else {
+				originalClearTimeout.apply(this, [timeoutHandle]);
+			}
+		};
+	}
+
+	//#endregion
+
+}
+
+export class BrowserWindow extends BaseWindow {
 
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -42,7 +143,7 @@ export class BrowserWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService private readonly hostService: IHostService
 	) {
-		super();
+		super(mainWindow);
 
 		this.registerListeners();
 		this.create();
@@ -65,13 +166,13 @@ export class BrowserWindow extends Disposable {
 		}));
 
 		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.layoutService.container, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
+		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
 
 		// Prevent native context menus in web
-		this._register(addDisposableListener(this.layoutService.container, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
 
 		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
 		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {

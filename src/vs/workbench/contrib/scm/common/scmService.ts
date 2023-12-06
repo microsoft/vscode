@@ -405,4 +405,5 @@ export class SCMService implements ISCMService {
 	getRepository(id: string): ISCMRepository | undefined {
 		return this._repositories.get(id);
 	}
+
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, focusWindow, getWindow, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -140,7 +140,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 
 		this.overlay.style.borderColor = activeContrastBorderColor || '';
-		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderStyle = 'solid';
 		this.overlay.style.borderWidth = '0px';
 	}
 
@@ -611,7 +611,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		}
 		if (paneToFocus) {
-			focusWindow(paneToFocus.element);
 			paneToFocus.focus();
 		}
 	}
@@ -1070,7 +1069,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		} else {
 			if (this.paneItems.length === 1) {
 				this.paneItems[0].pane.headerVisible = true;
-				this.paneItems[0].pane.setExpanded(true);
+				if (this.paneItems[0].pane === this.lastMergedCollapsedPane) {
+					this.paneItems[0].pane.setExpanded(false);
+				}
 				this.paneItems[0].pane.collapsible = false;
 			} else {
 				this.paneItems.forEach(i => {
