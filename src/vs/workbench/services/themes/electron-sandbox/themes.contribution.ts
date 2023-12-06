@@ -13,9 +13,10 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'window.systemColorTheme': {
 			'type': 'string',
-			'enum': ['default', 'light', 'dark'],
+			'enum': ['default', 'auto', 'light', 'dark'],
 			'enumDescriptions': [
 				localize('window.systemColorTheme.default', "System color theme matches the configured OS theme."),
+				localize('window.systemColorTheme.auto', "Enforce a light system color theme when a light color theme is configured for the workbench and the same for configured dark workbench themes."),
 				localize('window.systemColorTheme.light', "Enforce a light system color theme."),
 				localize('window.systemColorTheme.dark', "Enforce a dark system color theme."),
 			],

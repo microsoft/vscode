@@ -51,22 +51,29 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		// System Theme
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.systemColorTheme')) {
-				this.onDidChangeSystemColorThemeConfiguration();
+				this.updateSystemColorTheme();
 			}
 		}));
-		this.onDidChangeSystemColorThemeConfiguration();
+		this.updateSystemColorTheme();
 
 		// Color Scheme changes
 		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
 	}
 
-	private onDidChangeSystemColorThemeConfiguration(): void {
-		switch (this.configurationService.getValue('window.systemColorTheme')) {
+	private updateSystemColorTheme(): void {
+		switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>('window.systemColorTheme')) {
 			case 'dark':
 				nativeTheme.themeSource = 'dark';
 				break;
 			case 'light':
 				nativeTheme.themeSource = 'light';
+				break;
+			case 'auto':
+				switch (this.getBaseTheme()) {
+					case 'vs': nativeTheme.themeSource = 'light'; break;
+					case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
+					default: nativeTheme.themeSource = 'system';
+				}
 				break;
 			default:
 				nativeTheme.themeSource = 'system';
@@ -106,8 +113,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 
 		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 		if (!background) {
-			const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
-			switch (baseTheme) {
+			switch (this.getBaseTheme()) {
 				case 'vs': background = DEFAULT_BG_LIGHT; break;
 				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
 				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
@@ -120,6 +126,16 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		return background;
+	}
+
+	private getBaseTheme(): 'vs' | 'vs-dark' | 'hc-black' | 'hc-light' {
+		const baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
+		switch (baseTheme) {
+			case 'vs': return 'vs';
+			case 'hc-black': return 'hc-black';
+			case 'hc-light': return 'hc-light';
+			default: return 'vs-dark';
+		}
 	}
 
 	saveWindowSplash(windowId: number | undefined, splash: IPartsSplash): void {
@@ -135,6 +151,9 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		if (typeof windowId === 'number') {
 			this.updateBackgroundColor(windowId, splash);
 		}
+
+		// Update system theme
+		this.updateSystemColorTheme();
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
