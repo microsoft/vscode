@@ -201,7 +201,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (!lineHasSpace) {
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				effectiveLineNumber -= 1;
-			} else if (!isFolded(lineNumber + 1) && (lineNumber + 1 <= model.getLineCount())) {
+			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
 			} else if (column * fontInfo.spaceWidth < 22) {
 				// cannot show lightbulb above/below and showing

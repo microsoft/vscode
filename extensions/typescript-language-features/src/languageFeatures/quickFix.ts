@@ -262,6 +262,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		}
 
 		const allActions = Array.from(results.values);
+		console.log('allActions : ', allActions);
+
 		for (const action of allActions) {
 			action.isPreferred = isPreferredFix(action, allActions);
 		}
@@ -366,6 +368,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				};
 			}
 		}
+		console.log('action : ', action);
 		const codeAction = new VsCodeCodeAction(action, title, vscode.CodeActionKind.QuickFix);
 		codeAction.edit = getEditForCodeAction(this.client, action);
 		codeAction.diagnostics = [diagnostic];
