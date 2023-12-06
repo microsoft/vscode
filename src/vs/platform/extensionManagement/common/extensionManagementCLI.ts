@@ -10,7 +10,7 @@ import { basename } from 'vs/base/common/resources';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionInfo, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogger } from 'vs/platform/log/common/log';
@@ -29,7 +29,7 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 }
 
 type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
-type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
+type CLIInstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
 export class ExtensionManagementCLI {
 
@@ -89,7 +89,7 @@ export class ExtensionManagementCLI {
 			}
 
 			const installVSIXInfos: InstallVSIXInfo[] = [];
-			let installExtensionInfos: InstallExtensionInfo[] = [];
+			let installExtensionInfos: CLIInstallExtensionInfo[] = [];
 			const addInstallExtensionInfo = (id: string, version: string | undefined, isBuiltin: boolean) => {
 				installExtensionInfos.push({ id, version: version !== 'prerelease' ? version : undefined, installOptions: { ...installOptions, isBuiltin, installPreReleaseVersion: version === 'prerelease' || installOptions.installPreReleaseVersion } });
 			};
@@ -178,45 +178,29 @@ export class ExtensionManagementCLI {
 		const installedExtensionsQuery: IExtensionInfo[] = [];
 		for (const extension of installedExtensions) {
 			if (!!extension.identifier.uuid) { // No need to check new version for an unpublished extension
-				installedExtensionsQuery.push({
-					id: `${extension.manifest.publisher}.${extension.manifest.name}`,
-					preRelease: extension.isPreReleaseVersion
-				});
+				installedExtensionsQuery.push({ ...extension.identifier, preRelease: extension.preRelease });
 			}
 		}
 
-		this.logger.info(localize('updateExtensionsQuery', "Update extensions: querying version for {0} extensions", installedExtensionsQuery.length));
+		this.logger.trace(localize('updateExtensionsQuery', "Fetching latest versions for {0} extensions", installedExtensionsQuery.length));
 		const availableVersions = await this.extensionGalleryService.getExtensions(installedExtensionsQuery, { compatible: true }, CancellationToken.None);
 
-		const newVersionAvailable: [IGalleryExtension, boolean, string][] = [];
+		const extensionsToUpdate: InstallExtensionInfo[] = [];
 		for (const newVersion of availableVersions) {
 			for (const oldVersion of installedExtensions) {
 				if (areSameExtensions(oldVersion.identifier, newVersion.identifier) && gt(newVersion.version, oldVersion.manifest.version)) {
-					newVersionAvailable.push([newVersion, oldVersion.isPreReleaseVersion, oldVersion.manifest.version]);
+					extensionsToUpdate.push({
+						extension: newVersion,
+						options: { operation: InstallOperation.Update, installPreReleaseVersion: oldVersion.isPreReleaseVersion }
+					});
 				}
 			}
 		}
 
-		if (newVersionAvailable.length) {
-			this.logger.info(localize('updateExtensionsNewVersionsAvailable', "Update extensions: {0} extensions have new version available", newVersionAvailable.length));
-			const failed: string[] = [];
-			await Promise.all(newVersionAvailable.map(async extensionInfo => {
-				try {
-					if (extensionInfo[1]) {
-						this.logger.info(localize('updateExtensionsPrereleaseVersion', "Updating extension '{0}' from prerelease version {1} to version {2}", extensionInfo[0].identifier.id, extensionInfo[2], extensionInfo[0].version));
-					}
-					else {
-						this.logger.info(localize('updateExtensionsStandardVersion', "Updating extension '{0}' from version {1} to version {2}", extensionInfo[0].identifier.id, extensionInfo[2], extensionInfo[0].version));
-					}
-					await this.extensionManagementService.installFromGallery(extensionInfo[0]);
-				} catch (err) {
-					this.logger.error(err.message || err.stack || err);
-					failed.push(extensionInfo[0].identifier.id);
-				}
-			}));
-			if (failed.length) {
-				throw new Error(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', ')));
-			}
+		if (extensionsToUpdate.length) {
+			this.logger.info(localize('updateExtensionsNewVersionsAvailable', "Updating extensions: {0}", extensionsToUpdate.map(ext => ext.extension.identifier.id).join(', ')));
+			await this.extensionManagementService.installGalleryExtensions(extensionsToUpdate);
+			this.logger.info(localize('updateExtensionsDone', "Updated {0} extensions", extensionsToUpdate.length));
 		}
 		else {
 			this.logger.info(localize('updateExtensionsNoExtensions', "No extension to update"));
@@ -248,7 +232,7 @@ export class ExtensionManagementCLI {
 		return null;
 	}
 
-	private async getGalleryExtensions(extensions: InstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
+	private async getGalleryExtensions(extensions: CLIInstallExtensionInfo[]): Promise<Map<string, IGalleryExtension>> {
 		const galleryExtensions = new Map<string, IGalleryExtension>();
 		const preRelease = extensions.some(e => e.installOptions.installPreReleaseVersion);
 		const targetPlatform = await this.extensionManagementService.getTargetPlatform();
@@ -267,7 +251,7 @@ export class ExtensionManagementCLI {
 		return galleryExtensions;
 	}
 
-	private async installFromGallery({ id, version, installOptions }: InstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[]): Promise<IExtensionManifest | null> {
+	private async installFromGallery({ id, version, installOptions }: CLIInstallExtensionInfo, galleryExtension: IGalleryExtension, installed: ILocalExtension[]): Promise<IExtensionManifest | null> {
 		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
 		if (manifest && !this.validateExtensionKind(manifest)) {
 			return null;
