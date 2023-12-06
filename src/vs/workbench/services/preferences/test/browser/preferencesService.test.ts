@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -18,14 +18,12 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { TestRemoteAgentService, ITestInstantiationService, TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('PreferencesService', () => {
-
-	let disposables: DisposableStore;
 	let testInstantiationService: ITestInstantiationService;
 	let testObject: PreferencesService;
 	let editorService: TestEditorService2;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		disposables = new DisposableStore();
 		editorService = new TestEditorService2();
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
@@ -41,11 +39,6 @@ suite('PreferencesService', () => {
 		const instantiationService = testInstantiationService.createChild(collection);
 		testObject = instantiationService.createInstance(PreferencesService);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
 	test('options are preserved when calling openEditor', async () => {
 		testObject.openSettings({ jsonEditor: false, query: 'test query' });
 		const options = editorService.lastOpenEditorOptions as ISettingsEditorOptions;
