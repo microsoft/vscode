@@ -371,7 +371,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [<ApplyCodeActionCommand_args>{ action: action, diagnostic, document }],
+			arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 			title: ''
 		};
 		if (expand && message !== undefined) {
@@ -425,7 +425,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		action.diagnostics = [diagnostic];
 		action.command = {
 			command: ApplyFixAllCodeAction.ID,
-			arguments: [<ApplyFixAllCodeAction_args>{ action }],
+			arguments: [{ action } satisfies ApplyFixAllCodeAction_args],
 			title: ''
 		};
 		results.addFixAllAction(tsAction.fixId, action);
