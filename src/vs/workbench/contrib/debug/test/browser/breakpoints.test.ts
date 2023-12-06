@@ -5,8 +5,9 @@
 
 import * as assert from 'assert';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { URI as uri } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { OverviewRulerLane } from 'vs/editor/common/model';
@@ -47,15 +48,10 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 
 suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		disposables = new DisposableStore();
 		model = createMockDebugModel(disposables);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	// Breakpoints
