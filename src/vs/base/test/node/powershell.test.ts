@@ -6,6 +6,7 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as platform from 'vs/base/common/platform';
 import { enumeratePowerShellInstallations, getFirstAvailablePowerShellInstallation, IPowerShellExeDetails } from 'vs/base/node/powershell';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function checkPath(exePath: string) {
 	// Check to see if the path exists
@@ -28,7 +29,7 @@ function checkPath(exePath: string) {
 
 if (platform.isWindows) {
 	suite('PowerShell finder', () => {
-
+		ensureNoDisposablesAreLeakedInTestSuite();
 		test('Can find first available PowerShell', async () => {
 			const pwshExe = await getFirstAvailablePowerShellInstallation();
 			const exePath = pwshExe?.exePath;
