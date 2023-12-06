@@ -14,6 +14,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { Position } from 'vs/editor/common/core/position';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
@@ -25,6 +26,9 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	protected _selectionIsEmpty: boolean;
 	protected _renderLineHighlightOnlyWhenFocus: boolean;
 	protected _focused: boolean;
+	/**
+	 * Unique sorted list of view line numbers which have cursors sitting on them.
+	 */
 	private _cursorLineNumbers: number[];
 	private _selections: Selection[];
 	private _renderData: string[] | null;
@@ -58,7 +62,11 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private _readFromSelections(): boolean {
 		let hasChanged = false;
 
-		const cursorsLineNumbers = this._selections.map(s => s.positionLineNumber);
+		const lineNumbers = new Set<number>();
+		for (const selection of this._selections) {
+			lineNumbers.add(selection.positionLineNumber);
+		}
+		const cursorsLineNumbers = Array.from(lineNumbers);
 		cursorsLineNumbers.sort((a, b) => a - b);
 		if (!arrays.equals(this._cursorLineNumbers, cursorsLineNumbers)) {
 			this._cursorLineNumbers = cursorsLineNumbers;
@@ -123,36 +131,45 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 			this._renderData = null;
 			return;
 		}
-		const renderedLineExact = this._renderOne(ctx, true);
-		const renderedLineWrapped = this._renderOne(ctx, false);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
-		const len = this._cursorLineNumbers.length;
-		let index = 0;
+
+		// initialize renderData
 		const renderData: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
-			while (index < len && this._cursorLineNumbers[index] < lineNumber) {
-				index++;
-			}
-			if (index < len && this._cursorLineNumbers[index] === lineNumber) {
-				renderData[lineIndex] = renderedLineExact;
-			} else if (this._wordWrap && lineIndex > 0 && renderData[lineIndex - 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber - 1).continuesWithWrappedLine) {
-				// found wrapped part (after selection)
-				renderData[lineIndex] = renderedLineWrapped;
-			} else {
-				renderData[lineIndex] = '';
-			}
+			renderData[lineIndex] = '';
 		}
+
 		if (this._wordWrap) {
-			for (let lineNumber = visibleEndLineNumber - 1; lineNumber >= visibleStartLineNumber; lineNumber--) {
-				const lineIndex = lineNumber - visibleStartLineNumber;
-				if (renderData[lineIndex] === '' && renderData[lineIndex + 1] !== '' && ctx.viewportData.getViewLineRenderingData(lineNumber).continuesWithWrappedLine) {
-					// found wrapped part (before selection)
+			// do a first pass to render wrapped lines
+			const renderedLineWrapped = this._renderOne(ctx, false);
+			for (const cursorLineNumber of this._cursorLineNumbers) {
+
+				const coordinatesConverter = this._context.viewModel.coordinatesConverter;
+				const modelLineNumber = coordinatesConverter.convertViewPositionToModelPosition(new Position(cursorLineNumber, 1)).lineNumber;
+				const firstViewLineNumber = coordinatesConverter.convertModelPositionToViewPosition(new Position(modelLineNumber, 1)).lineNumber;
+				const lastViewLineNumber = coordinatesConverter.convertModelPositionToViewPosition(new Position(modelLineNumber, this._context.viewModel.model.getLineMaxColumn(modelLineNumber))).lineNumber;
+
+				const firstLine = Math.max(firstViewLineNumber, visibleStartLineNumber);
+				const lastLine = Math.min(lastViewLineNumber, visibleEndLineNumber);
+				for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber++) {
+					const lineIndex = lineNumber - visibleStartLineNumber;
 					renderData[lineIndex] = renderedLineWrapped;
 				}
 			}
 		}
+
+		// do a second pass to render exact lines
+		const renderedLineExact = this._renderOne(ctx, true);
+		for (const cursorLineNumber of this._cursorLineNumbers) {
+			if (cursorLineNumber < visibleStartLineNumber || cursorLineNumber > visibleEndLineNumber) {
+				continue;
+			}
+			const lineIndex = cursorLineNumber - visibleStartLineNumber;
+			renderData[lineIndex] = renderedLineExact;
+		}
+
 		this._renderData = renderData;
 	}
 
