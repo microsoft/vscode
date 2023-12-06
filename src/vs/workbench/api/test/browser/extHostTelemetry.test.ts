@@ -250,8 +250,6 @@ suite('ExtHostTelemetry', function () {
 
 		logger.logUsage('test-event', { 'test-data': 'test-data' });
 		// Initial header is logged then the event
-		const logs = loggerService.createLogger().logs;
-		console.log(logs[0]);
 		assert.strictEqual(loggerService.createLogger().logs.length, 3);
 		assert.ok(loggerService.createLogger().logs[2].startsWith('test-extension/test-event'));
 	});

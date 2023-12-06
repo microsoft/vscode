@@ -900,6 +900,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 					}
 					: undefined;
 
+				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
+					this._showDiff(true, true);
+				}));
+
 				const zoneLineNumber = this._zone.position!.lineNumber;
 				const myDistance = zoneLineNumber <= modifiedRange.startLineNumber
 					? modifiedRange.startLineNumber - zoneLineNumber

@@ -483,13 +483,13 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			return;
 		}
 
-		const model = this._diffModel.get()?.model;
-		if (!model) { return; }
+		const model = this._diffModel.get();
+		if (!model || !model.isDiffUpToDate.get()) { return; }
 
 		this._editors.modified.executeEdits('diffEditor', [
 			{
 				range: diff.modified.toExclusiveRange(),
-				text: model.original.getValueInRange(diff.original.toExclusiveRange())
+				text: model.model.original.getValueInRange(diff.original.toExclusiveRange())
 			}
 		]);
 	}

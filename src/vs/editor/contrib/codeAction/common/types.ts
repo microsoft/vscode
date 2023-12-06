@@ -127,11 +127,6 @@ export function filtersAction(filter: CodeActionFilter, action: languages.CodeAc
 		}
 	}
 
-	// On empty lines and selections, show only code AI code actions
-	if (rangeOrSelection.isEmpty() && model.getLineContent(rangeOrSelection.startLineNumber).length === 0) {
-		return !!action.isAI;
-	}
-
 	return true;
 }
 

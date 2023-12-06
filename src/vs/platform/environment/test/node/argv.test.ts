@@ -112,13 +112,13 @@ suite('parseArgs', () => {
 			_: string[];
 		}
 
-		const options1: OptionDescriptions<TestArgs1> = {
+		const options1 = {
 			'testcmd': c('A test command', {
 				testArg: o('A test command option'),
 				_: { type: 'string[]' }
 			}),
 			_: { type: 'string[]' }
-		};
+		} as OptionDescriptions<TestArgs1>;
 		assertParse(
 			options1,
 			['testcmd', '--testArg=foo'],
@@ -142,13 +142,13 @@ suite('parseArgs', () => {
 			_: string[];
 		}
 
-		const options2: OptionDescriptions<TestArgs2> = {
+		const options2 = {
 			'testcmd': c('A test command', {
 				testArg: o('A test command option')
 			}),
 			testX: { type: 'boolean', global: true, description: '' },
 			_: { type: 'string[]' }
-		};
+		} as OptionDescriptions<TestArgs2>;
 		assertParse(
 			options2,
 			['testcmd', '--testArg=foo', '--testX'],
