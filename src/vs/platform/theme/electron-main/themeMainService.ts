@@ -48,10 +48,31 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	constructor(@IStateService private stateService: IStateService, @IConfigurationService private configurationService: IConfigurationService) {
 		super();
 
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.systemColorTheme')) {
+				this.onDidChangeSystemColorThemeConfiguration();
+			}
+		}));
+		this.onDidChangeSystemColorThemeConfiguration();
+
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
 			this._onDidChangeColorScheme.fire(this.getColorScheme());
 		});
+	}
+
+	private onDidChangeSystemColorThemeConfiguration(): void {
+		switch (this.configurationService.getValue('window.systemColorTheme')) {
+			case 'dark':
+				nativeTheme.themeSource = 'dark';
+				break;
+			case 'light':
+				nativeTheme.themeSource = 'light';
+				break;
+			default:
+				nativeTheme.themeSource = 'system';
+				break;
+		}
 	}
 
 	getColorScheme(): IColorScheme {
