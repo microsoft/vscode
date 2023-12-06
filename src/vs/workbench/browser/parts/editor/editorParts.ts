@@ -13,7 +13,7 @@ import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/e
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 import { MultiWindowParts } from 'vs/workbench/browser/part';
 
@@ -106,8 +106,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	private handleOnDidRemoveGroup(group: IEditorGroupView): void {
 
 		// Reset locked state when only one group is remaining
-		if (this.count === 1 && this.mainPart.activeGroup.isLocked) {
-			this.mainPart.activeGroup.lock(false);
+		if (this.count === 1) {
+			firstOrDefault(this.mainPart.groups)?.lock(false);
 		}
 
 		// Events
