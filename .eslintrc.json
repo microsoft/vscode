@@ -194,7 +194,6 @@
 							"src/vs/base/test/node/css.build.test.ts",
 							"src/vs/base/test/node/id.test.ts",
 							"src/vs/base/test/node/snapshot.test.ts",
-							"src/vs/code/test/electron-sandbox/issue/testReporterModel.test.ts",
 							"src/vs/editor/contrib/codeAction/test/browser/codeActionKeybindingResolver.test.ts",
 							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
 							"src/vs/editor/contrib/dropOrPasteInto/test/browser/editSort.test.ts",
