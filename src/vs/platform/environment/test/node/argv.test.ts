@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { formatOptions, Option, OptionDescriptions, Subcommand, parseArgs, ErrorReporter } from 'vs/platform/environment/node/argv';
 import { addArg } from 'vs/platform/environment/node/argvHelper';
 
@@ -81,6 +82,8 @@ suite('formatOptions', () => {
 				'      A test command'
 			]);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('parseArgs', () => {
@@ -156,4 +159,6 @@ suite('parseArgs', () => {
 			[]
 		);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
