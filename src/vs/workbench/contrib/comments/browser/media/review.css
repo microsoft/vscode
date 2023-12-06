@@ -298,8 +298,8 @@
 	width: auto;
 }
 
-.review-widget .body .comment-additional-actions .button-bar>.monaco-text-button,
-.review-widget .body .comment-additional-actions .button-bar>.monaco-button-dropdown {
+.review-widget .body .comment-additional-actions .button-bar > .monaco-text-button,
+.review-widget .body .comment-additional-actions .button-bar > .monaco-button-dropdown {
 	margin: 0 10px 0 0;
 }
 

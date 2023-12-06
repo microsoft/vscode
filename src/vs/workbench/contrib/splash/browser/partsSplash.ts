@@ -7,7 +7,7 @@ import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { getThemeTypeSelector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
@@ -20,6 +20,7 @@ import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
 import { mainWindow } from 'vs/base/browser/window';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class PartsSplash {
 
@@ -33,20 +34,24 @@ export class PartsSplash {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
+		@ISplashStorageService private readonly _partSplashService: ISplashStorageService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		Event.once(_layoutService.onDidLayoutMainContainer)(() => {
 			this._removePartsSplash();
 			perf.mark('code/didRemovePartsSplash');
 		}, undefined, this._disposables);
 
-		let lastIdleSchedule: IDisposable | undefined;
-		Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(() => {
-			lastIdleSchedule?.dispose();
-			lastIdleSchedule = dom.runWhenWindowIdle(mainWindow, () => this._savePartsSplash(), 800);
-		}, undefined, this._disposables);
+		const lastIdleSchedule = this._disposables.add(new MutableDisposable());
+		const savePartsSplashSoon = () => {
+			lastIdleSchedule.value = dom.runWhenWindowIdle(mainWindow, () => this._savePartsSplash(), 2500);
+		};
+		lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(savePartsSplashSoon, undefined, this._disposables);
+			savePartsSplashSoon();
+		});
 
 		_configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.titleBarStyle')) {

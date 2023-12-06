@@ -58,6 +58,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 	private _hoverActivatedByColorDecoratorClick: boolean = false;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
+	private _isLocked: boolean = false;
 
 	static get(editor: ICodeEditor): ModesHoverController | null {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -96,6 +97,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 			this._toUnhook.add(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
+			this._toUnhook.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		} else {
 			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
@@ -206,6 +208,10 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		this._mouseMoveEvent = mouseEvent;
+		if (this._isLocked) {
+			// When the alt key is pressed, hover remains visible
+			return;
+		}
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
@@ -281,6 +287,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		if (!this._editor.hasModel()) {
 			return;
 		}
+		this._toggleLockedState(e.altKey);
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 		// If the beginning of a multi-chord keybinding is pressed, or the command aims to focus the hover, set the variable to true, otherwise false
@@ -290,6 +297,17 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 			&& !mightTriggerFocus) {
 			// Do not hide hover when a modifier key is pressed
 			this._hideWidgets();
+		}
+	}
+
+	private _onKeyUp(e: IKeyboardEvent): void {
+		this._toggleLockedState(!e.altKey);
+	}
+
+	private _toggleLockedState(locked: boolean) {
+		if (this._isLocked !== locked) {
+			this._isLocked = locked;
+			this._contentWidget?.widget.toggleLocked(this._isLocked);
 		}
 	}
 
