@@ -188,7 +188,6 @@
 							"src/vs/base/test/common/naturalLanguage/korean.test.ts",
 							"src/vs/base/test/common/network.test.ts",
 							"src/vs/base/test/common/normalization.test.ts",
-							"src/vs/base/test/common/objects.test.ts",
 							"src/vs/base/test/common/observable.test.ts",
 							"src/vs/base/test/common/path.test.ts",
 							"src/vs/base/test/common/prefixTree.test.ts",
