@@ -48,6 +48,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	constructor(@IStateService private stateService: IStateService, @IConfigurationService private configurationService: IConfigurationService) {
 		super();
 
+		// System Theme
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.systemColorTheme')) {
 				this.onDidChangeSystemColorThemeConfiguration();
@@ -56,9 +57,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.onDidChangeSystemColorThemeConfiguration();
 
 		// Color Scheme changes
-		nativeTheme.on('updated', () => {
-			this._onDidChangeColorScheme.fire(this.getColorScheme());
-		});
+		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
 	}
 
 	private onDidChangeSystemColorThemeConfiguration(): void {

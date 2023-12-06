@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { isLinux } from 'vs/base/common/platform';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -20,6 +21,7 @@ configurationRegistry.registerConfiguration({
 			],
 			'description': localize('window.systemColorTheme', "The system color theme applies to native UI elements such as dialogs and menus. Even if your OS is configured in light mode, you can select a dark system color theme."),
 			'default': 'default',
+			'included': !isLinux, // not supported on Linux (https://github.com/electron/electron/issues/28887)
 			'scope': ConfigurationScope.APPLICATION
 		}
 	}
