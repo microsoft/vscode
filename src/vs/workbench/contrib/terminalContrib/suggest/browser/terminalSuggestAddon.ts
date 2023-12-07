@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { SimpleCompletionItem } from 'vs/workbench/services/suggest/browser/simpleCompletionItem';
 import { LineContext, SimpleCompletionModel } from 'vs/workbench/services/suggest/browser/simpleCompletionModel';
 import { ISimpleSelectedSuggestion, SimpleSuggestWidget } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import { timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -80,7 +79,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _enableWidget: boolean = true;
 	private _leadingLineContent?: string;
 	private _additionalInput?: string;
-	private _cursorIndexStart: number = 0;
 	private _cursorIndexDelta: number = 0;
 	private _inputQueue?: string[];
 
@@ -144,7 +142,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		const replacementIndex = parseInt(args[0]);
 		const replacementLength = parseInt(args[1]);
-		this._cursorIndexStart = parseInt(args[2]);
 		if (!args[3]) {
 			this._onBell.fire();
 			return;
@@ -360,22 +357,19 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 			// Send the completion
 			this._onAcceptedCompletion.fire([
-				// TODO: Right arrow to end of the replacement
-				// Left arrow to end of the replacement
-				'\x1b[D'.repeat(Math.max(suggestion.model.replacementLength - this._cursorIndexStart + this._cursorIndexDelta, 0)),
-				// Delete to remove additional input
-				'\x1b[3~'.repeat(this._additionalInput?.length ?? 0),
+				// Disable suggestions
+				'\x1b[24~y',
+				// Right arrow to the end of the additional input
+				'\x1b[C'.repeat(Math.max((this._additionalInput?.length ?? 0) - this._cursorIndexDelta, 0)),
+				// Backspace to remove additional input
+				'\x7F'.repeat(this._additionalInput?.length ?? 0),
 				// Backspace to remove the replacement
 				'\x7F'.repeat(suggestion.model.replacementLength),
 				// Write the completion
 				suggestion.item.completion.label,
+				// Enable suggestions
+				'\x1b[24~z',
 			].join(''));
-
-			// Disable completions triggering the widget temporarily to avoid completion requests
-			// caused by the completion itself to show.
-			this._enableWidget = false;
-			// TODO: Disable the widget in a more sophisticated way
-			timeout(100).then(e => this._enableWidget = true);
 		}
 	}
 
@@ -402,12 +396,15 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		let handled = false;
+		let handledCursorDelta = 0;
 
 		// Backspace
 		if (data === '\x7f') {
 			if (this._additionalInput && this._additionalInput.length > 0 && this._cursorIndexDelta > 0) {
 				handled = true;
-				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta-- - 1) + this._additionalInput.substring(this._cursorIndexDelta);
+				this._additionalInput = this._additionalInput.substring(0, this._cursorIndexDelta - 1) + this._additionalInput.substring(this._cursorIndexDelta);
+				this._cursorIndexDelta--;
+				handledCursorDelta--;
 			}
 		}
 		// Delete
@@ -423,12 +420,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			if (this._cursorIndexDelta > 0) {
 				handled = true;
 				this._cursorIndexDelta--;
+				handledCursorDelta--;
 			}
 		}
 		// Right
 		if (data === '\x1b[C') {
 			handled = true;
 			this._cursorIndexDelta += 1;
+			handledCursorDelta++;
 		}
 		if (data.match(/^[a-z0-9]$/i)) {
 
@@ -440,6 +439,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			}
 			this._additionalInput += data;
 			this._cursorIndexDelta++;
+			handledCursorDelta++;
 		}
 		if (handled) {
 			// typed -> moved cursor RIGHT -> update UI
@@ -465,7 +465,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			const xtermBox = this._screen!.getBoundingClientRect();
 			const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 			this._suggestWidget?.showSuggestions((this._suggestWidget as any)._completionModel, 0, false, false, {
-				left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
+				left: (xtermBox.left - panelBox.left) + (this._terminal.buffer.active.cursorX + handledCursorDelta) * dimensions.width,
 				top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
 				height: dimensions.height
 			});
