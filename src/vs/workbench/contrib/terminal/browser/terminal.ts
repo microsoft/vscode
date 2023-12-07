@@ -843,6 +843,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	pasteSelection(): Promise<void>;
 
 	/**
+	 * Override the copy on selection feature with a custom value.
+	 * @param value Whether to enable copySelection.
+	 */
+	overrideCopyOnSelection(value: boolean): IDisposable;
+
+	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
 	 * process (shell) of the terminal instance.
 	 *
