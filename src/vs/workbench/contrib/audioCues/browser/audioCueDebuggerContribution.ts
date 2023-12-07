@@ -41,7 +41,7 @@ export class AudioCueLineDebuggerContribution
 				)
 			);
 
-			store.add(debugService.onDidEndSession(session => {
+			store.add(debugService.onDidEndSession(({ session }) => {
 				sessionDisposables.get(session)?.dispose();
 				sessionDisposables.delete(session);
 			}));
