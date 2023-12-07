@@ -79,14 +79,14 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				this._onEnablementOrModelChanged();
 			}
 		}));
-		this._register(this._debugService.onWillNewSession((session) => {
+		this._register(this._debugService.onDidNewSession((session) => {
 			this._debugSessions.add(session);
 			if (!this._hasActiveDebugSession) {
 				this._hasActiveDebugSession = true;
 				this._onEnablementOrModelChanged();
 			}
 		}));
-		this._register(this._debugService.onDidEndSession((session) => {
+		this._register(this._debugService.onDidEndSession(({ session }) => {
 			this._debugSessions.delete(session);
 			if (this._debugSessions.size === 0) {
 				this._hasActiveDebugSession = false;
