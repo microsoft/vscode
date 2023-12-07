@@ -84,7 +84,6 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { importAMDNodeModule } from 'vs/amdX';
-import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -327,11 +326,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidRunText = this._onDidRunText.event;
 	private readonly _onDidChangeTarget = this._register(new Emitter<TerminalLocation | undefined>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
+	private readonly _onDidSendText = this._register(new Emitter<string>());
+	readonly onDidSendText = this._onDidSendText.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _terminalInRunCommandPicker: IContextKey<boolean>,
-		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>,
 		private readonly _configHelper: TerminalConfigHelper,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -536,7 +536,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel(this)));
-		this._register(this.onDidBlur(() => this.xterm?.suggestController?.hideSuggestWidget()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
@@ -726,7 +725,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this),
 			this.capabilities,
 			this._processManager.shellIntegrationNonce,
-			this._terminalSuggestWidgetVisibleContextKey,
 			disableShellIntegrationReporting
 		);
 		this.xterm = xterm;
@@ -1265,7 +1263,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Send it to the process
 		await this._processManager.write(text);
 		this._onDidInputData.fire(this);
-		this.xterm?.suggestController?.handleNonXtermData(text);
+		this._onDidSendText.fire(text);
 		this.xterm?.scrollToBottom();
 		this._onDidRunText.fire();
 	}
@@ -2248,30 +2246,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.hide();
 		colorStyleDisposable.dispose();
 		return result?.id;
-	}
-
-	selectPreviousSuggestion(): void {
-		this.xterm?.suggestController?.selectPreviousSuggestion();
-	}
-
-	selectPreviousPageSuggestion(): void {
-		this.xterm?.suggestController?.selectPreviousPageSuggestion();
-	}
-
-	selectNextSuggestion(): void {
-		this.xterm?.suggestController?.selectNextSuggestion();
-	}
-
-	selectNextPageSuggestion(): void {
-		this.xterm?.suggestController?.selectNextPageSuggestion();
-	}
-
-	async acceptSelectedSuggestion(suggestion?: Pick<ISimpleSelectedSuggestion, 'item' | 'model'>): Promise<void> {
-		this.xterm?.suggestController?.acceptSelectedSuggestion(suggestion);
-	}
-
-	hideSuggestWidget(): void {
-		this.xterm?.suggestController?.hideSuggestWidget();
 	}
 
 	forceScrollbarVisibility(): void {
