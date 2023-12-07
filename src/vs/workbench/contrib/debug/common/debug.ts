@@ -686,6 +686,7 @@ export interface IDebugConfiguration {
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
 	showSubSessionsInToolBar: boolean;
+	closeReadonlyTabsOnEnd: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;

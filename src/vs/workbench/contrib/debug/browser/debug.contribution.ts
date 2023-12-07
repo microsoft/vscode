@@ -439,6 +439,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'openExplorerOnEnd' }, "Automatically open the explorer view at the end of a debug session."),
 			default: false
 		},
+		'debug.closeReadonlyTabsOnEnd': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'closeReadonlyTabsOnEnd' }, "At the end of a debug session, all the read-only tabs associated with that session will be closed"),
+			default: false
+		},
 		'debug.inlineValues': {
 			type: 'string',
 			'enum': ['on', 'off', 'auto'],
