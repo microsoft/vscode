@@ -738,8 +738,16 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _updateMaxDimensions() {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
+		const layoutInfo = this._editor.getLayoutInfo();
+		const lastHeight = ContentHoverWidget._lastDimensions.height;
+		const lastWidth = ContentHoverWidget._lastDimensions.width;
+		const hasColorPicker = !!this._visibleData?.colorPicker;
+		const height = hasColorPicker ?
+			Math.max(250, lastHeight) :
+			Math.max(layoutInfo.height / 4, 250, lastHeight);
+		const width = hasColorPicker ?
+			Math.max(302, lastWidth) :
+			Math.max(layoutInfo.width * 0.66, 500, lastWidth);
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
