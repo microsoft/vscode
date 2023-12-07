@@ -179,7 +179,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
-		this._register(this.debugService.onDidEndSession(async session => {
+		this._register(this.debugService.onDidEndSession(async () => {
 			// Update view, since orphaned sessions might now be separate
 			await Promise.resolve(); // allow other listeners to go first, so sessions can update parents
 			this.multiSessionRepl.set(this.isMultiSessionView);
