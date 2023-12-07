@@ -29,7 +29,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
-export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '% ';
+export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
 const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
 	_reason: 'quickAccessSearch',
@@ -83,6 +83,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 	override provide(picker: IQuickPick<IPickerQuickAccessItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
+		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
+			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
+		}
 		disposables.add(super.provide(picker, token, runOptions));
 		disposables.add(picker.onDidHide(() => this.searchModel.searchResult.toggleHighlights(false)));
 		disposables.add(picker.onDidAccept(() => this.searchModel.searchResult.toggleHighlights(false)));
@@ -272,7 +275,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		return {
 			picks: syncResult,
 			additionalPicks: allMatches.asyncResults
-				.then(asyncResults => this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
+				.then(asyncResults => (asyncResults.length + syncResult.length === 0) ? [{
+					label: localize('noAnythingResults', "No matching results")
+				}] : this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
 				.then(picks => {
 					if (picks.length > 0) {
 						this.searchModel.searchResult.toggleHighlights(true);

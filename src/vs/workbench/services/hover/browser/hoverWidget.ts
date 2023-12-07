@@ -59,6 +59,13 @@ export class HoverWidget extends Widget {
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 
+	private get _targetWindow(): Window {
+		return dom.getWindow(this._target.targetElements[0]);
+	}
+	private get _targetDocumentElement(): HTMLElement {
+		return dom.getWindow(this._target.targetElements[0]).document.documentElement;
+	}
+
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
@@ -101,26 +108,26 @@ export class HoverWidget extends Widget {
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
-		this._hoverPointer = options.showPointer ? $('div.workbench-hover-pointer') : undefined;
+		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget());
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
-		if (options.compact) {
+		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
-		if (options.skipFadeInAnimation) {
+		if (options.appearance?.skipFadeInAnimation) {
 			this._hover.containerDomNode.classList.add('skip-fade-in');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
-		if (options.forcePosition) {
+		if (options.position?.forcePosition) {
 			this._forcePosition = true;
 		}
 		if (options.trapFocus) {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
+		this._hoverPosition = options.position?.hoverPosition ?? HoverPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -134,7 +141,7 @@ export class HoverWidget extends Widget {
 		});
 
 		// Hide when the window loses focus
-		this._register(dom.addDisposableListener(window, 'blur', () => this.dispose()));
+		this._register(dom.addDisposableListener(this._targetWindow, 'blur', () => this.dispose()));
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
@@ -202,19 +209,19 @@ export class HoverWidget extends Widget {
 			// If there are actions, require hover so they can be accessed
 			hideOnHover = false;
 		} else {
-			if (options.hideOnHover === undefined) {
+			if (options.persistence?.hideOnHover === undefined) {
 				// When unset, will default to true when it's a string or when it's markdown that
 				// appears to have a link using a naive check for '](' and '</a>'
 				hideOnHover = typeof options.content === 'string' ||
 					isMarkdownString(options.content) && !options.content.value.includes('](') && !options.content.value.includes('</a>');
 			} else {
 				// It's set explicitly
-				hideOnHover = options.hideOnHover;
+				hideOnHover = options.persistence.hideOnHover;
 			}
 		}
 
 		// Show the hover hint if needed
-		if (hideOnHover && options.showHoverHint) {
+		if (hideOnHover && options.appearance?.showHoverHint) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const infoElement = $('div.info');
 			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');
@@ -295,7 +302,8 @@ export class HoverWidget extends Widget {
 
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
-		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
+		const hoverFocused = this._hoverContainer.contains(this._hoverContainer.ownerDocument.activeElement);
+		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
 		if (accessibleViewHint) {
 
 			status(accessibleViewHint);
@@ -416,14 +424,14 @@ export class HoverWidget extends Widget {
 			}
 
 			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
+			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, document.documentElement.clientLeft);
+				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
 			}
 		}
 
 		// Hover is going beyond window towards left end
-		if (this._x < document.documentElement.clientLeft) {
+		if (this._x < this._targetDocumentElement.clientLeft) {
 			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
@@ -451,7 +459,7 @@ export class HoverWidget extends Widget {
 		}
 
 		// Hover on bottom is going beyond window
-		if (this._y > window.innerHeight) {
+		if (this._y > this._targetWindow.innerHeight) {
 			this._y = target.bottom;
 		}
 	}
@@ -466,7 +474,7 @@ export class HoverWidget extends Widget {
 		if (this._forcePosition) {
 			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
 			if (this._hoverPosition === HoverPosition.RIGHT) {
-				this._hover.containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - target.right - padding}px`;
+				this._hover.containerDomNode.style.maxWidth = `${this._targetDocumentElement.clientWidth - target.right - padding}px`;
 			} else if (this._hoverPosition === HoverPosition.LEFT) {
 				this._hover.containerDomNode.style.maxWidth = `${target.left - padding}px`;
 			}
@@ -475,7 +483,7 @@ export class HoverWidget extends Widget {
 
 		// Position hover on right to target
 		if (this._hoverPosition === HoverPosition.RIGHT) {
-			const roomOnRight = document.documentElement.clientWidth - target.right;
+			const roomOnRight = this._targetDocumentElement.clientWidth - target.right;
 			// Hover on the right is going beyond window.
 			if (roomOnRight < this._hover.containerDomNode.clientWidth) {
 				const roomOnLeft = target.left;
@@ -495,7 +503,7 @@ export class HoverWidget extends Widget {
 			const roomOnLeft = target.left;
 			// Hover on the left is going beyond window.
 			if (roomOnLeft < this._hover.containerDomNode.clientWidth) {
-				const roomOnRight = document.documentElement.clientWidth - target.right;
+				const roomOnRight = this._targetDocumentElement.clientWidth - target.right;
 				// There's enough room on the right, flip the hover position
 				if (roomOnRight >= this._hover.containerDomNode.clientWidth) {
 					this._hoverPosition = HoverPosition.RIGHT;
@@ -506,7 +514,7 @@ export class HoverWidget extends Widget {
 				}
 			}
 			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth <= document.documentElement.clientLeft) {
+			if (target.left - this._hover.containerDomNode.clientWidth <= this._targetDocumentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;
 			}
 		}
@@ -530,14 +538,14 @@ export class HoverWidget extends Widget {
 		// Position hover below the target
 		else if (this._hoverPosition === HoverPosition.BELOW) {
 			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
+			if (target.bottom + this._hover.containerDomNode.clientHeight > this._targetWindow.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
 	}
 
 	private adjustHoverMaxHeight(target: TargetRect): void {
-		let maxHeight = window.innerHeight / 2;
+		let maxHeight = this._targetWindow.innerHeight / 2;
 
 		// When force position is enabled, restrict max height
 		if (this._forcePosition) {
@@ -545,7 +553,7 @@ export class HoverWidget extends Widget {
 			if (this._hoverPosition === HoverPosition.ABOVE) {
 				maxHeight = Math.min(maxHeight, target.top - padding);
 			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				maxHeight = Math.min(maxHeight, window.innerHeight - target.bottom - padding);
+				maxHeight = Math.min(maxHeight, this._targetWindow.innerHeight - target.bottom - padding);
 			}
 		}
 
@@ -635,30 +643,30 @@ class CompositeMouseTracker extends Widget {
 		private _elements: HTMLElement[]
 	) {
 		super();
-		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver()));
-		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave()));
+		this._elements.forEach(n => this.onmouseover(n, () => this._onTargetMouseOver(n)));
+		this._elements.forEach(n => this.onmouseleave(n, () => this._onTargetMouseLeave(n)));
 	}
 
-	private _onTargetMouseOver(): void {
+	private _onTargetMouseOver(target: HTMLElement): void {
 		this._isMouseIn = true;
-		this._clearEvaluateMouseStateTimeout();
+		this._clearEvaluateMouseStateTimeout(target);
 	}
 
-	private _onTargetMouseLeave(): void {
+	private _onTargetMouseLeave(target: HTMLElement): void {
 		this._isMouseIn = false;
-		this._evaluateMouseState();
+		this._evaluateMouseState(target);
 	}
 
-	private _evaluateMouseState(): void {
-		this._clearEvaluateMouseStateTimeout();
+	private _evaluateMouseState(target: HTMLElement): void {
+		this._clearEvaluateMouseStateTimeout(target);
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = window.setTimeout(() => this._fireIfMouseOutside(), 0);
+		this._mouseTimeout = dom.getWindow(target).setTimeout(() => this._fireIfMouseOutside(), 0);
 	}
 
-	private _clearEvaluateMouseStateTimeout(): void {
+	private _clearEvaluateMouseStateTimeout(target: HTMLElement): void {
 		if (this._mouseTimeout) {
-			clearTimeout(this._mouseTimeout);
+			dom.getWindow(target).clearTimeout(this._mouseTimeout);
 			this._mouseTimeout = undefined;
 		}
 	}

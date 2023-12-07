@@ -28,6 +28,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { autorun } from 'vs/base/common/observable';
 import { count } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
@@ -64,11 +65,13 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -86,6 +89,7 @@ import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, maxCountPriority, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
@@ -238,15 +242,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return false;
 		}
 
-		const message = candidate.message;
 		this.showPeekFromUri({
 			type: TestUriType.ResultMessage,
-			documentUri: message.location!.uri,
+			documentUri: candidate.location.uri,
 			taskIndex: candidate.taskId,
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: message.location!.range, ...options });
+		}, undefined, { selection: candidate.location.range, ...options });
 		return true;
 	}
 
@@ -467,9 +470,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		const fallbackLocation = test.item.uri && test.item.range
+			? { uri: test.item.uri, range: test.item.range }
+			: undefined;
+
+		let best: { taskId: number; index: number; message: ITestMessage; location: IRichLocation } | undefined;
 		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
-			if (!isFailedState(task.state) || !message.location) {
+			const location = message.location || fallbackLocation;
+			if (!isFailedState(task.state) || !location) {
 				return;
 			}
 
@@ -477,7 +485,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 				return;
 			}
 
-			best = { taskId, index: messageIndex, message };
+			best = { taskId, index: messageIndex, message, location };
 		});
 
 		return best;
@@ -781,6 +789,7 @@ class TestResultsViewContent extends Disposable {
 		private readonly options: {
 			historyVisible: IObservableValue<boolean>;
 			showRevealLocationOnMessages: boolean;
+			locationForProgress: string;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
@@ -812,7 +821,7 @@ class TestResultsViewContent extends Disposable {
 			OutputPeekTree,
 			treeContainer,
 			this.didReveal.event,
-			{ showRevealLocationOnMessages }
+			{ showRevealLocationOnMessages, locationForProgress: this.options.locationForProgress },
 		));
 
 		this.onDidRequestReveal = tree.onDidRequestReview;
@@ -963,7 +972,7 @@ class TestResultsPeek extends PeekViewWidget {
 			this.scopedContextKeyService = this._disposables.add(this.contextKeyService.createScoped(container));
 			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
 			const instaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false }));
+			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false, locationForProgress: Testing.ResultsViewId }));
 		}
 
 		super._fillContainer(container);
@@ -1055,6 +1064,7 @@ export class TestResultsView extends ViewPane {
 	private readonly content = this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
 		historyVisible: staticObservableValue(true),
 		showRevealLocationOnMessages: true,
+		locationForProgress: Testing.ExplorerViewId,
 	}));
 
 	constructor(
@@ -1084,6 +1094,10 @@ export class TestResultsView extends ViewPane {
 		}
 
 		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
+	}
+
+	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
+		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -1534,7 +1548,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
 		terminal.xterm.write('\x1b[?25l'); // hide cursor
-		requestAnimationFrame(() => this.layoutTerminal(terminal));
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(this.container), () => this.layoutTerminal(terminal));
 		terminal.attachToElement(this.container, { enableGpu: false });
 	}
 
@@ -1558,7 +1572,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	) {
 		width -= 10 + 20; // scrollbar width + margin
 		this.xtermLayoutDelayer.trigger(() => {
-			const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
+			const scaled = getXtermScaledDimensions(dom.getWindow(this.container), xterm.getFont(), width, height);
 			if (scaled) {
 				xterm.resize(scaled.cols, scaled.rows);
 			}
@@ -1666,6 +1680,37 @@ class TestResultElement implements ITreeElement {
 	constructor(public readonly value: ITestResult) { }
 }
 
+const openCoverageLabel = localize('openTestCoverage', 'View Test Coverage');
+const closeCoverageLabel = localize('closeTestCoverage', 'Close Test Coverage');
+
+class CoverageElement implements ITreeElement {
+	public readonly type = 'coverage';
+	public readonly context: undefined;
+	public readonly id = `coverage-${this.results.id}/${this.task.id}`;
+	public readonly onDidChange: Event<void>;
+
+	public get label() {
+		return this.isOpen ? closeCoverageLabel : openCoverageLabel;
+	}
+
+	public get icon() {
+		return this.isOpen ? widgetClose : icons.testingCoverage;
+	}
+
+	public get isOpen() {
+		return this.coverageService.selected.get()?.fromTaskId === this.task.id;
+	}
+
+	constructor(
+		private readonly results: ITestResult,
+		public readonly task: ITestRunTaskResults,
+		private readonly coverageService: ITestCoverageService,
+	) {
+		this.onDidChange = Event.fromObservableLight(coverageService.selected);
+	}
+
+}
+
 class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
 	public readonly context = this.test.item.extId;
@@ -1721,7 +1766,7 @@ class TaskElement implements ITreeElement {
 		return this.results.tasks[this.index].running ? icons.testingStatesToIcons.get(TestResultState.Running) : undefined;
 	}
 
-	constructor(public readonly results: ITestResult, public readonly task: ITestRunTask, public readonly index: number) {
+	constructor(public readonly results: ITestResult, public readonly task: ITestRunTaskResults, public readonly index: number) {
 		this.id = `${results.id}/${index}`;
 		this.task = results.tasks[index];
 		this.context = String(index);
@@ -1788,7 +1833,7 @@ class TestMessageElement implements ITreeElement {
 	}
 }
 
-type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TaskElement;
+type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TaskElement | CoverageElement;
 
 class OutputPeekTree extends Disposable {
 	private disposed = false;
@@ -1801,11 +1846,13 @@ class OutputPeekTree extends Disposable {
 	constructor(
 		container: HTMLElement,
 		onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
-		options: { showRevealLocationOnMessages: boolean },
+		options: { showRevealLocationOnMessages: boolean; locationForProgress: string },
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITestExplorerFilterState explorerFilter: ITestExplorerFilterState,
+		@ITestCoverageService coverageService: ITestCoverageService,
+		@IProgressService progressService: IProgressService,
 	) {
 		super();
 
@@ -1851,13 +1898,24 @@ class OutputPeekTree extends Disposable {
 
 		const cc = new CreationCache<TreeElement>();
 		const getTaskChildren = (taskElem: TaskElement): Iterable<ICompressedTreeElement<TreeElement>> => {
-			const tests = Iterable.filter(taskElem.results.tests, test => test.tasks[taskElem.index].state >= TestResultState.Running || test.tasks[taskElem.index].messages.length > 0);
-
-			return Iterable.map(tests, test => ({
-				element: taskElem.itemsCache.getOrCreate(test, () => new TestCaseElement(taskElem.results, taskElem.task, test, taskElem.index)),
+			const { results, index, itemsCache, task } = taskElem;
+			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0);
+			let result: Iterable<ICompressedTreeElement<TreeElement>> = Iterable.map(tests, test => ({
+				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, task, test, index)),
 				incompressible: true,
-				children: getTestChildren(taskElem.results, test, taskElem.index),
+				children: getTestChildren(results, test, index),
 			}));
+
+			if (task.coverage.get()) {
+				result = Iterable.concat(
+					Iterable.single<ICompressedTreeElement<TreeElement>>({
+						element: new CoverageElement(results, task, coverageService),
+					}),
+					result,
+				);
+			}
+
+			return result;
 		};
 
 		const getTestChildren = (result: ITestResult, test: TestResultItem, taskIndex: number): Iterable<ICompressedTreeElement<TreeElement>> => {
@@ -1903,10 +1961,17 @@ class OutputPeekTree extends Disposable {
 			taskChildrenToUpdate.clear();
 		}, 300));
 
+		const queueTaskChildrenUpdate = (taskNode: TaskElement) => {
+			taskChildrenToUpdate.add(taskNode);
+			if (!taskChildrenUpdate.isScheduled()) {
+				taskChildrenUpdate.schedule();
+			}
+		};
+
 		const attachToResults = (result: LiveTestResult) => {
 			const resultNode = cc.get(result)! as TestResultElement;
 			const disposable = new DisposableStore();
-			disposable.add(result.onNewTask(() => {
+			disposable.add(result.onNewTask(i => {
 				if (result.tasks.length === 1) {
 					this.requestReveal.fire(new TaskSubject(result, 0)); // reveal the first task in new runs
 				}
@@ -1914,6 +1979,14 @@ class OutputPeekTree extends Disposable {
 				if (this.tree.hasElement(resultNode)) {
 					this.tree.setChildren(resultNode, getResultChildren(result), { diffIdentityProvider });
 				}
+
+				// note: tasks are bounded and their lifetime is equivalent to that of
+				// the test result, so this doesn't leak indefinitely.
+				const task = result.tasks[i];
+				disposable.add(autorun(reader => {
+					task.coverage.read(reader); // add it to the autorun
+					queueTaskChildrenUpdate(cc.get(task) as TaskElement);
+				}));
 			}));
 			disposable.add(result.onEndTask(index => {
 				(cc.get(result.tasks[index]) as TaskElement | undefined)?.changeEmitter.fire();
@@ -1935,10 +2008,7 @@ class OutputPeekTree extends Disposable {
 						return;
 					}
 
-					taskChildrenToUpdate.add(taskNode);
-					if (!taskChildrenUpdate.isScheduled()) {
-						taskChildrenUpdate.schedule();
-					}
+					queueTaskChildrenUpdate(taskNode);
 				}
 			}));
 
@@ -2027,6 +2097,15 @@ class OutputPeekTree extends Disposable {
 		this._register(this.tree.onDidOpen(async e => {
 			if (e.element instanceof TestMessageElement) {
 				this.requestReveal.fire(new MessageSubject(e.element.result, e.element.test, e.element.taskIndex, e.element.messageIndex));
+			} else if (e.element instanceof CoverageElement) {
+				const task = e.element.task;
+				if (e.element.isOpen) {
+					return coverageService.closeCoverage();
+				}
+				progressService.withProgress(
+					{ location: options.locationForProgress },
+					() => coverageService.openCoverage(task, true)
+				);
 			}
 		}));
 

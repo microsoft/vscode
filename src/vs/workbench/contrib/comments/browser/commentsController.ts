@@ -55,6 +55,11 @@ interface CommentRangeAction {
 	commentingRangesInfo: languages.CommentingRanges;
 }
 
+interface MergedCommentRangeActions {
+	range?: Range;
+	action: CommentRangeAction;
+}
+
 class CommentingRangeDecoration implements IModelDeltaDecoration {
 	private _decorationId: string | undefined;
 	private _startLineNumber: number;
@@ -262,16 +267,18 @@ class CommentingRangeDecorator {
 		return true;
 	}
 
-	public getMatchedCommentAction(commentRange: Range | undefined): CommentRangeAction[] {
+	public getMatchedCommentAction(commentRange: Range | undefined): MergedCommentRangeActions[] {
 		if (commentRange === undefined) {
 			const foundInfos = this._infos?.filter(info => info.commentingRanges.fileComments);
 			if (foundInfos) {
 				return foundInfos.map(foundInfo => {
 					return {
-						ownerId: foundInfo.owner,
-						extensionId: foundInfo.extensionId,
-						label: foundInfo.label,
-						commentingRangesInfo: foundInfo.commentingRanges
+						action: {
+							ownerId: foundInfo.owner,
+							extensionId: foundInfo.extensionId,
+							label: foundInfo.label,
+							commentingRangesInfo: foundInfo.commentingRanges
+						}
 					};
 				});
 			}
@@ -303,9 +310,15 @@ class CommentingRangeDecorator {
 			}
 		}
 
+		const seenOwners = new Set<string>();
 		return Array.from(foundHoverActions.values()).filter(action => {
-			return (action.range.startLineNumber <= commentRange.startLineNumber) && (commentRange.endLineNumber <= action.range.endLineNumber);
-		}).map(actions => actions.action);
+			if (seenOwners.has(action.action.ownerId)) {
+				return false;
+			} else {
+				seenOwners.add(action.action.ownerId);
+				return true;
+			}
+		});
 	}
 
 	public getNearestCommentingRange(findPosition: Position, reverse?: boolean): Range | undefined {
@@ -458,40 +471,43 @@ export class CommentController implements IEditorContribution {
 
 		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
-		this.commentService.registerContinueOnCommentProvider({
-			provideContinueOnComments: () => {
-				const pendingComments: languages.PendingCommentThread[] = [];
-				if (this._commentWidgets) {
-					for (const zone of this._commentWidgets) {
-						const zonePendingComments = zone.getPendingComments();
-						const pendingNewComment = zonePendingComments.newComment;
-						if (!pendingNewComment || !zone.commentThread.range) {
-							continue;
-						}
-						let lastCommentBody;
-						if (zone.commentThread.comments && zone.commentThread.comments.length) {
-							const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
-							if (typeof lastComment.body === 'string') {
-								lastCommentBody = lastComment.body;
-							} else {
-								lastCommentBody = lastComment.body.value;
+		this.globalToDispose.add(
+			this.commentService.registerContinueOnCommentProvider({
+				provideContinueOnComments: () => {
+					const pendingComments: languages.PendingCommentThread[] = [];
+					if (this._commentWidgets) {
+						for (const zone of this._commentWidgets) {
+							const zonePendingComments = zone.getPendingComments();
+							const pendingNewComment = zonePendingComments.newComment;
+							if (!pendingNewComment) {
+								continue;
+							}
+							let lastCommentBody;
+							if (zone.commentThread.comments && zone.commentThread.comments.length) {
+								const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
+								if (typeof lastComment.body === 'string') {
+									lastCommentBody = lastComment.body;
+								} else {
+									lastCommentBody = lastComment.body.value;
+								}
+							}
+
+							if (pendingNewComment !== lastCommentBody) {
+								pendingComments.push({
+									owner: zone.owner,
+									uri: zone.editor.getModel()!.uri,
+									range: zone.commentThread.range,
+									body: pendingNewComment,
+									isReply: (zone.commentThread.comments !== undefined) && (zone.commentThread.comments.length > 0)
+								});
 							}
 						}
-
-						if (pendingNewComment !== lastCommentBody) {
-							pendingComments.push({
-								owner: zone.owner,
-								uri: zone.editor.getModel()!.uri,
-								range: zone.commentThread.range,
-								body: pendingNewComment,
-								isReply: (zone.commentThread.comments !== undefined) && (zone.commentThread.comments.length > 0)
-							});
-						}
 					}
+					return pendingComments;
 				}
-				return pendingComments;
-			}
-		});
+			})
+		);
+
 	}
 
 	private registerEditorListeners() {
@@ -842,7 +858,13 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => Range.lift(pending.range).equalsRange(thread.range));
+				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => {
+					if (pending.range === undefined) {
+						return thread.range === undefined;
+					} else {
+						return Range.lift(pending.range).equalsRange(thread.range);
+					}
+				});
 				let continueOnCommentText: string | undefined;
 				if ((continueOnCommentIndex !== undefined) && continueOnCommentIndex >= 0) {
 					continueOnCommentText = this._inProcessContinueOnComments.get(e.owner)?.splice(continueOnCommentIndex, 1)[0].body;
@@ -869,8 +891,20 @@ export class CommentController implements IEditorContribution {
 		const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === thread.owner && Range.lift(zoneWidget.commentThread.range)?.equalsRange(thread.range));
 		if (thread.isReply && matchedZones.length) {
 			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: true });
-			const matchedZone = matchedZones[0];
-			matchedZone.setPendingComment(thread.body);
+			matchedZones[0].setPendingComment(thread.body);
+		} else if (matchedZones.length) {
+			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: false });
+			const existingPendingComment = matchedZones[0].getPendingComments().newComment;
+			// We need to try to reconcile the existing pending comment with the incoming pending comment
+			let pendingComment: string;
+			if (!existingPendingComment || thread.body.includes(existingPendingComment)) {
+				pendingComment = thread.body;
+			} else if (existingPendingComment.includes(thread.body)) {
+				pendingComment = existingPendingComment;
+			} else {
+				pendingComment = `${existingPendingComment}\n${thread.body}`;
+			}
+			matchedZones[0].setPendingComment(pendingComment);
 		} else if (!thread.isReply) {
 			const threadStillAvailable = this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: false });
 			if (!threadStillAvailable) {
@@ -880,7 +914,7 @@ export class CommentController implements IEditorContribution {
 				this._inProcessContinueOnComments.set(thread.owner, []);
 			}
 			this._inProcessContinueOnComments.get(thread.owner)?.push(thread);
-			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
+			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, thread.range ? Range.lift(thread.range) : undefined);
 		}
 	}
 
@@ -1007,6 +1041,16 @@ export class CommentController implements IEditorContribution {
 		}
 	}
 
+	private clipUserRangeToCommentRange(userRange: Range, commentRange: Range): Range {
+		if (userRange.startLineNumber < commentRange.startLineNumber) {
+			userRange = new Range(commentRange.startLineNumber, commentRange.startColumn, userRange.endLineNumber, userRange.endColumn);
+		}
+		if (userRange.endLineNumber > commentRange.endLineNumber) {
+			userRange = new Range(userRange.startLineNumber, userRange.startColumn, commentRange.endLineNumber, commentRange.endColumn);
+		}
+		return userRange;
+	}
+
 	public addCommentAtLine(range: Range | undefined, e: IEditorMouseEvent | undefined): Promise<void> {
 		const newCommentInfos = this._commentingRangeDecorator.getMatchedCommentAction(range);
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
@@ -1034,27 +1078,29 @@ export class CommentController implements IEditorContribution {
 						return;
 					}
 
-					const commentInfos = newCommentInfos.filter(info => info.ownerId === pick.id);
+					const commentInfos = newCommentInfos.filter(info => info.action.ownerId === pick.id);
 
 					if (commentInfos.length) {
-						const { ownerId } = commentInfos[0];
-						this.addCommentAtLine2(range, ownerId);
+						const { ownerId } = commentInfos[0].action;
+						const clippedRange = range && commentInfos[0].range ? this.clipUserRangeToCommentRange(range, commentInfos[0].range) : range;
+						this.addCommentAtLine2(clippedRange, ownerId);
 					}
 				}).then(() => {
 					this._addInProgress = false;
 				});
 			}
 		} else {
-			const { ownerId } = newCommentInfos[0]!;
-			this.addCommentAtLine2(range, ownerId);
+			const { ownerId } = newCommentInfos[0]!.action;
+			const clippedRange = range && newCommentInfos[0].range ? this.clipUserRangeToCommentRange(range, newCommentInfos[0].range) : range;
+			this.addCommentAtLine2(clippedRange, ownerId);
 		}
 
 		return Promise.resolve();
 	}
 
-	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges | undefined }[]) {
+	private getCommentProvidersQuickPicks(commentInfos: MergedCommentRangeActions[]) {
 		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
-			const { ownerId, extensionId, label } = commentInfo;
+			const { ownerId, extensionId, label } = commentInfo.action;
 
 			return <IQuickPickItem>{
 				label: label || extensionId,
@@ -1065,11 +1111,11 @@ export class CommentController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges }[], commentRange: Range): IAction[] {
+	private getContextMenuActions(commentInfos: MergedCommentRangeActions[], commentRange: Range): IAction[] {
 		const actions: IAction[] = [];
 
 		commentInfos.forEach(commentInfo => {
-			const { ownerId, extensionId, label } = commentInfo;
+			const { ownerId, extensionId, label } = commentInfo.action;
 
 			actions.push(new Action(
 				'addCommentThread',
@@ -1077,7 +1123,8 @@ export class CommentController implements IEditorContribution {
 				undefined,
 				true,
 				() => {
-					this.addCommentAtLine2(commentRange, ownerId);
+					const clippedRange = commentInfo.range ? this.clipUserRangeToCommentRange(commentRange, commentInfo.range) : commentRange;
+					this.addCommentAtLine2(clippedRange, ownerId);
 					return Promise.resolve();
 				}
 			));

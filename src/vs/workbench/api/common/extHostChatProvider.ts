@@ -9,7 +9,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatProviderShape, IMainContext, MainContext, MainThreadChatProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
-import { AsyncProgress } from 'vs/platform/progress/common/progress';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { AsyncIterableSource } from 'vs/base/common/async';
@@ -106,7 +106,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 		const handle = ExtHostChatProvider._idPool++;
 		this._providers.set(handle, { extension, provider });
-		this._proxy.$registerProvider(handle, identifier, { extension, displayName: metadata.name ?? extension.value });
+		this._proxy.$registerProvider(handle, identifier, { extension, model: metadata.name ?? '' });
 
 		return toDisposable(() => {
 			this._proxy.$unregisterProvider(handle);
@@ -119,12 +119,12 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 		if (!data) {
 			return;
 		}
-		const progress = new AsyncProgress<vscode.ChatResponseFragment>(async fragment => {
+		const progress = new Progress<vscode.ChatResponseFragment>(async fragment => {
 			if (token.isCancellationRequested) {
 				this._logService.warn(`[CHAT](${data.extension.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
 			}
-			await this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
+			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
 		});
 
 		return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
@@ -148,9 +148,17 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
+		const metadata = await this._proxy.$prepareChatAccess(identifier);
+		if (!metadata) {
+			throw new Error(`ChatAccess '${identifier}' NOT found`);
+		}
+
 		const that = this;
 
 		return {
+			get model() {
+				return metadata.model;
+			},
 			get isRevoked() {
 				return !that._chatAccessAllowList.has(from);
 			},

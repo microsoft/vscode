@@ -148,6 +148,5 @@
 /** Notification: Progress */
 
 .monaco-workbench .notifications-list-container .progress-bit {
-	height: 2px;
 	bottom: 0;
 }

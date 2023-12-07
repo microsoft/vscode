@@ -15,10 +15,10 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
+import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex, gitPull, GitPullOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { Event } from 'vs/base/common/event';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -45,7 +45,7 @@ suite('QuickFixAddon', () => {
 
 	setup(async () => {
 		instantiationService = store.add(new TestInstantiationService());
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		terminal = store.add(new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
@@ -180,6 +180,40 @@ suite('QuickFixAddon', () => {
 				});
 				test('matching exit status', async () => {
 					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitTwoDashesRegex, 2), expectedMap, commandService, openerService, labelService)), actions);
+				});
+			});
+		});
+		suite('gitPull', () => {
+			const expectedMap = new Map();
+			const command = `git checkout vnext`;
+			const output = 'Already on \'vnext\' \n Your branch is behind \'origin/vnext\' by 1 commit, and can be fast-forwarded.';
+			const exitCode = 0;
+			const actions = [{
+				id: 'Git Pull',
+				enabled: true,
+				label: 'Run: git pull',
+				tooltip: 'Run: git pull',
+				command: 'git pull'
+			}];
+			setup(() => {
+				const command = gitPull();
+				expectedMap.set(command.commandLineMatcher.toString(), [command]);
+				quickFixAddon.registerCommandFinishedListener(command);
+			});
+			suite('returns undefined when', () => {
+				test('output does not match', async () => {
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, `invalid output`, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
+				});
+				test('command does not match', async () => {
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(`gt add`, output, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), undefined);
+				});
+				test('exit code does not match', async () => {
+					strictEqual((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitPullOutputRegex, 2), expectedMap, commandService, openerService, labelService)), undefined);
+				});
+			});
+			suite('returns actions when', () => {
+				test('matching exit status, command, ouput', async () => {
+					assertMatchOptions((await getQuickFixesForCommand([], terminal, createCommand(command, output, GitPullOutputRegex, exitCode), expectedMap, commandService, openerService, labelService)), actions);
 				});
 			});
 		});
@@ -444,6 +478,8 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		cwd: '',
 		commandStartLineContent: '',
 		markProperties: {},
+		executedX: undefined,
+		startX: undefined,
 		command,
 		isTrusted: true,
 		exitCode,
@@ -459,7 +495,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		},
 		timestamp: Date.now(),
 		hasOutput: () => !!output
-	};
+	} as ITerminalCommand;
 }
 
 type TestAction = Pick<IAction, 'id' | 'label' | 'tooltip' | 'enabled'> & { command?: string; uri?: URI };

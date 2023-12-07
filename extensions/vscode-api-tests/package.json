@@ -52,8 +52,8 @@
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "windowActivity",
-    "interactiveUserActions"
+    "testingActiveProfile",
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],

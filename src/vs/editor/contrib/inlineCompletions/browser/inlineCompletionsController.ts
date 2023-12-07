@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, autorunHandleChanges, constObservable, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
+import { ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -46,7 +45,7 @@ export class InlineCompletionsController extends Disposable {
 		(tx) => this.updateObservables(tx, VersionIdChangeReason.Other),
 		(item) => {
 			transaction(tx => {
-				/** @description handleSuggestAccepted */
+				/** @description InlineCompletionsController.handleSuggestAccepted */
 				this.updateObservables(tx, VersionIdChangeReason.Other);
 				this.model.get()?.handleSuggestAccepted(item);
 			});
@@ -68,6 +67,10 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _playAudioCueSignal = observableSignal(this);
 
+	private readonly _isReadonly = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
+	private readonly _textModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
+	private readonly _textModelIfWritable = derived(reader => this._isReadonly.read(reader) ? undefined : this._textModel.read(reader));
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -82,28 +85,32 @@ export class InlineCompletionsController extends Disposable {
 		super();
 
 		this._register(new InlineCompletionContextKeys(this._contextKeyService, this.model));
-		this._register(Event.runAndSubscribe(editor.onDidChangeModel, () => transaction(tx => {
-			/** @description onDidChangeModel */
-			this.model.set(undefined, tx);
-			this.updateObservables(tx, VersionIdChangeReason.Other);
 
-			const textModel = editor.getModel();
-			if (textModel) {
-				const model = _instantiationService.createInstance(
-					InlineCompletionsModel,
-					textModel,
-					this._suggestWidgetAdaptor.selectedItem,
-					this._cursorPosition,
-					this._textModelVersionId,
-					this._debounceValue,
-					observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
-					observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
-					observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
-					this._enabled,
-				);
-				this.model.set(model, tx);
-			}
-		})));
+		this._register(autorun(reader => {
+			/** @description InlineCompletionsController.update model */
+			const textModel = this._textModelIfWritable.read(reader);
+			transaction(tx => {
+				/** @description InlineCompletionsController.onDidChangeModel/readonly */
+				this.model.set(undefined, tx);
+				this.updateObservables(tx, VersionIdChangeReason.Other);
+
+				if (textModel) {
+					const model = _instantiationService.createInstance(
+						InlineCompletionsModel,
+						textModel,
+						this._suggestWidgetAdaptor.selectedItem,
+						this._cursorPosition,
+						this._textModelVersionId,
+						this._debounceValue,
+						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
+						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).previewMode),
+						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.inlineSuggest).mode),
+						this._enabled,
+					);
+					this.model.set(model, tx);
+				}
+			});
+		}));
 
 		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {
 			if (e.isUndoing) { return VersionIdChangeReason.Undo; }
@@ -112,12 +119,12 @@ export class InlineCompletionsController extends Disposable {
 			return VersionIdChangeReason.Other;
 		};
 		this._register(editor.onDidChangeModelContent((e) => transaction(tx =>
-			/** @description onDidChangeModelContent */
+			/** @description InlineCompletionsController.onDidChangeModelContent */
 			this.updateObservables(tx, getReason(e))
 		)));
 
 		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
-			/** @description onDidChangeCursorPosition */
+			/** @description InlineCompletionsController.onDidChangeCursorPosition */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
 			if (e.reason === CursorChangeReason.Explicit || e.source === 'api') {
 				this.model.get()?.stop(tx);
@@ -125,7 +132,7 @@ export class InlineCompletionsController extends Disposable {
 		})));
 
 		this._register(editor.onDidType(() => transaction(tx => {
-			/** @description onDidType */
+			/** @description InlineCompletionsController.onDidType */
 			this.updateObservables(tx, VersionIdChangeReason.Other);
 			if (this._enabled.get()) {
 				this.model.get()?.trigger(tx);
@@ -159,13 +166,13 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 			transaction(tx => {
-				/** @description onDidBlurEditorWidget */
+				/** @description InlineCompletionsController.onDidBlurEditorWidget */
 				this.model.get()?.stop(tx);
 			});
 		}));
 
 		this._register(autorun(reader => {
-			/** @description forceRenderingAbove */
+			/** @description InlineCompletionsController.forceRenderingAbove */
 			const state = this.model.read(reader)?.state.read(reader);
 			if (state?.suggestItem) {
 				if (state.ghostText.lineCount >= 2) {
@@ -188,7 +195,7 @@ export class InlineCompletionsController extends Disposable {
 				return true;
 			},
 		}, async reader => {
-			/** @description play audio cue & read suggestion */
+			/** @description InlineCompletionsController.playAudioCueAndReadSuggestion */
 			this._playAudioCueSignal.read(reader);
 
 			const model = this.model.read(reader);

@@ -11,6 +11,7 @@ import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import * as ports from 'vs/base/node/ports';
 import { SocketDebugAdapter, NamedPipeDebugAdapter, StreamDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 function sendInitializeRequest(debugAdapter: StreamDebugAdapter): Promise<DebugProtocol.Response> {
@@ -44,6 +45,8 @@ function serverConnection(socket: net.Socket) {
 }
 
 suite('Debug - StreamDebugAdapter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test(`StreamDebugAdapter (NamedPipeDebugAdapter) can initialize a connection`, async () => {
 		// todo@connor4312: debug test failure that seems to only happen in CI.

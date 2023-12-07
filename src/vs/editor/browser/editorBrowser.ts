@@ -1264,18 +1264,21 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	setBoundarySashes(sashes: IBoundarySashes): void;
 
 	/**
-	 * @internal
+	 * Jumps to the next or previous diff.
 	 */
 	goToDiff(target: 'next' | 'previous'): void;
 
 	/**
-	 * @internal
+	 * Scrolls to the first diff.
+	 * (Waits until the diff computation finished.)
 	 */
 	revealFirstDiff(): unknown;
 
 	accessibleDiffViewerNext(): void;
 
 	accessibleDiffViewerPrev(): void;
+
+	handleInitialized(): void;
 }
 
 /**

@@ -75,7 +75,7 @@ suite('EditorService', () => {
 		await testOpenBasics(service);
 	});
 
-	test('pasero openEditor() - basics (scoped)', async () => {
+	test('openEditor() - basics (scoped)', async () => {
 		const [part, service] = await createEditorService();
 		const scoped = service.createScoped('main', disposables);
 		await part.whenReady;

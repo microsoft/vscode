@@ -5,7 +5,8 @@
 
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
 import { getWindows } from 'vs/base/browser/dom';
-import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { mainWindow } from 'vs/base/browser/window';
+import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 
 /**
@@ -13,11 +14,26 @@ import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
  * browser helper so that it can be accessed in non-electron layers.
  */
 export function applyZoom(zoomLevel: number): void {
-	for (const window of getWindows()) {
+	for (const { window } of getWindows()) {
 		getGlobals(window)?.webFrame?.setZoomLevel(zoomLevel);
 	}
 	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 	setZoomLevel(zoomLevel);
+}
+
+function getGlobals(win: Window): ISandboxGlobals | undefined {
+	if (win === mainWindow) {
+		// main window
+		return { ipcRenderer, webFrame };
+	} else {
+		// auxiliary window
+		const auxiliaryWindow = win as unknown as { vscode: ISandboxGlobals };
+		if (auxiliaryWindow?.vscode?.ipcRenderer && auxiliaryWindow?.vscode?.webFrame) {
+			return auxiliaryWindow.vscode;
+		}
+	}
+
+	return undefined;
 }
 
 export function zoomIn(): void {

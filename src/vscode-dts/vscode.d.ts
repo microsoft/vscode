@@ -888,14 +888,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+	 * A reference to one of the workbench colors as defined in https://code.visualstudio.com/api/references/theme-color.
 	 * Using a theme color is preferred over a custom color as it gives theme authors and users the possibility to change the color.
 	 */
 	export class ThemeColor {
 
 		/**
 		 * Creates a reference to a theme color.
-		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/docs/getstarted/theme-color-reference.
+		 * @param id of the color. The available colors are listed in https://code.visualstudio.com/api/references/theme-color.
 		 */
 		constructor(id: string);
 	}
@@ -3025,12 +3025,12 @@ declare module 'vscode' {
 	export type MarkedString = string | {
 		/**
 		 * The language of a markdown code block
-		 * @deprecated, please use {@linkcode MarkdownString} instead
+		 * @deprecated please use {@linkcode MarkdownString} instead
 		 */
 		language: string;
 		/**
 		 * The code snippet of a markdown code block.
-		 * @deprecated, please use {@linkcode MarkdownString} instead
+		 * @deprecated please use {@linkcode MarkdownString} instead
 		 */
 		value: string;
 	};
@@ -4060,7 +4060,7 @@ declare module 'vscode' {
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
 	 * `${name:default value}`. Also see
-	 * [the full snippet syntax](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * [the full snippet syntax](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_create-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -7330,11 +7330,10 @@ declare module 'vscode' {
 		 * (shell) of the terminal.
 		 *
 		 * @param text The text to send.
-		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. The character(s) added are \n or \r\n
-		 * depending on the platform. This defaults to `true`.
+		 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+		 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 		 */
-		sendText(text: string, addNewLine?: boolean): void;
+		sendText(text: string, shouldExecute?: boolean): void;
 
 		/**
 		 * Show the terminal panel and reveal this terminal in the UI.
@@ -10203,7 +10202,7 @@ declare module 'vscode' {
 	 * * palette - Use the `commands`-section in `package.json` to make a command show in
 	 * the [command palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette).
 	 * * keybinding - Use the `keybindings`-section in `package.json` to enable
-	 * [keybindings](https://code.visualstudio.com/docs/getstarted/keybindings#_customizing-shortcuts)
+	 * [keybindings](https://code.visualstudio.com/docs/getstarted/keybindings#_advanced-customization)
 	 * for your extension.
 	 *
 	 * Commands from other extensions and from the editor itself are accessible to an extension. However,
@@ -13342,13 +13341,13 @@ declare module 'vscode' {
 		export function openTextDocument(uri: Uri): Thenable<TextDocument>;
 
 		/**
-		 * A short-hand for `openTextDocument(Uri.file(fileName))`.
+		 * A short-hand for `openTextDocument(Uri.file(path))`.
 		 *
 		 * @see {@link workspace.openTextDocument}
-		 * @param fileName A name of a file on disk.
+		 * @param path A path of a file on disk.
 		 * @returns A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(fileName: string): Thenable<TextDocument>;
+		export function openTextDocument(path: string): Thenable<TextDocument>;
 
 		/**
 		 * Opens an untitled text document. The editor will prompt the user for a file

@@ -117,7 +117,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		if (!actions.length) {
 			return;
 		}
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(dom.getWindow(this._headElement), e);
 		this._contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			getActions: () => actions,

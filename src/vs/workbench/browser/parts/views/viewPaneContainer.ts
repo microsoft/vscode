@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, getWindow, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -140,13 +140,12 @@ class ViewPaneDropOverlay extends Themable {
 		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
 
 		this.overlay.style.borderColor = activeContrastBorderColor || '';
-		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderStyle = 'solid';
 		this.overlay.style.borderWidth = '0px';
 	}
 
 	private registerListeners(): void {
 		this._register(new DragAndDropObserver(this.container, {
-			onDragEnter: e => undefined,
 			onDragOver: e => {
 
 				// Position overlay
@@ -410,9 +409,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(this.paneview.onDidScroll(_ => this.onDidScrollPane()));
 		this._register(this.paneview.onDidSashReset((index) => this.onDidSashReset(index)));
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(getWindow(parent), e))));
 		this._register(Gesture.addTarget(parent));
-		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(getWindow(parent), e))));
 
 		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
 		this._register(this._menuActions.onDidChange(() => this.updateTitleArea()));
@@ -600,15 +599,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	focus(): void {
+		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
-			this.lastFocusedPane.focus();
+			paneToFocus = this.lastFocusedPane;
 		} else if (this.paneItems.length > 0) {
-			for (const { pane: pane } of this.paneItems) {
+			for (const { pane } of this.paneItems) {
 				if (pane.isExpanded()) {
-					pane.focus();
-					return;
+					paneToFocus = pane;
+					break;
 				}
 			}
+		}
+		if (paneToFocus) {
+			paneToFocus.focus();
 		}
 	}
 
@@ -784,7 +787,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			const contextMenuDisposable = addDisposableListener(pane.draggableElement, 'contextmenu', e => {
 				e.stopPropagation();
 				e.preventDefault();
-				this.onContextMenu(new StandardMouseEvent(e), pane);
+				this.onContextMenu(new StandardMouseEvent(getWindow(pane.draggableElement), e), pane);
 			});
 
 			const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
@@ -1066,7 +1069,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		} else {
 			if (this.paneItems.length === 1) {
 				this.paneItems[0].pane.headerVisible = true;
-				this.paneItems[0].pane.setExpanded(true);
+				if (this.paneItems[0].pane === this.lastMergedCollapsedPane) {
+					this.paneItems[0].pane.setExpanded(false);
+				}
 				this.paneItems[0].pane.collapsible = false;
 			} else {
 				this.paneItems.forEach(i => {
@@ -1083,10 +1088,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	isViewMergedWithContainer(): boolean {
 		const location = this.viewDescriptorService.getViewContainerLocation(this.viewContainer);
-		// Do not merge views in secondary side bar because the view title is not shown
-		if (location === ViewContainerLocation.AuxiliaryBar) {
-			return false;
-		}
 		// Do not merge views in side bar when activity bar is on top because the view title is not shown
 		if (location === ViewContainerLocation.Sidebar && !this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
 			return false;

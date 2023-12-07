@@ -104,14 +104,14 @@ export abstract class Command {
 	public readonly precondition: ContextKeyExpression | undefined;
 	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
 	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
-	private readonly _metadata: ICommandMetadata | undefined;
+	public readonly metadata: ICommandMetadata | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
 		this._menuOpts = opts.menuOpts;
-		this._metadata = opts.metadata;
+		this.metadata = opts.metadata;
 	}
 
 	public register(): void {
@@ -153,7 +153,7 @@ export abstract class Command {
 		CommandsRegistry.registerCommand({
 			id: this.id,
 			handler: (accessor, args) => this.runCommand(accessor, args),
-			metadata: this._metadata
+			metadata: this.metadata
 		});
 	}
 

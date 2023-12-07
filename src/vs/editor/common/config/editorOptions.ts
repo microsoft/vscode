@@ -559,14 +559,12 @@ export interface IEditorOptions {
 	selectionHighlight?: boolean;
 	/**
 	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
+	 * Defaults to 'singleFile'.
+	 * 'off' disables occurrence highlighting
+	 * 'singleFile' triggers occurrence highlighting in the current document
+	 * 'multiFile'  triggers occurrence highlighting across valid open documents
 	 */
-	occurrencesHighlight?: boolean;
-	/**
-	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
-	 */
-	multiDocumentOccurrencesHighlight?: boolean;
+	occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -2722,6 +2720,12 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 
 //#region lightbulb
 
+export enum ShowAiIconMode {
+	Off = 'off',
+	OnCode = 'onCode',
+	On = 'on'
+}
+
 /**
  * Configuration options for editor lightbulb
  */
@@ -2731,6 +2735,13 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+
+	experimental?: {
+		/**
+		 * Highlight AI code actions with AI icon
+		 */
+		showAiIcon?: ShowAiIconMode;
+	};
 }
 
 /**
@@ -2741,7 +2752,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, experimental: { showAiIcon: ShowAiIconMode.Off } };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2749,6 +2760,17 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
+				},
+				'editor.lightbulb.experimental.showAiIcon': {
+					type: 'string',
+					enum: [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On],
+					default: defaults.experimental.showAiIcon,
+					enumDescriptions: [
+						nls.localize('editor.lightbulb.showAiIcon.off', 'Don not show the AI icon.'),
+						nls.localize('editor.lightbulb.showAiIcon.onCode', 'Show an AI icon when the code action menu contains an AI action, but only on code.'),
+						nls.localize('editor.lightbulb.showAiIcon.on', 'Show an AI icon when the code action menu contains an AI action, on code and empty lines.'),
+					],
+					description: nls.localize('showAiIcons', "Show an AI icon along with the lightbulb when the code action menu contains an AI action.")
 				},
 			}
 		);
@@ -2760,7 +2782,10 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			experimental: {
+				showAiIcon: stringSet(input.experimental?.showAiIcon, this.defaultValue.experimental?.showAiIcon, [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On])
+			}
 		};
 	}
 }
@@ -3972,7 +3997,7 @@ export interface IInlineSuggestOptions {
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
-	showToolbar?: 'always' | 'onHover';
+	showToolbar?: 'always' | 'onHover' | 'never';
 
 	suppressSuggestions?: boolean;
 
@@ -4011,10 +4036,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.showToolbar': {
 					type: 'string',
 					default: defaults.showToolbar,
-					enum: ['always', 'onHover'],
+					enum: ['always', 'onHover', 'never'],
 					enumDescriptions: [
 						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
 						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
@@ -4035,7 +4061,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
-			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 		};
@@ -4911,7 +4937,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 				'editor.dropIntoEditor.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `shift` (instead of opening the file in an editor)."),
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `Shift`-key (instead of opening the file in an editor)."),
 				},
 				'editor.dropIntoEditor.showDropSelector': {
 					type: 'string',
@@ -5121,7 +5147,6 @@ export const enum EditorOption {
 	multiCursorModifier,
 	multiCursorPaste,
 	multiCursorLimit,
-	multiDocumentOccurrencesHighlight,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -5618,13 +5643,18 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
 		}
 	)),
-	occurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
-		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
-	)),
-	multiDocumentOccurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.multiDocumentOccurrencesHighlight, 'multiDocumentOccurrencesHighlight', false,
-		{ description: nls.localize('multiDocumentOccurrencesHighlight', "Experimental: Controls whether the editor should highlight word occurrences accross multiple open editors.") }
+	occurrencesHighlight: register(new EditorStringEnumOption(
+		EditorOption.occurrencesHighlight, 'occurrencesHighlight',
+		'singleFile' as 'off' | 'singleFile' | 'multiFile',
+		['off', 'singleFile', 'multiFile'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('occurrencesHighlight.off', "Does not highlight occurrences."),
+				nls.localize('occurrencesHighlight.singleFile', "Highlights occurrences only in the current file."),
+				nls.localize('occurrencesHighlight.multiFile', "Experimental: Highlights occurrences across all valid open files.")
+			],
+			markdownDescription: nls.localize('occurrencesHighlight', "Controls whether occurrences should be highlighted across open files.")
+		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,

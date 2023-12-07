@@ -265,7 +265,7 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
 				return this._render(provider!, container, showAccessibleViewHelp);
@@ -501,19 +501,14 @@ export class AccessibleView extends Disposable {
 		this._updateToolbar(provider.actions, provider.options.type);
 
 		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
+			provider.onClose();
 			e.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
-			// HACK: Delay to allow the context view to hide #186514
-			if (provider.id === AccessibleViewProviderId.Terminal) {
-				provider.onClose();
-			} else {
-				setTimeout(() => provider.onClose(), 100);
-			}
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService)) {
+			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
 				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl!;
@@ -536,7 +531,7 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
-		disposableStore.add(this._layoutService.onDidLayout(() => this._layout()));
+		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
 		return disposableStore;
 	}
 
@@ -557,7 +552,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const dimension = this._layoutService.dimension;
+		const dimension = this._layoutService.activeContainerDimension;
 		const maxHeight = dimension.height && dimension.height * .4;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
 		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
@@ -771,7 +766,10 @@ export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	lineNumber?: number;
 }
 
-function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService): boolean {
+function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService, configurationService: IConfigurationService): boolean {
+	if (!configurationService.getValue(AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress)) {
+		return false;
+	}
 	const standardKeyboardEvent = new StandardKeyboardEvent(event);
 	const resolveResult = keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
 
@@ -779,5 +777,9 @@ function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService)
 	if (keybindingService.inChordMode || isValidChord) {
 		return false;
 	}
-	return event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+	return shouldHandleKey(event) && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
+
+function shouldHandleKey(event: KeyboardEvent): boolean {
+	return !!event.code.match(/^(Key[A-Z]|Digit[0-9]|Equal|Comma|Period|Slash|Quote|Backquote|Backslash|Minus|Semicolon|Space|Enter)$/);
 }

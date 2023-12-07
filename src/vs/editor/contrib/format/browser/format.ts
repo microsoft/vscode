@@ -69,13 +69,18 @@ export function getRealAndSyntheticDocumentFormattersOrdered(
 	return result;
 }
 
+export const enum FormattingKind {
+	File = 1,
+	Selection = 2
+}
+
 export const enum FormattingMode {
 	Explicit = 1,
 	Silent = 2
 }
 
 export interface IFormattingEditProviderSelector {
-	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined>;
+	<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode, kind: FormattingKind): Promise<T | undefined>;
 }
 
 export abstract class FormattingConflicts {
@@ -87,13 +92,13 @@ export abstract class FormattingConflicts {
 		return { dispose: remove };
 	}
 
-	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode): Promise<T | undefined> {
+	static async select<T extends (DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider)>(formatter: T[], document: ITextModel, mode: FormattingMode, kind: FormattingKind): Promise<T | undefined> {
 		if (formatter.length === 0) {
 			return undefined;
 		}
 		const selector = Iterable.first(FormattingConflicts._selectors);
 		if (selector) {
-			return await selector(formatter, document, mode);
+			return await selector(formatter, document, mode, kind);
 		}
 		return undefined;
 	}
@@ -105,17 +110,18 @@ export async function formatDocumentRangesWithSelectedProvider(
 	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
 	progress: IProgress<DocumentRangeFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
 	const { documentRangeFormattingEditProvider: documentRangeFormattingEditProviderRegistry } = accessor.get(ILanguageFeaturesService);
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
 	const provider = documentRangeFormattingEditProviderRegistry.ordered(model);
-	const selected = await FormattingConflicts.select(provider, model, mode);
+	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.Selection);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
+		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token, userGesture);
 	}
 }
 
@@ -124,10 +130,12 @@ export async function formatDocumentRangesWithProvider(
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	rangeOrRanges: Range | Range[],
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 	const logService = accessor.get(ILogService);
+	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -271,7 +279,7 @@ export async function formatDocumentRangesWithProvider(
 			return null;
 		});
 	}
-
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
 	return true;
 }
 
@@ -288,7 +296,7 @@ export async function formatDocumentWithSelectedProvider(
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const model = isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel;
 	const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
-	const selected = await FormattingConflicts.select(provider, model, mode);
+	const selected = await FormattingConflicts.select(provider, model, mode, FormattingKind.File);
 	if (selected) {
 		progress.report(selected);
 		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token, userGesture);

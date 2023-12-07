@@ -8,14 +8,14 @@ import { localize } from 'vs/nls';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper, addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { Event } from 'vs/base/common/event';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
@@ -24,8 +24,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
 
@@ -78,13 +77,12 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	private registerListeners(): void {
 
 		// Context menu support in input/textarea
-		this._register(addDisposableListener(this.layoutService.container, 'contextmenu', e => this.onContextMenu(e)));
-		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
-			disposables.add(addDisposableListener(window.container, 'contextmenu', e => this.onContextMenu(e)));
-		}));
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'contextmenu', e => this.onContextMenu(getWindow(container), e)));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	private onContextMenu(targetWindow: Window, e: MouseEvent): void {
 		if (e.defaultPrevented) {
 			return; // make sure to not show these actions by accident if component indicated to prevent
 		}
@@ -96,7 +94,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 		EventHelper.stop(e, true);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(targetWindow, e);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,

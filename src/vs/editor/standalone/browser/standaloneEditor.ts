@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -38,6 +39,7 @@ import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
 
 /**
  * Create a new editor under `domElement`.
@@ -96,6 +98,11 @@ export function getDiffEditors(): readonly IDiffEditor[] {
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	const instantiationService = StandaloneServices.initialize(override || {});
 	return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
+}
+
+export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
+	const instantiationService = StandaloneServices.initialize(override || {});
+	return new MultiDiffEditorWidget(domElement, {}, instantiationService);
 }
 
 /**
@@ -346,7 +353,7 @@ export function colorizeElement(domNode: HTMLElement, options: IColorizerElement
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(document.body);
+	themeService.registerEditorContainer(mainWindow.document.body);
 	return Colorizer.colorize(languageService, text, languageId, options);
 }
 
@@ -355,7 +362,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(document.body);
+	themeService.registerEditorContainer(mainWindow.document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 
@@ -557,6 +564,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		InjectedTextCursorStops: standaloneEnums.InjectedTextCursorStops,
 		PositionAffinity: standaloneEnums.PositionAffinity,
+		ShowAiIconMode: standaloneEnums.ShowAiIconMode,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
@@ -566,6 +574,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
 		EditorZoom: <any>EditorZoom,
+
+		createMultiFileDiffEditor: <any>createMultiFileDiffEditor,
 
 		// vars
 		EditorType: EditorType,

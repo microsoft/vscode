@@ -621,6 +621,7 @@ declare namespace monaco {
 		 * Test if `obj` is an `IPosition`.
 		 */
 		static isIPosition(obj: any): obj is IPosition;
+		toJSON(): IPosition;
 	}
 
 	/**
@@ -974,6 +975,8 @@ declare namespace monaco.editor {
 	 */
 	export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
+	export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices): any;
+
 	/**
 	 * Description of a command contribution
 	 */
@@ -1315,7 +1318,7 @@ declare namespace monaco.editor {
 		 * Controls whether completions should be computed based on words in the document.
 		 * Defaults to true.
 		 */
-		wordBasedSuggestions?: boolean;
+		wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		/**
 		 * Controls whether word based completions should be included from opened documents of the same language or any language.
 		 */
@@ -1433,6 +1436,13 @@ declare namespace monaco.editor {
 	}
 	export interface ICommandHandler {
 		(...args: any[]): void;
+	}
+	export interface ILocalizedString {
+		original: string;
+		value: string;
+	}
+	export interface ICommandMetadata {
+		readonly description: ILocalizedString | string;
 	}
 
 	export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
@@ -2434,7 +2444,7 @@ declare namespace monaco.editor {
 		modified: ITextModel;
 	}
 
-	export interface IDiffEditorViewModel {
+	export interface IDiffEditorViewModel extends IDisposable {
 		readonly model: IDiffEditorModel;
 		waitForDiff(): Promise<void>;
 	}
@@ -2469,6 +2479,7 @@ declare namespace monaco.editor {
 		readonly id: string;
 		readonly label: string;
 		readonly alias: string;
+		readonly metadata: ICommandMetadata | undefined;
 		isSupported(): boolean;
 		run(args?: unknown): Promise<void>;
 	}
@@ -2558,8 +2569,11 @@ declare namespace monaco.editor {
 		 * be called when the container of the editor gets resized.
 		 *
 		 * If a dimension is passed in, the passed in value will be used.
+		 *
+		 * By default, this will also render the editor immediately.
+		 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 		 */
-		layout(dimension?: IDimension): void;
+		layout(dimension?: IDimension, postponeRendering?: boolean): void;
 		/**
 		 * Brings browser focus to the editor text
 		 */
@@ -2767,6 +2781,10 @@ declare namespace monaco.editor {
 		 * Replace all previous decorations with `newDecorations`.
 		 */
 		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
+		/**
+		 * Append `newDecorations` to this collection.
+		 */
+		append(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
 		 * Remove all previous decorations.
 		 */
@@ -3528,14 +3546,12 @@ declare namespace monaco.editor {
 		selectionHighlight?: boolean;
 		/**
 		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
+		 * Defaults to 'singleFile'.
+		 * 'off' disables occurrence highlighting
+		 * 'singleFile' triggers occurrence highlighting in the current document
+		 * 'multiFile'  triggers occurrence highlighting across valid open documents
 		 */
-		occurrencesHighlight?: boolean;
-		/**
-		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
-		 */
-		multiDocumentOccurrencesHighlight?: boolean;
+		occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 		/**
 		 * Show code lens
 		 * Defaults to true.
@@ -4115,6 +4131,12 @@ declare namespace monaco.editor {
 		readonly minimapCanvasOuterHeight: number;
 	}
 
+	export enum ShowAiIconMode {
+		Off = 'off',
+		OnCode = 'onCode',
+		On = 'on'
+	}
+
 	/**
 	 * Configuration options for editor lightbulb
 	 */
@@ -4124,6 +4146,12 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+		experimental?: {
+			/**
+			 * Highlight AI code actions with AI icon
+			 */
+			showAiIcon?: ShowAiIconMode;
+		};
 	}
 
 	export interface IEditorStickyScrollOptions {
@@ -4431,7 +4459,7 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
-		showToolbar?: 'always' | 'onHover';
+		showToolbar?: 'always' | 'onHover' | 'never';
 		suppressSuggestions?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
@@ -4791,75 +4819,74 @@ declare namespace monaco.editor {
 		multiCursorModifier = 77,
 		multiCursorPaste = 78,
 		multiCursorLimit = 79,
-		multiDocumentOccurrencesHighlight = 80,
-		occurrencesHighlight = 81,
-		overviewRulerBorder = 82,
-		overviewRulerLanes = 83,
-		padding = 84,
-		pasteAs = 85,
-		parameterHints = 86,
-		peekWidgetDefaultFocus = 87,
-		definitionLinkOpensInPeek = 88,
-		quickSuggestions = 89,
-		quickSuggestionsDelay = 90,
-		readOnly = 91,
-		readOnlyMessage = 92,
-		renameOnType = 93,
-		renderControlCharacters = 94,
-		renderFinalNewline = 95,
-		renderLineHighlight = 96,
-		renderLineHighlightOnlyWhenFocus = 97,
-		renderValidationDecorations = 98,
-		renderWhitespace = 99,
-		revealHorizontalRightPadding = 100,
-		roundedSelection = 101,
-		rulers = 102,
-		scrollbar = 103,
-		scrollBeyondLastColumn = 104,
-		scrollBeyondLastLine = 105,
-		scrollPredominantAxis = 106,
-		selectionClipboard = 107,
-		selectionHighlight = 108,
-		selectOnLineNumbers = 109,
-		showFoldingControls = 110,
-		showUnused = 111,
-		snippetSuggestions = 112,
-		smartSelect = 113,
-		smoothScrolling = 114,
-		stickyScroll = 115,
-		stickyTabStops = 116,
-		stopRenderingLineAfter = 117,
-		suggest = 118,
-		suggestFontSize = 119,
-		suggestLineHeight = 120,
-		suggestOnTriggerCharacters = 121,
-		suggestSelection = 122,
-		tabCompletion = 123,
-		tabIndex = 124,
-		unicodeHighlighting = 125,
-		unusualLineTerminators = 126,
-		useShadowDOM = 127,
-		useTabStops = 128,
-		wordBreak = 129,
-		wordSeparators = 130,
-		wordWrap = 131,
-		wordWrapBreakAfterCharacters = 132,
-		wordWrapBreakBeforeCharacters = 133,
-		wordWrapColumn = 134,
-		wordWrapOverride1 = 135,
-		wordWrapOverride2 = 136,
-		wrappingIndent = 137,
-		wrappingStrategy = 138,
-		showDeprecated = 139,
-		inlayHints = 140,
-		editorClassName = 141,
-		pixelRatio = 142,
-		tabFocusMode = 143,
-		layoutInfo = 144,
-		wrappingInfo = 145,
-		defaultColorDecorators = 146,
-		colorDecoratorsActivatedOn = 147,
-		inlineCompletionsAccessibilityVerbose = 148
+		occurrencesHighlight = 80,
+		overviewRulerBorder = 81,
+		overviewRulerLanes = 82,
+		padding = 83,
+		pasteAs = 84,
+		parameterHints = 85,
+		peekWidgetDefaultFocus = 86,
+		definitionLinkOpensInPeek = 87,
+		quickSuggestions = 88,
+		quickSuggestionsDelay = 89,
+		readOnly = 90,
+		readOnlyMessage = 91,
+		renameOnType = 92,
+		renderControlCharacters = 93,
+		renderFinalNewline = 94,
+		renderLineHighlight = 95,
+		renderLineHighlightOnlyWhenFocus = 96,
+		renderValidationDecorations = 97,
+		renderWhitespace = 98,
+		revealHorizontalRightPadding = 99,
+		roundedSelection = 100,
+		rulers = 101,
+		scrollbar = 102,
+		scrollBeyondLastColumn = 103,
+		scrollBeyondLastLine = 104,
+		scrollPredominantAxis = 105,
+		selectionClipboard = 106,
+		selectionHighlight = 107,
+		selectOnLineNumbers = 108,
+		showFoldingControls = 109,
+		showUnused = 110,
+		snippetSuggestions = 111,
+		smartSelect = 112,
+		smoothScrolling = 113,
+		stickyScroll = 114,
+		stickyTabStops = 115,
+		stopRenderingLineAfter = 116,
+		suggest = 117,
+		suggestFontSize = 118,
+		suggestLineHeight = 119,
+		suggestOnTriggerCharacters = 120,
+		suggestSelection = 121,
+		tabCompletion = 122,
+		tabIndex = 123,
+		unicodeHighlighting = 124,
+		unusualLineTerminators = 125,
+		useShadowDOM = 126,
+		useTabStops = 127,
+		wordBreak = 128,
+		wordSeparators = 129,
+		wordWrap = 130,
+		wordWrapBreakAfterCharacters = 131,
+		wordWrapBreakBeforeCharacters = 132,
+		wordWrapColumn = 133,
+		wordWrapOverride1 = 134,
+		wordWrapOverride2 = 135,
+		wrappingIndent = 136,
+		wrappingStrategy = 137,
+		showDeprecated = 138,
+		inlayHints = 139,
+		editorClassName = 140,
+		pixelRatio = 141,
+		tabFocusMode = 142,
+		layoutInfo = 143,
+		wrappingInfo = 144,
+		defaultColorDecorators = 145,
+		colorDecoratorsActivatedOn = 146,
+		inlineCompletionsAccessibilityVerbose = 147
 	}
 
 	export const EditorOptions: {
@@ -4945,8 +4972,7 @@ declare namespace monaco.editor {
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
-		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
-		multiDocumentOccurrencesHighlight: IEditorOption<EditorOption.multiDocumentOccurrencesHighlight, boolean>;
+		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
@@ -5989,8 +6015,18 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
+		/**
+		 * Jumps to the next or previous diff.
+		 */
+		goToDiff(target: 'next' | 'previous'): void;
+		/**
+		 * Scrolls to the first diff.
+		 * (Waits until the diff computation finished.)
+		 */
+		revealFirstDiff(): unknown;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
+		handleInitialized(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -7142,6 +7178,20 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Represents a set of document highlights for a specific Uri.
+	 */
+	export interface MultiDocumentHighlight {
+		/**
+		 * The Uri of the document that the highlights belong to.
+		 */
+		uri: Uri;
+		/**
+		 * The set of highlights for the document.
+		 */
+		highlights: DocumentHighlight[];
+	}
+
+	/**
 	 * The document highlight provider interface defines the contract between extensions and
 	 * the word-highlight-feature.
 	 */
@@ -7153,13 +7203,23 @@ declare namespace monaco.languages {
 		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
 	}
 
+	/**
+	 * A provider that can provide document highlights across multiple documents.
+	 */
 	export interface MultiDocumentHighlightProvider {
+		selector: LanguageFilter;
 		/**
 		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
 		 *
 		 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
 		 * with shared symbols.
+		 *
+		 * @param primaryModel The primary text model.
+		 * @param position The position at which to provide document highlights.
+		 * @param otherModels The other text models to search for document highlights.
+		 * @param token A cancellation token.
+		 * @returns A map of Uri to document highlights.
 		 */
 		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, otherModels: editor.ITextModel[], token: CancellationToken): ProviderResult<Map<Uri, DocumentHighlight[]>>;
 	}
@@ -7649,7 +7709,7 @@ declare namespace monaco.languages {
 
 	export interface PendingCommentThread {
 		body: string;
-		range: IRange;
+		range: IRange | undefined;
 		uri: Uri;
 		owner: string;
 		isReply: boolean;

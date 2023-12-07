@@ -540,8 +540,8 @@ export namespace Event {
 	export interface IChainableSythensis<T> {
 		map<O>(fn: (i: T) => O): IChainableSythensis<O>;
 		forEach(fn: (i: T) => void): IChainableSythensis<T>;
+		filter<R extends T>(fn: (e: T) => e is R): IChainableSythensis<R>;
 		filter(fn: (e: T) => boolean): IChainableSythensis<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
 		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
@@ -708,7 +708,7 @@ export namespace Event {
 	 * Each listener is attached to the observable directly.
 	 */
 	export function fromObservableLight(observable: IObservable<any>): Event<void> {
-		return (listener) => {
+		return (listener, thisArgs, disposables) => {
 			let count = 0;
 			let didChange = false;
 			const observer: IObserver = {
@@ -721,7 +721,7 @@ export namespace Event {
 						observable.reportChanges();
 						if (didChange) {
 							didChange = false;
-							listener();
+							listener.call(thisArgs);
 						}
 					}
 				},
@@ -734,11 +734,19 @@ export namespace Event {
 			};
 			observable.addObserver(observer);
 			observable.reportChanges();
-			return {
+			const disposable = {
 				dispose() {
 					observable.removeObserver(observer);
 				}
 			};
+
+			if (disposables instanceof DisposableStore) {
+				disposables.add(disposable);
+			} else if (Array.isArray(disposables)) {
+				disposables.push(disposable);
+			}
+
+			return disposable;
 		};
 	}
 }

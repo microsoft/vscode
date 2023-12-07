@@ -66,6 +66,8 @@ import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/bro
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { mainWindow } from 'vs/base/browser/window';
+import { IExplorerFileContribution, explorerFileContribRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -266,7 +268,7 @@ export interface IFileTemplateData {
 	readonly elementDisposables: DisposableStore;
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
-
+	readonly contribs: IExplorerFileContribution[];
 	currentContext?: ExplorerItem;
 }
 
@@ -275,7 +277,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
-	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
+	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController[]>();
 
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
@@ -334,12 +336,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			return overflowed ? this.hoverService.showHover({
 				...options,
 				target: indentGuideElement,
-				compact: true,
 				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
-				skipFadeInAnimation: true,
-				showPointer: false,
-				hoverPosition: HoverPosition.RIGHT,
+				position: {
+					hoverPosition: HoverPosition.RIGHT,
+				},
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+					showPointer: false,
+				}
 			}, focus) : undefined;
 		}
 
@@ -362,7 +368,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -406,7 +413,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}
 		}));
 
-		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container };
+		const contribs = explorerFileContribRegistry.create(this.instantiationService, container, templateDisposables);
+
+		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
 		return templateData;
 	}
 
@@ -427,6 +436,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// Input Box
 		else {
 			templateData.label.element.style.display = 'none';
+			templateData.contribs.forEach(c => c.setResource(undefined));
 			templateData.elementDisposables.add(this.renderInputBox(templateData.container, stat, editableData));
 		}
 	}
@@ -450,7 +460,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 			const compressedNavigationController = new CompressedNavigationController(id, node.element.elements, templateData, node.depth, node.collapsed);
 			templateData.elementDisposables.add(compressedNavigationController);
-			this.compressedNavigationControllers.set(stat, compressedNavigationController);
+
+			const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+			this.compressedNavigationControllers.set(stat, [...nodeControllers, compressedNavigationController]);
 
 			// accessibility
 			templateData.elementDisposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
@@ -463,13 +475,27 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}));
 
-			templateData.elementDisposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
+			templateData.elementDisposables.add(toDisposable(() => {
+				const nodeControllers = this.compressedNavigationControllers.get(stat) ?? [];
+				const renderedIndex = nodeControllers.findIndex(controller => controller === compressedNavigationController);
+
+				if (renderedIndex < 0) {
+					throw new Error('Disposing unknown navigation controller');
+				}
+
+				if (nodeControllers.length === 1) {
+					this.compressedNavigationControllers.delete(stat);
+				} else {
+					nodeControllers.splice(renderedIndex, 1);
+				}
+			}));
 		}
 
 		// Input Box
 		else {
 			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
+			templateData.contribs.forEach(c => c.setResource(undefined));
 			templateData.elementDisposables.add(this.renderInputBox(templateData.container, editable[0], editableData));
 		}
 	}
@@ -494,6 +520,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
 		const experimentalHover = this.configurationService.getValue<boolean>('explorer.experimental.hover');
+		templateData.contribs.forEach(c => c.setResource(stat.resource));
 		templateData.label.setResource({ resource: stat.resource, name: label }, {
 			title: experimentalHover ? isStringArray(label) ? label[0] : label : undefined,
 			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
@@ -657,7 +684,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		templateData.templateDisposables.dispose();
 	}
 
-	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined {
+	getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController[] | undefined {
 		return this.compressedNavigationControllers.get(stat);
 	}
 
@@ -684,8 +711,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	getActiveDescendantId(stat: ExplorerItem): string | undefined {
-		const compressedNavigationController = this.compressedNavigationControllers.get(stat);
-		return compressedNavigationController?.currentId;
+		return this.compressedNavigationControllers.get(stat)?.[0]?.currentId ?? undefined;
 	}
 
 	dispose(): void {
@@ -1258,9 +1284,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
 				// Use local file import when supported
-				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
+				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(mainWindow))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent);
+					await fileImport.import(resolvedTarget, originalEvent, mainWindow);
 				}
 				// Otherwise fallback to browser based file upload
 				else {
@@ -1460,7 +1486,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private static getCompressedStatFromDragEvent(stat: ExplorerItem, dragEvent: DragEvent): ExplorerItem {
-		const target = document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
+		const target = DOM.getWindow(dragEvent).document.elementFromPoint(dragEvent.clientX, dragEvent.clientY);
 		const iconLabelName = getIconLabelNameFromHTMLElement(target);
 
 		if (iconLabelName) {

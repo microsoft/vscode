@@ -12,23 +12,68 @@ declare module 'vscode' {
 		history: ChatMessage[];
 	}
 
+	/**
+	 * Represents an error result from a chat request.
+	 */
 	export interface ChatAgentErrorDetails {
+		/**
+		 * An error message that is shown to the user.
+		 */
 		message: string;
+
+		/**
+		 * If partial markdown content was sent over the `progress` callback before the response terminated, then this flag
+		 * can be set to true and it will be rendered with incomplete markdown features patched up.
+		 *
+		 * For example, if the response terminated after sending part of a triple-backtick code block, then the editor will
+		 * render it as a complete code block.
+		 */
 		responseIsIncomplete?: boolean;
+
+		/**
+		 * If set to true, the response will be partly blurred out.
+		 */
 		responseIsFiltered?: boolean;
 	}
 
+	/**
+	 * The result of a chat request.
+	 */
 	export interface ChatAgentResult2 {
+		/**
+		 * If the request resulted in an error, this property defines the error details.
+		 */
 		errorDetails?: ChatAgentErrorDetails;
 	}
 
+	/**
+	 * Represents the type of user feedback received.
+	 */
 	export enum ChatAgentResultFeedbackKind {
+		/**
+		 * The user marked the result as helpful.
+		 */
 		Unhelpful = 0,
+
+		/**
+		 * The user marked the result as unhelpful.
+		 */
 		Helpful = 1,
 	}
 
+	/**
+	 * Represents user feedback for a result.
+	 */
 	export interface ChatAgentResult2Feedback {
+		/**
+		 * This instance of ChatAgentResult2 is the same instance that was returned from the chat agent,
+		 * and it can be extended with arbitrary properties if needed.
+		 */
 		readonly result: ChatAgentResult2;
+
+		/**
+		 * The kind of feedback that was received.
+		 */
 		readonly kind: ChatAgentResultFeedbackKind;
 	}
 
@@ -36,6 +81,8 @@ declare module 'vscode' {
 		/**
 		 * A short name by which this command is referred to in the UI, e.g. `fix` or
 		 * `explain` for commands that fix an issue or explain code.
+		 *
+		 * **Note**: The name should be unique among the slash commands provided by this agent.
 		 */
 		readonly name: string;
 
@@ -43,6 +90,11 @@ declare module 'vscode' {
 		 * Human-readable description explaining what this command does.
 		 */
 		readonly description: string;
+
+		/**
+		 * When the user clicks this slash command in `/help`, this text will be submitted to this slash command
+		 */
+		readonly sampleRequest?: string;
 
 		/**
 		 * Whether executing the command puts the
@@ -62,7 +114,7 @@ declare module 'vscode' {
 
 		/**
 		 * Returns a list of slash commands that its agent is capable of handling. A slash command
-		 * and be selected by the user and will then be passed to the {@link ChatAgentHandler handler}
+		 * can be selected by the user and will then be passed to the {@link ChatAgentHandler handler}
 		 * via the {@link ChatAgentRequest.slashCommand slashCommand} property.
 		 *
 		 *
@@ -73,7 +125,7 @@ declare module 'vscode' {
 		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
-	// TODO@API is this just a vscode.Command?
+	// TODO@API This should become a progress type, and use vscode.Command
 	// TODO@API what's the when-property for? how about not returning it in the first place?
 	export interface ChatAgentCommandFollowup {
 		commandId: string;
@@ -82,27 +134,49 @@ declare module 'vscode' {
 		when?: string;
 	}
 
+	/**
+	 * A followup question suggested by the model.
+	 */
 	export interface ChatAgentReplyFollowup {
+		/**
+		 * The message to send to the chat.
+		 */
 		message: string;
+
+		/**
+		 * A tooltip to show when hovering over the followup.
+		 */
 		tooltip?: string;
+
+		/**
+		 * A title to show the user, when it is different than the message.
+		 */
 		title?: string;
 	}
 
 	export type ChatAgentFollowup = ChatAgentCommandFollowup | ChatAgentReplyFollowup;
 
+	/**
+	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
+	 */
 	export interface FollowupProvider {
+		/**
+		 *
+		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
+		 * @param token A cancellation token.
+		 */
 		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
 	}
 
 	export interface ChatAgent2 {
 
 		/**
-		 * The short name by which this agent is referred to in the UI, e.g `workspace`
+		 * The short name by which this agent is referred to in the UI, e.g `workspace`.
 		 */
 		readonly name: string;
 
 		/**
-		 * The full name of this agent
+		 * The full name of this agent.
 		 */
 		fullName: string;
 
@@ -125,9 +199,20 @@ declare module 'vscode' {
 			dark: Uri;
 		} | ThemeIcon;
 
+		/**
+		 * This provider will be called to retrieve the agent's slash commands.
+		 */
 		slashCommandProvider?: ChatAgentSlashCommandProvider;
 
+		/**
+		 * This provider will be called once after each request to retrieve suggested followup questions.
+		 */
 		followupProvider?: FollowupProvider;
+
+		/**
+		 * When the user clicks this agent in `/help`, this text will be submitted to this slash command
+		 */
+		sampleRequest?: string;
 
 		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
@@ -137,9 +222,6 @@ declare module 'vscode' {
 		 * previously returned from this chat agent.
 		 */
 		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
-
-		// TODO@API Something like prepareSession from the interactive chat provider might be needed.Probably nobody needs it right now.
-		// prepareSession();
 
 		/**
 		 * TODO@API explain what happens wrt to history, in-flight requests etc...
@@ -167,14 +249,21 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	// TODO@API should these each be prefixed ChatAgentProgress*?
 	export type ChatAgentProgress =
 		| ChatAgentContent
 		| ChatAgentTask
 		| ChatAgentFileTree
 		| ChatAgentUsedContext
 		| ChatAgentContentReference
-		| ChatAgentInlineContentReference;
+		| ChatAgentInlineContentReference
+		| ChatAgentProgressMessage;
+
+	/**
+	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
+	 */
+	export interface ChatAgentProgressMessage {
+		message: string;
+	}
 
 	/**
 	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.

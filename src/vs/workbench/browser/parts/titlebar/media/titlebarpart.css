@@ -361,9 +361,8 @@
 	color: white;
 }
 
-/* Layout Controls */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container,
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
+/* Action Tool Bar Controls */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	display: none;
 	padding-right: 2px;
 	flex-grow: 0;
@@ -376,41 +375,38 @@
 	min-width: 28px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	margin-left: auto;
 }
 
-.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container,
-.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container {
 	right: 8px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container:not(.has-no-actions),
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container.show-layout-control {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container:not(.has-no-actions) {
 	display: flex;
 	justify-content: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .codicon,
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container .codicon {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .codicon {
 	color: inherit;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .badge {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .badge {
 	margin-left: 8px;
 	display: flex;
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge {
 	margin-left: 0px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .badge .badge-content {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
 	border-radius: 11px;
 	font-size: 9px;
@@ -424,7 +420,7 @@
 	position: relative;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact {
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -436,13 +432,13 @@
 	z-index: 2;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content::before {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact .badge-content::before {
 	mask-size: 12px;
 	-webkit-mask-size: 12px;
 	top: 2px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .action-toolbar-container .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
 	top: 10px;
 	right: 0px;
