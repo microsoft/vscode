@@ -24,7 +24,7 @@ suite('PreferencesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		editorService = new TestEditorService2();
+		editorService = disposables.add(new TestEditorService2());
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
 		}, disposables);
@@ -53,6 +53,6 @@ class TestEditorService2 extends TestEditorService {
 
 	override async openEditor(editorInput: any, options?: any): Promise<any | undefined> {
 		this.lastOpenEditorOptions = options;
-		return undefined;
+		return super.openEditor(editorInput, options);
 	}
 }
