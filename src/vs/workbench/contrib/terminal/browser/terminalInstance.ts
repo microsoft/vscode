@@ -1095,21 +1095,47 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _shouldPasteText(text: string): Promise<boolean> {
-		// Ignore check if the shell is in bracketed paste mode (ie. the shell can handle multi-line
-		// text).
-		if (this.xterm?.raw.modes.bracketedPasteMode) {
-			return true;
-		}
-
+		// If the clipboard has only one line, a warning should never show
 		const textForLines = text.split(/\r?\n/);
-		// Ignore check when a command is copied with a trailing new line
-		if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
+		if (textForLines.length === 1) {
 			return true;
 		}
 
-		// If the clipboard has only one line, no prompt will be triggered
-		if (textForLines.length === 1 || !this._configurationService.getValue<boolean>(TerminalSettingId.EnableMultiLinePasteWarning)) {
+		// Get config value
+		function parseConfigValue(value: unknown): 'auto' | 'always' | 'never' {
+			// Valid value
+			if (typeof value === 'string') {
+				if (value === 'auto' || value === 'always' || value === 'never') {
+					return value;
+				}
+			}
+			// Legacy backwards compatibility
+			if (typeof value === 'boolean') {
+				return value ? 'auto' : 'never';
+			}
+			// Invalid value fallback
+			return 'auto';
+		}
+		const configValue = parseConfigValue(this._configurationService.getValue(TerminalSettingId.EnableMultiLinePasteWarning));
+
+		// Never show it
+		if (configValue === 'never') {
 			return true;
+		}
+
+		// Special edge cases to not show for auto
+		if (configValue === 'auto') {
+			// Ignore check if the shell is in bracketed paste mode (ie. the shell can handle multi-line
+			// text).
+			if (this.xterm?.raw.modes.bracketedPasteMode) {
+				return true;
+			}
+
+			const textForLines = text.split(/\r?\n/);
+			// Ignore check when a command is copied with a trailing new line
+			if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
+				return true;
+			}
 		}
 
 		const displayItemsCount = 3;
