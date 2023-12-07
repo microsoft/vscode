@@ -473,7 +473,7 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 				primaryButton: someUnhandledConflicts
 					? localize({ key: 'workspace.closeWithConflicts', comment: ['&& denotes a mnemonic'] }, '&&Close with Conflicts')
 					: localize({ key: 'workspace.close', comment: ['&& denotes a mnemonic'] }, '&&Close'),
-				checkbox: { label: localize('noMoreWarn', "Don't ask again") }
+				checkbox: { label: localize('noMoreWarn', "Do not ask me again") }
 			});
 
 			if (checkboxChecked) {

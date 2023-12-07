@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, CommitMessageProvider } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -155,6 +155,10 @@ export class ApiRepository implements Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		return this.repository.diffBetween(ref1, ref2, path);
+	}
+
+	getDiff(): Promise<string[]> {
+		return this.repository.getDiff();
 	}
 
 	hashObject(data: string): Promise<string> {
@@ -339,10 +343,6 @@ export class ApiImpl implements API {
 
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
 		return this._model.registerBranchProtectionProvider(root, provider);
-	}
-
-	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable {
-		return this._model.registerCommitMessageProvider(provider);
 	}
 
 	constructor(private _model: Model) { }

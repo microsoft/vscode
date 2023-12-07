@@ -92,6 +92,17 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
+export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
+	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+
+	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
+}
+
 /**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim

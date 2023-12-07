@@ -810,8 +810,12 @@ export function registerTerminalActions() {
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
 		run: async (c, accessor) => {
 			let color: string | undefined;
+			let i = 0;
 			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				color = await terminal.changeColor(color);
+				const skipQuickPick = i !== 0;
+				// Always show the quickpick on the first iteration
+				color = await terminal.changeColor(color, skipQuickPick);
+				i++;
 			}
 		}
 	});
@@ -1391,9 +1395,11 @@ export function registerTerminalActions() {
 			when: TerminalContextKeys.tabsFocus
 		},
 		run: async (c, accessor) => {
-			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				c.service.safeDisposeTerminal(terminal);
+			const disposePromises: Promise<void>[] = [];
+			for (const terminal of getSelectedInstances(accessor, true) ?? []) {
+				disposePromises.push(c.service.safeDisposeTerminal(terminal));
 			}
+			await Promise.all(disposePromises);
 			c.groupService.focusTabs();
 		}
 	});
@@ -1467,85 +1473,6 @@ export function registerTerminalActions() {
 			getCommandHistory(accessor).clear();
 			clearShellFileHistory();
 		}
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectPrevSuggestion,
-		title: { value: localize('workbench.action.terminal.selectPrevSuggestion', "Select the Previous Suggestion"), original: 'Select the Previous Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Up is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.UpArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.selectPreviousSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectPrevPageSuggestion,
-		title: { value: localize('workbench.action.terminal.selectPrevPageSuggestion', "Select the Previous Page Suggestion"), original: 'Select the Previous Page Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Up is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.PageUp,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.selectPreviousPageSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectNextSuggestion,
-		title: { value: localize('workbench.action.terminal.selectNextSuggestion', "Select the Next Suggestion"), original: 'Select the Next Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Down is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.DownArrow,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (insactiveInstanceance) => insactiveInstanceance.selectNextSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.SelectNextPageSuggestion,
-		title: { value: localize('workbench.action.terminal.selectNextPageSuggestion', "Select the Next Page Suggestion"), original: 'Select the Next Page Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			// Down is bound to other workbench keybindings that this needs to beat
-			primary: KeyCode.PageDown,
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.selectNextPageSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.AcceptSelectedSuggestion,
-		title: { value: localize('workbench.action.terminal.acceptSelectedSuggestion', "Accept Selected Suggestion"), original: 'Accept Selected Suggestion' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			primary: KeyCode.Enter,
-			secondary: [KeyCode.Tab],
-			// Enter is bound to other workbench keybindings that this needs to beat
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.acceptSelectedSuggestion()
-	});
-
-	registerActiveInstanceAction({
-		id: TerminalCommandId.HideSuggestWidget,
-		title: { value: localize('workbench.action.terminal.hideSuggestWidget', "Hide Suggest Widget"), original: 'Hide Suggest Widget' },
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
-		keybinding: {
-			primary: KeyCode.Escape,
-			// Escape is bound to other workbench keybindings that this needs to beat
-			weight: KeybindingWeight.WorkbenchContrib + 1
-		},
-		run: (activeInstance) => activeInstance.hideSuggestWidget()
 	});
 
 	registerTerminalAction({
@@ -1717,18 +1644,19 @@ function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?
 	const terminalGroupService = accessor.get(ITerminalGroupService);
 	const result: ITerminalInstance[] = [];
 
-	// Get inline tab instance
-	if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
+	const list = listService.lastFocusedList;
+	// Get selected tab list instance(s)
+	const selections = list?.getSelection();
+	// Get inline tab instance if there are not tab list selections #196578
+	if (terminalGroupService.lastAccessedMenu === 'inline-tab' && !selections?.length) {
 		const instance = terminalGroupService.activeInstance;
 		return instance ? [terminalGroupService.activeInstance] : undefined;
 	}
 
-	// Get tab list instance
-	if (!listService.lastFocusedList?.getSelection()) {
+	if (!list || !selections) {
 		return undefined;
 	}
-	const selections = listService.lastFocusedList.getSelection();
-	const focused = listService.lastFocusedList.getFocus();
+	const focused = list.getFocus();
 
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1

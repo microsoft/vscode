@@ -426,7 +426,6 @@ export class ThrottledDelayer<T> {
  * A barrier that is initially closed and then becomes opened permanently.
  */
 export class Barrier {
-
 	private _isOpen: boolean;
 	private _promise: Promise<boolean>;
 	private _completePromise!: (v: boolean) => void;
@@ -633,7 +632,7 @@ export interface ILimiter<T> {
  * A helper to queue N promises and run them all with a max degree of parallelism. The helper
  * ensures that at any time no more than M promises are running at the same time.
  */
-export class Limiter<T> implements ILimiter<T>{
+export class Limiter<T> implements ILimiter<T> {
 
 	private _size = 0;
 	private runningPromises: number;
