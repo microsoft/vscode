@@ -16,11 +16,11 @@ configurationRegistry.registerConfiguration({
 			'enum': ['default', 'auto', 'light', 'dark'],
 			'enumDescriptions': [
 				localize('window.systemColorTheme.default', "System color theme matches the configured OS theme."),
-				localize('window.systemColorTheme.auto', "Enforce a light system color theme when a light color theme is configured for the workbench and the same for configured dark workbench themes."),
+				localize('window.systemColorTheme.auto', "Enforce a light system color theme when a light workbench color theme is configured and the same for configured dark workbench color themes."),
 				localize('window.systemColorTheme.light', "Enforce a light system color theme."),
 				localize('window.systemColorTheme.dark', "Enforce a dark system color theme."),
 			],
-			'description': localize('window.systemColorTheme', "The system color theme applies to native UI elements such as dialogs and menus. Even if your OS is configured in light mode, you can select a dark system color theme."),
+			'markdownDescription': localize('window.systemColorTheme', "The system color theme applies to native UI elements such as native dialogs, menus and title bar. Even if your OS is configured in light appearance mode, you can select a dark system color theme for the window. You can also configure to automatically adjust based on the `#workbench.colorTheme#` setting."),
 			'default': 'default',
 			'included': !isLinux, // not supported on Linux (https://github.com/electron/electron/issues/28887)
 			'scope': ConfigurationScope.APPLICATION
