@@ -42,7 +42,14 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		if (comment && comment.length > 0) {
 			key += `/${Array.isArray(comment) ? comment.join('') : comment}`;
 		}
-		const str = this.bundleCache.get(extensionId)?.contents[key];
+		let str = this.bundleCache.get(extensionId)?.contents[key];
+
+		// if there wasn't a match, normalize newlines and try again
+		if (!str && message.indexOf('\r\n') >= 0) {
+			key = key.replace(/\r\n/g, '\n');
+			str = this.bundleCache.get(extensionId)?.contents[key];
+		}
+
 		if (!str) {
 			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
 		}
