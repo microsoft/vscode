@@ -274,8 +274,6 @@
 							"src/vs/workbench/services/keybinding/test/node/fallbackKeyboardMapper.test.ts",
 							"src/vs/workbench/services/keybinding/test/node/macLinuxKeyboardMapper.test.ts",
 							"src/vs/workbench/services/keybinding/test/node/windowsKeyboardMapper.test.ts",
-							"src/vs/workbench/services/preferences/test/browser/preferencesService.test.ts",
-							"src/vs/workbench/services/preferences/test/common/preferencesValidation.test.ts",
 							"src/vs/workbench/services/search/test/browser/queryBuilder.test.ts",
 							"src/vs/workbench/services/search/test/common/ignoreFile.test.ts",
 							"src/vs/workbench/services/search/test/common/queryBuilder.test.ts",
