@@ -400,7 +400,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		if (this._initialCollapsibleState === undefined) {
 			const onDidChangeInitialCollapsibleState = this._commentThread.onDidChangeInitialCollapsibleState(state => {
 				// File comments always start expanded
-				this._initialCollapsibleState = this._commentThread.range ? state : languages.CommentThreadCollapsibleState.Expanded;
+				this._initialCollapsibleState = state;
 				this._commentThread.collapsibleState = this._initialCollapsibleState;
 				onDidChangeInitialCollapsibleState.dispose();
 			});
