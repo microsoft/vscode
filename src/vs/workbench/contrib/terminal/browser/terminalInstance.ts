@@ -31,7 +31,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -87,6 +86,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 
 const enum Constants {
 	/**
@@ -346,7 +346,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
-		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IProductService private readonly _productService: IProductService,
@@ -1094,80 +1093,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey.set(!!(this.xterm && this.xterm.raw.buffer.active === this.xterm.raw.buffer.alternate));
 	}
 
-	private async _shouldPasteText(text: string): Promise<boolean> {
-		// If the clipboard has only one line, a warning should never show
-		const textForLines = text.split(/\r?\n/);
-		if (textForLines.length === 1) {
-			return true;
-		}
-
-		// Get config value
-		function parseConfigValue(value: unknown): 'auto' | 'always' | 'never' {
-			// Valid value
-			if (typeof value === 'string') {
-				if (value === 'auto' || value === 'always' || value === 'never') {
-					return value;
-				}
-			}
-			// Legacy backwards compatibility
-			if (typeof value === 'boolean') {
-				return value ? 'auto' : 'never';
-			}
-			// Invalid value fallback
-			return 'auto';
-		}
-		const configValue = parseConfigValue(this._configurationService.getValue(TerminalSettingId.EnableMultiLinePasteWarning));
-
-		// Never show it
-		if (configValue === 'never') {
-			return true;
-		}
-
-		// Special edge cases to not show for auto
-		if (configValue === 'auto') {
-			// Ignore check if the shell is in bracketed paste mode (ie. the shell can handle multi-line
-			// text).
-			if (this.xterm?.raw.modes.bracketedPasteMode) {
-				return true;
-			}
-
-			const textForLines = text.split(/\r?\n/);
-			// Ignore check when a command is copied with a trailing new line
-			if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
-				return true;
-			}
-		}
-
-		const displayItemsCount = 3;
-		const maxPreviewLineLength = 30;
-
-		let detail = nls.localize('preview', "Preview:");
-		for (let i = 0; i < Math.min(textForLines.length, displayItemsCount); i++) {
-			const line = textForLines[i];
-			const cleanedLine = line.length > maxPreviewLineLength ? `${line.slice(0, maxPreviewLineLength)}…` : line;
-			detail += `\n${cleanedLine}`;
-		}
-
-		if (textForLines.length > displayItemsCount) {
-			detail += `\n…`;
-		}
-
-		const { confirmed, checkboxChecked } = await this._dialogService.confirm({
-			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste {0} lines of text into the terminal?", textForLines.length),
-			detail,
-			primaryButton: nls.localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
-			checkbox: {
-				label: nls.localize('doNotAskAgain', "Do not ask me again")
-			}
-		});
-
-		if (confirmed && checkboxChecked) {
-			await this._configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
-		}
-
-		return confirmed;
-	}
-
 	override dispose(reason?: TerminalExitReason): void {
 		if (this.isDisposed) {
 			return;
@@ -1246,26 +1171,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async paste(): Promise<void> {
-		if (!this.xterm) {
-			return;
-		}
-
-		const currentText: string = await this._clipboardService.readText();
-		if (!await this._shouldPasteText(currentText)) {
-			return;
-		}
-
-		this.focus();
-		this.xterm.raw.paste(currentText);
+		await this._paste(await this._clipboardService.readText());
 	}
 
 	async pasteSelection(): Promise<void> {
+		await this._paste(await this._clipboardService.readText('selection'));
+	}
+
+	private async _paste(value: string): Promise<void> {
 		if (!this.xterm) {
 			return;
 		}
 
-		const currentText: string = await this._clipboardService.readText('selection');
-		if (!await this._shouldPasteText(currentText)) {
+		const currentText: string = value;
+		const shouldPasteText = await this._scopedInstantiationService.invokeFunction(shouldPasteTerminalText, currentText, this.xterm?.raw.modes.bracketedPasteMode);
+		if (!shouldPasteText) {
 			return;
 		}
 
