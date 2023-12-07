@@ -1691,10 +1691,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private async _onSelectionChange(): Promise<void> {
 		this._onDidChangeSelection.fire(this);
 		if (this._configurationService.getValue(TerminalSettingId.CopyOnSelection)) {
+			if (this._overrideCopySelection === false) {
+				return;
+			}
 			if (this.hasSelection()) {
 				await this.copySelection();
 			}
 		}
+	}
+
+	private _overrideCopySelection: boolean | undefined = undefined;
+	overrideCopyOnSelection(value: boolean): IDisposable {
+		if (this._overrideCopySelection !== undefined) {
+			throw new Error('Cannot set a copy on selection override multiple times');
+		}
+		this._overrideCopySelection = value;
+		return toDisposable(() => this._overrideCopySelection = undefined);
 	}
 
 	@debounce(2000)
