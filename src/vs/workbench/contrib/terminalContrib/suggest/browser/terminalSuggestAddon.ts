@@ -73,7 +73,8 @@ const pwshTypeToIconMap: { [type: string]: ThemeIcon | undefined } = {
 
 export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggestController {
 	private _terminal?: Terminal;
-	private _container?: HTMLElement;
+	private _panel?: HTMLElement;
+	private _screen?: HTMLElement;
 	private _suggestWidget?: SimpleSuggestWidget;
 	private _enableWidget: boolean = true;
 	private _leadingLineContent?: string;
@@ -103,8 +104,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}));
 	}
 
-	setContainer(container: HTMLElement): void {
-		this._container = container;
+	setPanel(panel: HTMLElement): void {
+		this._panel = panel;
+	}
+
+	setScreen(screen: HTMLElement): void {
+		this._screen = screen;
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
@@ -289,10 +294,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		// TODO: What do frozen and auto do?
-		const xtermBox = this._terminal.element!.querySelector('.xterm-screen')!.getBoundingClientRect();
-		// TODO: Layer breaker, unsafe and won't work for terminal editors
-		const panelElement = dom.findParentWithClass(this._container!, 'panel')!.offsetParent as HTMLElement;
-		const panelBox = panelElement.getBoundingClientRect();
+		const xtermBox = this._screen!.getBoundingClientRect();
+		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 		suggestWidget.showSuggestions(model, 0, false, false, {
 			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
 			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
@@ -314,7 +317,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!this._suggestWidget) {
 			this._suggestWidget = this._register(this._instantiationService.createInstance(
 				SimpleSuggestWidget,
-				dom.findParentWithClass(this._container!, 'panel')!,
+				this._panel!,
 				this._instantiationService.createInstance(PersistedWidgetSize),
 				{}
 			));
@@ -459,10 +462,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 				return;
 			}
 			// TODO: What do frozen and auto do?
-			const xtermBox = this._terminal.element!.querySelector('.xterm-screen')!.getBoundingClientRect();
-			// TODO: Layer breaker, unsafe and won't work for terminal editors
-			const panelElement = dom.findParentWithClass(this._container!, 'panel')!.offsetParent as HTMLElement;
-			const panelBox = panelElement.getBoundingClientRect();
+			const xtermBox = this._screen!.getBoundingClientRect();
+			const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 			this._suggestWidget?.showSuggestions((this._suggestWidget as any)._completionModel, 0, false, false, {
 				left: (xtermBox.left - panelBox.left) + (this._terminal.buffer.active.cursorX + handledCursorDelta) * dimensions.width,
 				top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,

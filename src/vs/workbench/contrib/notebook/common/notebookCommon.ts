@@ -225,6 +225,7 @@ export interface ICellOutput {
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 	asDto(): IOutputDto;
 	bumpVersion(): void;
+	dispose(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {

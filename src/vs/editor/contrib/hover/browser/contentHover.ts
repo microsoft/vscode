@@ -94,7 +94,7 @@ export class ContentHoverController extends Disposable {
 	/**
 	 * Returns true if the hover shows now or will show.
 	 */
-	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 		if (this._widget.isResizing) {
 			return true;
 		}
@@ -910,6 +910,10 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public goToBottom(): void {
 		this._hover.scrollbar.setScrollPosition({ scrollTop: this._hover.scrollbar.getScrollDimensions().scrollHeight });
+	}
+
+	public toggleLocked(locked: boolean): void {
+		this._hover.containerDomNode.classList.toggle('locked', locked);
 	}
 }
 

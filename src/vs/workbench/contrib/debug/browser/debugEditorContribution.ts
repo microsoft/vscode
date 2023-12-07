@@ -35,7 +35,7 @@ import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/e
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -389,7 +389,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private showEditorHover(position: Position, focus: boolean) {
-		const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+		const hoverController = this.editor.getContribution<HoverController>(HoverController.ID);
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
 	}

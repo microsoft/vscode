@@ -59,7 +59,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		this._resourceContentProvider.deleteAndDispose(handle);
 	}
 
-	$onVirtualDocumentChange(uri: UriComponents, value: string): void {
+	async $onVirtualDocumentChange(uri: UriComponents, value: string): Promise<void> {
 		const model = this._modelService.getModel(URI.revive(uri));
 		if (!model) {
 			return;
@@ -73,7 +73,9 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		const myToken = new CancellationTokenSource();
 		this._pendingUpdate.set(model.id, myToken);
 
-		this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]).then(edits => {
+		try {
+			const edits = await this._editorWorkerService.computeMoreMinimalEdits(model.uri, [{ text: value, range: model.getFullModelRange() }]);
+
 			// remove token
 			this._pendingUpdate.delete(model.id);
 
@@ -85,6 +87,8 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 				// use the evil-edit as these models show in readonly-editor only
 				model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 			}
-		}).catch(onUnexpectedError);
+		} catch (error) {
+			onUnexpectedError(error);
+		}
 	}
 }
