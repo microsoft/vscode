@@ -105,7 +105,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
 	}
 
-	get settingsEditor2Input(): SettingsEditor2Input {
+	createSettingsEditor2Input(): SettingsEditor2Input {
 		return new SettingsEditor2Input(this);
 	}
 
@@ -240,7 +240,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
-		const input = this.settingsEditor2Input;
+		const input = this._register(this.createSettingsEditor2Input());
 		options = {
 			...options,
 			focusSearch: true
