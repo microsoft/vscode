@@ -26,7 +26,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { autorun } from 'vs/base/common/observable';
 import { count } from 'vs/base/common/strings';
@@ -153,9 +153,11 @@ class TaskSubject {
 class TestOutputSubject {
 	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
+	public readonly task: ITestRunTask;
 
-	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly task: ITestRunTask, public readonly test: TestResultItem) {
+	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly test: TestResultItem) {
 		this.outputUri = buildTestUri({ resultId: this.result.id, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
+		this.task = result.tasks[this.taskIndex];
 	}
 }
 
@@ -749,9 +751,8 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		if (parts.type === TestUriType.TestOutput) {
 			const test = result.getStateById(parts.testExtId);
-			const task = result.tasks[parts.taskIndex];
-			if (!test || !task) { return; }
-			return new TestOutputSubject(result, parts.taskIndex, task, test);
+			if (!test) { return; }
+			return new TestOutputSubject(result, parts.taskIndex, test);
 		}
 
 		const { testExtId, taskIndex, messageIndex } = parts;
@@ -1442,6 +1443,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		const testItem = subject instanceof TestOutputSubject ? subject.test.item : subject.test;
 		const terminal = await this.updateGenerically<ITaskRawOutput>({
 			subject,
+			noOutputMessage: localize('caseNoOutput', 'The test case did not report any output.'),
 			getTarget: result => result?.tasks[subject.taskIndex].output,
 			*doInitialWrite(output, results) {
 				that.updateCwd(testItem.uri);
@@ -1456,10 +1458,10 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 					}
 				}
 			},
-			doListenForMoreData: (output, result, { xterm }) => result.onChange(e => {
+			doListenForMoreData: (output, result, write) => result.onChange(e => {
 				if (e.reason === TestResultItemChangeReason.NewMessage && e.item.item.extId === testItem.extId && e.message.type === TestMessageType.Output) {
 					for (const chunk of output.getRangeIter(e.message.offset, e.message.length)) {
-						xterm.write(chunk.buffer);
+						write(chunk.buffer);
 					}
 				}
 			}),
@@ -1473,6 +1475,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private updateForTaskSubject(subject: TaskSubject) {
 		return this.updateGenerically<ITestRunTaskResults>({
 			subject,
+			noOutputMessage: localize('runNoOutput', 'The test run did not record any output.'),
 			getTarget: result => result?.tasks[subject.taskIndex],
 			doInitialWrite: (task, result) => {
 				// Update the cwd and use the first test to try to hint at the correct cwd,
@@ -1480,15 +1483,16 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
 				return task.output.buffers;
 			},
-			doListenForMoreData: (task, _result, { xterm }) => task.output.onDidWriteData(e => xterm.write(e.buffer)),
+			doListenForMoreData: (task, _result, write) => task.output.onDidWriteData(e => write(e.buffer)),
 		});
 	}
 
 	private async updateGenerically<T>(opts: {
 		subject: InspectSubject;
+		noOutputMessage: string;
 		getTarget: (result: ITestResult) => T | undefined;
 		doInitialWrite: (target: T, result: LiveTestResult) => Iterable<VSBuffer>;
-		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedTerminalInstance) => IDisposable | undefined;
+		doListenForMoreData: (target: T, result: LiveTestResult, write: (s: Uint8Array) => void) => IDisposable;
 	}) {
 		const result = opts.subject.result;
 		const target = opts.getTarget(result);
@@ -1512,10 +1516,24 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		}
 
 		this.attachTerminalToDom(terminal);
-		this.outputDataListener.value = result instanceof LiveTestResult ? opts.doListenForMoreData(target, result, terminal) : undefined;
+		this.outputDataListener.clear();
+
+		if (result instanceof LiveTestResult && !result.completedAt) {
+			const l1 = result.onComplete(() => {
+				if (!didWriteData) {
+					this.writeNotice(terminal, opts.noOutputMessage);
+				}
+			});
+			const l2 = opts.doListenForMoreData(target, result, data => {
+				terminal.xterm.write(data);
+				didWriteData ||= data.byteLength > 0;
+			});
+
+			this.outputDataListener.value = combinedDisposable(l1, l2);
+		}
 
 		if (!this.outputDataListener.value && !didWriteData) {
-			this.writeNotice(terminal, localize('runNoOutput', 'The test run did not record any output.'));
+			this.writeNotice(terminal, opts.noOutputMessage);
 		}
 
 		// Ensure pending writes finish, otherwise the selection in `updateForTestSubject`
@@ -1742,12 +1760,12 @@ class TestCaseElement implements ITreeElement {
 	}
 
 	public get outputSubject() {
-		return new TestOutputSubject(this.results, this.taskIndex, this.task, this.test);
+		return new TestOutputSubject(this.results, this.taskIndex, this.test);
 	}
 
+
 	constructor(
-		private readonly results: ITestResult,
-		private readonly task: ITestRunTask,
+		public readonly results: ITestResult,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
 	) { }
@@ -1901,7 +1919,7 @@ class OutputPeekTree extends Disposable {
 			const { results, index, itemsCache, task } = taskElem;
 			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0);
 			let result: Iterable<ICompressedTreeElement<TreeElement>> = Iterable.map(tests, test => ({
-				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, task, test, index)),
+				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
 				incompressible: true,
 				children: getTestChildren(results, test, index),
 			}));
@@ -2097,6 +2115,11 @@ class OutputPeekTree extends Disposable {
 		this._register(this.tree.onDidOpen(async e => {
 			if (e.element instanceof TestMessageElement) {
 				this.requestReveal.fire(new MessageSubject(e.element.result, e.element.test, e.element.taskIndex, e.element.messageIndex));
+			} else if (e.element instanceof TestCaseElement) {
+				const t = e.element;
+				const message = mapFindTestMessage(e.element.test, (_t, _m, mesasgeIndex, taskIndex) =>
+					new MessageSubject(t.results, t.test, taskIndex, mesasgeIndex));
+				this.requestReveal.fire(message || new TestOutputSubject(t.results, 0, t.test));
 			} else if (e.element instanceof CoverageElement) {
 				const task = e.element.task;
 				if (e.element.isOpen) {
