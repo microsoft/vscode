@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from 'vs/base/common/async';
+import { AsyncIterableObject, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -188,6 +188,18 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	}
 
 	const disposables = new DisposableStore();
+	const onDidChangeModelContentScheduler = new RunOnceScheduler(
+		() => {
+			if (editorUpdatedByColorPicker) {
+				editorUpdatedByColorPicker = false;
+			} else {
+				context.hide();
+				editor.focus();
+			}
+		}, 100
+	);
+	disposables.add(onDidChangeModelContentScheduler);
+
 	const colorHover = hoverParts[0];
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
@@ -214,12 +226,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 		_updateColorPresentations(editorModel, model, color, range, colorHover);
 	}));
 	disposables.add(editor.onDidChangeModelContent((e) => {
-		if (editorUpdatedByColorPicker) {
-			editorUpdatedByColorPicker = false;
-		} else {
-			context.hide();
-			editor.focus();
-		}
+		onDidChangeModelContentScheduler.schedule();
 	}));
 	return disposables;
 }
@@ -249,9 +256,6 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 	if (model.presentation.additionalTextEdits) {
 		textEdits = [...model.presentation.additionalTextEdits];
 		editor.executeEdits('colorpicker', textEdits);
-		if (context) {
-			context.hide();
-		}
 	}
 	editor.pushUndoStop();
 	return newRange;
