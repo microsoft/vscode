@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -24,7 +25,7 @@ suite('PreferencesService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
-		editorService = new TestEditorService2();
+		editorService = disposables.add(new TestEditorService2());
 		testInstantiationService = workbenchInstantiationService({
 			editorService: () => editorService
 		}, disposables);
@@ -48,11 +49,18 @@ suite('PreferencesService', () => {
 	});
 });
 
-class TestEditorService2 extends TestEditorService {
+class TestEditorService2 extends TestEditorService implements IDisposable {
 	lastOpenEditorOptions: any;
 
-	override async openEditor(editor: any, optionsOrGroup?: any): Promise<any | undefined> {
-		this.lastOpenEditorOptions = optionsOrGroup;
+	private readonly store = new DisposableStore();
+
+	override async openEditor(editorInput: any, options?: any): Promise<any | undefined> {
+		this.lastOpenEditorOptions = options;
+		this.store.add(editorInput);
 		return undefined;
+	}
+
+	dispose(): void {
+		this.store.dispose();
 	}
 }

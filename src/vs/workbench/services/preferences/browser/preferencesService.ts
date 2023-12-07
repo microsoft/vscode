@@ -240,7 +240,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private async openSettings2(options: IOpenSettingsOptions): Promise<IEditorPane> {
-		const input = this._register(this.settingsEditor2Input);
+		const input = this.settingsEditor2Input;
 		options = {
 			...options,
 			focusSearch: true
@@ -440,20 +440,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private getDefaultSettings(target: ConfigurationTarget): DefaultSettings {
 		if (target === ConfigurationTarget.WORKSPACE) {
-			if (!this._defaultWorkspaceSettingsContentModel) {
-				this._defaultWorkspaceSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
-			}
+			this._defaultWorkspaceSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
 			return this._defaultWorkspaceSettingsContentModel;
 		}
 		if (target === ConfigurationTarget.WORKSPACE_FOLDER) {
-			if (!this._defaultFolderSettingsContentModel) {
-				this._defaultFolderSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
-			}
+			this._defaultFolderSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
 			return this._defaultFolderSettingsContentModel;
 		}
-		if (!this._defaultUserSettingsContentModel) {
-			this._defaultUserSettingsContentModel = new DefaultSettings(this.getMostCommonlyUsedSettings(), target);
-		}
+		this._defaultUserSettingsContentModel ??= this._register(new DefaultSettings(this.getMostCommonlyUsedSettings(), target));
 		return this._defaultUserSettingsContentModel;
 	}
 
