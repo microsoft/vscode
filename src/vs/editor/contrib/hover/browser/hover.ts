@@ -523,7 +523,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 
 		const focusArgument = args?.focus;
 		let focusOption = HoverFocusBehavior.FocusIfVisible;
-		if (focusArgument in HoverFocusBehavior) {
+		if (Object.values(HoverFocusBehavior).includes(focusArgument)) {
 			focusOption = focusArgument;
 		} else if (typeof focusArgument === 'boolean' && focusArgument) {
 			focusOption = HoverFocusBehavior.AutoFocusImmediately;
