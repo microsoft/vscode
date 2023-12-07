@@ -38,6 +38,7 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 
 interface IActionShowOptions {
@@ -78,6 +79,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -247,6 +249,20 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	});
 
 	public async showCodeActionList(actions: CodeActionSet, at: IAnchor | IPosition, options: IActionShowOptions): Promise<void> {
+
+		type ShowCodeActionListEvent = {
+			codeActionListLength: number;
+		};
+
+		type ShowListEventClassification = {
+			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list.' };
+			owner: 'mjbvz';
+			comment: 'Event used to gain insights into how many valid code actions are being shown';
+		};
+
+		this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionList', {
+			codeActionListLength: actions.validActions.length,
+		});
 
 		const currentDecorations = this._editor.createDecorationsCollection();
 
