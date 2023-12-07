@@ -106,7 +106,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	get settingsEditor2Input(): SettingsEditor2Input {
-		return this.instantiationService.createInstance(SettingsEditor2Input);
+		return new SettingsEditor2Input(this);
 	}
 
 	getFolderSettingsResource(resource: URI): URI | null {
