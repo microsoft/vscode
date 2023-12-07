@@ -76,5 +76,18 @@ suite('TerminalClipboard', function () {
 			setConfigValue('never');
 			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
 		});
+		test('Legacy config', async () => {
+			setConfigValue(true); // 'auto'
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+
+			setConfigValue(false); // 'never'
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+		});
+		test('Invalid config', async () => {
+			setConfigValue(123);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', undefined), false);
+			strictEqual(await instantiationService.invokeFunction(shouldPasteTerminalText, 'foo\nbar', true), true);
+		});
 	});
 });
