@@ -9,10 +9,14 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { IModelDecorationOptions, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Color } from 'vs/base/common/color';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
 export type GhostTextData = {
 	readonly position: IPosition;
@@ -34,6 +38,9 @@ export class MultiGhostTextController extends Disposable {
 	private _widgetsData: GhostTextData[] = [];
 	private _dontClear = false;
 
+	private readonly _rulerDecorations: IEditorDecorationsCollection;
+	private readonly _rulerDecoration: ModelDecorationOptions;
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -46,6 +53,20 @@ export class MultiGhostTextController extends Disposable {
 	) {
 		super();
 
+		const opts: IModelDecorationOptions = {
+			description: 'multi-ghost-text-decoration',
+			overviewRuler: {
+				color: Color.cyan.toString(),
+				position: OverviewRulerLane.Full
+			},
+			minimap: {
+				color: Color.cyan.toString(),
+				position: MinimapPosition.Inline
+			},
+		};
+		this._rulerDecoration = ModelDecorationOptions.createDynamic(opts);
+
+		this._rulerDecorations = editor.createDecorationsCollection();
 		this._register(editor.onDidChangeModelContent(() => this.clear()));
 	}
 
@@ -67,6 +88,25 @@ export class MultiGhostTextController extends Disposable {
 		this._currentWidget = [instance, gt];
 	}
 
+	private showRulerDecoration(ghostText: GhostTextData | undefined) {
+		if (!ghostText) {
+			this._rulerDecorations.set([]);
+			return;
+		}
+		const model = this.editor.getModel();
+		if (!model) {
+			return;
+		}
+		const col = model.getLineMaxColumn(ghostText.position.lineNumber);
+		const range = new Range(ghostText.position.lineNumber, 0, ghostText.position.lineNumber, col);
+		const decoration =
+		{
+			range: range,
+			options: this._rulerDecoration
+		};
+		this._rulerDecorations.set([decoration]);
+	}
+
 	public showGhostText(ghostTexts: GhostTextData[], auto: boolean): void {
 		if (this._currentWidget && auto) {
 			//ignore auto requests if we're displaying suggestions
@@ -76,9 +116,11 @@ export class MultiGhostTextController extends Disposable {
 		console.log('showGhostText', JSON.stringify(ghostTexts, null, 2));
 
 		this._widgetsData = ghostTexts;
+
 		const ghostText = this._widgetsData.shift();
 		if (ghostText) {
 			this.showSingleGhostText(ghostText);
+			this.showRulerDecoration(ghostText);
 			if (!auto) {
 				this.editor.setPosition(Position.lift(ghostText.position));
 			}
@@ -161,6 +203,7 @@ export class MultiGhostTextController extends Disposable {
 		console.log('acceptAndNext', lineDelta);
 		this.updateLocations(data.position.lineNumber, lineDelta);
 		let ghostText = this._widgetsData.shift();
+		this.showRulerDecoration(ghostText);
 		console.log('acceptAndNext', JSON.stringify(ghostText, null, 2));
 		//if we'd show ghost text in a position that's outside of the file, we should display it at the end of the last line
 		const fileLineCount = this.editor.getModel()?.getLineCount() ?? 1;
@@ -198,6 +241,7 @@ export class MultiGhostTextController extends Disposable {
 		this._currentWidget?.[0].dispose();
 		this._currentWidget = undefined;
 		this._isVisibleContext.set(false);
+		this.showRulerDecoration(undefined);
 	}
 }
 
