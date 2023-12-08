@@ -35,9 +35,6 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	) {
 		super();
 
-		// Figure out initial auto save config
-		this.onAutoSaveConfigurationChange(false);
-
 		// Fill in initial dirty working copies
 		for (const dirtyWorkingCopy of this.workingCopyService.dirtyWorkingCopies) {
 			this.onDidRegister(dirtyWorkingCopy);
@@ -50,7 +47,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChange()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange(true)));
+		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
 
 		// Working Copy events
 		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
@@ -115,27 +112,25 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		}
 	}
 
-	private onAutoSaveConfigurationChange(fromEvent: boolean): void {
+	private onAutoSaveConfigurationChange(): void {
 
 		// Trigger a save-all when auto save is enabled
-		if (fromEvent) {
-			let reason: SaveReason | undefined = undefined;
-			switch (this.filesConfigurationService.getAutoSaveMode(undefined)) {
-				case AutoSaveMode.ON_FOCUS_CHANGE:
-					reason = SaveReason.FOCUS_CHANGE;
-					break;
-				case AutoSaveMode.ON_WINDOW_CHANGE:
-					reason = SaveReason.WINDOW_CHANGE;
-					break;
-				case AutoSaveMode.AFTER_SHORT_DELAY:
-				case AutoSaveMode.AFTER_LONG_DELAY:
-					reason = SaveReason.AUTO;
-					break;
-			}
+		let reason: SaveReason | undefined = undefined;
+		switch (this.filesConfigurationService.getAutoSaveMode(undefined)) {
+			case AutoSaveMode.ON_FOCUS_CHANGE:
+				reason = SaveReason.FOCUS_CHANGE;
+				break;
+			case AutoSaveMode.ON_WINDOW_CHANGE:
+				reason = SaveReason.WINDOW_CHANGE;
+				break;
+			case AutoSaveMode.AFTER_SHORT_DELAY:
+			case AutoSaveMode.AFTER_LONG_DELAY:
+				reason = SaveReason.AUTO;
+				break;
+		}
 
-			if (reason) {
-				this.saveAllDirtyAutoSaveables({ reason });
-			}
+		if (reason) {
+			this.saveAllDirtyAutoSaveables({ reason });
 		}
 	}
 
