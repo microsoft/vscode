@@ -111,8 +111,8 @@ class MergeItem implements QuickPickItem {
 
 	get label(): string {
 		return this.ref.type === RefType.RemoteHead ?
-			`$(cloud) ${this.ref.name || this.shortCommit}` :
-			`${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`;
+			`$(cloud) ${this.ref.name ?? this.shortCommit}` :
+			`${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name ?? this.shortCommit}`;
 	}
 
 	get description(): string {
@@ -124,7 +124,7 @@ class MergeItem implements QuickPickItem {
 	}
 
 	async run(): Promise<void> {
-		await this.repository.merge(this.ref.name! || this.ref.commit!);
+		await this.repository.merge(this.ref.name ?? this.ref.commit!);
 	}
 }
 
