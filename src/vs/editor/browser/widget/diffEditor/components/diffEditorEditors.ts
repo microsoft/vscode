@@ -2,19 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorunHandleChanges, observableFromEvent } from 'vs/base/common/observable';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditor/overviewRulerPart';
+import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
 import { EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DiffEditorOptions } from './diffEditorOptions';
+import { DiffEditorOptions } from '../diffEditorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDiffCodeEditorWidgetOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -94,7 +95,7 @@ export class DiffEditorEditors extends Disposable {
 		const editor = this._createInnerEditor(instantiationService, container, options, editorWidgetOptions);
 
 		this._register(editor.onDidContentSizeChange(e => {
-			const width = this.original.getContentWidth() + this.modified.getContentWidth() + OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
+			const width = this.original.getContentWidth() + this.modified.getContentWidth() + OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 			const height = Math.max(this.modified.getContentHeight(), this.original.getContentHeight());
 
 			this._onDidContentSizeChange.fire({
@@ -140,7 +141,7 @@ export class DiffEditorEditors extends Disposable {
 		}
 		result.ariaLabel = this._updateAriaLabel(result.ariaLabel);
 		result.wordWrapOverride1 = this._options.diffWordWrap.get();
-		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
+		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
 		return result;

@@ -192,7 +192,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					this.recentMarkerCodeActionsInfo = undefined;
 				}
 			}
-			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposables.add(disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200));
+			const updatePlaceholderDisposable = this.recentMarkerCodeActionsInfo && !this.recentMarkerCodeActionsInfo.hasCodeActions ? Disposable.None : disposableTimeout(() => quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes..."), 200, disposables);
 			if (!quickfixPlaceholderElement.textContent) {
 				// Have some content in here to avoid flickering
 				quickfixPlaceholderElement.textContent = String.fromCharCode(0xA0); // &nbsp;

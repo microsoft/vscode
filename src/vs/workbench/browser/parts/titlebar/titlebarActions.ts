@@ -82,7 +82,7 @@ registerAction2(class ToggleEditorActions extends Action2 {
 
 		const location = configService.getValue<string>(ToggleEditorActions.settingsID);
 		if (location === 'hidden') {
-			const showTabs = configService.getValue<string>('workbench.editor.showTabs');
+			const showTabs = configService.getValue<string>(LayoutSettings.EDITOR_TABS_MODE);
 
 			// If tabs are visible, then set the editor actions to be in the title bar
 			if (showTabs !== 'none') {

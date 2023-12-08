@@ -95,6 +95,13 @@ export interface ILayoutService {
 	readonly activeContainerOffset: ILayoutOffsetInfo;
 
 	/**
+	 * A promise resolved when the stylesheets for the active container have been
+	 * loaded. Aux windows load their styles asynchronously, so there may be
+	 * an initial delay before resolution happens.
+	 */
+	readonly whenActiveContainerStylesLoaded: Promise<void>;
+
+	/**
 	 * Focus the primary component of the active container.
 	 */
 	focus(): void;

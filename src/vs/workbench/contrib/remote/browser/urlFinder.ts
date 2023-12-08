@@ -52,7 +52,7 @@ export class UrlFinder extends Disposable {
 				}));
 			}
 		}));
-		this._register(debugService.onDidEndSession(session => {
+		this._register(debugService.onDidEndSession(({ session }) => {
 			if (this.listeners.has(session.getId())) {
 				this.listeners.get(session.getId())?.dispose();
 				this.listeners.delete(session.getId());

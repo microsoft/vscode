@@ -286,8 +286,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.lenses.length, 1);
 		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
-		assert.strictEqual(symbol!.command!.id, 'missing');
-		assert.strictEqual(symbol!.command!.title, '!!MISSING: command!!');
+		assert.strictEqual(symbol, undefined);
 		value.dispose();
 	});
 

@@ -83,13 +83,17 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
+	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
 		const untypedEditor = editor;
 
 		// Use the untyped editor to find a group
-		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
-
-		return [untypedEditor, group, activation];
+		const findGroupResult = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
+		if (findGroupResult instanceof Promise) {
+			return findGroupResult.then(([group, activation]) => [untypedEditor, group, activation]);
+		} else {
+			const [group, activation] = findGroupResult;
+			return [untypedEditor, group, activation];
+		}
 	}
 
 	async resolveEditor(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<ResolvedEditor> {
@@ -103,7 +107,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return this.doResolveSideBySideEditor(editor, preferredGroup);
 		}
 
-		const resolvedUntypedAndGroup = this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		let resolvedUntypedAndGroup: [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined;
+		const resolvedUntypedAndGroupResult = this.resolveUntypedInputAndGroup(editor, preferredGroup);
+		if (resolvedUntypedAndGroupResult instanceof Promise) {
+			resolvedUntypedAndGroup = await resolvedUntypedAndGroupResult;
+		} else {
+			resolvedUntypedAndGroup = resolvedUntypedAndGroupResult;
+		}
+
 		if (!resolvedUntypedAndGroup) {
 			return ResolvedStatus.NONE;
 		}
@@ -265,11 +276,12 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	getAllUserAssociations(): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const defaultAssociations = inspectedEditorAssociations.defaultValue ?? {};
 		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
 		const userAssociations = inspectedEditorAssociations.userValue ?? {};
 		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
-		// We want to apply the user associations on top of the workspace associations but ignore duplicate keys.
-		for (const [key, value] of Object.entries(userAssociations)) {
+		// We want to apply the default associations and user associations on top of the workspace associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries({ ...defaultAssociations, ...userAssociations })) {
 			if (rawAssociations[key] === undefined) {
 				rawAssociations[key] = value;
 			}
