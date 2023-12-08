@@ -1015,8 +1015,14 @@ export class Repository {
 			args.push(value);
 		}
 
-		const result = await this.exec(args, options);
-		return result.stdout.trim();
+		try {
+			const result = await this.exec(args, options);
+			return result.stdout.trim();
+		}
+		catch (err) {
+			this.logger.warn(`git config failed: ${err.message}`);
+			return '';
+		}
 	}
 
 	async getConfigs(scope: string): Promise<{ key: string; value: string }[]> {
