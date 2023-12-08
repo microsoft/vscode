@@ -47,6 +47,16 @@
 	background-color: inherit;
 }
 
+.monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor,
+.monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-outputEditor-background);
+}
+
+.monaco-workbench .part.panel > .content .pane-body.output-view .sticky-widget {
+	background-color: var(--vscode-outputEditorStickyScroll-background);
+}
+
 .monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus .action-label,
 .monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:hover .action-label {
 	color: var(--vscode-panelTitle-activeForeground) !important;
