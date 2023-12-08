@@ -181,6 +181,7 @@ export interface IEditorPartsView {
 	readonly activeGroup: IEditorGroupView;
 	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
+	getGroups(order?: GroupsOrder): IEditorGroupView[];
 
 	readonly count: number;
 

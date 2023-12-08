@@ -159,7 +159,7 @@
 	border-color: var(--vscode-contrastBorder);
 }
 
-.monaco-workbench .part.editor>.content .walkThroughContent .monaco-editor-background,
-.monaco-workbench .part.editor>.content .walkThroughContent .margin-view-overlays {
+.monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor-background,
+.monaco-workbench .part.editor > .content .walkThroughContent .margin-view-overlays {
 	background: var(--vscode-walkThrough-embeddedEditorBackground);
 }

@@ -444,9 +444,9 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
-	const elDocument = element.ownerDocument;
-	const elWindow = elDocument.defaultView?.window;
+export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+	const elWindow = getWindow(element);
+	const elDocument = elWindow.document;
 
 	// Try with DOM clientWidth / clientHeight
 	if (element !== elDocument.body) {
@@ -471,6 +471,10 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
 	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
+	}
+
+	if (fallback) {
+		return getClientArea(fallback);
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -836,8 +840,9 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 }
 
 /**
- * Returns the active element across all child windows.
- * Use this instead of `document.activeElement` to handle multiple windows.
+ * Returns the active element across all child windows
+ * based on document focus. Falls back to the main
+ * window if no window has focus.
  */
 export function getActiveElement(): Element | null {
 	let result = getActiveDocument().activeElement;
@@ -850,42 +855,49 @@ export function getActiveElement(): Element | null {
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `element` is `element`.
+ * Returns true if the focused window active element matches
+ * the provided element. Falls back to the main window if no
+ * window has focus.
  */
 export function isActiveElement(element: Element): boolean {
-	return element.ownerDocument.activeElement === element;
+	return getActiveElement() === element;
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `ancestor` is contained in `ancestor`.
+ * Returns true if the focused window active element is contained in
+ * `ancestor`. Falls back to the main window if no window has focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
-	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+	return isAncestor(getActiveElement(), ancestor);
 }
 
 /**
- * Returns whether the element is in the active `document`.
+ * Returns whether the element is in the active `document`. The active
+ * document has focus or will be the main windows document.
  */
 export function isActiveDocument(element: Element): boolean {
 	return element.ownerDocument === getActiveDocument();
 }
 
 /**
- * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom
- * events to handle multiple windows.
+ * Returns the active document across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
-		return document;
+		return mainWindow.document;
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
 }
 
+/**
+ * Returns the active window across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main window.
+ */
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
@@ -893,7 +905,7 @@ export function getActiveWindow(): CodeWindow {
 
 export function focusWindow(element: Node): void {
 	const window = getWindow(element);
-	if (window !== getActiveWindow()) {
+	if (!window.document.hasFocus()) {
 		window.focus();
 	}
 }
@@ -1019,9 +1031,17 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	const meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+	return createHeadElement('meta', container) as HTMLMetaElement;
+}
+
+export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
+	return createHeadElement('link', container) as HTMLLinkElement;
+}
+
+function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+	const element = document.createElement(tagName);
+	container.appendChild(element);
+	return element;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;

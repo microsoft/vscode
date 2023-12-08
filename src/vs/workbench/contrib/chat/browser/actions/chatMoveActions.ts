@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -19,7 +19,7 @@ import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatCo
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 enum MoveToNewLocation {
 	Editor = 'Editor',
@@ -63,25 +63,11 @@ export function getMoveToAction(viewId: string, providerId: string, moveTo: Move
 				return;
 			}
 
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			const instantiationService = accessor.get(IInstantiationService);
 			const editorService = accessor.get(IEditorService);
 			const sessionId = viewModel.sessionId;
 			view.clear();
 
-			switch (moveTo) {
-				case (MoveToNewLocation.Editor): {
-					await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
-					break;
-				}
-				case (MoveToNewLocation.Window): {
-					await openInNewWindow(instantiationService, editorGroupService, { target: { sessionId } });
-					break;
-				}
-				default: {
-					throw new Error(`Unexpected move to location : ${moveTo}`);
-				}
-			}
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		}
 	};
 }
@@ -156,26 +142,12 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const viewService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const editorService = accessor.get(IEditorService);
-	const instantiationService = accessor.get(IInstantiationService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	const widget = widgetService.lastFocusedWidget;
 	if (!widget || !('viewId' in widget.viewContext)) {
 		const providerId = chatService.getProviderInfos()[0].id;
 
-		switch (moveTo) {
-			case (MoveToNewLocation.Editor): {
-				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } });
-				break;
-			}
-			case (MoveToNewLocation.Window): {
-				await openInNewWindow(instantiationService, editorGroupService, { target: { providerId } });
-				break;
-			}
-			default: {
-				throw new Error(`Unexpected move to location : ${moveTo}`);
-			}
-		}
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 		return;
 	}
 
@@ -188,24 +160,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
 	view.clear();
 
-	switch (moveTo) {
-		case (MoveToNewLocation.Editor): {
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: sessionId }, pinned: true } });
-			break;
-		}
-		case (MoveToNewLocation.Window): {
-			await openInNewWindow(instantiationService, editorGroupService, { target: { sessionId } });
-		}
-		default: {
-			throw new Error(`Unexpected move to location : ${moveTo}`);
-		}
-	}
-}
-
-async function openInNewWindow(intstantiationService: IInstantiationService, editorGroupService: IEditorGroupsService, options: IChatEditorOptions) {
-	const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-	const chatEditorInput = intstantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), options);
-	await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+	await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId }, pinned: true } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {

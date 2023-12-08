@@ -5,6 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceFolderCwdPair, shrinkWorkspaceFolderCwdPairs } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 
@@ -27,6 +28,8 @@ function makePair(folder: IWorkspaceFolder, cwd?: URI | IWorkspaceFolder, isAbso
 }
 
 suite('terminalActions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const root: URI = URI.file('/some-root');
 	const a = makeFakeFolder('a', URI.joinPath(root, 'a'));
 	const b = makeFakeFolder('b', URI.joinPath(root, 'b'));

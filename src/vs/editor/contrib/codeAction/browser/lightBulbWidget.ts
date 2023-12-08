@@ -85,10 +85,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
-			const focusEditor = () => {
-				this._editor.focus();
-				e.preventDefault();
-			};
 
 			const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 			if (
@@ -99,12 +95,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const action = this.state.actions.validActions[0].action;
 				if (action.command?.id) {
 					commandService.executeCommand(action.command.id, ...(action.command.arguments || []));
+					e.preventDefault();
+					return;
 				}
-				focusEditor();
-				return;
 			}
 			// Make sure that focus / cursor location is not lost when clicking widget icon
-			focusEditor();
+			this._editor.focus();
+			e.preventDefault();
+
 			// a bit of extra work to make sure the menu
 			// doesn't cover the line-text
 			const { top, height } = dom.getDomNodePagePosition(this._domNode);
@@ -174,6 +172,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 		const options = this._editor.getOptions();
 		if (!options.get(EditorOption.lightbulb).enabled) {
+			return this.hide();
+		}
+
+		const onlyAIActions = actions.allAIFixes;
+		const showAiIcon = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
+		if (onlyAIActions && showAiIcon === ShowAiIconMode.Off) {
 			return this.hide();
 		}
 
@@ -252,7 +256,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
 			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
-				if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+				if (this.state.actions.validActions.length === 1) {
 					if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
 						const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
 						this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
