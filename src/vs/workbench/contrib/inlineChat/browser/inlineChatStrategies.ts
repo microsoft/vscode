@@ -363,14 +363,8 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		let actualAltVersion = model.getAlternativeVersionId();
-		while (targetAltVersion < actualAltVersion && model.canUndo()) {
+		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
 			model.undo();
-			const newActualAltVersion = model.getAlternativeVersionId();
-			if (actualAltVersion === newActualAltVersion) {
-				break;
-			}
-			actualAltVersion = newActualAltVersion;
 		}
 	}
 
@@ -961,14 +955,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		let actualAltVersion = model.getAlternativeVersionId();
-		while (targetAltVersion < actualAltVersion && model.canUndo()) {
+		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
 			model.undo();
-			const newActualAltVersion = model.getAlternativeVersionId();
-			if (actualAltVersion === newActualAltVersion) {
-				break;
-			}
-			actualAltVersion = newActualAltVersion;
 		}
 	}
 
