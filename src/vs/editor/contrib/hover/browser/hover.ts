@@ -319,7 +319,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		if (this._editor.getOption(EditorOption.hover).enabled && e.altKey) {
+		if (this._editor.getOption(EditorOption.hover).enabled && this._isLockedCode(e)) {
 			this._toggleLockedState(e.altKey);
 		}
 
@@ -350,8 +350,19 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hideWidgets();
 	}
 
+	private _isLockedCode(e: IKeyboardEvent): boolean {
+		return (
+			e.altKey
+			&& !e.altGraphKey
+			&& !e.ctrlKey
+			&& !e.metaKey
+			&& !e.shiftKey
+			&& (e.keyCode === KeyCode.Alt)
+		);
+	}
+
 	private _onKeyUp(e: IKeyboardEvent): void {
-		if (e.altKey) {
+		if (this._isLockedCode(e)) {
 			this._toggleLockedState(!e.altKey);
 		}
 	}
