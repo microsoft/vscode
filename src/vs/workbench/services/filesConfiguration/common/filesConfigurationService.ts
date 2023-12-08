@@ -264,8 +264,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		resource: URI | undefined = undefined,
 		configuredAutoSave = FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE,
 		configuredAutoSaveDelay: number | undefined = undefined,
-		configuredAutoSaveInWorkspaceOnly: boolean | undefined = undefined,
-		configuredAutoSaveDisabledWhenErrors: boolean | undefined = undefined
+		configuredAutoSaveWorkspaceFilesOnly: boolean | undefined = undefined,
+		configuredAutoSaveWhenNoErrors: boolean | undefined = undefined
 	): IAutoSaveConfiguration {
 		let autoSaveDelay: number | undefined;
 		let autoSaveFocusChange: boolean;
@@ -299,8 +299,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 		if (typeof autoSaveDelay === 'number' || autoSaveFocusChange || autoSaveApplicationChange) {
 			if (
-				(configuredAutoSaveInWorkspaceOnly && resource && !this.contextService.isInsideWorkspace(resource)) ||
-				(configuredAutoSaveDisabledWhenErrors && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0)
+				(configuredAutoSaveWorkspaceFilesOnly && resource && !this.contextService.isInsideWorkspace(resource)) ||
+				(configuredAutoSaveWhenNoErrors && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0)
 			) {
 				autoSaveDelay = undefined;
 				autoSaveFocusChange = false;
@@ -340,8 +340,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				resource,
 				this.textResourceConfigurationService.getValue<string | undefined>(resource, 'files.autoSave'),
 				this.textResourceConfigurationService.getValue<number | undefined>(resource, 'files.autoSaveDelay'),
-				this.textResourceConfigurationService.getValue<boolean | undefined>(resource, 'files.autoSaveInWorkspaceOnly'),
-				this.textResourceConfigurationService.getValue<boolean | undefined>(resource, 'files.autoSaveDisabledWhenErrors')
+				this.textResourceConfigurationService.getValue<boolean | undefined>(resource, 'files.autoSaveWorkspaceFilesOnly'),
+				this.textResourceConfigurationService.getValue<boolean | undefined>(resource, 'files.autoSaveWhenNoErrors')
 			);
 		}
 

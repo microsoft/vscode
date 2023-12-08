@@ -1464,8 +1464,8 @@ export interface IFilesConfiguration {
 		trimTrailingWhitespace: boolean;
 		autoSave: string;
 		autoSaveDelay: number;
-		autoSaveInWorkspaceOnly: boolean;
-		autoSaveDisabledWhenErrors: boolean;
+		autoSaveWorkspaceFilesOnly: boolean;
+		autoSaveWhenNoErrors: boolean;
 		eol: string;
 		enableTrash: boolean;
 		hotExit: string;
