@@ -94,7 +94,7 @@ export interface IColorRegistry {
 	registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency?: boolean): ColorIdentifier;
 
 	/**
-	 * Register a color to the registry.
+	 * Deregister a color from the registry.
 	 */
 	deregisterColor(id: string): void;
 
@@ -111,7 +111,7 @@ export interface IColorRegistry {
 	/**
 	 * JSON schema for an object to assign color values to one of the color contributions.
 	 */
-	getColorSchema(): IJSONSchema;
+	getColorSchemaForSetting(): IJSONSchema;
 
 	/**
 	 * JSON schema to for a reference to a color contribution.
@@ -126,7 +126,8 @@ class ColorRegistry implements IColorRegistry {
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private colorSchemaForSetting: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private colorSchemaForTheme: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
@@ -136,15 +137,40 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		const propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		const propertySchemaForSetting: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		this.colorSchemaForSetting.properties[id] = propertySchemaForSetting;
+		const propertySchemaForTheme: IJSONSchema = {
+			type: 'string',
+			description,
+			anyOf: [
+				{
+					pattern: '^\\$\\w+',
+					errorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)")
+					// 	NOTE: the error message include both message for var and hex
+					// 	because when using anyOf, whenever there is error, only the first message will be used });
+				},
+				{ format: 'color-hex' },
+			],
+			defaultSnippets: [{ body: '${1:#ff0000}' }, { body: '\$${1:accentName}' }]
+		};
+		this.colorSchemaForTheme.properties[id] = propertySchemaForTheme;
+
 		if (deprecationMessage) {
-			propertySchema.deprecationMessage = deprecationMessage;
+			propertySchemaForSetting.deprecationMessage = deprecationMessage;
+			propertySchemaForTheme.deprecationMessage = deprecationMessage;
 		}
 		if (needsTransparency) {
-			propertySchema.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
-			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure content';
+			propertySchemaForSetting.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
+			propertySchemaForSetting.patternErrorMessage = 'This color must be transparent or it will obscure content';
+			if (propertySchemaForTheme.anyOf) {
+				propertySchemaForTheme.anyOf[1] = {
+					...propertySchemaForTheme.anyOf[1],
+					pattern: '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$',
+					patternErrorMessage: 'This color must be transparent or it will obscure content'
+				};
+			}
 		}
-		this.colorSchema.properties[id] = propertySchema;
+
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
 
@@ -155,7 +181,8 @@ class ColorRegistry implements IColorRegistry {
 
 	public deregisterColor(id: string): void {
 		delete this.colorsById[id];
-		delete this.colorSchema.properties[id];
+		delete this.colorSchemaForSetting.properties[id];
+		delete this.colorSchemaForTheme.properties[id];
 		const index = this.colorReferenceSchema.enum.indexOf(id);
 		if (index !== -1) {
 			this.colorReferenceSchema.enum.splice(index, 1);
@@ -177,8 +204,12 @@ class ColorRegistry implements IColorRegistry {
 		return undefined;
 	}
 
-	public getColorSchema(): IJSONSchema {
-		return this.colorSchema;
+	public getColorSchemaForSetting(): IJSONSchema {
+		return this.colorSchemaForSetting;
+	}
+
+	public getColorSchemaForTheme(): IJSONSchema {
+		return this.colorSchemaForTheme;
 	}
 
 	public getColorReferenceSchema(): IJSONSchema {
@@ -684,12 +715,17 @@ export function resolveColorValue(colorValue: ColorValue | null, theme: IColorTh
 	return undefined;
 }
 
-export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
+export const workbenchColorsSchemaForSettingId = 'vscode://schemas/workbench-colors-settings';
+export const workbenchColorsSchemaForThemeId = 'vscode://schemas/workbench-colors-theme';
 
 const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
+schemaRegistry.registerSchema(workbenchColorsSchemaForSettingId, colorRegistry.getColorSchemaForSetting());
+schemaRegistry.registerSchema(workbenchColorsSchemaForThemeId, colorRegistry.getColorSchemaForTheme());
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
+const delayer = new RunOnceScheduler(() => {
+	schemaRegistry.notifySchemaChanged(workbenchColorsSchemaForSettingId);
+	schemaRegistry.notifySchemaChanged(workbenchColorsSchemaForThemeId);
+}, 200);
 colorRegistry.onDidChangeSchema(() => {
 	if (!delayer.isScheduled()) {
 		delayer.schedule();

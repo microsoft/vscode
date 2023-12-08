@@ -24,8 +24,6 @@ import { CharCode } from 'vs/base/common/charCode';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { themePaletteEnumSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 
 const colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -712,8 +710,6 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 		}
 		result.semanticHighlighting = result.semanticHighlighting || contentValue.semanticHighlighting;
 		const colorPalette = contentValue.colorPalette;
-		const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-		schemaRegistry.registerSchema(themePaletteEnumSchemaId, { enum: Object.keys(colorPalette || {}) });
 		const colors = contentValue.colors;
 		if (colors) {
 			if (typeof colors !== 'object') {

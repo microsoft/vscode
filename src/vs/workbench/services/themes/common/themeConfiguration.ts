@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
-import { workbenchColorsSchemaId } from 'vs/platform/theme/common/colorRegistry';
+import { workbenchColorsSchemaForSettingId } from 'vs/platform/theme/common/colorRegistry';
 import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -81,7 +81,7 @@ const detectColorSchemeSettingSchema: IConfigurationPropertySchema = {
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
-	allOf: [{ $ref: workbenchColorsSchemaId }],
+	allOf: [{ $ref: workbenchColorsSchemaForSettingId }],
 	default: {},
 	defaultSnippets: [{
 		body: {
@@ -227,7 +227,7 @@ export function updateColorThemeConfigurationSchemas(themes: IWorkbenchColorThem
 	const themeSpecificTokenColors: IJSONSchema = { properties: {} };
 	const themeSpecificSemanticTokenColors: IJSONSchema = { properties: {} };
 
-	const workbenchColors = { $ref: workbenchColorsSchemaId, additionalProperties: false };
+	const workbenchColors = { $ref: workbenchColorsSchemaForSettingId, additionalProperties: false };
 	const tokenColors = { properties: tokenColorSchema.properties, additionalProperties: false };
 	for (const t of themes) {
 		// add theme specific color customization ("[Abyss]":{ ... })
