@@ -485,7 +485,8 @@ export class CompareInput1WithBaseCommand extends MergeEditorAction {
 			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInput1Toolbar }
+			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
+			icon: Codicon.compareChanges,
 		});
 	}
 
@@ -510,7 +511,8 @@ export class CompareInput2WithBaseCommand extends MergeEditorAction {
 			shortTitle: localize('mergeEditor.compareWithBase', 'Compare With Base'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInput2Toolbar }
+			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
+			icon: Codicon.compareChanges,
 		});
 	}
 
@@ -577,9 +579,8 @@ export class AcceptAllInput1 extends MergeEditorAction {
 			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: [
-				{ id: MenuId.MergeInput1Toolbar, }
-			]
+			menu: { id: MenuId.MergeInput1Toolbar, group: 'primary' },
+			icon: Codicon.checkAll,
 		});
 	}
 
@@ -602,9 +603,8 @@ export class AcceptAllInput2 extends MergeEditorAction {
 			},
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: [
-				{ id: MenuId.MergeInput2Toolbar, }
-			]
+			menu: { id: MenuId.MergeInput2Toolbar, group: 'primary' },
+			icon: Codicon.checkAll,
 		});
 	}
 
@@ -628,7 +628,8 @@ export class ResetToBaseAndAutoMergeCommand extends MergeEditorAction {
 			shortTitle: localize('mergeEditor.resetResultToBaseAndAutoMerge.short', 'Reset'),
 			f1: true,
 			precondition: ctxIsMergeEditor,
-			menu: { id: MenuId.MergeInputResultToolbar }
+			menu: { id: MenuId.MergeInputResultToolbar, group: 'primary' },
+			icon: Codicon.discard,
 		});
 	}
 
