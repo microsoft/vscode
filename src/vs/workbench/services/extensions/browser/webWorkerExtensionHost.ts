@@ -110,7 +110,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				const res = new URL(`${baseUrl}/out/${iframeModulePath}${suffix}`);
 				res.searchParams.set('parentOrigin', mainWindow.origin);
 				res.searchParams.set('salt', stableOriginUUID);
-				if (locale !== platform.LANGUAGE_DEFAULT) {
+				if (!platform.Language.isDefaultVariant()) {
 					res.searchParams.set('locale', locale);
 				}
 				return res.toString();
@@ -119,7 +119,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		if (locale !== platform.LANGUAGE_DEFAULT) {
+		if (!platform.Language.isDefaultVariant()) {
 			suffixSearchParams.set('locale', locale);
 			suffix = `?${suffixSearchParams.toString()}`;
 		}
