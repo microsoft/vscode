@@ -229,7 +229,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return workingCopy.backupDelay; // respect working copy override
 		}
 
-		let autoSaveMode = this.filesConfigurationService.getAutoSaveMode();
+		let autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource);
 		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
 			autoSaveMode = AutoSaveMode.OFF; // auto-save is never on for untitled working copies
 		}
