@@ -66,18 +66,26 @@ class CodeActionOracle extends Disposable {
 		if (!this._editor.hasModel()) {
 			return undefined;
 		}
-
-		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
+		if (trigger.type === CodeActionTriggerType.Invoke) {
+			return selection;
+		}
+		const enabled = this._editor.getOption(EditorOption.lightbulb).enabled;
+		if (enabled === ShowLightbulbIconMode.Off) {
+			return undefined;
+		} else if (enabled === ShowLightbulbIconMode.On) {
+			return selection;
+		} else if (enabled === ShowLightbulbIconMode.OnCode) {
+			const isSelectionEmpty = selection.isEmpty();
+			if (!isSelectionEmpty) {
+				return selection;
+			}
+			const model = this._editor.getModel();
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
 				// empty line
-				const showOnEmptyLines = this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.On;
-				if (!showOnEmptyLines) {
-					return undefined;
-				}
+				return undefined;
 			} else if (column === 1) {
 				// look only right
 				if (/\s/.test(line[0])) {
