@@ -651,7 +651,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
 			title: editor.getTitle(Verbosity.LONG),
-			codIcon: editor.getIcon()
+			icon: editor.getIcon()
 		});
 		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
 		if (!templateData.actionBar.hasAction(editorAction)) {
