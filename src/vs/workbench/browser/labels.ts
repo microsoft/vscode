@@ -23,6 +23,7 @@ import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/com
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IRange } from 'vs/editor/common/core/range';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -59,6 +60,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * Uses the provided icon instead of deriving a resource icon.
+	 */
+	readonly codIcon?: ThemeIcon;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -573,7 +579,11 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind);
+				if (this.options.codIcon) {
+					this.computedIconClasses = ['codicon-' + this.options.codIcon.id, 'product-icon'];
+				} else {
+					this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind);
+				}
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);

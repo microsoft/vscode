@@ -1462,7 +1462,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				fileDecorations: {
 					colors: fileDecorationColors,
 					badges: fileDecorationBadges
-				}
+				},
+				codIcon: editor.getIcon(),
 			}
 		);
 

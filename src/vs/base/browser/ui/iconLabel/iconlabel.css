@@ -31,6 +31,11 @@
 	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
+.monaco-icon-label.product-icon::before{
+	font-family: 'codicon';
+	font-size: 16px;
+}
+
 .monaco-icon-label-container.disabled {
 	color: var(--vscode-disabledForeground);
 }
