@@ -225,10 +225,10 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 }
 
 function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext) {
-	let textEdits: ISingleEditOperation[];
 	let newRange: Range;
+	const textEdits: ISingleEditOperation[] = [];
 	if (model.presentation.textEdit) {
-		textEdits = [model.presentation.textEdit];
+		textEdits.push(model.presentation.textEdit);
 		newRange = new Range(
 			model.presentation.textEdit.range.startLineNumber,
 			model.presentation.textEdit.range.startColumn,
@@ -236,23 +236,16 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 			model.presentation.textEdit.range.endColumn
 		);
 		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-		editor.pushUndoStop();
-		editor.executeEdits('colorpicker', textEdits);
 		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 	} else {
-		textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
+		textEdits.push({ range, text: model.presentation.label, forceMoveMarkers: false });
 		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-		editor.pushUndoStop();
-		editor.executeEdits('colorpicker', textEdits);
 	}
 
 	if (model.presentation.additionalTextEdits) {
-		textEdits = [...model.presentation.additionalTextEdits];
-		editor.executeEdits('colorpicker', textEdits);
-		if (context) {
-			context.hide();
-		}
+		textEdits.push(...model.presentation.additionalTextEdits);
 	}
+	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
 	return newRange;
 }
