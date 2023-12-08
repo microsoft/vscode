@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 interface ProviderWithMetadata {
 	label: string;
@@ -46,7 +47,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes}`, async () => {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
-			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+			const session = await this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+			return session ? { ...session, account: { ...session.account, avatar: URI.revive(session.account.avatar) } } : undefined;
 		});
 	}
 
@@ -56,7 +58,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return await this._getSessionsTaskSingler.getOrCreate(`${extensionId} ${sortedScopes}`, async () => {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
-			return this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
+			const sessions = await this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
+			return sessions.map(session => ({ ...session, account: { ...session.account, avatar: URI.revive(session.account.avatar) } }));
 		});
 	}
 

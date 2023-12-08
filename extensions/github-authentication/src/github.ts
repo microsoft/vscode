@@ -18,6 +18,7 @@ interface SessionData {
 	account?: {
 		label?: string;
 		displayName?: string;
+		avatar?: string;
 		id: string;
 	};
 	scopes: string[];
@@ -342,7 +343,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { label: userInfo.accountName, id: userInfo.id, avatar: vscode.Uri.parse(userInfo.avatar) },
 			scopes
 		};
 	}

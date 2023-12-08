@@ -26,6 +26,7 @@ import { TestRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestQuickInputService, TestRemoteAgentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestActivityService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { AuthenticationProvider, AuthenticationSession } from 'vscode';
+import { URI } from 'vs/base/common/uri';
 
 class AuthQuickPick {
 	private listener: ((e: IQuickPickDidAcceptEvent) => any) | undefined;
@@ -79,6 +80,7 @@ class TestAuthProvider implements AuthenticationProvider {
 			account: {
 				label: this.authProviderName,
 				id: `${this.id}`,
+				avatar: URI.parse('https://example.com'),
 			},
 			accessToken: Math.random() + '',
 		};

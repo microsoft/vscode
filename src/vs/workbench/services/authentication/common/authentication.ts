@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { Event } from 'vs/base/common/event';
+import { UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
+	avatar?: UriComponents;
 }
 
 export interface AuthenticationSession {
