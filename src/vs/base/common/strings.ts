@@ -48,6 +48,19 @@ export function format2(template: string, values: Record<string, unknown>): stri
 	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
 }
 
+export function htmlAttributeEncodeValue(value: string): string {
+	return value.replace(/[<>"'&]/g, ch => {
+		switch (ch) {
+			case '<': return '&lt;';
+			case '>': return '&gt;';
+			case '"': return '&quot;';
+			case '\'': return '&apos;';
+			case '&': return '&amp;';
+		}
+		return ch;
+	});
+}
+
 /**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
