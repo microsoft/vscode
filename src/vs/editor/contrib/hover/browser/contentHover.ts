@@ -29,12 +29,12 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 
 const $ = dom.$;
 
-export class ContentHoverWidget extends Disposable {
+export class ContentHoverController extends Disposable {
 
 	private _currentResult: HoverResult | null = null;
 
 	private readonly _computer: ContentHoverComputer;
-	private readonly _widget: ResizableContentHoverWidget;
+	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
@@ -45,7 +45,7 @@ export class ContentHoverWidget extends Disposable {
 	) {
 		super();
 
-		this._widget = this._register(this._instantiationService.createInstance(ResizableContentHoverWidget, this._editor));
+		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
 
 		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
 		this._participants = [];
@@ -202,7 +202,7 @@ export class ContentHoverWidget extends Disposable {
 	}
 
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverWidget.computeHoverRanges(this._editor, anchor.range, messages);
+		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
 		const disposables = new DisposableStore();
 		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
@@ -236,7 +236,7 @@ export class ContentHoverWidget extends Disposable {
 				const highlightDecoration = this._editor.createDecorationsCollection();
 				highlightDecoration.set([{
 					range: highlightRange,
-					options: ContentHoverWidget._DECORATION_OPTIONS
+					options: ContentHoverController._DECORATION_OPTIONS
 				}]);
 				disposables.add(toDisposable(() => {
 					highlightDecoration.clear();
@@ -487,7 +487,7 @@ const HORIZONTAL_SCROLLING_BY = 30;
 const SCROLLBAR_WIDTH = 10;
 const CONTAINER_HEIGHT_PADDING = 6;
 
-export class ResizableContentHoverWidget extends ResizableContentWidget {
+export class ContentHoverWidget extends ResizableContentWidget {
 
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 	private static _lastDimensions: dom.Dimension = new dom.Dimension(0, 0);
@@ -564,7 +564,7 @@ export class ResizableContentHoverWidget extends ResizableContentWidget {
 	}
 
 	public getId(): string {
-		return ResizableContentHoverWidget.ID;
+		return ContentHoverWidget.ID;
 	}
 
 	private static _applyDimensions(container: HTMLElement, width: number | string, height: number | string): void {
@@ -576,12 +576,12 @@ export class ResizableContentHoverWidget extends ResizableContentWidget {
 
 	private _setContentsDomNodeDimensions(width: number | string, height: number | string): void {
 		const contentsDomNode = this._hover.contentsDomNode;
-		return ResizableContentHoverWidget._applyDimensions(contentsDomNode, width, height);
+		return ContentHoverWidget._applyDimensions(contentsDomNode, width, height);
 	}
 
 	private _setContainerDomNodeDimensions(width: number | string, height: number | string): void {
 		const containerDomNode = this._hover.containerDomNode;
-		return ResizableContentHoverWidget._applyDimensions(containerDomNode, width, height);
+		return ContentHoverWidget._applyDimensions(containerDomNode, width, height);
 	}
 
 	private _setHoverWidgetDimensions(width: number | string, height: number | string): void {
@@ -598,8 +598,8 @@ export class ResizableContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
-		ResizableContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
-		ResizableContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
+		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
+		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
 		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
 		this._layoutContentWidget();
 	}
@@ -638,7 +638,7 @@ export class ResizableContentHoverWidget extends ResizableContentWidget {
 	}
 
 	protected override _resize(size: dom.Dimension): void {
-		ResizableContentHoverWidget._lastDimensions = new dom.Dimension(size.width, size.height);
+		ContentHoverWidget._lastDimensions = new dom.Dimension(size.width, size.height);
 		this._setAdjustedHoverWidgetDimensions(size);
 		this._resizableNode.layout(size.height, size.width);
 		this._updateResizableNodeMaxDimensions();
@@ -782,8 +782,8 @@ export class ResizableContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _updateMaxDimensions() {
-		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ResizableContentHoverWidget._lastDimensions.height);
-		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ResizableContentHoverWidget._lastDimensions.width);
+		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250, ContentHoverWidget._lastDimensions.height);
+		const width = Math.max(this._editor.getLayoutInfo().width * 0.66, 500, ContentHoverWidget._lastDimensions.width);
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
