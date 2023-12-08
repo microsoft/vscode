@@ -67,10 +67,6 @@
 	background-color: var(--vscode-editorStickyScroll-background);
 }
 
-.monaco-editor .sticky-widget.panel {
-	background-color: var(--vscode-panelStickyScroll-background);
-}
-
 .monaco-editor .sticky-widget.peek {
 	background-color: var(--vscode-peekViewEditorStickyScroll-background);
 }

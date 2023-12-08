@@ -111,6 +111,10 @@
 	margin-inline-end: 0px;
 }
 
+.monaco-workbench .pane-body .sticky-widget {
+	background-color: var(--vscode-panelStickyScroll-background);
+}
+
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
 	display: none;
 }
