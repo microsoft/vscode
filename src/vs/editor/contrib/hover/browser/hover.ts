@@ -46,7 +46,6 @@ interface IHoverSettings {
 
 interface IHoverState {
 	mouseDown: boolean;
-	locked: boolean;
 	// TODO @aiday-mar maybe not needed, investigate this
 	contentHoverFocused: boolean;
 	activatedByDecoratorClick: boolean;
@@ -67,7 +66,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _hoverSettings!: IHoverSettings;
 	private _hoverState: IHoverState = {
 		mouseDown: false,
-		locked: false,
 		contentHoverFocused: false,
 		activatedByDecoratorClick: false
 	};
@@ -112,7 +110,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		} else {
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
@@ -232,10 +229,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 
 		this._mouseMoveEvent = mouseEvent;
-		if (this._hoverState.locked) {
-			// When the alt key is pressed, hover remains visible
-			return;
-		}
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
