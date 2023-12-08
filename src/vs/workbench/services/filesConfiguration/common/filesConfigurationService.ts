@@ -297,13 +297,15 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				break;
 		}
 
-		if (
-			(configuredAutoSaveInWorkspaceOnly && resource && !this.contextService.isInsideWorkspace(resource)) ||
-			(configuredAutoSaveDisabledWhenErrors && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0)
-		) {
-			autoSaveDelay = undefined;
-			autoSaveFocusChange = false;
-			autoSaveApplicationChange = false;
+		if (typeof autoSaveDelay === 'number' || autoSaveFocusChange || autoSaveApplicationChange) {
+			if (
+				(configuredAutoSaveInWorkspaceOnly && resource && !this.contextService.isInsideWorkspace(resource)) ||
+				(configuredAutoSaveDisabledWhenErrors && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0)
+			) {
+				autoSaveDelay = undefined;
+				autoSaveFocusChange = false;
+				autoSaveApplicationChange = false;
+			}
 		}
 
 		return {
