@@ -90,6 +90,8 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 		const confirmSaveUntitledWorkspace = this.configurationService.getValue<boolean>('window.confirmSaveUntitledWorkspace') !== false;
 		if (!confirmSaveUntitledWorkspace) {
+			await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
 			return false; // no confirmation configured
 		}
 
@@ -144,7 +146,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				}
 			},
 			checkbox: {
-				label: localize('doNotAskAgain', "Do not ask me again")
+				label: localize('doNotAskAgain', "Always discard untitled workspaces without asking")
 			}
 		});
 

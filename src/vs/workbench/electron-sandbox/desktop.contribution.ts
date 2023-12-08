@@ -154,7 +154,7 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 			'window.confirmSaveUntitledWorkspace': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('confirmSaveUntitledWorkspace', "Controls whether a confirmation dialog shows asking to save or discard an opened untitled workspace in the window when switching to another workspace."),
+				'description': localize('confirmSaveUntitledWorkspace', "Controls whether a confirmation dialog shows asking to save or discard an opened untitled workspace in the window when switching to another workspace. Disabling the confirmation dialog will always discard the untitled workspace."),
 			},
 			'window.openWithoutArgumentsInNewWindow': {
 				'type': 'string',

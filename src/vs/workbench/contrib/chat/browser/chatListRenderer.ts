@@ -816,18 +816,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
-		// inject keybinding hints for command links
-		const value = markdown.value.replace(/\[([^\]]+)\]\(command:([^\)]+)\)/g, (match, label, command) => {
-			const keybinding = this.keybindingService.lookupKeybinding(command);
-			const keybindingLabel = keybinding?.getLabel();
-			if (keybindingLabel) {
-				// ideally we would use the keybindingLabel renderer but dompurify sanitizes the styling
-				return `${match} (\`${keybindingLabel}\`)`;
-			}
-			return match;
-		});
-
-		markdown = new MarkdownString(value, {
+		markdown = new MarkdownString(markdown.value, {
 			isTrusted: {
 				// Disable all other config options except isTrusted
 				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []
@@ -876,7 +865,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
-		walkTreeAndAnnotateReferenceLinks(result.element);
+		walkTreeAndAnnotateReferenceLinks(result.element, this.keybindingService);
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {

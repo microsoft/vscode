@@ -246,7 +246,12 @@ export class SuggestController implements IEditorContribution {
 			if (index === -1) {
 				index = 0;
 			}
-
+			if (this.model.state === State.Idle) {
+				// selecting an item can "pump" out selection/cursor change events
+				// which can cancel suggest halfway through this function. therefore
+				// we need to check again and bail if the session has been canceled
+				return;
+			}
 			let noFocus = false;
 			if (e.triggerOptions.auto) {
 				// don't "focus" item when configured to do
