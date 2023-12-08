@@ -401,6 +401,14 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	hcLight: PANEL_BORDER
 }, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
 
+registerColor('panelStickyScroll.background', {
+	dark: PANEL_BACKGROUND,
+	light: PANEL_BACKGROUND,
+	hcDark: PANEL_BACKGROUND,
+	hcLight: PANEL_BACKGROUND
+}, localize('panelStickyScrollBackground', "Panel sticky scroll background color. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+
 // < --- Banner --- >
 
 export const BANNER_BACKGROUND = registerColor('banner.background', {

@@ -73,12 +73,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._linesDomNodeScrollable.className = 'sticky-widget-lines-scrollable';
 		this._linesDomNodeScrollable.appendChild(this._linesDomNode);
 
-		const isOutput = this._editor.getModel()?.uri.scheme === 'output';
-
-
 		this._rootDomNode.className = 'sticky-widget';
-
 		this._rootDomNode.classList.toggle('peek', _editor instanceof EmbeddedCodeEditorWidget);
+		this._rootDomNode.classList.toggle('panel', _editor.getModel()?.uri.scheme === 'output');
 		this._rootDomNode.appendChild(this._lineNumbersDomNode);
 		this._rootDomNode.appendChild(this._linesDomNodeScrollable);
 
