@@ -94,24 +94,24 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private maybeTriggerAutoSave(reason: SaveReason, editorIdentifier?: IEditorIdentifier): void {
-		if (editorIdentifier?.editor.isReadonly() || editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Untitled)) {
-			return; // no auto save for readonly or untitled editors
-		}
-
-		// Determine if we need to save all. In case of a window focus change we also save if
-		// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
-		const mode = this.filesConfigurationService.getAutoSaveMode(editorIdentifier?.editor);
-		if (
-			(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
-			(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
-		) {
-			this.logService.trace(`[editor auto save] triggering auto save with reason ${reason}`);
-
-			if (editorIdentifier) {
-				this.editorService.save(editorIdentifier, { reason });
-			} else {
-				this.saveAllDirty({ reason });
+		if (editorIdentifier) {
+			if (editorIdentifier.editor.isReadonly() || editorIdentifier.editor.hasCapability(EditorInputCapabilities.Untitled)) {
+				return; // no auto save for readonly or untitled editors
 			}
+
+			// Determine if we need to save all. In case of a window focus change we also save if
+			// auto save mode is configured to be ON_FOCUS_CHANGE (editor focus change)
+			const mode = this.filesConfigurationService.getAutoSaveMode(editorIdentifier.editor);
+			if (
+				(reason === SaveReason.WINDOW_CHANGE && (mode === AutoSaveMode.ON_FOCUS_CHANGE || mode === AutoSaveMode.ON_WINDOW_CHANGE)) ||
+				(reason === SaveReason.FOCUS_CHANGE && mode === AutoSaveMode.ON_FOCUS_CHANGE)
+			) {
+				this.logService.trace(`[editor auto save] triggering auto save with reason ${reason}`);
+
+				this.editorService.save(editorIdentifier, { reason });
+			}
+		} else {
+			this.saveAllDirtyAutoSaveables({ reason });
 		}
 	}
 
@@ -134,12 +134,12 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			}
 
 			if (reason) {
-				this.saveAllDirty({ reason });
+				this.saveAllDirtyAutoSaveables({ reason });
 			}
 		}
 	}
 
-	private saveAllDirty(options?: ISaveOptions): void {
+	private saveAllDirtyAutoSaveables(options?: ISaveOptions): void {
 		for (const workingCopy of this.workingCopyService.dirtyWorkingCopies) {
 			if (!(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode(workingCopy.resource) !== AutoSaveMode.OFF) {
 				workingCopy.save(options);
