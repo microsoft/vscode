@@ -67,24 +67,25 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 	// - Row     = 339
 	// - Col     = 12
 	// - RowEnd  = 341
-	// - ColEnd  = 14
+	// - ColEnd  = 789
 	//
 	// These all support single quote ' in the place of " and [] in the place of ()
 	const lineAndColumnRegexClauses = [
 		// foo:339
 		// foo:339:12
+		// foo:339:12-789
 		// foo:339.12
 		// foo 339
-		// foo 339:12                             [#140780]
+		// foo 339:12                              [#140780]
 		// foo 339.12
 		// "foo",339
 		// "foo",339:12
 		// "foo",339.12
-		// "foo",339.12-14
-		// "foo",339.12-341.14
-		`(?::| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\.)?${ce()})?)?` + eolSuffix,
-		// The quotes below are optional          [#171652]
-		// "foo", line 339                        [#40468]
+		// "foo",339.12-789
+		// "foo",339.12-341.789
+		`(?::| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		// The quotes below are optional           [#171652]
+		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12
 		// "foo", line 339, column 12
 		// "foo":line 339
@@ -97,10 +98,10 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo" on line 339, col 12
 		// "foo" on line 339, column 12
 		// "foo" line 339 column 12
-		// "foo", line 339, character 12          [#171880]
-		// "foo", line 339, characters 12-14      [#171880]
-		// "foo", lines 339-341                   [#171880]
-		// "foo", lines 339-341, characters 12-14 [#178287]
+		// "foo", line 339, character 12           [#171880]
+		// "foo", line 339, characters 12-789      [#171880]
+		// "foo", lines 339-341                    [#171880]
+		// "foo", lines 339-341, characters 12-789 [#178287]
 		`['"]?(?:,? |: ?| on )lines? ${r()}(?:-${re()})?(?:,? (?:col(?:umn)?|characters?) ${c()}(?:-${ce()})?)?` + eolSuffix,
 		// foo(339)
 		// foo(339,12)
