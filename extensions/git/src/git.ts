@@ -50,6 +50,8 @@ interface MutableRemote extends Remote {
  * Log file options.
  */
 export interface LogFileOptions {
+	/** Optional. Continue listing the history of a file beyond renames */
+	readonly follow?: boolean;
 	/** Optional. The maximum number of log entries to retrieve. */
 	readonly maxEntries?: number | string;
 	/** Optional. The Git sha (hash) to start retrieving log entries from. */
@@ -1089,6 +1091,10 @@ export class Repository {
 
 		if (options?.sortByAuthorDate) {
 			args.push('--author-date-order');
+		}
+
+		if (options?.follow) {
+			args.push('--follow');
 		}
 
 		args.push('--', uri.fsPath);
