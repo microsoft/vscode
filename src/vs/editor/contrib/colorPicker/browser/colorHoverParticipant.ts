@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject, RunOnceScheduler } from 'vs/base/common/async';
+import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -188,18 +188,6 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	}
 
 	const disposables = new DisposableStore();
-	const onDidChangeModelContentScheduler = new RunOnceScheduler(
-		() => {
-			if (editorUpdatedByColorPicker) {
-				editorUpdatedByColorPicker = false;
-			} else {
-				context.hide();
-				editor.focus();
-			}
-		}, 100
-	);
-	disposables.add(onDidChangeModelContentScheduler);
-
 	const colorHover = hoverParts[0];
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
@@ -226,16 +214,21 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 		_updateColorPresentations(editorModel, model, color, range, colorHover);
 	}));
 	disposables.add(editor.onDidChangeModelContent((e) => {
-		onDidChangeModelContentScheduler.schedule();
+		if (editorUpdatedByColorPicker) {
+			editorUpdatedByColorPicker = false;
+		} else {
+			context.hide();
+			editor.focus();
+		}
 	}));
 	return disposables;
 }
 
 function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext) {
-	let textEdits: ISingleEditOperation[];
 	let newRange: Range;
+	const textEdits: ISingleEditOperation[] = [];
 	if (model.presentation.textEdit) {
-		textEdits = [model.presentation.textEdit];
+		textEdits.push(model.presentation.textEdit);
 		newRange = new Range(
 			model.presentation.textEdit.range.startLineNumber,
 			model.presentation.textEdit.range.startColumn,
@@ -243,20 +236,16 @@ function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPicke
 			model.presentation.textEdit.range.endColumn
 		);
 		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-		editor.pushUndoStop();
-		editor.executeEdits('colorpicker', textEdits);
 		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
 	} else {
-		textEdits = [{ range, text: model.presentation.label, forceMoveMarkers: false }];
+		textEdits.push({ range, text: model.presentation.label, forceMoveMarkers: false });
 		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-		editor.pushUndoStop();
-		editor.executeEdits('colorpicker', textEdits);
 	}
 
 	if (model.presentation.additionalTextEdits) {
-		textEdits = [...model.presentation.additionalTextEdits];
-		editor.executeEdits('colorpicker', textEdits);
+		textEdits.push(...model.presentation.additionalTextEdits);
 	}
+	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
 	return newRange;
 }
