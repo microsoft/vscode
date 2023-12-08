@@ -198,6 +198,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		};
 
 		let effectiveLineNumber = lineNumber;
+		let effectiveColumnNumber = 1;
 		if (!lineHasSpace) {
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				effectiveLineNumber -= 1;
@@ -208,10 +209,11 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				// it inline would overlay the cursor...
 				return this.hide();
 			}
+			effectiveColumnNumber = !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1;
 		}
 
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
-			position: { lineNumber: effectiveLineNumber, column: !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1 },
+			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 			preference: LightBulbWidget._posPref
 		});
 		this._editor.layoutContentWidget(this);
