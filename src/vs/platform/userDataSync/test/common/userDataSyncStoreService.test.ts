@@ -417,6 +417,9 @@ suite('UserDataSyncRequestsSession', () => {
 		async loadCertificates() { return []; }
 	};
 
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);

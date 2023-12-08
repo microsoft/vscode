@@ -1495,7 +1495,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			const disposables = new DisposableStore();
 			disposables.add(createdWindow.onDidSignalReady(() => this._onDidSignalReadyWindow.fire(createdWindow)));
 			disposables.add(Event.once(createdWindow.onDidClose)(() => this.onWindowClosed(createdWindow, disposables)));
-			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this._onDidDestroyWindow.fire(createdWindow)));
+			disposables.add(Event.once(createdWindow.onDidDestroy)(() => this.onWindowDestroyed(createdWindow)));
 			disposables.add(createdWindow.onDidMaximize(() => this._onDidMaximizeWindow.fire(createdWindow)));
 			disposables.add(createdWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(createdWindow)));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
@@ -1625,6 +1625,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Clean up
 		disposables.dispose();
+	}
+
+	private onWindowDestroyed(window: ICodeWindow): void {
+
+		// Remove from our list so that Electron can clean it up
+		this.windows.delete(window.id);
+
+		// Emit
+		this._onDidDestroyWindow.fire(window);
 	}
 
 	getFocusedWindow(): ICodeWindow | undefined {

@@ -47,6 +47,7 @@ class ViewContainerActivityByView extends Disposable {
 
 	override dispose() {
 		this.activityDisposable.dispose();
+		super.dispose();
 	}
 }
 

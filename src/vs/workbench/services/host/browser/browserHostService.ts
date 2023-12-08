@@ -176,7 +176,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	//#region Window
 
 	@memoize
-	get onDidChangeActiveWindow(): Event<void> {
+	get onDidChangeActiveWindow(): Event<number> {
 		const emitter = this._register(new Emitter<number>());
 
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
@@ -201,7 +201,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			}
 		}, { window: mainWindow, disposables: this._store }));
 
-		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
+		return Event.latch(emitter.event, undefined, this._store);
 	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

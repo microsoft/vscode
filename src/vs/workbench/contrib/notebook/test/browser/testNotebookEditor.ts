@@ -222,6 +222,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	let visibleRanges: ICellRange[] = [{ start: 0, end: 100 }];
 
 	const notebookEditor: IActiveNotebookEditorDelegate = new class extends mock<IActiveNotebookEditorDelegate>() {
+		// eslint-disable-next-line local/code-must-use-super-dispose
 		override dispose() {
 			viewModel.dispose();
 		}

@@ -22,3 +22,4 @@ import 'vs/workbench/contrib/terminalContrib/links/browser/terminal.links.contri
 import 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminal.stickyScroll.contribution';
 import 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminal.quickFix.contribution';
 import 'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminal.typeAhead.contribution';
+import 'vs/workbench/contrib/terminalContrib/suggest/browser/terminal.suggest.contribution';

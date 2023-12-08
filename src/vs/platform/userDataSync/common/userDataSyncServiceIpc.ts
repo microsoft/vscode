@@ -291,6 +291,7 @@ class ManualSyncTaskChannelClient extends Disposable implements IUserDataManualS
 
 	override dispose(): void {
 		this.channel.call('dispose');
+		super.dispose();
 	}
 
 }

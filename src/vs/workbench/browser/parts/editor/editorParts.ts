@@ -6,14 +6,14 @@
 import { localize } from 'vs/nls';
 import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 import { MultiWindowParts } from 'vs/workbench/browser/part';
 
@@ -22,6 +22,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	declare readonly _serviceBrand: undefined;
 
 	readonly mainPart = this._register(this.createMainEditorPart());
+
+	private readonly mostRecentActiveParts = [this.mainPart];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService
@@ -82,20 +84,48 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private registerEditorPartListeners(part: EditorPart, disposables: DisposableStore): void {
 		disposables.add(part.onDidFocus(() => {
+			this.doUpdateMostRecentActive(part, true);
+
 			if (this._parts.size > 1) {
 				this._onDidActiveGroupChange.fire(this.activeGroup); // this can only happen when we have more than 1 editor part
 			}
 		}));
+		disposables.add(toDisposable(() => this.doUpdateMostRecentActive(part)));
 
 		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
-		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
+		disposables.add(part.onDidRemoveGroup(group => this.handleOnDidRemoveGroup(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
+	}
+
+	private handleOnDidRemoveGroup(group: IEditorGroupView): void {
+
+		// Reset locked state when only one group is remaining
+		if (this.count === 1) {
+			firstOrDefault(this.mainPart.groups)?.lock(false);
+		}
+
+		// Events
+		this._onDidRemoveGroup.fire(group);
+	}
+
+	private doUpdateMostRecentActive(part: EditorPart, makeMostRecentlyActive?: boolean): void {
+		const index = this.mostRecentActiveParts.indexOf(part);
+
+		// Remove from MRU list
+		if (index !== -1) {
+			this.mostRecentActiveParts.splice(index, 1);
+		}
+
+		// Add to front as needed
+		if (makeMostRecentlyActive) {
+			this.mostRecentActiveParts.unshift(part);
+		}
 	}
 
 	private getGroupsLabel(index: number): string {
@@ -186,10 +216,14 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		if (this._parts.size > 1) {
 			let parts: EditorPart[];
-			if (order === GroupsOrder.MOST_RECENTLY_ACTIVE) {
-				parts = distinct([this.activePart, ...this._parts]); // put active part first in this order
-			} else {
-				parts = this.parts;
+			switch (order) {
+				case GroupsOrder.GRID_APPEARANCE: // we currently do not have a way to compute by appearance over multiple windows
+				case GroupsOrder.CREATION_TIME:
+					parts = this.parts;
+					break;
+				case GroupsOrder.MOST_RECENTLY_ACTIVE:
+					parts = distinct([...this.mostRecentActiveParts, ...this.parts]); // always ensure all parts are included
+					break;
 			}
 
 			return parts.map(part => part.getGroups(order)).flat();

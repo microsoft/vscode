@@ -8,6 +8,7 @@ import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyA
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -404,4 +405,6 @@ suite('dom', () => {
 			assert.strictEqual(count, 0);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
