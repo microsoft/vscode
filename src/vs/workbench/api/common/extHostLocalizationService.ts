@@ -45,13 +45,18 @@ export class ExtHostLocalizationService implements ExtHostLocalizationShape {
 		let str = this.bundleCache.get(extensionId)?.contents[key];
 
 		// if there wasn't a match, normalize newlines and try again
-		if (!str && message.indexOf('\r\n') >= 0) {
-			key = key.replace(/\r\n/g, '\n');
-			str = this.bundleCache.get(extensionId)?.contents[key];
+		if (!str) {
+			if (message.indexOf('\r\n') >= 0) {
+				key = key.replace(/\r\n/g, '\n');
+				str = this.bundleCache.get(extensionId)?.contents[key];
+			} else {
+				key = key.replace(/\n/g, '\r\n');
+				str = this.bundleCache.get(extensionId)?.contents[key];
+			}
 		}
 
 		if (!str) {
-			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${key}`);
+			this.logService.warn(`Using default string since no string found in i18n bundle that has the key: ${JSON.stringify(key)}`);
 		}
 		return format2(str ?? message, (args ?? {}));
 	}
