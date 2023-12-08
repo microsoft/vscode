@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
@@ -156,9 +156,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	public update(actions: CodeActionSet, trigger: CodeActionTrigger, atPosition: IPosition) {
 		if (actions.validActions.length <= 0) {
-			return this.hide();
-		}
-		if (this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.Off) {
 			return this.hide();
 		}
 
