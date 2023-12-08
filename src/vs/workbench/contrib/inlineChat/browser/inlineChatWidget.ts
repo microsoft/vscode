@@ -723,6 +723,7 @@ export class InlineChatWidget {
 		this._elements.extraToolbar.classList.add('hidden');
 		this._elements.statusToolbar.classList.add('hidden');
 		this._elements.feedbackToolbar.classList.add('hidden');
+		this.updateInfo('');
 		this.hideCreatePreview();
 		this.hideEditsPreview();
 		this._onDidChangeHeight.fire();

@@ -933,11 +933,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostWorkspace.findTextInFiles(query, options || {}, callback, extension.identifier, token);
 			},
 			save: (uri) => {
-				checkProposedApiEnabled(extension, 'saveEditor');
 				return extHostWorkspace.save(uri);
 			},
 			saveAs: (uri) => {
-				checkProposedApiEnabled(extension, 'saveEditor');
 				return extHostWorkspace.saveAs(uri);
 			},
 			saveAll: (includeUntitled?) => {

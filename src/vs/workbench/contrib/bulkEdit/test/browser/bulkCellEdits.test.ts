@@ -17,11 +17,11 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('BulkCellEdits', function () {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function runTest(inputUri: URI, resolveUri: URI) {
 		const progress: IProgress<void> = { report: _ => { } };
-		const editorService = new TestEditorService();
+		const editorService = store.add(new TestEditorService());
 
 		const notebook = mockObject<NotebookTextModel>()();
 		notebook.uri.returns(URI.file('/project/notebook.ipynb'));
