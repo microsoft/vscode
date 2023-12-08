@@ -70,20 +70,26 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 	// - ColEnd  = 789
 	//
 	// These all support single quote ' in the place of " and [] in the place of ()
+	//
+	// See the tests for an exhaustive list of all supported formats
 	const lineAndColumnRegexClauses = [
 		// foo:339
 		// foo:339:12
 		// foo:339:12-789
+		// foo:339:12-341.789
 		// foo:339.12
 		// foo 339
 		// foo 339:12                              [#140780]
 		// foo 339.12
+		// foo#339
+		// foo#339:12                              [#190288]
+		// foo#339.12
 		// "foo",339
 		// "foo",339:12
 		// "foo",339.12
 		// "foo",339.12-789
 		// "foo",339.12-341.789
-		`(?::| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		`(?::|#| |['"],)${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
 		// The quotes below are optional           [#171652]
 		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12

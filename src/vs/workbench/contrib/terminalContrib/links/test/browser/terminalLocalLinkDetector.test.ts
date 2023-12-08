@@ -122,7 +122,9 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}: [{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}",{1}', line: '5' },
-	{ urlFormat: '{0}\',{1}', line: '5' }
+	{ urlFormat: '{0}\',{1}', line: '5' },
+	{ urlFormat: '{0}#{1}', line: '5' },
+	{ urlFormat: '{0}#{1}:{2}', line: '5', column: '5' }
 ];
 
 const windowsFallbackLinks: (string | { link: string; resource: URI })[] = [
