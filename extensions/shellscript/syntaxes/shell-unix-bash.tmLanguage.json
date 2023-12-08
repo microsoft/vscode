@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-shell-syntax/commit/ce62ea59e8e522f8a07d8d8a2d1f992c6c600b91",
+	"version": "https://github.com/jeff-hykin/better-shell-syntax/commit/a3de7b32f1537194a83ee848838402fbf4b67424",
 	"name": "Shell Script",
 	"scopeName": "source.shell",
 	"patterns": [
@@ -268,7 +268,7 @@
 			"patterns": [
 				{
 					"begin": "(?=\\S)",
-					"end": ";;",
+					"end": ";;&?|;&",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.terminator.case-clause.shell"
@@ -311,7 +311,7 @@
 						},
 						{
 							"begin": "(?<=\\))",
-							"end": "(?=;;)",
+							"end": "(?=;;&?|;&)",
 							"name": "meta.scope.case-clause-body.shell",
 							"patterns": [
 								{

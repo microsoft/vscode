@@ -44,7 +44,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { isEqual } from 'vs/base/common/resources';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
@@ -355,11 +355,10 @@ class EditSettingRenderer extends Disposable {
 	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<IIndexedSetting>, e: IEditorMouseEvent): void {
 		EventHelper.stop(e.event, true);
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new SubmenuAction(`preferences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
+			getAnchor: () => e.event,
 			getActions: () => actions
 		});
 	}
@@ -616,6 +615,14 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 				if (configuration.scope === ConfigurationScope.APPLICATION) {
 					// If we're in a profile setting file, and the setting is application-scoped, fade it out.
 					markerData.push(this.generateUnsupportedApplicationSettingMarker(setting));
+				} else if (this.configurationService.isSettingAppliedForAllProfiles(setting.key)) {
+					// If we're in the non-default profile setting file, and the setting can be applied in all profiles, fade it out.
+					markerData.push({
+						severity: MarkerSeverity.Hint,
+						tags: [MarkerTag.Unnecessary],
+						...setting.range,
+						message: nls.localize('allProfileSettingWhileInNonDefaultProfileSetting', "This setting cannot be applied because it is configured to be applied in all profiles using setting {0}. Value from the default profile will be used instead.", APPLY_ALL_PROFILES_SETTING)
+					});
 				}
 			}
 		}

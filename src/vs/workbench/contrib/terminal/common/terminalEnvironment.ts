@@ -15,7 +15,7 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { IShellLaunchConfig, ITerminalBackend, ITerminalEnvironment, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, language, OperatingSystem } from 'vs/base/common/platform';
 import { escapeNonWindowsPath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
-import { isString, withNullAsUndefined } from 'vs/base/common/types';
+import { isString } from 'vs/base/common/types';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -361,12 +361,12 @@ export async function preparePathForShell(resource: string | URI, executable: st
 
 export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspaceContextService: IWorkspaceContextService, historyService: IHistoryService): IWorkspaceFolder | undefined {
 	const cwdUri = typeof cwd === 'string' ? URI.parse(cwd) : cwd;
-	let workspaceFolder = cwdUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(cwdUri)) : undefined;
+	let workspaceFolder = cwdUri ? workspaceContextService.getWorkspaceFolder(cwdUri) ?? undefined : undefined;
 	if (!workspaceFolder) {
 		// fallback to last active workspace if cwd is not available or it is not in workspace
 		// TOOD: last active workspace is known to be unreliable, we should remove this fallback eventually
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
-		workspaceFolder = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}
 	return workspaceFolder;
 }

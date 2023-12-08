@@ -275,13 +275,14 @@ export class GlyphMarginWidgets extends ViewPart {
 
 		for (const widget of Object.values(this._widgets)) {
 			const range = widget.preference.range;
-			if (range.endLineNumber < visibleStartLineNumber || range.startLineNumber > visibleEndLineNumber) {
+			const { startLineNumber, endLineNumber } = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(Range.lift(range));
+			if (!startLineNumber || !endLineNumber || endLineNumber < visibleStartLineNumber || startLineNumber > visibleEndLineNumber) {
 				// The widget is not in the viewport
 				continue;
 			}
 
 			// The widget is in the viewport, find a good line for it
-			const widgetLineNumber = Math.max(range.startLineNumber, visibleStartLineNumber);
+			const widgetLineNumber = Math.max(startLineNumber, visibleStartLineNumber);
 			const lane = Math.min(widget.preference.lane, this._glyphMarginDecorationLaneCount);
 			requests.push(new WidgetBasedGlyphRenderRequest(widgetLineNumber, lane, widget.preference.zIndex, widget));
 		}

@@ -42,7 +42,8 @@
 }
 
 .test-explorer .test-item .label,
-.test-output-peek-tree .test-peek-item .name {
+.test-output-peek-tree .test-peek-item .name,
+.test-coverage-list-item-label {
 	flex-grow: 1;
 	width: 0;
 	overflow: hidden;
@@ -66,6 +67,7 @@
 
 .test-output-peek-tree {
 	color: var(--vscode-editor-foreground);
+	border-left: 1px solid var(--vscode-panelSection-border);
 }
 
 .test-output-peek-tree .monaco-list-row .monaco-action-bar,
@@ -110,8 +112,31 @@
 	display: none;
 }
 
+.test-explorer .monaco-list-row .error {
+	outline: 1px solid var(--vscode-inputValidation-errorBorder);
+	background: var(--vscode-inputValidation-errorBackground);
+	padding: 2px 4px;
+	border-radius: 2px;
+	margin: 3px 12px 3px 3px;
+	line-height: 17px;
+	font-size: 12px;
+	height: 17px;
+	overflow: hidden;
+}
+
 .test-explorer .monaco-list-row .error p {
 	margin: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.test-explorer .monaco-list-row .error a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.test-explorer .monaco-list-row .error a:hover {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .test-explorer .computed-state,
@@ -128,9 +153,21 @@
 	opacity: 0.8;
 }
 
-.test-explorer .test-explorer-messages {
+.test-explorer .result-summary-container {
 	padding: 0 12px 8px;
 	font-variant-numeric: tabular-nums;
+	height: 27px;
+	box-sizing: border-box;
+}
+
+.test-explorer .result-summary {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.test-explorer .result-summary > span {
+	flex-grow: 1;
 }
 
 .monaco-workbench
@@ -183,8 +220,30 @@
 	border-bottom-width: 2px;
 }
 
+.monaco-editor .zone-widget.test-output-peek .type-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .monaco-editor-background,
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .inputarea.ime-input,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
+}
+
 .test-output-peek-message-container {
 	overflow: hidden;
+}
+
+.test-output-peek-message-container .floating-click-widget {
+	position: absolute;
+	right: 20px;
+	bottom: 10px;
 }
 
 .test-output-peek-message-container,
@@ -192,20 +251,20 @@
 	height: 100%;
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text {
+.test-output-peek-message-container .preview-text {
 	padding: 8px 12px 8px 20px;
 	height: calc(100% - 16px);
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text p:first-child {
+.test-output-peek-message-container .preview-text p:first-child {
 	margin-top: 0;
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
+.test-output-peek-message-container .preview-text p:last-child {
 	margin-bottom: 0;
 }
 
-.monaco-editor .zone-widget.test-output-peek .preview-text a {
+.test-output-peek-message-container .preview-text a {
 	cursor: pointer;
 }
 
@@ -300,4 +359,49 @@
 }
 .monaco-editor .testing-inline-message-severity-1 {
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
+}
+
+/** -- coverage  */
+
+.test-coverage-list-item {
+	display: flex;
+}
+
+.test-coverage-bars {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	margin-right: 0.8em;
+}
+
+.test-coverage-bars .bar {
+	width: 16px;
+	height: 8px;
+	border: 1px solid currentColor;
+	border-radius: 2px;
+	position: relative;
+	overflow: hidden;
+}
+
+.test-coverage-bars .bar::before {
+	content: '';
+	background: currentColor;
+	width: var(--test-bar-width);
+	height: 100%;
+	position: absolute;
+	opacity: 0.7;
+}
+
+/** -- coverage in the explorer  */
+
+.explorer-item-with-test-coverage {
+	display: flex;
+}
+
+.explorer-item-with-test-coverage .explorer-item {
+	flex-grow: 1;
+}
+.explorer-item-with-test-coverage .monaco-icon-label::after {
+	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
 }

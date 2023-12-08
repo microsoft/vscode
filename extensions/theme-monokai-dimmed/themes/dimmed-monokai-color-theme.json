@@ -71,7 +71,8 @@
 		{
 			"scope": [
 				"meta.embedded",
-				"source.groovy.embedded"
+				"source.groovy.embedded",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#C5C8C6"
@@ -268,6 +269,7 @@
 				"keyword.operator.new.cpp",
 				"keyword.operator.delete.cpp",
 				"keyword.other.using",
+				"keyword.other.directive.using",
 				"keyword.other.operator"
 			],
 			"settings": {

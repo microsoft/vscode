@@ -172,51 +172,57 @@ export class VSBuffer {
 		writeUInt8(this.buffer, value, offset);
 	}
 
-	indexOf(subarray: VSBuffer | Uint8Array) {
-		const needle = subarray instanceof VSBuffer ? subarray.buffer : subarray;
-		const needleLen = needle.byteLength;
-		const haystack = this.buffer;
-		const haystackLen = haystack.byteLength;
-
-		if (needleLen === 0) {
-			return 0;
-		}
-
-		if (needleLen === 1) {
-			return haystack.indexOf(needle[0]);
-		}
-
-		if (needleLen > haystackLen) {
-			return -1;
-		}
-
-		// find index of the subarray using boyer-moore-horspool algorithm
-		const table = indexOfTable.value;
-		table.fill(needle.length);
-		for (let i = 0; i < needle.length; i++) {
-			table[needle[i]] = needle.length - i - 1;
-		}
-
-		let i = needle.length - 1;
-		let j = i;
-		let result = -1;
-		while (i < haystackLen) {
-			if (haystack[i] === needle[j]) {
-				if (j === 0) {
-					result = i;
-					break;
-				}
-
-				i--;
-				j--;
-			} else {
-				i += Math.max(needle.length - j, table[haystack[i]]);
-				j = needle.length - 1;
-			}
-		}
-
-		return result;
+	indexOf(subarray: VSBuffer | Uint8Array, offset = 0) {
+		return binaryIndexOf(this.buffer, subarray instanceof VSBuffer ? subarray.buffer : subarray, offset);
 	}
+}
+
+/**
+ * Like String.indexOf, but works on Uint8Arrays.
+ * Uses the boyer-moore-horspool algorithm to be reasonably speedy.
+ */
+export function binaryIndexOf(haystack: Uint8Array, needle: Uint8Array, offset = 0): number {
+	const needleLen = needle.byteLength;
+	const haystackLen = haystack.byteLength;
+
+	if (needleLen === 0) {
+		return 0;
+	}
+
+	if (needleLen === 1) {
+		return haystack.indexOf(needle[0]);
+	}
+
+	if (needleLen > haystackLen - offset) {
+		return -1;
+	}
+
+	// find index of the subarray using boyer-moore-horspool algorithm
+	const table = indexOfTable.value;
+	table.fill(needle.length);
+	for (let i = 0; i < needle.length; i++) {
+		table[needle[i]] = needle.length - i - 1;
+	}
+
+	let i = offset + needle.length - 1;
+	let j = i;
+	let result = -1;
+	while (i < haystackLen) {
+		if (haystack[i] === needle[j]) {
+			if (j === 0) {
+				result = i;
+				break;
+			}
+
+			i--;
+			j--;
+		} else {
+			i += Math.max(needle.length - j, table[haystack[i]]);
+			j = needle.length - 1;
+		}
+	}
+
+	return result;
 }
 
 export function readUInt16LE(source: Uint8Array, offset: number): number {

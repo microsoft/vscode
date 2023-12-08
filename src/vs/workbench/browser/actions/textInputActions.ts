@@ -8,12 +8,14 @@ import { localize } from 'vs/nls';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper } from 'vs/base/browser/dom';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Event } from 'vs/base/common/event';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
@@ -35,18 +37,18 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		this.textInputActions.push(
 
 			// Undo/Redo
-			new Action('undo', localize('undo', "Undo"), undefined, true, async () => document.execCommand('undo')),
-			new Action('redo', localize('redo', "Redo"), undefined, true, async () => document.execCommand('redo')),
+			new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveDocument().execCommand('undo')),
+			new Action('redo', localize('redo', "Redo"), undefined, true, async () => getActiveDocument().execCommand('redo')),
 			new Separator(),
 
 			// Cut / Copy / Paste
-			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => document.execCommand('cut')),
-			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => document.execCommand('copy')),
+			new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveDocument().execCommand('cut')),
+			new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveDocument().execCommand('copy')),
 			new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
 
 				// Native: paste is supported
 				if (isNative) {
-					document.execCommand('paste');
+					getActiveDocument().execCommand('paste');
 				}
 
 				// Web: paste is not supported due to security reasons
@@ -68,17 +70,19 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 			new Separator(),
 
 			// Select All
-			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => document.execCommand('selectAll'))
+			new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveDocument().execCommand('selectAll'))
 		);
 	}
 
 	private registerListeners(): void {
 
 		// Context menu support in input/textarea
-		this.layoutService.container.addEventListener('contextmenu', e => this.onContextMenu(e));
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'contextmenu', e => this.onContextMenu(getWindow(container), e)));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	private onContextMenu(targetWindow: Window, e: MouseEvent): void {
 		if (e.defaultPrevented) {
 			return; // make sure to not show these actions by accident if component indicated to prevent
 		}
@@ -90,8 +94,10 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 		EventHelper.stop(e, true);
 
+		const event = new StandardMouseEvent(targetWindow, e);
+
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => e,
+			getAnchor: () => event,
 			getActions: () => this.textInputActions,
 			getActionsContext: () => target,
 		});

@@ -45,12 +45,8 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 	get onProfileAwareDidUninstallExtension() { return super.onDidUninstallExtension; }
 	override get onDidUninstallExtension() { return Event.filter(this.onProfileAwareDidUninstallExtension, e => this.filterEvent(e), this.disposables); }
 
-
 	private readonly _onDidChangeProfile = this._register(new Emitter<{ readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] }>());
 	readonly onDidChangeProfile = this._onDidChangeProfile.event;
-
-	private readonly _onDidUpdateExtensionMetadata = this._register(new Emitter<ILocalExtension>());
-	override readonly onDidUpdateExtensionMetadata = this._onDidUpdateExtensionMetadata.event;
 
 	constructor(
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -61,10 +57,14 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(extensionGalleryService, telemetryService, logService, productService, userDataProfilesService);
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenProfileChanged(e))));
+		super(extensionGalleryService, telemetryService, uriIdentityService, logService, productService, userDataProfilesService);
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.extensionsResource, e.profile.extensionsResource)) {
+				e.join(this.whenProfileChanged(e));
+			}
+		}));
 	}
 
 	private filterEvent({ profileLocation, applicationScoped }: { profileLocation?: URI; applicationScoped?: boolean }): boolean {
@@ -119,6 +119,20 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
+	protected async copyExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		const target = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, toProfileLocation);
+		const source = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, fromProfileLocation);
+		metadata = { ...source?.metadata, ...metadata };
+
+		let scanned;
+		if (target) {
+			scanned = await this.webExtensionsScannerService.updateMetadata(extension, { ...target.metadata, ...metadata }, toProfileLocation);
+		} else {
+			scanned = await this.webExtensionsScannerService.addExtension(extension.location, metadata, toProfileLocation);
+		}
+		return toLocalExtension(scanned);
+	}
+
 	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
 		const result: ILocalExtension[] = [];
 		const extensionsToInstall = (await this.webExtensionsScannerService.scanUserExtensions(fromProfileLocation))
@@ -137,9 +151,15 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
 		// unset if false
-		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
-		metadata.isBuiltin = metadata.isBuiltin || undefined;
-		metadata.pinned = metadata.pinned || undefined;
+		if (metadata.isMachineScoped === false) {
+			metadata.isMachineScoped = undefined;
+		}
+		if (metadata.isBuiltin === false) {
+			metadata.isBuiltin = undefined;
+		}
+		if (metadata.pinned === false) {
+			metadata.pinned = undefined;
+		}
 		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
 		const updatedLocalExtension = toLocalExtension(updatedExtension);
 		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
@@ -237,7 +257,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	constructor(
 		manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
-		private readonly options: InstallExtensionTaskOptions,
+		readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
@@ -269,7 +289,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
 					: metadata?.preRelease /* Respect the existing pre-release flag if it was set */);
 		}
-		metadata.pinned = this.options.installGivenVersion ? true : undefined;
+		metadata.pinned = this.options.installGivenVersion ? true : (this.options.pinned ?? metadata.pinned);
 
 		this._profileLocation = metadata.isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : this.options.profileLocation;
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata, this.profileLocation)

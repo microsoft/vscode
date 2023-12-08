@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -133,7 +132,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		// We will use the resolver service to resolve all the variables in the config / launch config
 		// But then we will keep only some variables, since the rest need to be resolved on the remote side
 		const resolvedVariables = Object.create(null);
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 		let allResolvedVariables: Map<string, string> | undefined = undefined;
 		try {
 			allResolvedVariables = (await this._resolverService.resolveAnyMap(lastActiveWorkspace, {
@@ -185,7 +184,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			unicodeVersion,
 			resolverEnv
 		};
-		return await this._channel.call<ICreateTerminalProcessResult>('$createProcess', args);
+		return await this._channel.call<ICreateTerminalProcessResult>(RemoteTerminalChannelRequest.CreateProcess, args);
 	}
 
 	requestDetachInstance(workspaceId: string, instanceId: number): Promise<IProcessDetails | undefined> {
@@ -281,7 +280,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			workspaceId: workspace.id,
 			tabs: layout ? layout.tabs : []
 		};
-		return this._channel.call<void>('$setTerminalLayoutInfo', args);
+		return this._channel.call<void>(RemoteTerminalChannelRequest.SetTerminalLayoutInfo, args);
 	}
 
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<string> {
@@ -305,11 +304,11 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		const args: IGetTerminalLayoutInfoArgs = {
 			workspaceId: workspace.id,
 		};
-		return this._channel.call<ITerminalsLayoutInfo>('$getTerminalLayoutInfo', args);
+		return this._channel.call<ITerminalsLayoutInfo>(RemoteTerminalChannelRequest.GetTerminalLayoutInfo, args);
 	}
 
-	reviveTerminalProcesses(state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.ReviveTerminalProcesses, [state, dateTimeFormatLocate]);
+	reviveTerminalProcesses(workspaceId: string, state: ISerializedTerminalState[], dateTimeFormatLocate: string): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.ReviveTerminalProcesses, [workspaceId, state, dateTimeFormatLocate]);
 	}
 
 	getRevivedPtyNewId(id: number): Promise<number | undefined> {

@@ -5,9 +5,9 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import 'vs/css!./media/scrollbar';
-import 'vs/css!./media/terminal';
 import 'vs/css!./media/widgets';
 import 'vs/css!./media/xterm';
+import 'vs/css!./media/terminal';
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -123,7 +123,7 @@ Registry.as<IDragAndDropContributionRegistry>(DragAndDropExtensions.DragAndDropC
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
-	title: nls.localize('terminal', "Terminal"),
+	title: nls.localize2('terminal', "Terminal"),
 	icon: terminalViewIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: TERMINAL_VIEW_ID,
@@ -132,7 +132,7 @@ const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensi
 }, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true, isDefault: true });
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: TERMINAL_VIEW_ID,
-	name: nls.localize('terminal', "Terminal"),
+	name: nls.localize2('terminal', "Terminal"),
 	containerIcon: terminalViewIcon,
 	canToggleVisibility: false,
 	canMoveView: true,

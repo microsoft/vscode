@@ -5,8 +5,7 @@
 
 import 'vs/editor/browser/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
-import 'vs/editor/browser/widget/diffEditorWidget';
-import 'vs/editor/browser/widget/diffNavigator';
+import 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 import 'vs/editor/contrib/anchorSelect/browser/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import 'vs/editor/contrib/caretOperations/browser/caretOperations';
@@ -59,6 +58,7 @@ import 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/browser/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
 import 'vs/editor/contrib/readOnlyMessage/browser/contribution';
+import 'vs/editor/contrib/diffEditorBreadcrumbs/browser/contribution';
 
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated

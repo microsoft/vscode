@@ -37,7 +37,6 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
@@ -47,13 +46,14 @@ import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles'
 import { Event } from 'vs/base/common/event';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 export class TerminalViewPane extends ViewPane {
-	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
-	private _isWelcomeShowing: boolean = false;
+	private _isInitialized: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
 	private readonly _singleTabMenu: IMenu;
@@ -77,7 +77,8 @@ export class TerminalViewPane extends ViewPane {
 		@IMenuService private readonly _menuService: IMenuService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
@@ -85,18 +86,23 @@ export class TerminalViewPane extends ViewPane {
 		}));
 
 		this._register(this._terminalService.onDidChangeInstances(() => {
-			if (!this._isWelcomeShowing) {
-				return;
+			// If the first terminal is opened, hide the welcome view
+			// and if the last one is closed, show it again
+			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+				this._onDidChangeViewWelcomeState.fire();
 			}
-			this._isWelcomeShowing = true;
-			this._onDidChangeViewWelcomeState.fire();
-			if (!this._terminalTabbedView && this._parentDomElement) {
+			if (!this._parentDomElement) { return; }
+			// If we do not have the tab view yet, create it now.
+			if (!this._terminalTabbedView) {
 				this._createTabsView();
+			}
+			// If we just opened our first terminal, layout
+			if (this._terminalService.instances.length === 1) {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
-		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
+		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
 		this._register(this.onDidChangeBodyVisibility(e => {
@@ -110,7 +116,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}));
 		this._register(this._terminalService.onDidCreateInstance((i) => {
-			i.capabilities.onDidAddCapability(c => {
+			i.capabilities.onDidAddCapabilityType(c => {
 				if (c === TerminalCapability.CommandDetection && this._gutterDecorationsEnabled()) {
 					this._parentDomElement?.classList.add('shell-integration');
 				}
@@ -127,8 +133,42 @@ export class TerminalViewPane extends ViewPane {
 		return (decorationsEnabled === 'both' || decorationsEnabled === 'gutter') && this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled);
 	}
 
-	private _initializeTerminal() {
-		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected && this._terminalService.restoredGroupCount === 0 && this._terminalGroupService.groups.length === 0) {
+	private _initializeTerminal(checkRestoredTerminals: boolean) {
+		if (this.isBodyVisible() && this._terminalService.isProcessSupportRegistered && this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			const wasInitialized = this._isInitialized;
+			this._isInitialized = true;
+
+			let hideOnStartup: 'never' | 'whenEmpty' | 'always' = 'never';
+			if (!wasInitialized) {
+				hideOnStartup = this._configurationService.getValue(TerminalSettingId.HideOnStartup);
+				if (hideOnStartup === 'always') {
+					this._terminalGroupService.hidePanel();
+				}
+			}
+
+			let shouldCreate = this._terminalGroupService.groups.length === 0;
+			// When triggered just after reconnection, also check there are no groups that could be
+			// getting restored currently
+			if (checkRestoredTerminals) {
+				shouldCreate &&= this._terminalService.restoredGroupCount === 0;
+			}
+			if (!shouldCreate) {
+				return;
+			}
+			if (!wasInitialized) {
+				switch (hideOnStartup) {
+					case 'never':
+						this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+						break;
+					case 'whenEmpty':
+						if (this._terminalService.restoredGroupCount === 0) {
+							this._terminalGroupService.hidePanel();
+						}
+						break;
+				}
+				return;
+			}
+
 			this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 		}
 	}
@@ -142,14 +182,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		this._fontStyleElement = document.createElement('style');
+		dom.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
-
-		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
@@ -166,10 +204,10 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				if (!this._terminalService.isProcessSupportRegistered) {
+				if (this._hasWelcomeScreen()) {
 					this._onDidChangeViewWelcomeState.fire();
 				}
-				this._initializeTerminal();
+				this._initializeTerminal(false);
 				// we don't know here whether or not it should be focused, so
 				// defer focusing the panel to the focus() call
 				// to prevent overriding preserveFocus for extensions
@@ -181,7 +219,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._terminalGroupService.updateVisibility();
 		}));
-		this._register(this._terminalService.onDidChangeConnectionState(() => this._initializeTerminal()));
+		this._register(this._terminalService.onDidChangeConnectionState(() => this._initializeTerminal(true)));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
 
@@ -208,9 +246,7 @@ export class TerminalViewPane extends ViewPane {
 						super(action.id, action.label, action.class, action.enabled);
 						this.checked = action.checked;
 						this.tooltip = action.tooltip;
-					}
-					override dispose(): void {
-						action.dispose();
+						this._register(action);
 					}
 					override async run() {
 						const instance = that._terminalGroupService.activeInstance;
@@ -229,7 +265,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
+					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}
@@ -237,7 +273,7 @@ export class TerminalViewPane extends ViewPane {
 				if (action instanceof MenuItemAction) {
 					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
 					this._newDropdown?.dispose();
-					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService);
+					this._newDropdown = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService, {}, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._updateTabActionBar(this._terminalProfileService.availableProfiles);
 					return this._newDropdown;
 				}
@@ -257,7 +293,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _getKeybindingLabel(action: IAction): string | undefined {
-		return withNullAsUndefined(this._keybindingService.lookupKeybinding(action.id)?.getLabel());
+		return this._keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
@@ -266,26 +302,33 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override focus() {
-		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
-			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
-			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+		super.focus();
+		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			this._terminalGroupService.showPanel(true);
+			return;
+		}
+
+		// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+		// be focused. So wait for connection to finish, then focus.
+		const previousActiveElement = this.element.ownerDocument.activeElement;
+		if (previousActiveElement) {
+			// TODO: Improve lifecycle management this event should be disposed after first fire
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO hack
-				if (document.activeElement === activeElement) {
+				// TODO: Hack
+				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
 					this._terminalGroupService.showPanel(true);
 				}
 			}));
-
-			return;
 		}
-		this._terminalGroupService.showPanel(true);
+	}
+
+	private _hasWelcomeScreen(): boolean {
+		return !this._terminalService.isProcessSupportRegistered;
 	}
 
 	override shouldShowWelcome(): boolean {
-		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.instances.length === 0;
-		return this._isWelcomeShowing;
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 	}
 }
 
@@ -301,11 +344,11 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeInstanceTitle(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstanceTitleChange(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeInstancePrimaryStatus(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstancePrimaryStatusChange(() => this._updateItems(), this));
 	}
 
 	override render(container: HTMLElement): void {
@@ -352,19 +395,19 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		super(action, {
 			draggable: true,
 			hoverDelegate: _instantiationService.createInstance(SingleTabHoverDelegate)
-		}, keybindingService, notificationService, contextKeyService, themeService, contextMenuService);
+		}, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, _accessibilityService);
 
 		// Register listeners to update the tab
 		this._register(Event.debounce<ITerminalInstance | undefined, Set<ITerminalInstance>>(Event.any(
-			this._terminalService.onDidChangeInstancePrimaryStatus,
+			this._terminalService.onAnyInstancePrimaryStatusChange,
 			this._terminalGroupService.onDidChangeActiveInstance,
-			Event.map(this._terminalService.onDidChangeInstanceIcon, e => e.instance),
-			Event.map(this._terminalService.onDidChangeInstanceColor, e => e.instance),
-			this._terminalService.onDidChangeInstanceTitle,
+			Event.map(this._terminalService.onAnyInstanceIconChange, e => e.instance),
+			this._terminalService.onAnyInstanceTitleChange,
 			this._terminalService.onDidChangeInstanceCapability,
 		), (last, e) => {
 			if (!last) {
@@ -385,6 +428,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
+		this._terminalGroupService.lastAccessedMenu = 'inline-tab';
 		if (event.altKey && this._menuItemAction.alt) {
 			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.Panel } as ICreateTerminalOptions);
 		} else {
@@ -479,9 +523,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	private _openContextMenu() {
 		this._contextMenuService.showContextMenu({
+			actionRunner: new TerminalContextActionRunner(),
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
-			getActionsContext: () => this.label
+			// The context is always the active instance in the terminal view
+			getActionsContext: () => {
+				const instance = this._terminalGroupService.activeInstance;
+				return instance ? [new InstanceContext(instance)] : [];
+			}
 		});
 	}
 }
@@ -519,15 +568,13 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
+		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
+		this._register(this._terminalService.onAnyInstanceIconChange(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}

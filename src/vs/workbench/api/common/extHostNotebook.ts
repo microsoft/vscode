@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ResourceMap } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -32,8 +32,12 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
-
-
+import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
+import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
+import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
+import { globMatchesResource } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -74,7 +78,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		commands: ExtHostCommands,
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _textDocuments: ExtHostDocuments,
-		private _extHostFileSystem: IExtHostConsumerFileSystem
+		private _extHostFileSystem: IExtHostConsumerFileSystem,
+		private _extHostSearch: IExtHostSearch
 	) {
 		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
@@ -371,6 +376,158 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		return fileStats;
 	}
+
+	/**
+	 * Search for query in all notebooks that can be deserialized by the serializer fetched by `handle`.
+	 *
+	 * @param handle used to get notebook serializer
+	 * @param textQuery the text query to search using
+	 * @param viewTypeFileTargets the globs (and associated ranks) that are targetting for opening this type of notebook
+	 * @param otherViewTypeFileTargets ranked globs for other editors that we should consider when deciding whether it will open as this notebook
+	 * @param token cancellation token
+	 * @returns `IRawClosedNotebookFileMatch` for every file. Files without matches will just have a `IRawClosedNotebookFileMatch`
+	 * 	with no `cellResults`. This allows the caller to know what was searched in already, even if it did not yield results.
+	 */
+	async $searchInNotebooks(handle: number, textQuery: ITextQuery, viewTypeFileTargets: NotebookPriorityInfo[], otherViewTypeFileTargets: NotebookPriorityInfo[], token: CancellationToken): Promise<{ results: IRawClosedNotebookFileMatch[]; limitHit: boolean }> {
+		const serializer = this._notebookSerializer.get(handle)?.serializer;
+		if (!serializer) {
+			return {
+				limitHit: false,
+				results: []
+			};
+		}
+
+		const finalMatchedTargets = new ResourceSet();
+
+		const runFileQueries = async (includes: NotebookPriorityInfo[], token: CancellationToken, textQuery: ITextQuery): Promise<void> => {
+			await Promise.all(includes.map(async include =>
+				await Promise.all(include.filenamePatterns.map(filePattern => {
+					const query: IFileQuery = {
+						...textQuery,
+						...{ type: QueryType.File, filePattern }
+					};
+
+					// use priority info to exclude info from other globs
+					return this._extHostSearch.doInternalFileSearchWithCustomCallback(query, token, (data) => {
+						data.forEach(uri => {
+							if (finalMatchedTargets.has(uri)) {
+								return;
+							}
+							const hasOtherMatches = otherViewTypeFileTargets.some(target => {
+								// use the same strategy that the editor service uses to open editors
+								// https://github.com/microsoft/vscode/blob/ac1631528e67637da65ec994c6dc35d73f6e33cc/src/vs/workbench/services/editor/browser/editorResolverService.ts#L359-L366
+								if (include.isFromSettings && !target.isFromSettings) {
+									// if the include is from the settings and target isn't, even if it matches, it's still overridden.
+									return false;
+								} else {
+									// longer filePatterns are considered more specifc, so they always have precedence the shorter patterns
+									return target.filenamePatterns.some(targetFilePattern => globMatchesResource(targetFilePattern, uri));
+								}
+							});
+
+							if (hasOtherMatches) {
+								return;
+							}
+							finalMatchedTargets.add(uri);
+						});
+					});
+				}))
+			));
+			return;
+		};
+
+		await runFileQueries(viewTypeFileTargets, token, textQuery);
+
+		const results = new ResourceMap<INotebookFileMatchNoModel>();
+		let limitHit = false;
+		const promises = Array.from(finalMatchedTargets).map(async (uri) => {
+			const cellMatches: INotebookCellMatchNoModel[] = [];
+
+			try {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (textQuery.maxResults && [...results.values()].reduce((acc, value) => acc + value.cellResults.length, 0) > textQuery.maxResults) {
+					limitHit = true;
+					return;
+				}
+
+				const simpleCells: Array<{ input: string; outputs: string[] }> = [];
+				const notebook = this._documents.get(uri);
+				if (notebook) {
+					const cells = notebook.apiNotebook.getCells();
+					cells.forEach(e => simpleCells.push(
+						{
+							input: e.document.getText(),
+							outputs: e.outputs.flatMap(value => value.items.map(output => output.data.toString()))
+						}
+					));
+				} else {
+					const fileContent = await this._extHostFileSystem.value.readFile(uri);
+					const bytes = VSBuffer.fromString(fileContent.toString());
+					const notebook = await serializer.deserializeNotebook(bytes.buffer, token);
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const data = typeConverters.NotebookData.from(notebook);
+
+					data.cells.forEach(cell => simpleCells.push(
+						{
+							input: cell.source,
+							outputs: cell.outputs.flatMap(value => value.items.map(output => output.valueBytes.toString()))
+						}
+					));
+				}
+
+
+				if (token.isCancellationRequested) {
+					return;
+				}
+
+				simpleCells.forEach((cell, index) => {
+					const target = textQuery.contentPattern.pattern;
+					const cellModel = new CellSearchModel(cell.input, undefined, cell.outputs);
+
+					const inputMatches = cellModel.findInInputs(target);
+					const outputMatches = cellModel.findInOutputs(target);
+					const webviewResults = outputMatches
+						.flatMap(outputMatch =>
+							genericCellMatchesToTextSearchMatches(outputMatch.matches, outputMatch.textBuffer))
+						.map((textMatch, index) => {
+							textMatch.webviewIndex = index;
+							return textMatch;
+						});
+
+					if (inputMatches.length > 0 || outputMatches.length > 0) {
+						const cellMatch: INotebookCellMatchNoModel = {
+							index: index,
+							contentResults: genericCellMatchesToTextSearchMatches(inputMatches, cellModel.inputTextBuffer),
+							webviewResults
+						};
+						cellMatches.push(cellMatch);
+					}
+				});
+
+				const fileMatch = {
+					resource: uri, cellResults: cellMatches
+				};
+				results.set(uri, fileMatch);
+				return;
+
+			} catch (e) {
+				return;
+			}
+
+		});
+
+		await Promise.all(promises);
+		return {
+			limitHit,
+			results: [...results.values()]
+		};
+	}
+
+
 
 	private async _validateWriteFile(uri: URI, options: files.IWriteFileOptions) {
 		const stat = await this._extHostFileSystem.value.stat(uri);

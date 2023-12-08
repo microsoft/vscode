@@ -5,7 +5,6 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +26,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -37,6 +36,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { memoize } from 'vs/base/common/decorators';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -85,12 +85,17 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IHistoryService historyService: IHistoryService,
-		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IStatusbarService statusBarService: IStatusbarService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
-		this.onPtyHostRestart(() => this._connectToDirectProxy());
+		this.onPtyHostRestart(() => {
+			this._directProxy = undefined;
+			this._directProxyClientEventually = undefined;
+			this._connectToDirectProxy();
+		});
 	}
 
 	/**
@@ -110,7 +115,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		this._directProxy = directProxy;
 
 		// The pty host should not get launched until at least the window restored phase
-		await this._lifecycleService.when(LifecyclePhase.Restored);
+		// if remote auth exists, don't await
+		if (!this._remoteAgentService.getConnection()?.remoteAuthority) {
+			await this._lifecycleService.when(LifecyclePhase.Restored);
+		}
 
 		mark('code/terminal/willConnectPtyHost');
 		this._logService.trace('Renderer->PtyHost#connect: before acquirePort');
@@ -121,7 +129,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			// _localPtyService, and one directly via message port _ptyHostDirectProxy. The former is
 			// used for pty host management messages, it would make sense in the future to use a
 			// separate interface/service for this one.
-			const client = new MessagePortClient(port, `window:${this._environmentService.window.id}`);
+			const client = new MessagePortClient(port, `window:${this._nativeHostService.windowId}`);
 			directProxyClientEventually.complete(client);
 			this._onPtyHostConnected.fire();
 
@@ -322,7 +330,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			try {
 				// Create variable resolver
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
-				const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 				const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority), this._configurationResolverService);
 
 				// Re-resolve the environments and replace it on the state so local terminals use a fresh
@@ -367,10 +375,6 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 		return env;
-	}
-
-	private _getWorkspaceId(): string {
-		return this._workspaceContextService.getWorkspace().id;
 	}
 
 	private _getWorkspaceName(): string {

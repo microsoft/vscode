@@ -280,7 +280,7 @@ export class CallStackView extends ViewPane {
 		});
 
 		this.tree.setInput(this.debugService.getModel());
-
+		this._register(this.tree);
 		this._register(this.tree.onDidOpen(async e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
@@ -389,6 +389,7 @@ export class CallStackView extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 	}
 
@@ -461,7 +462,7 @@ export class CallStackView extends ViewPane {
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
 		const menu = this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
 		createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
-
+		menu.dispose();
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,

@@ -33,6 +33,8 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { ResourceMap } from 'vs/base/common/map';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -300,6 +302,30 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
+	$registerMultiDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		this._registrations.set(handle, this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
+			selector: selector,
+			provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]> | undefined> => {
+				return this._proxy.$provideMultiDocumentHighlights(handle, model.uri, position, otherModels.map(model => model.uri), token).then(dto => {
+					if (isFalsyOrEmpty(dto)) {
+						return undefined;
+					}
+					const result = new ResourceMap<languages.DocumentHighlight[]>();
+					dto?.forEach(value => {
+						// check if the URI exists already, if so, combine the highlights, otherwise create a new entry
+						const uri = URI.revive(value.uri);
+						if (result.has(uri)) {
+							result.get(uri)!.push(...value.highlights);
+						} else {
+							result.set(uri, value.highlights);
+						}
+					});
+					return result;
+				});
+			}
+		}));
+	}
+
 	// --- linked editing
 
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void {
@@ -372,8 +398,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _pasteEditProviders = new Map<number, MainThreadPasteEditProvider>();
 
-	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto): void {
-		const provider = new MainThreadPasteEditProvider(handle, this._proxy, metadata, this._uriIdentService);
+	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], id: string, metadata: IPasteEditProviderMetadataDto): void {
+		const provider = new MainThreadPasteEditProvider(handle, this._proxy, id, metadata, this._uriIdentService);
 		this._pasteEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentPasteEditProvider.register(selector, provider),
@@ -852,7 +878,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			__electricCharacterSupport: undefined
 		};
 
-		if (_configuration.__characterPairSupport) {
+		if (_configuration.autoClosingPairs) {
+			configuration.autoClosingPairs = _configuration.autoClosingPairs;
+		} else if (_configuration.__characterPairSupport) {
 			// backwards compatibility
 			configuration.autoClosingPairs = _configuration.__characterPairSupport.autoClosingPairs;
 		}
@@ -913,8 +941,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 
 	private readonly _documentOnDropEditProviders = new Map<number, MainThreadDocumentOnDropEditProvider>();
 
-	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IDocumentDropEditProviderMetadata): void {
-		const provider = new MainThreadDocumentOnDropEditProvider(handle, metadata, this._proxy, this._uriIdentService);
+	$registerDocumentOnDropEditProvider(handle: number, selector: IDocumentFilterDto[], id: string | undefined, metadata: IDocumentDropEditProviderMetadata): void {
+		const provider = new MainThreadDocumentOnDropEditProvider(handle, this._proxy, id, metadata, this._uriIdentService);
 		this._documentOnDropEditProviders.set(handle, provider);
 		this._registrations.set(handle, combinedDisposable(
 			this._languageFeaturesService.documentOnDropEditProvider.register(selector, provider),
@@ -929,12 +957,20 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}
 		return provider.resolveDocumentOnDropFileData(requestId, dataId);
 	}
+
+	// --- mapped edits
+
+	$registerMappedEditsProvider(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider = new MainThreadMappedEditsProvider(handle, this._proxy, this._uriIdentService);
+		this._registrations.set(handle, this._languageFeaturesService.mappedEditsProvider.register(selector, provider));
+	}
 }
 
 class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider {
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
+	public readonly id: string;
 	public readonly copyMimeTypes?: readonly string[];
 	public readonly pasteMimeTypes?: readonly string[];
 
@@ -942,11 +978,13 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 	readonly provideDocumentPasteEdits?: languages.DocumentPasteEditProvider['provideDocumentPasteEdits'];
 
 	constructor(
-		private readonly handle: number,
+		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		id: string,
 		metadata: IPasteEditProviderMetadataDto,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
+		this.id = id;
 		this.copyMimeTypes = metadata.copyMimeTypes;
 		this.pasteMimeTypes = metadata.pasteMimeTypes;
 
@@ -957,7 +995,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 					return undefined;
 				}
 
-				const newDataTransfer = await this._proxy.$prepareDocumentPaste(handle, model.uri, selections, dataTransferDto, token);
+				const newDataTransfer = await this._proxy.$prepareDocumentPaste(_handle, model.uri, selections, dataTransferDto, token);
 				if (!newDataTransfer) {
 					return undefined;
 				}
@@ -979,7 +1017,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 						return;
 					}
 
-					const result = await this._proxy.$providePasteEdits(this.handle, request.id, model.uri, selections, dataTransferDto, token);
+					const result = await this._proxy.$providePasteEdits(this._handle, request.id, model.uri, selections, dataTransferDto, token);
 					if (!result) {
 						return;
 					}
@@ -1004,14 +1042,17 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 
 	private readonly dataTransfers = new DataTransferFileCache();
 
+	readonly id: string | undefined;
 	readonly dropMimeTypes?: readonly string[];
 
 	constructor(
-		private readonly handle: number,
-		metadata: IDocumentDropEditProviderMetadata | undefined,
+		private readonly _handle: number,
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		id: string | undefined,
+		metadata: IDocumentDropEditProviderMetadata | undefined,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
+		this.id = id;
 		this.dropMimeTypes = metadata?.dropMimeTypes ?? ['*/*'];
 	}
 
@@ -1023,7 +1064,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentOnDropEd
 				return;
 			}
 
-			const edit = await this._proxy.$provideDocumentOnDropEdits(this.handle, request.id, model.uri, position, dataTransferDto, token);
+			const edit = await this._proxy.$provideDocumentOnDropEdits(this._handle, request.id, model.uri, position, dataTransferDto, token);
 			if (!edit) {
 				return;
 			}
@@ -1114,5 +1155,19 @@ export class MainThreadDocumentRangeSemanticTokensProvider implements languages.
 			};
 		}
 		throw new Error(`Unexpected`);
+	}
+}
+
+export class MainThreadMappedEditsProvider implements languages.MappedEditsProvider {
+
+	constructor(
+		private readonly _handle: number,
+		private readonly _proxy: ExtHostLanguageFeaturesShape,
+		private readonly _uriService: IUriIdentityService,
+	) { }
+
+	async provideMappedEdits(document: ITextModel, codeBlocks: string[], context: languages.MappedEditsContext, token: CancellationToken): Promise<languages.WorkspaceEdit | null> {
+		const res = await this._proxy.$provideMappedEdits(this._handle, document.uri, codeBlocks, context, token);
+		return res ? reviveWorkspaceEditDto(res, this._uriService) : null;
 	}
 }

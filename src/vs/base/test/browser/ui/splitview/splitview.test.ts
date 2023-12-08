@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { IView, LayoutPriority, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Emitter } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestView implements IView<number> {
 
@@ -66,6 +67,9 @@ function getSashes(splitview: SplitView): Sash[] {
 }
 
 suite('Splitview', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let container: HTMLElement;
 
 	setup(() => {
@@ -76,16 +80,15 @@ suite('Splitview', () => {
 	});
 
 	test('empty splitview has empty DOM', () => {
-		const splitview = new SplitView(container);
+		store.add(new SplitView(container));
 		assert.strictEqual(container.firstElementChild!.firstElementChild!.childElementCount, 0, 'split view should be empty');
-		splitview.dispose();
 	});
 
 	test('has views and sashes as children', () => {
-		const view1 = new TestView(20, 20);
-		const view2 = new TestView(20, 20);
-		const view3 = new TestView(20, 20);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, 20));
+		const view2 = store.add(new TestView(20, 20));
+		const view3 = store.add(new TestView(20, 20));
+		const splitview = store.add(new SplitView(container));
 
 		splitview.addView(view1, 20);
 		splitview.addView(view2, 20);
@@ -120,37 +123,26 @@ suite('Splitview', () => {
 
 		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.strictEqual(sashQuery.length, 0, 'split view should have no sashes');
-
-		splitview.dispose();
-		view1.dispose();
-		view2.dispose();
-		view3.dispose();
 	});
 
 	test('calls view methods on addView and removeView', () => {
-		const view = new TestView(20, 20);
-		const splitview = new SplitView(container);
+		const view = store.add(new TestView(20, 20));
+		const splitview = store.add(new SplitView(container));
 
 		let didLayout = false;
-		const layoutDisposable = view.onDidLayout(() => didLayout = true);
-
-		const renderDisposable = view.onDidGetElement(() => undefined);
+		store.add(view.onDidLayout(() => didLayout = true));
+		store.add(view.onDidGetElement(() => undefined));
 
 		splitview.addView(view, 20);
 
 		assert.strictEqual(view.size, 20, 'view has right size');
 		assert(didLayout, 'layout is called');
 		assert(didLayout, 'render is called');
-
-		splitview.dispose();
-		layoutDisposable.dispose();
-		renderDisposable.dispose();
-		view.dispose();
 	});
 
 	test('stretches view to viewport', () => {
-		const view = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view, 20);
@@ -170,16 +162,13 @@ suite('Splitview', () => {
 
 		splitview.layout(200);
 		assert.strictEqual(view.size, 200, 'view is stretched');
-
-		splitview.dispose();
-		view.dispose();
 	});
 
 	test('can resize views', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, 20);
@@ -207,18 +196,13 @@ suite('Splitview', () => {
 		assert.strictEqual(view1.size, 70, 'view1 stays the same');
 		assert.strictEqual(view2.size, 90, 'view2 is collapsed');
 		assert.strictEqual(view3.size, 40, 'view3 is stretched');
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('reacts to view changes', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, 20);
@@ -253,18 +237,13 @@ suite('Splitview', () => {
 		assert.strictEqual(view1.size, 20, 'view1 is collapsed');
 		assert.strictEqual(view2.size, 80, 'view2 is collapsed');
 		assert.strictEqual(view3.size, 100, 'view3 is stretched');
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('sashes are properly enabled/disabled', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -307,27 +286,22 @@ suite('Splitview', () => {
 		splitview.resizeView(0, 40);
 		assert.strictEqual(sashes[0].state, SashState.Enabled, 'first sash is enabled');
 		assert.strictEqual(sashes[1].state, SashState.Enabled, 'second sash is enabled');
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('issue #35497', () => {
-		const view1 = new TestView(160, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(66, 66);
+		const view1 = store.add(new TestView(160, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(66, 66));
 
-		const splitview = new SplitView(container);
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(986);
 
 		splitview.addView(view1, 142, 0);
 		assert.strictEqual(view1.size, 986, 'first view is stretched');
 
-		view2.onDidGetElement(() => {
+		store.add(view2.onDidGetElement(() => {
 			assert.throws(() => splitview.resizeView(1, 922));
 			assert.throws(() => splitview.resizeView(1, 922));
-		});
+		}));
 
 		splitview.addView(view2, 66, 0);
 		assert.strictEqual(view2.size, 66, 'second view is fixed');
@@ -337,17 +311,13 @@ suite('Splitview', () => {
 		assert.strictEqual(viewContainers.length, 2, 'there are two view containers');
 		assert.strictEqual((viewContainers.item(0) as HTMLElement).style.height, '66px', 'second view container is 66px');
 		assert.strictEqual<string>((viewContainers.item(1) as HTMLElement).style.height, `${986 - 66}px`, 'first view container is 66px');
-
-		splitview.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('automatic size distribution', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -361,18 +331,13 @@ suite('Splitview', () => {
 
 		splitview.removeView(1, Sizing.Distribute);
 		assert.deepStrictEqual([view1.size, view3.size], [100, 100]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('add views before layout', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 
 		splitview.addView(view1, 100);
 		splitview.addView(view2, 75);
@@ -380,18 +345,13 @@ suite('Splitview', () => {
 
 		splitview.layout(200);
 		assert.deepStrictEqual([view1.size, view2.size, view3.size], [67, 67, 66]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('split sizing', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -402,18 +362,13 @@ suite('Splitview', () => {
 
 		splitview.addView(view3, Sizing.Split(1));
 		assert.deepStrictEqual([view1.size, view2.size, view3.size], [100, 50, 50]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('split sizing 2', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -424,17 +379,12 @@ suite('Splitview', () => {
 
 		splitview.addView(view3, Sizing.Split(0));
 		assert.deepStrictEqual([view1.size, view2.size, view3.size], [50, 100, 50]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('proportional layout', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container);
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -443,16 +393,12 @@ suite('Splitview', () => {
 
 		splitview.layout(100);
 		assert.deepStrictEqual([view1.size, view2.size], [50, 50]);
-
-		splitview.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('disable proportional layout', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container, { proportionalLayout: false });
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container, { proportionalLayout: false }));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -461,17 +407,13 @@ suite('Splitview', () => {
 
 		splitview.layout(100);
 		assert.deepStrictEqual([view1.size, view2.size], [80, 20]);
-
-		splitview.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('high layout priority', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.High);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
-		const splitview = new SplitView(container, { proportionalLayout: false });
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.High));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container, { proportionalLayout: false }));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -490,18 +432,13 @@ suite('Splitview', () => {
 
 		splitview.layout(200);
 		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('low layout priority', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low);
-		const splitview = new SplitView(container, { proportionalLayout: false });
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low));
+		const splitview = store.add(new SplitView(container, { proportionalLayout: false }));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -520,18 +457,13 @@ suite('Splitview', () => {
 
 		splitview.layout(200);
 		assert.deepStrictEqual([view1.size, view2.size, view3.size], [20, 160, 20]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 
 	test('context propagates to views', () => {
-		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
-		const view3 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low);
-		const splitview = new SplitView<number>(container, { proportionalLayout: false });
+		const view1 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view2 = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const view3 = store.add(new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low));
+		const splitview = store.add(new SplitView<number>(container, { proportionalLayout: false }));
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);
@@ -540,10 +472,5 @@ suite('Splitview', () => {
 
 		splitview.layout(200, 100);
 		assert.deepStrictEqual([view1.orthogonalSize, view2.orthogonalSize, view3.orthogonalSize], [100, 100, 100]);
-
-		splitview.dispose();
-		view3.dispose();
-		view2.dispose();
-		view1.dispose();
 	});
 });

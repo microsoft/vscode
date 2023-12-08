@@ -18,10 +18,11 @@ import { UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { Keybinding, KeyCodeChord, ResolvedKeybinding, ScanCodeChord } from 'vs/base/common/keybindings';
 import { IMMUTABLE_CODE_TO_KEY_CODE, KeyCode, KeyCodeUtils, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
+import { mainWindow } from 'vs/base/browser/window';
 
 // platform
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -42,6 +43,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 
 // workbench
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
@@ -51,7 +54,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IKeyboard, INavigatorWithKeyboard } from 'vs/workbench/services/keybinding/browser/navigatorKeyboard';
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { DidChangeUserDataProfileEvent, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -192,6 +195,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IHostService private readonly hostService: IHostService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@ILogService logService: ILogService,
 		@IKeyboardLayoutService private readonly keyboardLayoutService: IKeyboardLayoutService
 	) {
@@ -210,7 +214,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._cachedResolver = null;
 
-		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, fileService, logService));
+		this.userKeybindings = this._register(new UserKeybindings(userDataProfileService, uriIdentityService, fileService, logService));
 		this.userKeybindings.initialize().then(() => {
 			if (this.userKeybindings.keybindings.length) {
 				this.updateResolver();
@@ -235,29 +239,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateKeybindingsJsonSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateKeybindingsJsonSchema()));
 
-		// for standard keybindings
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			this.isComposingGlobalContextKey.set(e.isComposing);
-			const keyEvent = new StandardKeyboardEvent(e);
-			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
-			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
-			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
-			}
-			this.isComposingGlobalContextKey.set(false);
-		}));
-
-		// for single modifier chord keybindings (e.g. shift shift)
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			this.isComposingGlobalContextKey.set(e.isComposing);
-			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
-			if (shouldPreventDefault) {
-				keyEvent.preventDefault();
-			}
-			this.isComposingGlobalContextKey.set(false);
-		}));
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => disposables.add(this._registerKeyListeners(window)), { window: mainWindow, disposables: this._store }));
 
 		this._register(browser.onDidChangeFullscreen(() => {
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
@@ -276,6 +258,36 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this._cachedResolver = null;
 			this._onDidUpdateKeybindings.fire();
 		}));
+	}
+
+	private _registerKeyListeners(window: Window): IDisposable {
+		const disposables = new DisposableStore();
+
+		// for standard keybindings
+		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
+			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
+			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		// for single modifier chord keybindings (e.g. shift shift)
+		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this.isComposingGlobalContextKey.set(e.isComposing);
+			const keyEvent = new StandardKeyboardEvent(e);
+			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
+			if (shouldPreventDefault) {
+				keyEvent.preventDefault();
+			}
+			this.isComposingGlobalContextKey.set(false);
+		}));
+
+		return disposables;
 	}
 
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
@@ -699,6 +711,7 @@ class UserKeybindings extends Disposable {
 
 	constructor(
 		private readonly userDataProfileService: IUserDataProfileService,
+		private readonly uriIdentityService: IUriIdentityService,
 		private readonly fileService: IFileService,
 		logService: ILogService,
 	) {
@@ -724,10 +737,14 @@ class UserKeybindings extends Disposable {
 			}
 		}));
 
-		this._register(userDataProfileService.onDidChangeCurrentProfile(e => e.join(this.whenCurrentProfileChanged(e))));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(e => {
+			if (!this.uriIdentityService.extUri.isEqual(e.previous.keybindingsResource, e.profile.keybindingsResource)) {
+				e.join(this.whenCurrentProfileChanged());
+			}
+		}));
 	}
 
-	private async whenCurrentProfileChanged(e: DidChangeUserDataProfileEvent): Promise<void> {
+	private async whenCurrentProfileChanged(): Promise<void> {
 		this.watch();
 		this.reloadConfigurationScheduler.schedule();
 	}
@@ -888,13 +905,13 @@ class KeybindingsJsonSchema {
 		this.commandsEnumDescriptions.length = 0;
 
 		const knownCommands = new Set<string>();
-		const addKnownCommand = (commandId: string, description?: string | undefined) => {
+		const addKnownCommand = (commandId: string, description?: string | ILocalizedString | undefined) => {
 			if (!/^_/.test(commandId)) {
 				if (!knownCommands.has(commandId)) {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(description);
+					this.commandsEnumDescriptions.push(isLocalizedString(description) ? description.value : description);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);
@@ -904,18 +921,18 @@ class KeybindingsJsonSchema {
 
 		const allCommands = CommandsRegistry.getCommands();
 		for (const [commandId, command] of allCommands) {
-			const commandDescription = command.description;
+			const commandMetadata = command.metadata;
 
-			addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
+			addKnownCommand(commandId, commandMetadata?.description);
 
-			if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			if (!commandMetadata || !commandMetadata.args || commandMetadata.args.length !== 1 || !commandMetadata.args[0].schema) {
 				continue;
 			}
 
-			const argsSchema = commandDescription.args[0].schema;
+			const argsSchema = commandMetadata.args[0].schema;
 			const argsRequired = (
-				(typeof commandDescription.args[0].isOptional !== 'undefined')
-					? (!commandDescription.args[0].isOptional)
+				(typeof commandMetadata.args[0].isOptional !== 'undefined')
+					? (!commandMetadata.args[0].isOptional)
 					: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
 			);
 			const addition = {

@@ -15,13 +15,13 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
@@ -30,6 +30,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -214,9 +215,17 @@ export interface ICellOutput {
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;
+	/**
+	 * Alternative output id that's reused when the output is updated.
+	 */
+	alternativeOutputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
+	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	asDto(): IOutputDto;
+	bumpVersion(): void;
+	dispose(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -773,19 +782,25 @@ export interface ICellEditorViewState {
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
 
+export const NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY = new RawContextKey<'none' | 'start' | 'end' | 'both'>('notebookEditorCursorAtLineBoundary', 'none');
 
 export interface INotebookLoadOptions {
 	/**
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromFile?: boolean;
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 	notebook: NotebookTextModel;
 }
 
-export interface INotebookEditorModel extends IEditorModel {
+export interface INotebookEditorModel extends IDisposable {
 	readonly onDidChangeDirty: Event<void>;
 	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 	readonly onDidChangeOrphaned: Event<void>;
@@ -794,6 +809,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
+	readonly hasErrorState: boolean;
 	isResolved(): this is IResolvedNotebookEditorModel;
 	isDirty(): boolean;
 	isModified(): boolean;
@@ -806,7 +822,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	revert(options?: IRevertOptions): Promise<void>;
 }
 
-export interface INotebookDiffEditorModel extends IEditorModel {
+export interface INotebookDiffEditorModel extends IDisposable {
 	original: IResolvedNotebookEditorModel;
 	modified: IResolvedNotebookEditorModel;
 }
@@ -926,6 +942,7 @@ export const NotebookSetting = {
 	focusIndicator: 'notebook.cellFocusIndicator',
 	insertToolbarLocation: 'notebook.insertToolbarLocation',
 	globalToolbar: 'notebook.globalToolbar',
+	stickyScroll: 'notebook.stickyScroll.enabled',
 	undoRedoPerCell: 'notebook.undoRedoPerCell',
 	consolidatedOutputButton: 'notebook.consolidatedOutputButton',
 	showFoldingControls: 'notebook.showFoldingControls',
@@ -940,6 +957,7 @@ export const NotebookSetting = {
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	formatOnSave: 'notebook.formatOnSave.enabled',
+	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
@@ -952,7 +970,11 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
-	remoteSaving: 'notebook.experimental.remoteSave'
+	remoteSaving: 'notebook.experimental.remoteSave',
+	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
+	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
+	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell',
+	cellChat: 'notebook.experimental.cellChat'
 } as const;
 
 export const enum CellStatusbarAlignment {
@@ -995,6 +1017,7 @@ const textDecoder = new TextDecoder();
  * Given a stream of individual stdout outputs, this function will return the compressed lines, escaping some of the common terminal escape codes.
  * E.g. some terminal escape codes would result in the previous line getting cleared, such if we had 3 lines and
  * last line contained such a code, then the result string would be just the first two lines.
+ * @returns a single VSBuffer with the concatenated and compressed data, and whether any compression was done.
  */
 export function compressOutputItemStreams(outputs: Uint8Array[]) {
 	const buffers: Uint8Array[] = [];
@@ -1007,13 +1030,19 @@ export function compressOutputItemStreams(outputs: Uint8Array[]) {
 			startAppending = true;
 		}
 	}
-	compressStreamBuffer(buffers);
-	return formatStreamText(VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer))));
+
+	let didCompression = compressStreamBuffer(buffers);
+	const concatenated = VSBuffer.concat(buffers.map(buffer => VSBuffer.wrap(buffer)));
+	const data = formatStreamText(concatenated);
+	didCompression = didCompression || data.byteLength !== concatenated.byteLength;
+	return { data, didCompression };
 }
-const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
+
+export const MOVE_CURSOR_1_LINE_COMMAND = `${String.fromCharCode(27)}[A`;
 const MOVE_CURSOR_1_LINE_COMMAND_BYTES = MOVE_CURSOR_1_LINE_COMMAND.split('').map(c => c.charCodeAt(0));
 const LINE_FEED = 10;
 function compressStreamBuffer(streams: Uint8Array[]) {
+	let didCompress = false;
 	streams.forEach((stream, index) => {
 		if (index === 0 || stream.length < MOVE_CURSOR_1_LINE_COMMAND.length) {
 			return;
@@ -1028,10 +1057,13 @@ function compressStreamBuffer(streams: Uint8Array[]) {
 			if (lastIndexOfLineFeed === -1) {
 				return;
 			}
+
+			didCompress = true;
 			streams[index - 1] = previousStream.subarray(0, lastIndexOfLineFeed);
 			streams[index] = stream.subarray(MOVE_CURSOR_1_LINE_COMMAND.length);
 		}
 	});
+	return didCompress;
 }
 
 

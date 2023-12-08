@@ -17,14 +17,14 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IFileService } from 'vs/platform/files/common/files';
+import { ByteSize, FileOperationError, FileOperationResult, IFileService, TooLargeFileOperationError } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -35,7 +35,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NOTEBOOK_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
@@ -46,6 +45,8 @@ import { EnablementState } from 'vs/workbench/services/extensionManagement/commo
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -80,7 +81,6 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
-		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
@@ -89,7 +89,9 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -174,10 +176,12 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 	}
 
 	override hasFocus(): boolean {
-		const activeElement = document.activeElement;
 		const value = this._widget.value;
+		if (!value) {
+			return false;
+		}
 
-		return !!value && (DOM.isAncestor(activeElement, value.getDomNode() || DOM.isAncestor(activeElement, value.getOverflowContainerDomNode())));
+		return !!value && (DOM.isAncestorOfActiveElement(value.getDomNode() || DOM.isAncestorOfActiveElement(value.getOverflowContainerDomNode())));
 	}
 
 	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, noRetry?: boolean): Promise<void> {
@@ -306,7 +310,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
 			this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
 
-			this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
+			this._widgetDisposableStore.add(this._editorGroupService.createEditorDropTarget(this._widget.value!.getDomNode(), {
 				containsGroup: (group) => this.group?.id === group.id
 			}));
 
@@ -318,10 +322,23 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			}
 
 			this._handlePerfMark(perf, input);
+			this._handlePromptRecommendations(model.notebook);
 		} catch (e) {
 			this.logService.warn('NotebookEditorWidget#setInput failed', e);
 			if (isEditorOpenError(e)) {
 				throw e;
+			}
+
+			// Handle case where a file is too large to open without confirmation
+			if ((<FileOperationError>e).fileOperationResult === FileOperationResult.FILE_TOO_LARGE && this.group) {
+				let message: string;
+				if (e instanceof TooLargeFileOperationError) {
+					message = localize('notebookTooLargeForHeapErrorWithSize', "The notebook is not displayed in the notebook editor because it is very large ({0}).", ByteSize.formatSize(e.size));
+				} else {
+					message = localize('notebookTooLargeForHeapErrorWithoutSize', "The notebook is not displayed in the notebook editor because it is very large.");
+				}
+
+				throw createTooLargeFileError(this.group, input, options, message, this._preferencesService);
 			}
 
 			const error = createEditorOpenError(e instanceof Error ? e : new Error((e ? e.message : '')), [
@@ -422,6 +439,24 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			webviewCommLoaded: webviewCommLoadingTimespan,
 			customMarkdownLoaded: customMarkdownLoadingTimespan,
 			editorLoaded: editorLoadingTimespan
+		});
+	}
+
+	private _handlePromptRecommendations(model: NotebookTextModel) {
+		this._notebookEditorWorkerService.canPromptRecommendation(model.uri).then(shouldPrompt => {
+			type WorkbenchNotebookShouldPromptRecommendationClassification = {
+				owner: 'rebornix';
+				comment: 'The notebook file metrics. Used to get a better understanding of if we should prompt for notebook extension recommendations';
+				shouldPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Should we prompt for notebook extension recommendations' };
+			};
+
+			type WorkbenchNotebookShouldPromptRecommendationEvent = {
+				shouldPrompt: boolean;
+			};
+
+			this.telemetryService.publicLog2<WorkbenchNotebookShouldPromptRecommendationEvent, WorkbenchNotebookShouldPromptRecommendationClassification>('notebook/shouldPromptRecommendation', {
+				shouldPrompt: shouldPrompt
+			});
 		});
 	}
 

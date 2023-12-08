@@ -5,9 +5,8 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
 import { IDiffEditor, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
@@ -95,9 +94,9 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 				// changes even later because it could be that the user has
 				// configured quick access to remain open when focus is lost and
 				// we always want to restore the current location.
-				let lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+				let lastKnownEditorViewState = editor.saveViewState() ?? undefined;
 				disposables.add(codeEditor.onDidChangeCursorPosition(() => {
-					lastKnownEditorViewState = withNullAsUndefined(editor.saveViewState());
+					lastKnownEditorViewState = editor.saveViewState() ?? undefined;
 				}));
 
 				context.restoreViewState = () => {
@@ -106,7 +105,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 					}
 				};
 
-				disposables.add(once(token.onCancellationRequested)(() => context.restoreViewState?.()));
+				disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => context.restoreViewState?.()));
 			}
 
 			// Clean up decorations on dispose

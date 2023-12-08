@@ -23,6 +23,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
@@ -34,6 +35,7 @@ import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testin
 import { TestResultsView } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -1421,7 +1423,7 @@ export class RefreshTestsAction extends Action2 {
 		const testService = accessor.get(ITestService);
 		const progressService = accessor.get(IProgressService);
 
-		const controllerIds = distinct(elements.map(e => e.test.controllerId));
+		const controllerIds = distinct(elements.filter(isDefined).map(e => e.test.controllerId));
 		return progressService.withProgress({ location: Testing.ViewletId }, async () => {
 			if (controllerIds.length) {
 				await Promise.all(controllerIds.map(id => testService.refreshTests(id)));
@@ -1445,6 +1447,26 @@ export class CancelTestRefreshAction extends Action2 {
 
 	public async run(accessor: ServicesAccessor) {
 		accessor.get(ITestService).cancelRefreshTests();
+	}
+}
+
+export class TestCoverageClose extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageClose,
+			title: { value: localize('testing.closeCoverage', "Close Coverage"), original: 'Close Coverage' },
+			icon: widgetClose,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				order: ActionOrder.Refresh,
+				when: ContextKeyExpr.equals('view', Testing.CoverageViewId)
+			}
+		});
+	}
+
+	public override run(accessor: ServicesAccessor) {
+		accessor.get(ITestCoverageService).closeCoverage();
 	}
 }
 
@@ -1482,6 +1504,7 @@ export const allTestActions = [
 	ShowMostRecentOutputAction,
 	StartContinuousRunAction,
 	StopContinuousRunAction,
+	TestCoverageClose,
 	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,

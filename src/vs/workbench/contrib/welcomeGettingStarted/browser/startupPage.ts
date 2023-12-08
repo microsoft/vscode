@@ -139,7 +139,7 @@ export class StartupPageContribution implements IWorkbenchContribution {
 		else {
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
-			if (restoreData.folder === currentWorkspace.folders[0].uri.toString() || restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id) {
+			if (restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id || restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
 				this.editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options: <GettingStartedEditorOptions>{ selectedCategory: restoreData.category, selectedStep: restoreData.step, pinned: false },

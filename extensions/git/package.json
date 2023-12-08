@@ -18,11 +18,13 @@
     "editSessionIdentityProvider",
     "quickDiffProvider",
     "scmActionButton",
+    "scmHistoryProvider",
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",
     "timeline",
-    "contribMergeEditorMenus"
+    "contribMergeEditorMenus",
+    "contribSourceControlInputBoxMenu"
   ],
   "categories": [
     "Other"
@@ -693,6 +695,12 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.openCommit",
+        "title": "%command.timelineOpenCommit%",
+        "icon": "$(diff-multiple)",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git",
@@ -750,6 +758,18 @@
       {
         "command": "git.openRepositoriesInParentFolders",
         "title": "%command.openRepositoriesInParentFolders%",
+        "category": "Git"
+      },
+      {
+        "command": "git.viewChanges",
+        "title": "%command.viewChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git"
+      },
+      {
+        "command": "git.viewStagedChanges",
+        "title": "%command.viewStagedChanges%",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       }
     ],
@@ -1196,6 +1216,10 @@
           "when": "false"
         },
         {
+          "command": "git.timeline.openCommit",
+          "when": "false"
+        },
+        {
           "command": "git.closeAllDiffEditors",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1222,6 +1246,14 @@
         {
           "command": "git.openRepositoriesInParentFolders",
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1388,6 +1420,16 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "scmProvider == git && scmResourceGroup == index && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1766,9 +1808,19 @@
       ],
       "timeline/item/context": [
         {
+          "command": "git.timeline.openCommit",
+          "group": "inline",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection && config.multiDiffEditor.experimental.enabled"
+        },
+        {
           "command": "git.timeline.openDiff",
-          "group": "1_actions",
+          "group": "1_actions@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.openCommit",
+          "group": "1_actions@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection && config.multiDiffEditor.experimental.enabled"
         },
         {
           "command": "git.timeline.compareWithSelected",
@@ -2451,7 +2503,7 @@
             "warn",
             "off"
           ],
-          "default": "warn",
+          "default": "off",
           "description": "%config.inputValidation%"
         },
         "git.inputValidationLength": {
@@ -2465,7 +2517,7 @@
             "null"
           ],
           "default": 50,
-          "description": "%config.inputValidationSubjectLength%"
+          "markdownDescription": "%config.inputValidationSubjectLength%"
         },
         "git.detectSubmodules": {
           "type": "boolean",
@@ -2567,6 +2619,11 @@
           "default": true,
           "description": "%config.useForcePushWithLease%"
         },
+        "git.useForcePushIfIncludes": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.useForcePushIfIncludes%"
+        },
         "git.confirmForcePush": {
           "type": "boolean",
           "default": true,
@@ -2659,7 +2716,7 @@
           "description": "%config.useIntegratedAskPass%"
         },
         "git.githubAuthentication": {
-          "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+          "markdownDeprecationMessage": "This setting is now deprecated, please use `#github.gitAuthentication#` instead."
         },
         "git.timeline.date": {
           "type": "string",
@@ -2950,13 +3007,13 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == folder && scm.providerCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scmRepositoryCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
+        "when": "config.git.enabled && !git.missing && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0 && scm.providerCount == 0 && git.parentRepositoryCount == 0 && git.unsafeRepositoryCount == 0 && git.closedRepositoryCount == 0 && remoteName != 'codespaces'",
         "group": "5_scm@1"
       },
       {
@@ -2992,32 +3049,32 @@
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
+        "when": "config.git.enabled && git.state == initialized && scm.providerCount == 0",
         "group": "5_scm@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.learnMore%",
-        "when": "config.git.enabled && git.state == initialized && scmRepositoryCount == 0",
+        "when": "config.git.enabled && git.state == initialized && scm.providerCount == 0",
         "group": "5_scm@10"
       }
     ]
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.9.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",
     "jschardet": "3.0.0",
     "picomatch": "2.3.1",
     "vscode-uri": "^2.0.0",
-    "which": "3.0.1"
+    "which": "4.0.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },

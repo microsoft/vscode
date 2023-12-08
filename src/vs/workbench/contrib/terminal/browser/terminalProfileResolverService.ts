@@ -5,7 +5,6 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { env } from 'vs/base/common/process';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
@@ -20,9 +19,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { equals } from 'vs/base/common/arrays';
 import { deepClone } from 'vs/base/common/objects';
-import { terminalProfileArgsMatch, isUriComponents } from 'vs/platform/terminal/common/terminalProfiles';
+import { isUriComponents } from 'vs/platform/terminal/common/terminalProfiles';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface IProfileContextProvider {
@@ -297,7 +295,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Resolve path variables
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
-		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 		profile.path = await this._resolveVariables(profile.path, env, lastActiveWorkspace);
 
 		// Resolve args variables
@@ -344,48 +342,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			default:
 				return undefined;
 		}
-	}
-
-	private _isValidShellArgs(shellArgs: unknown, os: OperatingSystem): shellArgs is string | string[] | undefined {
-		if (shellArgs === undefined) {
-			return true;
-		}
-		if (os === OperatingSystem.Windows && typeof shellArgs === 'string') {
-			return true;
-		}
-		if (Array.isArray(shellArgs) && shellArgs.every(e => typeof e === 'string')) {
-			return true;
-		}
-		return false;
-	}
-
-	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string> {
-		const detectedProfile = this._terminalProfileService.availableProfiles?.find(p => {
-			if (p.path !== shell) {
-				return false;
-			}
-			if (p.args === undefined || typeof p.args === 'string') {
-				return p.args === shellArgs;
-			}
-			return p.path === shell && equals(p.args, (shellArgs || []) as string[]);
-		});
-		const fallbackProfile = (await this.getDefaultProfile({
-			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
-			os: this._primaryBackendOs!
-		}));
-		fallbackProfile.profileName = `${fallbackProfile.path} (migrated)`;
-		const profile = detectedProfile || fallbackProfile;
-		const args = this._isValidShellArgs(shellArgs, this._primaryBackendOs!) ? shellArgs : profile.args;
-		const createdProfile = {
-			profileName: profile.profileName,
-			path: profile.path,
-			args,
-			isDefault: true
-		};
-		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && terminalProfileArgsMatch(detectedProfile.args, createdProfile.args)) {
-			return detectedProfile.profileName;
-		}
-		return createdProfile;
 	}
 
 	private _isValidAutomationProfile(profile: unknown, os: OperatingSystem): profile is ITerminalProfile {

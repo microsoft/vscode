@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
@@ -17,6 +19,8 @@ suite('ResourceGlobMatcher', () => {
 	let contextService: IWorkspaceContextService;
 	let configurationService: TestConfigurationService;
 
+	const disposables = new DisposableStore();
+
 	setup(() => {
 		contextService = new TestContextService();
 		configurationService = new TestConfigurationService({
@@ -27,8 +31,12 @@ suite('ResourceGlobMatcher', () => {
 		});
 	});
 
+	teardown(() => {
+		disposables.clear();
+	});
+
 	test('Basics', async () => {
-		const matcher = new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService);
+		const matcher = disposables.add(new ResourceGlobMatcher(() => configurationService.getValue(SETTING), e => e.affectsConfiguration(SETTING), contextService, configurationService));
 
 		// Matching
 		assert.equal(matcher.matches(URI.file('/foo/bar')), false);
@@ -37,7 +45,7 @@ suite('ResourceGlobMatcher', () => {
 
 		// Events
 		let eventCounter = 0;
-		matcher.onExpressionChange(() => eventCounter++);
+		disposables.add(matcher.onExpressionChange(() => eventCounter++));
 
 		await configurationService.setUserConfiguration(SETTING, { '**/*.foo': true });
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
@@ -64,4 +72,6 @@ suite('ResourceGlobMatcher', () => {
 		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);
 		assert.equal(matcher.matches(URI.file('C:/bar/foo.1')), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

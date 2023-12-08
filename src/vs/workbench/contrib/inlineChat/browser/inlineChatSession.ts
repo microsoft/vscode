@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { TextEdit } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService, InlineChatResponseType, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,15 +16,22 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
-import { LineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
+import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 export type Recording = {
 	when: Date;
@@ -65,12 +71,12 @@ export enum ExpansionState {
 
 class SessionWholeRange {
 
-	private static readonly _options = { description: 'inlineChat/session/wholeRange' };
+	private static readonly _options: IModelDecorationOptions = ModelDecorationOptions.register({ description: 'inlineChat/session/wholeRange' });
 
 	private readonly _onDidChange = new Emitter<this>();
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
-	private readonly _decorationIds: string[] = [];
+	private _decorationIds: string[] = [];
 
 	constructor(private readonly _textModel: ITextModel, wholeRange: IRange) {
 		this._decorationIds = _textModel.deltaDecorations([], [{ range: wholeRange, options: SessionWholeRange._options }]);
@@ -89,6 +95,22 @@ class SessionWholeRange {
 			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
 		}
 		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
+		this._onDidChange.fire(this);
+	}
+
+	fixup(changes: readonly DetailedLineRangeMapping[]): void {
+
+		const newDeco: IModelDeltaDecoration[] = [];
+		for (const { modified } of changes) {
+			const modifiedRange = modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._textModel.getLineLength(modified.startLineNumber))
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._textModel.getLineLength(modified.endLineNumberExclusive - 1));
+
+			newDeco.push({ range: modifiedRange, options: SessionWholeRange._options });
+		}
+		const [first, ...rest] = this._decorationIds; // first is the original whole range
+		const newIds = this._textModel.deltaDecorations(rest, newDeco);
+		this._decorationIds = [first].concat(newIds);
 		this._onDidChange.fire(this);
 	}
 
@@ -112,7 +134,6 @@ export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
-	private _lastTextModelChanges: readonly LineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -187,28 +208,20 @@ export class Session {
 		return this._exchange[this._exchange.length - 1];
 	}
 
-	get lastTextModelChanges() {
-		return this._lastTextModelChanges ?? [];
-	}
-
-	set lastTextModelChanges(changes: readonly LineRangeMapping[]) {
-		this._lastTextModelChanges = changes;
-	}
-
 	get hasChangedText(): boolean {
 		return !this.textModel0.equalsTextBuffer(this.textModelN.getTextBuffer());
 	}
 
-	asChangedText(): string | undefined {
-		if (!this._lastTextModelChanges || this._lastTextModelChanges.length === 0) {
+	asChangedText(changes: readonly LineRangeMapping[]): string | undefined {
+		if (changes.length === 0) {
 			return undefined;
 		}
 
 		let startLine = Number.MAX_VALUE;
 		let endLine = Number.MIN_VALUE;
-		for (const change of this._lastTextModelChanges) {
-			startLine = Math.min(startLine, change.modifiedRange.startLineNumber);
-			endLine = Math.max(endLine, change.modifiedRange.endLineNumberExclusive);
+		for (const change of changes) {
+			startLine = Math.min(startLine, change.modified.startLineNumber);
+			endLine = Math.max(endLine, change.modified.endLineNumberExclusive);
 		}
 
 		return this.textModelN.getValueInRange(new Range(startLine, 1, endLine, Number.MAX_VALUE));
@@ -234,7 +247,7 @@ export class Session {
 		};
 		for (const exchange of this._exchange) {
 			const response = exchange.response;
-			if (response instanceof MarkdownResponse || response instanceof EditResponse) {
+			if (response instanceof ReplyResponse) {
 				result.exchanges.push({ prompt: exchange.prompt.value, res: response.raw });
 			}
 		}
@@ -266,7 +279,7 @@ export class SessionExchange {
 
 	constructor(
 		readonly prompt: SessionPrompt,
-		readonly response: MarkdownResponse | EditResponse | EmptyResponse | ErrorResponse
+		readonly response: ReplyResponse | EmptyResponse | ErrorResponse
 	) { }
 }
 
@@ -287,76 +300,98 @@ export class ErrorResponse {
 	}
 }
 
-export class MarkdownResponse {
-	constructor(
-		readonly localUri: URI,
-		readonly raw: IInlineChatMessageResponse
-	) { }
-}
-
-export class EditResponse {
+export class ReplyResponse {
 
 	readonly allLocalEdits: TextEdit[][] = [];
-	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
-	readonly workspaceEdits: ResourceEdit[] | undefined;
-	readonly workspaceEditsIncludeLocalEdits: boolean = false;
+	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
+	readonly workspaceEdit: WorkspaceEdit | undefined;
+
+	readonly responseType: InlineChateResponseTypes;
 
 	constructor(
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse | IInlineChatMessageResponse,
+		readonly mdContent: IMarkdownString,
 		localUri: URI,
 		readonly modelAltVersionId: number,
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
 		progressEdits: TextEdit[][],
+		readonly requestId: string,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 
-		this.allLocalEdits.push(...progressEdits);
+		const editsMap = new ResourceMap<TextEdit[][]>();
 
-		if (raw.type === 'editorEdit') {
+		editsMap.set(localUri, [...progressEdits]);
+
+		if (raw.type === InlineChatResponseType.EditorEdit) {
 			//
-			this.allLocalEdits.push(raw.edits);
-			this.singleCreateFileEdit = undefined;
-			this.workspaceEdits = undefined;
+			editsMap.get(localUri)!.push(raw.edits);
 
-		} else {
+
+		} else if (raw.type === InlineChatResponseType.BulkEdit) {
 			//
 			const edits = ResourceEdit.convert(raw.edits);
-			this.workspaceEdits = edits;
-
-			let isComplexEdit = false;
-			const localEdits: TextEdit[] = [];
 
 			for (const edit of edits) {
 				if (edit instanceof ResourceFileEdit) {
-					if (!isComplexEdit && edit.newResource && !edit.oldResource) {
-						// file create
-						if (this.singleCreateFileEdit) {
-							isComplexEdit = true;
-							this.singleCreateFileEdit = undefined;
-						} else {
-							this.singleCreateFileEdit = { uri: edit.newResource, edits: [] };
-							if (edit.options.contents) {
-								this.singleCreateFileEdit.edits.push(edit.options.contents.then(x => ({ range: new Range(1, 1, 1, 1), text: x.toString() })));
-							}
+					if (edit.newResource && !edit.oldResource) {
+						editsMap.set(edit.newResource, []);
+						if (edit.options.contents) {
+							console.warn('CONTENT not supported');
 						}
 					}
 				} else if (edit instanceof ResourceTextEdit) {
 					//
-					if (isEqual(edit.resource, localUri)) {
-						localEdits.push(edit.textEdit);
-						this.workspaceEditsIncludeLocalEdits = true;
-
-					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
-						this.singleCreateFileEdit!.edits.push(Promise.resolve(edit.textEdit));
+					const array = editsMap.get(edit.resource);
+					if (array) {
+						array.push([edit.textEdit]);
 					} else {
-						isComplexEdit = true;
+						editsMap.set(edit.resource, [[edit.textEdit]]);
 					}
 				}
 			}
-			if (localEdits.length > 0) {
-				this.allLocalEdits.push(localEdits);
+		}
+
+		if (editsMap.size === 0) {
+			this.responseType = InlineChateResponseTypes.OnlyMessages;
+		} else if (editsMap.size === 1 && editsMap.has(localUri)) {
+			this.responseType = InlineChateResponseTypes.OnlyEdits;
+		} else {
+			this.responseType = InlineChateResponseTypes.Mixed;
+		}
+
+		let needsWorkspaceEdit = false;
+
+		for (const [uri, edits] of editsMap) {
+
+			const isLocalUri = isEqual(uri, localUri);
+			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isLocalUri);
+
+			if (uri.scheme === Schemas.untitled && !isLocalUri && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
+				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
+				const untitledTextModel = this._textFileService.untitled.create({
+					associatedResource: uri,
+					languageId: langSelection.languageId
+				});
+				this.untitledTextModel = untitledTextModel;
+
+				untitledTextModel.resolve().then(async () => {
+					const model = untitledTextModel.textEditorModel!;
+					model.applyEdits(edits.flat().map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+				});
 			}
-			if (isComplexEdit) {
-				this.singleCreateFileEdit = undefined;
+		}
+
+		this.allLocalEdits = editsMap.get(localUri) ?? [];
+
+		if (needsWorkspaceEdit) {
+			const workspaceEdits: IWorkspaceTextEdit[] = [];
+			for (const [uri, edits] of editsMap) {
+				for (const edit of edits.flat()) {
+					workspaceEdits.push({ resource: uri, textEdit: edit, versionId: undefined });
+				}
 			}
+			this.workspaceEdit = { edits: workspaceEdits };
 		}
 	}
 }
@@ -372,6 +407,8 @@ export interface IInlineChatSessionService {
 
 	onWillStartSession: Event<IActiveCodeEditor>;
 
+	onDidEndSession: Event<ICodeEditor>;
+
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
@@ -383,6 +420,8 @@ export interface IInlineChatSessionService {
 	//
 
 	recordings(): readonly Recording[];
+
+	dispose(): void;
 }
 
 type SessionData = {
@@ -396,6 +435,9 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
+
+	private readonly _onDidEndSession = new Emitter<ICodeEditor>();
+	readonly onDidEndSession: Event<ICodeEditor> = this._onDidEndSession.event;
 
 	private readonly _sessions = new Map<string, SessionData>();
 	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
@@ -411,6 +453,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 	dispose() {
 		this._onWillStartSession.dispose();
+		this._onDidEndSession.dispose();
 		this._sessions.forEach(x => x.store.dispose());
 		this._sessions.clear();
 	}
@@ -505,6 +548,8 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 
 		// send telemetry
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
+
+		this._onDidEndSession.fire(editor);
 	}
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined {

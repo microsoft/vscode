@@ -280,7 +280,7 @@ function makeLoaderJsHotReloadable(loaderJsCode: string, fileChangesUrl: URL): s
 							if (___globalModuleManager._modules2[moduleId]) {
 								const srcUrl = ___globalModuleManager._config.moduleIdToPaths(data.moduleId);
 								const newSrc = await (await fetch(srcUrl)).text();
-								(new Function('define', newSrc))(function (deps, callback) {
+								(new Function('define', newSrc))(function (deps, callback) { // CodeQL [SM01632] This code is only executed during development (as part of the dev-only playground-server). It is required for the hot-reload functionality.
 									const oldModule = ___globalModuleManager._modules2[moduleId];
 									delete ___globalModuleManager._modules2[moduleId];
 

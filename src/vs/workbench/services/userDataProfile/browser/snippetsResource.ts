@@ -109,6 +109,7 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 	constructor(
 		private readonly profile: IUserDataProfile,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[] | undefined> {
@@ -119,6 +120,9 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 			parent: that,
 			resourceUri: resource,
 			collapsibleState: TreeItemCollapsibleState.None,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(resource),
+			},
 			checkbox: that.checkbox ? {
 				get isChecked() { return !that.excludedSnippets.has(resource); },
 				set isChecked(value: boolean) {
@@ -127,6 +131,9 @@ export class SnippetsResourceTreeItem implements IProfileResourceTreeItem {
 					} else {
 						that.excludedSnippets.add(resource);
 					}
+				},
+				accessibilityInformation: {
+					label: localize('exclude', "Select Snippet {0}", this.uriIdentityService.extUri.basename(resource)),
 				}
 			} : undefined,
 			command: {

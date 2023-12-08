@@ -70,7 +70,7 @@ import { StandaloneQuickInputService } from 'vs/editor/standalone/browser/quickI
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -87,11 +87,12 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
 import { WorkspaceEdit } from 'vs/editor/common/languages';
-import { AudioCue, AudioCueGroupId, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { mainWindow } from 'vs/base/browser/window';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -257,7 +258,7 @@ class StandaloneDialogService implements IDialogService {
 			messageText = messageText + '\n\n' + detail;
 		}
 
-		return window.confirm(messageText);
+		return mainWindow.confirm(messageText);
 	}
 
 	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
@@ -527,7 +528,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		return mainWindow.document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
@@ -758,6 +759,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly telemetryLevel = TelemetryLevel.NONE;
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
@@ -1039,7 +1041,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 
 class StandaloneAudioService implements IAudioCueService {
 	_serviceBrand: undefined;
-	async playAudioCue(cue: AudioCue, allowManyInParallel?: boolean | undefined): Promise<void> {
+	async playAudioCue(cue: AudioCue, options: {}): Promise<void> {
 	}
 
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
@@ -1058,7 +1060,13 @@ class StandaloneAudioService implements IAudioCueService {
 	playAudioCueLoop(cue: AudioCue): IDisposable {
 		return toDisposable(() => { });
 	}
-	playRandomAudioCue(groupId: AudioCueGroupId, allowManyInParallel?: boolean): void {
+}
+
+class StandaloneAccessibleNotificationService implements IAccessibleNotificationService {
+	_serviceBrand: undefined;
+
+	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void {
+		// NOOP
 	}
 }
 
@@ -1100,6 +1108,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
+registerSingleton(IAccessibleNotificationService, StandaloneAccessibleNotificationService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
@@ -1116,6 +1125,9 @@ export module StandaloneServices {
 	serviceCollection.set(IInstantiationService, instantiationService);
 
 	export function get<T>(serviceId: ServiceIdentifier<T>): T {
+		if (!initialized) {
+			initialize({});
+		}
 		const r = serviceCollection.get(serviceId);
 		if (!r) {
 			throw new Error('Missing service ' + serviceId);
@@ -1128,6 +1140,7 @@ export module StandaloneServices {
 	}
 
 	let initialized = false;
+	const onDidInitialize = new Emitter<void>();
 	export function initialize(overrides: IEditorOverrideServices): IInstantiationService {
 		if (initialized) {
 			return instantiationService;
@@ -1163,6 +1176,27 @@ export module StandaloneServices {
 			}
 		}
 
+		onDidInitialize.fire();
+
 		return instantiationService;
 	}
+
+	/**
+	 * Executes callback once services are initialized.
+	 */
+	export function withServices(callback: () => IDisposable): IDisposable {
+		if (initialized) {
+			return callback();
+		}
+
+		const disposable = new DisposableStore();
+
+		const listener = disposable.add(onDidInitialize.event(() => {
+			listener.dispose();
+			disposable.add(callback());
+		}));
+
+		return disposable;
+	}
+
 }

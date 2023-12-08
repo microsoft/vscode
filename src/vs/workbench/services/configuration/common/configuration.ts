@@ -93,3 +93,5 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 }
 
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
+
+export const APPLY_ALL_PROFILES_SETTING = 'workbench.settings.applyToAllProfiles';

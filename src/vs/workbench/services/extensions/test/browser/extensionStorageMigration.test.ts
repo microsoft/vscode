@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -23,10 +22,11 @@ import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/u
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtensionStorageMigration', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 	const workspaceStorageHome = joinPath(ROOT, 'workspaceStorageHome');
 
@@ -36,16 +36,14 @@ suite('ExtensionStorageMigration', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		fileService.registerProvider(ROOT.scheme, disposables.add(new InMemoryFileSystemProvider()));
+		disposables.add(fileService.registerProvider(ROOT.scheme, disposables.add(new InMemoryFileSystemProvider())));
 		instantiationService.stub(IFileService, fileService);
 		const environmentService = instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{ userRoamingDataHome: ROOT, workspaceStorageHome, cacheHome: ROOT });
-		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, new UserDataProfilesService(environmentService, fileService, new UriIdentityService(fileService), new NullLogService()));
-		instantiationService.stub(IUserDataProfileService, new UserDataProfileService(userDataProfilesService.defaultProfile, userDataProfilesService));
+		const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, disposables.add(new UriIdentityService(fileService)), new NullLogService())));
+		instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
 
-		instantiationService.stub(IExtensionStorageService, instantiationService.createInstance(ExtensionStorageService));
+		instantiationService.stub(IExtensionStorageService, disposables.add(instantiationService.createInstance(ExtensionStorageService)));
 	});
-
-	teardown(() => disposables.clear());
 
 	test('migrate extension storage', async () => {
 		const fromExtensionId = 'pub.from', toExtensionId = 'pub.to', storageMigratedKey = `extensionStorage.migrate.${fromExtensionId}-${toExtensionId}`;

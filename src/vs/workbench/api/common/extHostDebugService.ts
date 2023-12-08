@@ -6,7 +6,6 @@
 import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -475,9 +474,9 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				});
 				debugAdapter.onExit((code: number | null) => {
 					if (tracker && tracker.onExit) {
-						tracker.onExit(withNullAsUndefined(code), undefined);
+						tracker.onExit(code ?? undefined, undefined);
 					}
-					this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, withNullAsUndefined(code), undefined);
+					this._debugServiceProxy.$acceptDAExit(debugAdapterHandle, code ?? undefined, undefined);
 				});
 
 				if (tracker && tracker.onWillStartSession) {

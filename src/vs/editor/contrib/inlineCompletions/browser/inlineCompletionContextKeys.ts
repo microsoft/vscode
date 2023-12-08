@@ -28,18 +28,21 @@ export class InlineCompletionContextKeys extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update context key: inlineCompletionVisible, suppressSuggestions', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update context key: inlineCompletionVisible, suppressSuggestions */
 			const model = this.model.read(reader);
-			const suggestion = model?.selectedInlineCompletion.read(reader);
-			const ghostText = model?.ghostText.read(reader);
-			this.inlineCompletionVisible.set(ghostText !== undefined && !ghostText.isEmpty());
+			const state = model?.state.read(reader);
 
-			if (ghostText && suggestion) {
-				this.suppressSuggestions.set(suggestion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
+			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.ghostText !== undefined && !state?.ghostText.isEmpty();
+			this.inlineCompletionVisible.set(isInlineCompletionVisible);
+
+			if (state?.ghostText && state?.inlineCompletion) {
+				this.suppressSuggestions.set(state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
 			}
 		}));
 
-		this._register(autorun('update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize', (reader) => {
+		this._register(autorun(reader => {
+			/** @description update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize */
 			const model = this.model.read(reader);
 
 			let startsWithIndentation = false;

@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/com
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { isWeb } from 'vs/base/common/platform';
 import { ConfigurationSyncStore } from 'vs/base/common/product';
@@ -20,10 +20,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { asJson, asText, asTextOrError, IRequestService, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
+import { asJson, asText, asTextOrError, hasNoContent, IRequestService, isSuccess, isSuccess as isSuccessContext } from 'vs/platform/request/common/request';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { HEADER_EXECUTION_ID, HEADER_OPERATION_ID, IAuthenticationProvider, IResourceRefHandle, IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStore, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, ServerResource, SYNC_SERVICE_URL_TYPE, UserDataSyncErrorCode, UserDataSyncStoreError, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
 
 const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
@@ -58,7 +59,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
-		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.APPLICATION && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
+		const disposable = this._register(new DisposableStore());
+		this._register(Event.filter(storageService.onDidChangeValue(StorageScope.APPLICATION, SYNC_SERVICE_URL_TYPE, disposable), () => this.userDataSyncStoreType !== this.userDataSyncStore?.type, disposable)(() => this.updateUserDataSyncStore()));
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -456,6 +458,27 @@ export class UserDataSyncStoreClient extends Disposable {
 		this.clearSession();
 	}
 
+	async getActivityData(): Promise<VSBufferReadableStream> {
+		if (!this.userDataSyncStoreUrl) {
+			throw new Error('No settings sync store url configured.');
+		}
+
+		const url = joinPath(this.userDataSyncStoreUrl, 'download').toString();
+		const headers: IHeaders = {};
+
+		const context = await this.request(url, { type: 'GET', headers }, [], CancellationToken.None);
+
+		if (!isSuccess(context)) {
+			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		}
+
+		if (hasNoContent(context)) {
+			throw new UserDataSyncStoreError('Empty response', url, UserDataSyncErrorCode.EmptyResponse, context.res.statusCode, context.res.headers[HEADER_OPERATION_ID]);
+		}
+
+		return context.stream;
+	}
+
 	private getResourceUrl(userDataSyncStoreUrl: URI, collection: string | undefined, resource: ServerResource): URI {
 		return collection ? joinPath(userDataSyncStoreUrl, 'collection', collection, 'resource', resource) : joinPath(userDataSyncStoreUrl, 'resource', resource);
 	}
@@ -534,8 +557,8 @@ export class UserDataSyncStoreClient extends Disposable {
 		if (isSuccess) {
 			this.logService.trace('Request succeeded', requestInfo);
 		} else {
-			this.logService.info('Request failed', requestInfo);
 			failureMessage = await asText(context) || '';
+			this.logService.info('Request failed', requestInfo, failureMessage);
 		}
 
 		if (context.res.statusCode === 401 || context.res.statusCode === 403) {

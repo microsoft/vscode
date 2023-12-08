@@ -3,74 +3,94 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionEditor';
-import { localize } from 'vs/nls';
-import * as arrays from 'vs/base/common/arrays';
-import { OS, language } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Cache, CacheResult } from 'vs/base/common/cache';
-import { Action, IAction } from 'vs/base/common/actions';
-import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { append, $, join, addDisposableListener, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionIdentifier, IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionWidget, ExtensionStatusWidget, ExtensionRecommendationWidget, SponsorWidget, onClick, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import {
-	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
-	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
-	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, SkipUpdateAction
-} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Color } from 'vs/base/common/color';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined } from 'vs/base/common/types';
-import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
-import { generateUuid } from 'vs/base/common/uuid';
-import { platform } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { $, Dimension, addDisposableListener, append, join, reset, setParentFlowTo } from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
+import { Action, IAction } from 'vs/base/common/actions';
+import * as arrays from 'vs/base/common/arrays';
+import { Cache, CacheResult } from 'vs/base/common/cache';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas, matchesScheme } from 'vs/base/common/network';
+import { OS, language } from 'vs/base/common/platform';
+import { platform } from 'vs/base/common/process';
 import * as semver from 'vs/base/common/semver/semver';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { isUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import 'vs/css!./media/extensionEditor';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { localize } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionIdentifier, IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import {
+	ActionWithDropDownAction,
+	ClearLanguageAction,
+	DisableDropDownAction,
+	EnableDropDownAction,
+	ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
+	ExtensionEditorManageExtensionAction,
+	ExtensionStatusAction,
+	ExtensionStatusLabelAction,
+	InstallAnotherVersionAction,
+	InstallDropdownAction, InstallingLabelAction,
+	LocalInstallAction,
+	MigrateDeprecatedExtensionAction,
+	ReloadAction,
+	RemoteInstallAction,
+	SetColorThemeAction,
+	SetFileIconThemeAction,
+	SetLanguageAction,
+	SetProductIconThemeAction,
+	ToggleAutoUpdateForExtensionAction,
+	SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction,
+	UninstallAction,
+	UpdateAction,
+	WebInstallAction
+} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 class NavBar extends Disposable {
 
@@ -276,7 +296,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
@@ -324,7 +344,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ReloadAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
@@ -347,7 +367,7 @@ export class ExtensionEditor extends EditorPane {
 			]),
 			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
 			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
+			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, [false, 'onlySelectedExtensions']),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
 
@@ -360,6 +380,9 @@ export class ExtensionEditor extends EditorPane {
 				}
 				if (action instanceof ActionWithDropDownAction) {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				}
+				if (action instanceof ToggleAutoUpdateForExtensionAction) {
+					return new CheckboxActionViewItem(undefined, action, { icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
 				}
 				return undefined;
 			},
@@ -398,10 +421,12 @@ export class ExtensionEditor extends EditorPane {
 			this._register(disposable);
 		}
 
-		this._register(Event.chain(extensionActionBar.onDidRun)
-			.map(({ error }) => error)
-			.filter(error => !!error)
-			.on(this.onError, this));
+		const onError = Event.chain(extensionActionBar.onDidRun, $ =>
+			$.map(({ error }) => error)
+				.filter(error => !!error)
+		);
+
+		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
 		const navbar = new NavBar(body);
@@ -621,6 +646,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.activeElement?.focus();
 	}
 
@@ -803,7 +829,7 @@ export class ExtensionEditor extends EditorPane {
 					#scroll-to-top span.icon::before {
 						content: "";
 						display: block;
-						background: var(--vscode-button-foreground);
+						background: var(--vscode-button-secondaryForeground);
 						/* Chevron up icon */
 						webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
 						-webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
@@ -944,7 +970,7 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
-		const toDateString = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
+		const toDateString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
@@ -1221,18 +1247,20 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => {
-					let description: (Node | string) = properties[key].description || '';
-					if (properties[key].markdownDescription) {
-						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
-						description = element;
-						this.contentDisposables.add(toDisposable(dispose));
-					}
-					return $('tr', undefined,
-						$('td', undefined, $('code', undefined, key)),
-						$('td', undefined, description),
-						$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
-				})
+				...contrib
+					.sort((a, b) => a.localeCompare(b))
+					.map(key => {
+						let description: (Node | string) = properties[key].description || '';
+						if (properties[key].markdownDescription) {
+							const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
+							description = element;
+							this.contentDisposables.add(toDisposable(dispose));
+						}
+						return $('tr', undefined,
+							$('td', undefined, $('code', undefined, key)),
+							$('td', undefined, description),
+							$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : JSON.stringify(properties[key].default)}`)));
+					})
 			)
 		);
 
@@ -1253,9 +1281,11 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('debugger name', "Name")),
 					$('th', undefined, localize('debugger type', "Type")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.label!),
-					$('td', undefined, d.type)))
+				...contrib
+					.sort((a, b) => a.label!.localeCompare(b.label!))
+					.map(d => $('tr', undefined,
+						$('td', undefined, d.label!),
+						$('td', undefined, d.type)))
 			)
 		);
 
@@ -1280,7 +1310,9 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
-				...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
+				...viewContainers
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
 			)
 		);
 
@@ -1305,7 +1337,9 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('views', "Views ({0})", views.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
-				...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
+				...views
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
 			)
 		);
 
@@ -1323,7 +1357,9 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language ID")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
-				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
+				...localizations
+					.sort((a, b) => a.languageId.localeCompare(b.languageId))
+					.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
 			)
 		);
 
@@ -1336,15 +1372,15 @@ export class ExtensionEditor extends EditorPane {
 		if (!webviewEditors.length) {
 			return false;
 		}
-
+		const renderEditors = Array.from(webviewEditors).sort((a, b) => a.viewType.localeCompare(b.viewType));
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", webviewEditors.length)),
+			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", renderEditors.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('customEditors view type', "View Type")),
 					$('th', undefined, localize('customEditors priority', "Priority")),
 					$('th', undefined, localize('customEditors filenamePattern', "Filename Pattern"))),
-				...webviewEditors.map(webviewEditor =>
+				...renderEditors.map(webviewEditor =>
 					$('tr', undefined,
 						$('td', undefined, webviewEditor.viewType),
 						$('td', undefined, webviewEditor.priority),
@@ -1374,12 +1410,14 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('codeActions.kind', "Kind")),
 					$('th', undefined, localize('codeActions.description', "Description")),
 					$('th', undefined, localize('codeActions.languages', "Languages"))),
-				...flatActions.map(action =>
-					$('tr', undefined,
-						$('td', undefined, action.title),
-						$('td', undefined, $('code', undefined, action.kind)),
-						$('td', undefined, action.description ?? ''),
-						$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
+				...flatActions
+					.sort((a, b) => a.title.localeCompare(b.title))
+					.map(action =>
+						$('tr', undefined,
+							$('td', undefined, action.title),
+							$('td', undefined, $('code', undefined, action.kind)),
+							$('td', undefined, action.description ?? ''),
+							$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
 			)
 		);
 
@@ -1400,12 +1438,14 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('authentication.label', "Label")),
 					$('th', undefined, localize('authentication.id', "ID"))
 				),
-				...authentication.map(action =>
-					$('tr', undefined,
-						$('td', undefined, action.label),
-						$('td', undefined, action.id)
+				...authentication
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(action =>
+						$('tr', undefined,
+							$('td', undefined, action.label),
+							$('td', undefined, action.id)
+						)
 					)
-				)
 			)
 		);
 
@@ -1421,7 +1461,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('colorThemes', "Color Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			$('ul', undefined,
+				...contrib
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -1436,7 +1479,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			$('ul', undefined,
+				...contrib
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -1451,7 +1497,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			$('ul', undefined,
+				...contrib
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -1486,13 +1535,15 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('defaultLight', "Light Default")),
 					$('th', undefined, localize('defaultHC', "High Contrast Default"))
 				),
-				...colors.map(color => $('tr', undefined,
-					$('td', undefined, $('code', undefined, color.id)),
-					$('td', undefined, color.description),
-					$('td', undefined, ...colorPreview(color.defaults.dark)),
-					$('td', undefined, ...colorPreview(color.defaults.light)),
-					$('td', undefined, ...colorPreview(color.defaults.highContrast))
-				))
+				...colors
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(color => $('tr', undefined,
+						$('td', undefined, $('code', undefined, color.id)),
+						$('td', undefined, color.description),
+						$('td', undefined, ...colorPreview(color.defaults.dark)),
+						$('td', undefined, ...colorPreview(color.defaults.light)),
+						$('td', undefined, ...colorPreview(color.defaults.highContrast))
+					))
 			)
 		);
 
@@ -1591,12 +1642,14 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
 					$('th', undefined, localize('menuContexts', "Menu Contexts"))
 				),
-				...commands.map(c => $('tr', undefined,
-					$('td', undefined, $('code', undefined, c.id)),
-					$('td', undefined, typeof c.title === 'string' ? c.title : c.title.value),
-					$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
-					$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
-				))
+				...commands
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(c => $('tr', undefined,
+						$('td', undefined, $('code', undefined, c.id)),
+						$('td', undefined, typeof c.title === 'string' ? c.title : c.title.value),
+						$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
+						$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
+					))
 			)
 		);
 
@@ -1657,13 +1710,15 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('grammar', "Grammar")),
 					$('th', undefined, localize('snippets', "Snippets"))
 				),
-				...languages.map(l => $('tr', undefined,
-					$('td', undefined, l.id),
-					$('td', undefined, l.name),
-					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
-					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
-				))
+				...languages
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(l => $('tr', undefined,
+						$('td', undefined, l.id),
+						$('td', undefined, l.name),
+						$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
+						$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
+						$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
+					))
 			)
 		);
 
@@ -1679,7 +1734,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
-			$('ul', undefined, ...activationEvents.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
+			$('ul', undefined,
+				...activationEvents
+					.sort((a, b) => a.localeCompare(b))
+					.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
 		);
 
 		append(container, details);
@@ -1700,9 +1758,11 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('Notebook id', "ID")),
 					$('th', undefined, localize('Notebook name', "Name")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.type),
-					$('td', undefined, d.displayName)))
+				...contrib
+					.sort((a, b) => a.type.localeCompare(b.type))
+					.map(d => $('tr', undefined,
+						$('td', undefined, d.type),
+						$('td', undefined, d.displayName)))
 			)
 		);
 
@@ -1724,9 +1784,11 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('Notebook renderer name', "Name")),
 					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.displayName),
-					$('td', undefined, d.mimeTypes.join(','))))
+				...contrib
+					.sort((a, b) => a.displayName.localeCompare(b.displayName))
+					.map(d => $('tr', undefined,
+						$('td', undefined, d.displayName),
+						$('td', undefined, d.mimeTypes.join(','))))
 			)
 		);
 

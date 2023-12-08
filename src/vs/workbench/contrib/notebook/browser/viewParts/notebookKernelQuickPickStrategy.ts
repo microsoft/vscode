@@ -12,7 +12,6 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { uppercaseFirstLetter } from 'vs/base/common/strings';
-import 'vs/css!./notebookKernelActionViewItem';
 import { Command } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';

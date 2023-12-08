@@ -43,7 +43,7 @@ suite('extractRangeFromFilter', () => {
 		assert.strictEqual(res?.range.startColumn, 20);
 	});
 
-	suite('unless', async function () {
+	suite('unless', function () {
 		const testSpecs = [
 			// alpha-only symbol after unless
 			{ filter: '/some/path/file.txt@alphasymbol', unless: ['@'], result: undefined },

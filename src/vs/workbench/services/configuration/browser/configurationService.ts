@@ -8,14 +8,14 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Queue, Barrier, runWhenIdle, Promises, Delayer } from 'vs/base/common/async';
+import { Queue, Barrier, Promises, Delayer } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from 'vs/platform/configuration/common/configuration';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
@@ -33,7 +33,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { delta, distinct } from 'vs/base/common/arrays';
+import { delta, distinct, equals as arrayEquals } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
@@ -44,9 +44,12 @@ import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/pol
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { mainWindow } from 'vs/base/browser/window';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
-	return userDataProfile.isDefault
+	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
 		? hasRemote ? LOCAL_MACHINE_SCOPES : undefined
 		: hasRemote ? LOCAL_MACHINE_PROFILE_SCOPES : PROFILE_SCOPES;
 }
@@ -489,7 +492,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	isSettingAppliedForAllProfiles(key: string): boolean {
-		return this.configurationRegistry.getConfigurationProperties()[key]?.scope === ConfigurationScope.APPLICATION;
+		if (this.configurationRegistry.getConfigurationProperties()[key]?.scope === ConfigurationScope.APPLICATION) {
+			return true;
+		}
+		const allProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
+		return Array.isArray(allProfilesSettings) && allProfilesSettings.includes(key);
 	}
 
 	private async createWorkspace(arg: IAnyWorkspaceIdentifier): Promise<Workspace> {
@@ -571,7 +578,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		if (!this.localUserConfiguration.hasTasksLoaded) {
 			// Reload local user configuration again to load user tasks
-			this._register(runWhenIdle(() => this.reloadLocalUserConfiguration()));
+			this._register(runWhenWindowIdle(mainWindow, () => this.reloadLocalUserConfiguration(false, this._configuration.localUserConfiguration)));
 		}
 	}
 
@@ -601,6 +608,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const initUserConfiguration = async () => {
 			mark('code/willInitUserConfiguration');
 			const result = await Promise.all([this.localUserConfiguration.initialize(), this.remoteUserConfiguration ? this.remoteUserConfiguration.initialize() : Promise.resolve(new ConfigurationModel())]);
+			if (this.applicationConfiguration) {
+				const applicationConfigurationModel = await initApplicationConfigurationPromise;
+				result[0] = this.localUserConfiguration.reparse({ exclude: applicationConfigurationModel.getValue(APPLY_ALL_PROFILES_SETTING) });
+			}
 			mark('code/didInitUserConfiguration');
 			return result;
 		};
@@ -636,8 +647,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return { local, remote };
 	}
 
-	async reloadLocalUserConfiguration(donotTrigger?: boolean): Promise<ConfigurationModel> {
-		const model = await this.localUserConfiguration.reload();
+	async reloadLocalUserConfiguration(donotTrigger?: boolean, settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
+		const model = await this.localUserConfiguration.reload(settingsConfiguration);
 		if (!donotTrigger) {
 			this.onLocalUserConfigurationChanged(model);
 		}
@@ -708,14 +719,19 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		e.join((async () => {
 			const promises: Promise<ConfigurationModel>[] = [];
 			promises.push(this.localUserConfiguration.reset(e.profile.settingsResource, e.profile.tasksResource, { scopes: getLocalUserConfigurationScopes(e.profile, !!this.remoteUserConfiguration) }));
-			if (e.previous.isDefault !== e.profile.isDefault) {
+			if (e.previous.isDefault !== e.profile.isDefault
+				|| !!e.previous.useDefaultFlags?.settings !== !!e.profile.useDefaultFlags?.settings) {
 				this.createApplicationConfiguration();
 				if (this.applicationConfiguration) {
 					promises.push(this.reloadApplicationConfiguration(true));
 				}
 			}
-			const [localUser, application] = await Promise.all(promises);
-			await this.loadConfiguration(application ?? this._configuration.applicationConfiguration, localUser, this._configuration.remoteUserConfiguration, true);
+			let [localUser, application] = await Promise.all(promises);
+			application = application ?? this._configuration.applicationConfiguration;
+			if (this.applicationConfiguration) {
+				localUser = this.localUserConfiguration.reparse({ exclude: application.getValue(APPLY_ALL_PROFILES_SETTING) });
+			}
+			await this.loadConfiguration(application, localUser, this._configuration.remoteUserConfiguration, true);
 		})());
 	}
 
@@ -758,15 +774,35 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private onApplicationConfigurationChanged(applicationConfiguration: ConfigurationModel): void {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
+		const previousAllProfilesSettings = this._configuration.applicationConfiguration.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 		const change = this._configuration.compareAndUpdateApplicationConfiguration(applicationConfiguration);
+		const currentAllProfilesSettings = this.getValue<string[]>(APPLY_ALL_PROFILES_SETTING) ?? [];
 		const configurationProperties = this.configurationRegistry.getConfigurationProperties();
 		const changedKeys: string[] = [];
 		for (const changedKey of change.keys) {
 			if (configurationProperties[changedKey]?.scope === ConfigurationScope.APPLICATION) {
 				changedKeys.push(changedKey);
+				if (changedKey === APPLY_ALL_PROFILES_SETTING) {
+					for (const previousAllProfileSetting of previousAllProfilesSettings) {
+						if (!currentAllProfilesSettings.includes(previousAllProfileSetting)) {
+							changedKeys.push(previousAllProfileSetting);
+						}
+					}
+					for (const currentAllProfileSetting of currentAllProfilesSettings) {
+						if (!previousAllProfilesSettings.includes(currentAllProfileSetting)) {
+							changedKeys.push(currentAllProfileSetting);
+						}
+					}
+				}
+			}
+			else if (currentAllProfilesSettings.includes(changedKey)) {
+				changedKeys.push(changedKey);
 			}
 		}
 		change.keys = changedKeys;
+		if (change.keys.includes(APPLY_ALL_PROFILES_SETTING)) {
+			this._configuration.updateLocalUserConfiguration(this.localUserConfiguration.reparse({ exclude: currentAllProfilesSettings }));
+		}
 		this.triggerConfigurationChange(change, previous, ConfigurationTarget.USER);
 	}
 
@@ -981,6 +1017,17 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			throw new Error('Invalid configuration target');
 		}
 
+		if (overrides?.overrideIdentifiers?.length && overrides.overrideIdentifiers.length > 1) {
+			const configurationModel = this.getConfigurationModel(editableConfigurationTarget, overrides.resource);
+			if (configurationModel) {
+				const overrideIdentifiers = overrides.overrideIdentifiers.sort();
+				const existingOverrides = configurationModel.overrides.find(override => arrayEquals([...override.identifiers].sort(), overrideIdentifiers));
+				if (existingOverrides) {
+					overrides.overrideIdentifiers = existingOverrides.identifiers;
+				}
+			}
+		}
+
 		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
 		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing, (await this.remoteAgentService.getEnvironment())?.settingsPath ?? null);
 		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
@@ -1002,6 +1049,15 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					return this.reloadWorkspaceFolderConfiguration(workspaceFolder);
 				}
 			}
+		}
+	}
+
+	private getConfigurationModel(target: EditableConfigurationTarget, resource?: URI | null): ConfigurationModel | undefined {
+		switch (target) {
+			case EditableConfigurationTarget.USER_LOCAL: return this._configuration.localUserConfiguration;
+			case EditableConfigurationTarget.USER_REMOTE: return this._configuration.remoteUserConfiguration;
+			case EditableConfigurationTarget.WORKSPACE: return this._configuration.workspaceConfiguration;
+			case EditableConfigurationTarget.WORKSPACE_FOLDER: return resource ? this._configuration.folderConfigurations.get(resource) : undefined;
 		}
 	}
 
@@ -1094,16 +1150,6 @@ class RegisterConfigurationSchemasContribution extends Disposable implements IWo
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
-
-		this.registerSchemas({
-			defaultSettingsSchema: {},
-			userSettingsSchema: {},
-			profileSettingsSchema: {},
-			machineSettingsSchema: {},
-			workspaceSettingsSchema: {},
-			folderSettingsSchema: {},
-			configDefaultsSchema: {},
-		});
 
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.registerConfigurationSchemas();
@@ -1317,4 +1363,19 @@ class UpdateExperimentalSettingsDefaults extends Disposable implements IWorkbenc
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);
 workbenchContributionsRegistry.registerWorkbenchContribution(ResetConfigurationDefaultsOverridesCache, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(UpdateExperimentalSettingsDefaults, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(UpdateExperimentalSettingsDefaults, LifecyclePhase.Ready);
+
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		[APPLY_ALL_PROFILES_SETTING]: {
+			'type': 'array',
+			description: localize('setting description', "Configure settings to be applied for all profiles."),
+			'default': [],
+			'scope': ConfigurationScope.APPLICATION,
+			additionalProperties: true,
+			uniqueItems: true,
+		}
+	}
+});

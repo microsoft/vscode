@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parentOriginHash } from 'vs/workbench/browser/iframe';
+import { parentOriginHash } from 'vs/base/browser/iframe';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('parentOriginHash', () => {
 
@@ -22,4 +23,6 @@ suite('parentOriginHash', () => {
 		const hash = await parentOriginHash('http://localhost:9887', '123456');
 		assert.strictEqual(hash, '1v1128i162q0nee9l89360sqan26u3pdnjrkke5ijd0sel8sbtqf');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

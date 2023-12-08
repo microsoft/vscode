@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/30adbfae9dcb0a6477584247ac477f13845d1f5f",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/221a2443a5e8ac029685a0f872af39b23cc2b634",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1337,7 +1337,7 @@
 			]
 		},
 		{
-			"begin": "(\\s*\\\\begin\\{(tabular[xy*]?|xltabular|longtable|(?:long)?tabu|(?:long|tall)?tblr|NiceTabular[X*]?)\\}(\\s*\\n)?)",
+			"begin": "(\\s*\\\\begin\\{(tabular[xy*]?|xltabular|longtable|(?:long)?tabu|(?:long|tall)?tblr|NiceTabular[X*]?|booktabs)\\}(\\s*\\n)?)",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -2071,7 +2071,22 @@
 			]
 		},
 		{
-			"begin": "(?<!\\\\)(\\`\\`)",
+			"begin": "(,,)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.string.begin.latex"
+				}
+			},
+			"end": "(?<!\\\\)(\\`\\`)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.string.end.latex"
+				}
+			},
+			"name": "string.quoted.double.latex"
+		},
+		{
+			"begin": "(?<!\\\\|\\\\catcode|\\\\string)(\\`\\`)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.string.begin.latex"
@@ -2356,7 +2371,7 @@
 			"name": "meta.definition.label.latex",
 			"patterns": [
 				{
-					"match": "[a-zA-Z0-9\\.,:/*!^_-]",
+					"match": "[\\p{Alphabetic}\\p{Number}\\.,:/*!^_-]",
 					"name": "variable.parameter.definition.label.latex"
 				}
 			]

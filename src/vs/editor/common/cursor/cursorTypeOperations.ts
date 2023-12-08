@@ -19,7 +19,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
+import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
@@ -565,13 +565,6 @@ export class TypeOperations {
 	}
 
 	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
-		const chIsQuote = isQuote(ch);
-		const autoCloseConfig = (chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets);
-		const shouldAutoCloseBefore = (chIsQuote ? config.shouldAutoCloseBefore.quote : config.shouldAutoCloseBefore.bracket);
-
-		if (autoCloseConfig === 'never') {
-			return null;
-		}
 
 		for (const selection of selections) {
 			if (!selection.isEmpty()) {
@@ -600,6 +593,28 @@ export class TypeOperations {
 		// e.g. when having [f","] and [","], it picks [f","] if the character before is f
 		const pair = this._findAutoClosingPairOpen(config, model, positions.map(p => new Position(p.lineNumber, p.beforeColumn)), ch);
 		if (!pair) {
+			return null;
+		}
+
+		let autoCloseConfig: EditorAutoClosingStrategy;
+		let shouldAutoCloseBefore: (ch: string) => boolean;
+
+		const chIsQuote = isQuote(ch);
+		if (chIsQuote) {
+			autoCloseConfig = config.autoClosingQuotes;
+			shouldAutoCloseBefore = config.shouldAutoCloseBefore.quote;
+		} else {
+			const pairIsForComments = config.blockCommentStartToken ? pair.open.includes(config.blockCommentStartToken) : false;
+			if (pairIsForComments) {
+				autoCloseConfig = config.autoClosingComments;
+				shouldAutoCloseBefore = config.shouldAutoCloseBefore.comment;
+			} else {
+				autoCloseConfig = config.autoClosingBrackets;
+				shouldAutoCloseBefore = config.shouldAutoCloseBefore.bracket;
+			}
+		}
+
+		if (autoCloseConfig === 'never') {
 			return null;
 		}
 

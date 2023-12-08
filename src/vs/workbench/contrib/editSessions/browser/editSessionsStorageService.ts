@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -11,14 +11,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { createSyncHeaders, IAuthenticationProvider, IResourceRefHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { EDIT_SESSIONS_SIGNED_IN, EditSession, EDIT_SESSION_SYNC_CATEGORY, IEditSessionsStorageService, EDIT_SESSIONS_SIGNED_IN_KEY, IEditSessionsLogService, SyncResource, EDIT_SESSIONS_PENDING_KEY } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { generateUuid } from 'vs/base/common/uuid';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { isWeb } from 'vs/base/common/platform';
 import { IUserDataSyncMachinesService, UserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
@@ -82,8 +81,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
-		@ICredentialsService private readonly credentialsService: ICredentialsService
+		@ISecretStorageService private readonly secretStorageService: ISecretStorageService
 	) {
 		super();
 
@@ -91,7 +89,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
 
 		// If another window changes the preferred session storage, reset our cached auth state in memory
-		this._register(this.storageService.onDidChangeValue(e => this.onDidChangeStorage(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY, this._register(new DisposableStore()))(() => this.onDidChangeStorage()));
 
 		this.registerSignInAction();
 		this.registerResetAuthenticationAction();
@@ -280,7 +278,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		// If settings sync is already enabled, avoid asking again to authenticate
 		if (this.shouldAttemptEditSessionInit()) {
 			this.logService.info(`Reusing user data sync enablement`);
-			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.secretStorageService, this.productService);
+			const authenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService);
 			if (authenticationSessionInfo !== undefined) {
 				this.logService.info(`Using current authentication session with ID ${authenticationSessionInfo.id}`);
 				this.existingSessionId = authenticationSessionInfo.id;
@@ -431,18 +429,14 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return accounts.find((account) => account.session.id === this.existingSessionId);
 	}
 
-	private async onDidChangeStorage(e: IStorageValueChangeEvent): Promise<void> {
-		if (e.key === EditSessionsWorkbenchService.CACHED_SESSION_STORAGE_KEY
-			&& e.scope === StorageScope.APPLICATION
-		) {
-			const newSessionId = this.existingSessionId;
-			const previousSessionId = this.authenticationInfo?.sessionId;
+	private async onDidChangeStorage(): Promise<void> {
+		const newSessionId = this.existingSessionId;
+		const previousSessionId = this.authenticationInfo?.sessionId;
 
-			if (previousSessionId !== newSessionId) {
-				this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
-				this.authenticationInfo = undefined;
-				this.initialized = false;
-			}
+		if (previousSessionId !== newSessionId) {
+			this.logService.trace(`Resetting authentication state because authentication session ID preference changed from ${previousSessionId} to ${newSessionId}.`);
+			this.authenticationInfo = undefined;
+			this.initialized = false;
 		}
 	}
 

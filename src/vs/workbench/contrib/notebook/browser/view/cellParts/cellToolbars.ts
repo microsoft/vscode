@@ -46,7 +46,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		const betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					if (this._notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
+					if (this._notebookEditor.notebookOptions.getDisplayOptions().insertToolbarAlignment === 'center') {
 						return this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
 					} else {
 						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
@@ -166,12 +166,12 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			return this._view;
 		}
 
-		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
-		});
+		}));
 
 		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, 'cell-delete-toolbar')));
 		if (model.deleteActions.primary.length !== 0 || model.deleteActions.secondary.length !== 0) {
@@ -233,9 +233,9 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
-				this._register(disposableTimeout(() => {
+				disposableTimeout(() => {
 					deferredUpdate?.();
-				}));
+				}, 0, this._store);
 
 				deferredUpdate = undefined;
 			}
@@ -243,7 +243,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	}
 
 	private updateActions(toolbar: ToolBar, actions: { primary: IAction[]; secondary: IAction[] }) {
-		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
+		const hadFocus = DOM.isAncestorOfActiveElement(toolbar.getElement());
 		toolbar.setActions(actions.primary, actions.secondary);
 		if (hadFocus) {
 			this._notebookEditor.focus();

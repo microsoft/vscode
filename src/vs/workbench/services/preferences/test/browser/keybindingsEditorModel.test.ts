@@ -20,6 +20,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/preferences';
 import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -30,26 +31,23 @@ interface Modifiers {
 
 suite('KeybindingsEditorModel', () => {
 
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditorModel;
 	let extensions: Partial<IExtensionDescription>[] = [];
 
 	setup(() => {
 		extensions = [];
-		instantiationService = new TestInstantiationService();
+		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IKeybindingService, {});
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
 			get extensions() { return extensions; }
 		});
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OS);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OS));
 
-		CommandsRegistry.registerCommand('command_without_keybinding', () => { });
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
+		disposables.add(CommandsRegistry.registerCommand('command_without_keybinding', () => { }));
 	});
 
 	test('fetch returns default keybindings', async () => {
@@ -190,7 +188,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('convert without title and binding to entry', async () => {
-		CommandsRegistry.registerCommand('command_without_keybinding', () => { });
+		disposables.add(CommandsRegistry.registerCommand('command_without_keybinding', () => { }));
 		prepareKeybindingService();
 
 		await testObject.resolve(new Map<string, string>());
@@ -310,7 +308,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by cmd key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
@@ -324,7 +322,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by meta key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
@@ -338,7 +336,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by command key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
@@ -352,7 +350,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by windows key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Windows);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Windows));
 
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
@@ -460,7 +458,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by modifiers and key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { altKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -473,7 +471,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by modifiers in random order and key', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -486,7 +484,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by first part', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -499,7 +497,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter matches in chord part', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -512,7 +510,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter matches first part and in chord part', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.Delete }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.UpArrow }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -549,7 +547,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter exact matches with first and chord part no results', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.Delete, modifiers: { metaKey: true } }, when: 'whenContext1 && whenContext2', isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { shiftKey: true, metaKey: true } }, secondChord: { keyCode: KeyCode.UpArrow }, when: 'whenContext1 && whenContext2', isDefault: false }));
@@ -618,7 +616,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter exact matches with user settings label', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.DownArrow } });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'down', firstChord: { keyCode: KeyCode.Escape } }));
@@ -642,7 +640,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter modifiers are not matched when not completely matched (prefix)', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const term = `alt.${uuid.generateUuid()}`;
 		const command = `command.${term}`;
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape }, isDefault: false });
@@ -656,7 +654,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter modifiers are not matched when not completely matched (includes)', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const term = `abcaltdef.${uuid.generateUuid()}`;
 		const command = `command.${term}`;
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape }, isDefault: false });
@@ -670,7 +668,7 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter modifiers are matched with complete term', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command = `command.${uuid.generateUuid()}`;
 		const expected = aResolvedKeybindingItem({ command, firstChord: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstChord: { keyCode: KeyCode.Escape }, isDefault: false }));
@@ -682,11 +680,11 @@ suite('KeybindingsEditorModel', () => {
 	});
 
 	test('filter by extension', async () => {
-		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh));
 		const command1 = `command.${uuid.generateUuid()}`;
 		const command2 = `command.${uuid.generateUuid()}`;
 		extensions.push({ identifier: new ExtensionIdentifier('foo'), displayName: 'foo bar' }, { identifier: new ExtensionIdentifier('bar'), displayName: 'bar foo' });
-		MenuRegistry.addCommand({ id: command2, title: 'title', category: 'category', source: { id: extensions[1].identifier!.value, title: extensions[1].displayName! } });
+		disposables.add(MenuRegistry.addCommand({ id: command2, title: 'title', category: 'category', source: { id: extensions[1].identifier!.value, title: extensions[1].displayName! } }));
 		const expected = aResolvedKeybindingItem({ command: command1, firstChord: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: true, extensionId: extensions[0].identifier!.value });
 		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: command2, isDefault: true }));
 
@@ -707,7 +705,7 @@ suite('KeybindingsEditorModel', () => {
 	}
 
 	function registerCommandWithTitle(command: string, title: string): void {
-		registerAction2(class extends Action2 {
+		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: command,
@@ -716,7 +714,7 @@ suite('KeybindingsEditorModel', () => {
 				});
 			}
 			async run(): Promise<void> { }
-		});
+		}));
 	}
 
 	function assertKeybindingItems(actual: ResolvedKeybindingItem[], expected: ResolvedKeybindingItem[]) {

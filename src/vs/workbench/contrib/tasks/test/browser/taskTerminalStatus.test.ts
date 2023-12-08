@@ -5,6 +5,8 @@
 
 import { ok } from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -21,8 +23,8 @@ class TestTaskService implements Partial<ITaskService> {
 	public get onDidStateChange(): Event<ITaskEvent> {
 		return this._onDidStateChange.event;
 	}
-	public triggerStateChange(event: ITaskEvent): void {
-		this._onDidStateChange.fire(event);
+	public triggerStateChange(event: Partial<ITaskEvent>): void {
+		this._onDidStateChange.fire(event as ITaskEvent);
 	}
 }
 
@@ -32,8 +34,14 @@ class TestAudioCueService implements Partial<IAudioCueService> {
 	}
 }
 
-class TestTerminal implements Partial<ITerminalInstance> {
-	statusList: TerminalStatusList = new TerminalStatusList(new TestConfigurationService());
+class TestTerminal extends Disposable implements Partial<ITerminalInstance> {
+	statusList: TerminalStatusList = this._register(new TerminalStatusList(new TestConfigurationService()));
+	constructor() {
+		super();
+	}
+	override dispose(): void {
+		super.dispose();
+	}
 }
 
 class TestTask extends CommonTask {
@@ -50,7 +58,7 @@ class TestTask extends CommonTask {
 	}
 }
 
-class TestProblemCollector implements Partial<AbstractProblemCollector> {
+class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector>  {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 	protected readonly _onDidFindErrors = new Emitter<void>();
@@ -67,17 +75,15 @@ suite('Task Terminal Status', () => {
 	let testTask: Task;
 	let problemCollector: AbstractProblemCollector;
 	let audioCueService: TestAudioCueService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	setup(() => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		taskService = new TestTaskService();
 		audioCueService = new TestAudioCueService();
-		taskTerminalStatus = new TaskTerminalStatus(taskService as any, audioCueService as any);
-		testTerminal = instantiationService.createInstance(TestTerminal) as any;
+		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, audioCueService as any));
+		testTerminal = store.add(instantiationService.createInstance(TestTerminal) as any);
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
-		problemCollector = instantiationService.createInstance(TestProblemCollector) as any;
-	});
-	teardown(() => {
-		instantiationService.dispose();
+		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);
 	});
 	test('Should add failed status when there is an exit code on task end', async () => {
 		taskTerminalStatus.addTerminal(testTask, testTerminal, problemCollector);
@@ -85,7 +91,7 @@ suite('Task Terminal Status', () => {
 		assertStatus(testTerminal.statusList, ACTIVE_TASK_STATUS);
 		taskService.triggerStateChange({ kind: TaskEventKind.Inactive });
 		assertStatus(testTerminal.statusList, SUCCEEDED_TASK_STATUS);
-		taskService.triggerStateChange({ kind: TaskEventKind.End, exitCode: 2 });
+		taskService.triggerStateChange({ kind: TaskEventKind.End });
 		await poll<void>(async () => Promise.resolve(), () => testTerminal?.statusList.primary?.id === FAILED_TASK_STATUS.id, 'terminal status should be updated');
 	});
 	test('Should add active status when a non-background task is run for a second time in the same terminal', () => {

@@ -410,7 +410,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	// 	});
 	// });
 
-	test.skip('No expanding when html is excluded in the settings in completion list', async () => {
+	test('No expanding when html is excluded in the settings in completion list', async () => {
 		const oldConfig = workspace.getConfiguration('emmet').inspect('excludeLanguages')?.globalValue;
 		await workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global);
 		await testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true);
@@ -469,7 +469,7 @@ suite('Tests for jsx, xml and xsl', () => {
 		});
 	});
 
-	test.skip('Expand abbreviation with no self closing tags for html', () => {
+	test('Expand abbreviation with no self closing tags for html', () => {
 		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			await expandEmmetAbbreviation({ language: 'html' });

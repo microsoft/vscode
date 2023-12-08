@@ -32,6 +32,8 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 
+/* hot-reload:patch-prototype-methods */
+
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore = new SparseTokensStore(this._languageService.languageIdCodec);
 
@@ -449,12 +451,10 @@ class GrammarTokens extends Disposable {
 					this._onDidChangeBackgroundTokenizationState.fire();
 				},
 				setEndState: (lineNumber, state) => {
-					if (!state) {
-						throw new BugIndicatingError();
-					}
-					const firstInvalidEndStateLineNumber = this._tokenizer?.store.getFirstInvalidEndStateLineNumber() ?? undefined;
-					if (firstInvalidEndStateLineNumber !== undefined && lineNumber >= firstInvalidEndStateLineNumber) {
-						// Don't accept states for definitely valid states
+					if (!this._tokenizer) { return; }
+					const firstInvalidEndStateLineNumber = this._tokenizer.store.getFirstInvalidEndStateLineNumber();
+					// Don't accept states for definitely valid states, the renderer is ahead of the worker!
+					if (firstInvalidEndStateLineNumber !== null && lineNumber >= firstInvalidEndStateLineNumber) {
 						this._tokenizer?.store.setEndState(lineNumber, state);
 					}
 				},

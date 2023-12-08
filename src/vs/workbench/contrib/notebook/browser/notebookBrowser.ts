@@ -147,10 +147,18 @@ export interface ICommonCellInfo {
 	readonly executionId?: string;
 }
 
+export enum ScrollToRevealBehavior {
+	fullCell,
+	firstLine
+}
+
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
-	readonly minimalScrolling?: boolean;
+	readonly revealBehavior?: ScrollToRevealBehavior | undefined;
+	readonly outputId?: string;
+	readonly altOutputId?: string;
+	readonly outputWebviewFocused?: boolean;
 }
 
 //#endregion
@@ -164,6 +172,7 @@ export enum CellLayoutState {
 
 export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
+	readonly chatHeight: number;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly estimatedHasHorizontalScrolling: boolean;
@@ -182,6 +191,7 @@ export interface CodeCellLayoutInfo {
 
 export interface CodeCellLayoutChangeEvent {
 	readonly source?: string;
+	readonly chatHeight?: boolean;
 	readonly editorHeight?: boolean;
 	readonly commentHeight?: boolean;
 	readonly outputHeight?: boolean;
@@ -193,6 +203,7 @@ export interface CodeCellLayoutChangeEvent {
 
 export interface MarkupCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
+	readonly chatHeight: number;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
 	readonly statusBarHeight: number;
@@ -225,7 +236,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number };
+	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number; chatHeight: number };
 	readonly onDidChangeLayout: Event<ICommonCellViewModelLayoutChangeInfo>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
@@ -242,6 +253,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly mime: string;
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
+	chatHeight: number;
 	focusMode: CellFocusMode;
 	outputIsHovered: boolean;
 	getText(): string;
@@ -319,22 +331,19 @@ export interface INotebookDeltaCellStatusBarItems {
 	readonly items: readonly INotebookCellStatusBarItem[];
 }
 
-export const enum CellRevealSyncType {
+export const enum CellRevealType {
 	Default = 1,
 	Top = 2,
 	Center = 3,
-	CenterIfOutsideViewport = 4
+	CenterIfOutsideViewport = 4,
+	NearTopIfOutsideViewport = 5,
+	FirstLineIfOutsideViewport = 6
 }
 
 export enum CellRevealRangeType {
 	Default = 1,
 	Center = 2,
 	CenterIfOutsideViewport = 3,
-}
-
-export enum CellRevealType {
-	NearTopIfOutsideViewport,
-	CenterIfOutsideViewport
 }
 
 export interface INotebookEditorOptions extends ITextEditorOptions {
@@ -476,7 +485,7 @@ export interface INotebookEditor {
 	setFocus(focus: ICellRange): void;
 	getId(): string;
 
-	_getViewModel(): INotebookViewModel | undefined;
+	getViewModel(): INotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
@@ -549,6 +558,11 @@ export interface INotebookEditor {
 	 */
 	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
+	/**
+	 * Copy the image in the specific cell output to the clipboard
+	 */
+	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
+
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
@@ -567,6 +581,11 @@ export interface INotebookEditor {
 	removeClassName(className: string): void;
 
 	/**
+	 * Set scrollTop value of the notebook editor.
+	 */
+	setScrollTop(scrollTop: number): void;
+
+	/**
 	 * The range will be revealed with as little scrolling as possible.
 	 */
 	revealCellRangeInView(range: ICellRange): void;
@@ -574,7 +593,7 @@ export interface INotebookEditor {
 	/**
 	 * Reveal cell into viewport.
 	 */
-	revealInView(cell: ICellViewModel): void;
+	revealInView(cell: ICellViewModel): Promise<void>;
 
 	/**
 	 * Reveal cell into the top of viewport.
@@ -589,7 +608,7 @@ export interface INotebookEditor {
 	/**
 	 * Reveal cell into viewport center if cell is currently out of the viewport.
 	 */
-	revealInCenterIfOutsideViewport(cell: ICellViewModel): void;
+	revealInCenterIfOutsideViewport(cell: ICellViewModel): Promise<void>;
 
 	/**
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
@@ -624,7 +643,7 @@ export interface INotebookEditor {
 	/**
 	 * Reveal a position with `offset` in a cell into viewport center.
 	 */
-	revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void>;
+	revealCellOffsetInCenter(cell: ICellViewModel, offset: number): void;
 
 	/**
 	 * Convert the view range to model range
@@ -673,10 +692,10 @@ export interface INotebookEditor {
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
 	getPreviousVisibleCellIndex(index: number): number | undefined;
-	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
-	highlightFind(matchIndex: number): Promise<number>;
-	unHighlightFind(matchIndex: number): Promise<void>;
-	findStop(): void;
+	find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup?: boolean, shouldGetSearchPreviewInfo?: boolean, ownerID?: string): Promise<CellFindMatchWithIndex[]>;
+	findHighlightCurrent(matchIndex: number, ownerID?: string): Promise<number>;
+	findUnHighlightCurrent(matchIndex: number, ownerID?: string): Promise<void>;
+	findStop(ownerID?: string): void;
 	showProgress(): void;
 	hideProgress(): void;
 
@@ -684,7 +703,7 @@ export interface INotebookEditor {
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
-	_getViewModel(): INotebookViewModel;
+	getViewModel(): INotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
@@ -730,7 +749,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
-	_getViewModel(): INotebookViewModel;
+	getViewModel(): INotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
@@ -784,13 +803,21 @@ export enum CellEditState {
 export enum CellFocusMode {
 	Container,
 	Editor,
-	Output
+	Output,
+	ChatInput
 }
 
 export enum CursorAtBoundary {
 	None,
 	Top,
 	Bottom,
+	Both
+}
+
+export enum CursorAtLineBoundary {
+	None,
+	Start,
+	End,
 	Both
 }
 

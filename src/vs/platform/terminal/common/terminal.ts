@@ -17,9 +17,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import type * as performance from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export const terminalTabFocusContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
+export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
+	AutomationProfile = 'terminal.integrated.automationProfile.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
@@ -64,6 +65,7 @@ export const enum TerminalSettingId {
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
 	CursorStyle = 'terminal.integrated.cursorStyle',
+	CursorStyleInactive = 'terminal.integrated.cursorStyleInactive',
 	CursorWidth = 'terminal.integrated.cursorWidth',
 	Scrollback = 'terminal.integrated.scrollback',
 	DetectLocale = 'terminal.integrated.detectLocale',
@@ -98,6 +100,7 @@ export const enum TerminalSettingId {
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
 	PersistentSessionReviveProcess = 'terminal.integrated.persistentSessionReviveProcess',
+	HideOnStartup = 'terminal.integrated.hideOnStartup',
 	CustomGlyphs = 'terminal.integrated.customGlyphs',
 	PersistentSessionScrollback = 'terminal.integrated.persistentSessionScrollback',
 	InheritEnv = 'terminal.integrated.inheritEnv',
@@ -111,6 +114,12 @@ export const enum TerminalSettingId {
 	ShellIntegrationSuggestEnabled = 'terminal.integrated.shellIntegration.suggestEnabled',
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
+	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
+	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
+	AccessibleViewFocusOnCommandExecution = 'terminal.integrated.accessibleViewFocusOnCommandExecution',
+	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
+	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
 
 	// Debug settings that are hidden from user
 
@@ -118,6 +127,8 @@ export const enum TerminalSettingId {
 	DeveloperPtyHostLatency = 'terminal.integrated.developer.ptyHost.latency',
 	/** Simulated startup delay of the pty host process */
 	DeveloperPtyHostStartupDelay = 'terminal.integrated.developer.ptyHost.startupDelay',
+	/** Shows the textarea element */
+	DevMode = 'terminal.integrated.developer.devMode'
 }
 
 export const enum PosixShellType {
@@ -608,6 +619,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	cwd?: string | URI;
 }
 
 export enum TerminalLocation {
@@ -961,6 +973,7 @@ export interface ITerminalCommandSelector {
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
+	kind?: 'fix' | 'explain';
 }
 
 export interface ITerminalBackend {
