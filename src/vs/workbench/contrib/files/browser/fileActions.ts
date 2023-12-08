@@ -1124,6 +1124,12 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
+	const editableItem = explorerService.getEditable();
+	// If it's an editable item, just do nothing
+	if (editableItem) {
+		return;
+	}
+
 	try {
 		// Check if target is ancestor of pasted folder
 		const sourceTargetPairs = coalesce(await Promise.all(toPaste.map(async fileToPaste => {
