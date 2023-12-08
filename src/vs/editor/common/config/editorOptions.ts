@@ -16,7 +16,6 @@ import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import product from 'vs/platform/product/common/product';
 
 //#region typed options
 
