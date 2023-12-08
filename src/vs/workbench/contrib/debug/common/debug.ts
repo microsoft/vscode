@@ -1008,19 +1008,24 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
-	 * Allows to register on new session events.
-	 */
-	onDidNewSession: Event<IDebugSession>;
-
-	/**
-	 * Allows to register on sessions about to be created (not yet fully initialised)
+	 * Allows to register on sessions about to be created (not yet fully initialised).
+	 * This is fired exactly one time for any given session.
 	 */
 	onWillNewSession: Event<IDebugSession>;
 
 	/**
-	 * Allows to register on end session events.
+	 * Fired when a new debug session is started. This may fire multiple times
+	 * for a single session due to restarts.
 	 */
-	onDidEndSession: Event<IDebugSession>;
+	onDidNewSession: Event<IDebugSession>;
+
+	/**
+	 * Allows to register on end session events.
+	 *
+	 * Contains a boolean indicating whether the session will restart. If restart
+	 * is true, the session should not considered to be dead yet.
+	 */
+	onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
 
 	/**
 	 * Gets the configuration manager.

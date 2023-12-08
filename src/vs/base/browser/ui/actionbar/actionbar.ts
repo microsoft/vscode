@@ -561,15 +561,15 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (actionViewItem.action.id === Separator.ID) {
 				focusItem = false;
 			}
-			if (focusItem) {
-				actionViewItem.showHover?.();
-			}
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;
 			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
 				actionViewItem.focus(fromRight);
 				this.previouslyFocusedItem = this.focusedItem;
+			}
+			if (focusItem) {
+				actionViewItem.showHover?.();
 			}
 		}
 	}

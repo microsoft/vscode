@@ -295,10 +295,12 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 				this.replaceOutput(currentOutput.outputId, newOutput);
 			}
 
-			this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
+			const removed = this.outputs.splice(splice.start + commonLen, splice.deleteCount - commonLen, ...splice.newOutputs.slice(commonLen));
+			removed.forEach(output => output.dispose());
 			this._onDidChangeOutputs.fire({ start: splice.start + commonLen, deleteCount: splice.deleteCount - commonLen, newOutputs: splice.newOutputs.slice(commonLen) });
 		} else {
-			this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+			const removed = this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+			removed.forEach(output => output.dispose());
 			this._onDidChangeOutputs.fire(splice);
 		}
 	}
@@ -311,7 +313,13 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		const output = this.outputs[outputIndex];
-		output.replaceData(newOutputItem);
+		// convert to dto and dispose the cell output model
+		output.replaceData({
+			outputs: newOutputItem.outputs,
+			outputId: newOutputItem.outputId,
+			metadata: newOutputItem.metadata
+		});
+		newOutputItem.dispose();
 		this._onDidChangeOutputItems.fire();
 		return true;
 	}

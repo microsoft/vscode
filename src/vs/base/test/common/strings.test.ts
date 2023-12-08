@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as strings from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
@@ -510,4 +511,6 @@ suite('Strings', () => {
 			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

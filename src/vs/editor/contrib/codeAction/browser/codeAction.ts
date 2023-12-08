@@ -130,7 +130,7 @@ export async function getCodeActions(
 				return emptyCodeActionsResponse;
 			}
 
-			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action, model, rangeOrSelection));
+			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
 			const documentation = getDocumentationFromProvider(provider, filteredActions, filter.include);
 			return {
 				actions: filteredActions.map(action => new CodeActionItem(action, provider)),

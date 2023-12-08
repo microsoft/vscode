@@ -120,10 +120,15 @@
 	margin: 3px 12px 3px 3px;
 	line-height: 17px;
 	font-size: 12px;
+	height: 17px;
+	overflow: hidden;
 }
 
 .test-explorer .monaco-list-row .error p {
 	margin: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .test-explorer .monaco-list-row .error a {
