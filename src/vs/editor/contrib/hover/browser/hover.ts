@@ -319,7 +319,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._toggleLockedState(e.altKey);
+		if (this._editor.getOption(EditorOption.hover).enabled && e.altKey) {
+			this._toggleLockedState(e.altKey);
+		}
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 
@@ -349,7 +351,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onKeyUp(e: IKeyboardEvent): void {
-		this._toggleLockedState(!e.altKey);
+		if (e.altKey) {
+			this._toggleLockedState(!e.altKey);
+		}
 	}
 
 	private _toggleLockedState(locked: boolean) {
