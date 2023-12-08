@@ -53,25 +53,27 @@ suite('Files - TextFileEditorTracker', () => {
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; cleanup: () => Promise<void> }> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
+		const configurationService = new TestConfigurationService();
 		if (autoSaveEnabled) {
-			const configurationService = new TestConfigurationService();
 			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
-
-			instantiationService.stub(IConfigurationService, configurationService);
-
-			const fileService = disposables.add(new TestFileService());
-
-			instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
-				<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-				configurationService,
-				new TestContextService(TestWorkspace),
-				TestEnvironmentService,
-				disposables.add(new UriIdentityService(fileService)),
-				fileService,
-				new TestMarkerService(),
-				new TestTextResourceConfigurationService(configurationService)
-			)));
+		} else {
+			configurationService.setUserConfiguration('files', { autoSave: 'off', autoSaveDelay: 1 });
 		}
+
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const fileService = disposables.add(new TestFileService());
+
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
+			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
+			configurationService,
+			new TestContextService(TestWorkspace),
+			TestEnvironmentService,
+			disposables.add(new UriIdentityService(fileService)),
+			fileService,
+			new TestMarkerService(),
+			new TestTextResourceConfigurationService(configurationService)
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
