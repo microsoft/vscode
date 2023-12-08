@@ -73,6 +73,7 @@ export const DIFF_FOCUS_SECONDARY_SIDE = 'workbench.action.compareEditor.focusSe
 export const DIFF_FOCUS_OTHER_SIDE = 'workbench.action.compareEditor.focusOtherSide';
 export const DIFF_OPEN_SIDE = 'workbench.action.compareEditor.openSide';
 export const TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE = 'toggle.diff.ignoreTrimWhitespace';
+export const DIFF_SWAP_SIDES = 'workbench.action.compareEditor.swapSides';
 
 export const SPLIT_EDITOR = 'workbench.action.splitEditor';
 export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
@@ -464,6 +465,53 @@ function registerDiffEditorCommands(): void {
 		configurationService.updateValue('diffEditor.ignoreTrimWhitespace', newValue);
 	}
 
+	async function swapDiffSides(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const diffEditor = getActiveTextDiffEditor(accessor);
+		const activeGroup = diffEditor?.group;
+		const diffInput = diffEditor?.input;
+		if (!diffEditor || typeof activeGroup === 'undefined' || !(diffInput instanceof DiffEditorInput) || !diffInput.modified.resource) {
+			return;
+		}
+
+		const untypedDiffInput = diffInput.toUntyped({ preserveViewState: activeGroup.id });
+		if (!untypedDiffInput) {
+			return;
+		}
+
+		// Since we are about to replace the diff editor, make
+		// sure to first open the modified side if it is not
+		// yet opened. This ensures that the swapping is not
+		// bringing up a confirmation dialog to save.
+		if (diffInput.modified.isModified() && !editorService.isOpened({ resource: diffInput.modified.resource, typeId: diffInput.modified.typeId, editorId: diffInput.modified.editorId })) {
+			await editorService.openEditor({
+				...untypedDiffInput.modified,
+				options: {
+					...untypedDiffInput.modified.options,
+					pinned: true,
+					inactive: true
+				}
+			}, activeGroup);
+		}
+
+		// Replace the input with the swapped variant
+		await editorService.replaceEditors([
+			{
+				editor: diffInput,
+				replacement: {
+					...untypedDiffInput,
+					original: untypedDiffInput.modified,
+					modified: untypedDiffInput.original,
+					options: {
+						...untypedDiffInput.options,
+						pinned: true
+					}
+				}
+			}
+		], activeGroup);
+	}
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: TOGGLE_DIFF_SIDE_BY_SIDE,
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -496,6 +544,22 @@ function registerDiffEditorCommands(): void {
 		handler: accessor => focusInDiffEditor(accessor, FocusTextDiffEditorMode.Toggle)
 	});
 
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: DIFF_SWAP_SIDES,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: undefined,
+		handler: accessor => swapDiffSides(accessor)
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
 			id: TOGGLE_DIFF_SIDE_BY_SIDE,
@@ -508,12 +572,16 @@ function registerDiffEditorCommands(): void {
 		when: TextCompareEditorActiveContext
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: undefined,
-		handler: accessor => toggleDiffIgnoreTrimWhitespace(accessor)
+	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+		command: {
+			id: DIFF_SWAP_SIDES,
+			title: {
+				value: localize('swapDiffSides', "Swap Left and Right Editor Side"),
+				original: 'Compare: Swap Left and Right Editor Side'
+			},
+			category: localize('compare', "Compare")
+		},
+		when: TextCompareEditorActiveContext
 	});
 }
 

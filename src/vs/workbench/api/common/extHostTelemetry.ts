@@ -47,6 +47,7 @@ export class ExtHostTelemetry extends Disposable implements ExtHostTelemetryShap
 		this.extHostTelemetryLogFile = URI.revive(this.initData.environment.extensionTelemetryLogResource);
 		this._inLoggingOnlyMode = this.initData.environment.isExtensionTelemetryLoggingOnly;
 		this._outputLogger = loggerService.createLogger(this.extHostTelemetryLogFile, { id: extensionTelemetryLogChannelId, name: localize('extensionTelemetryLog', "Extension Telemetry{0}", this._inLoggingOnlyMode ? ' (Not Sent)' : ''), hidden: true });
+		this._register(this._outputLogger);
 		this._register(loggerService.onDidChangeLogLevel(arg => {
 			if (isLogLevel(arg)) {
 				this.updateLoggerVisibility();

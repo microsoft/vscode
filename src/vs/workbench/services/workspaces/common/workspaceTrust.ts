@@ -849,6 +849,7 @@ class WorkspaceTrustTransitionManager extends Disposable {
 
 	override dispose(): void {
 		this.participants.clear();
+		super.dispose();
 	}
 }
 
