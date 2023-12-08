@@ -50,6 +50,7 @@ export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STAT
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
+const REMOTE_TUNNEL_HAS_USED_BEFORE = 'remoteTunnelHasUsed';
 const REMOTE_TUNNEL_EXTENSION_TIMEOUT = 4 * 60 * 1000; // show the recommendation that a machine started using tunnels if it joined less than 4 minutes ago
 
 const INVALID_TOKEN_RETRIES = 2;
@@ -112,7 +113,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this.logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
@@ -236,45 +237,59 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return; // already initialized, token available
 		}
 
-		return await this.progressService.withProgress(
-			{
-				location: ProgressLocation.Window,
-				title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
-			},
-			async (progress: IProgress<IProgressStep>) => {
-				const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
-					switch (status.type) {
-						case 'connecting':
-							if (status.progress) {
-								progress.report({ message: status.progress });
-							}
-							break;
-					}
-				});
-				let newSession: IRemoteTunnelSession | undefined;
-				if (mode.active) {
-					const token = await this.getSessionToken(mode.session);
-					if (token) {
-						newSession = { ...mode.session, token };
-					}
+		const doInitialStateDiscovery = async (progress?: IProgress<IProgressStep>) => {
+			const listener = progress && this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+				switch (status.type) {
+					case 'connecting':
+						if (status.progress) {
+							progress.report({ message: status.progress });
+						}
+						break;
 				}
-				const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
-				listener.dispose();
-
-				if (status.type === 'connected') {
-					this.connectionInfo = status.info;
-					this.connectionStateContext.set('connected');
-					return;
+			});
+			let newSession: IRemoteTunnelSession | undefined;
+			if (mode.active) {
+				const token = await this.getSessionToken(mode.session);
+				if (token) {
+					newSession = { ...mode.session, token };
 				}
 			}
-		);
+			const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
+			listener?.dispose();
+
+			if (status.type === 'connected') {
+				this.connectionInfo = status.info;
+				this.connectionStateContext.set('connected');
+				return;
+			}
+		};
+
+
+		const hasUsed = this.storageService.getBoolean(REMOTE_TUNNEL_HAS_USED_BEFORE, StorageScope.APPLICATION, false);
+
+		if (hasUsed) {
+			await this.progressService.withProgress(
+				{
+					location: ProgressLocation.Window,
+					title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				},
+				doInitialStateDiscovery
+			);
+		} else {
+			doInitialStateDiscovery(undefined);
+		}
 	}
 
+	private getPreferredTokenFromSession(session: ExistingSessionItem) {
+		return session.session.accessToken || session.session.idToken;
+	}
 
 	private async startTunnel(asService: boolean): Promise<ConnectionInfo | undefined> {
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
+
+		this.storageService.store(REMOTE_TUNNEL_HAS_USED_BEFORE, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		let tokenProblems = false;
 		for (let i = 0; i < INVALID_TOKEN_RETRIES; i++) {
@@ -327,7 +342,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 									break;
 							}
 						});
-						const token = authenticationSession.session.idToken ?? authenticationSession.session.accessToken;
+						const token = this.getPreferredTokenFromSession(authenticationSession);
 						const account: IRemoteTunnelSession = { sessionId: authenticationSession.session.id, token, providerId: authenticationSession.providerId, accountLabel: authenticationSession.session.account.label };
 						this.remoteTunnelService.startTunnel({ active: true, asService, session: account }).then(status => {
 							if (!completed && (status.type === 'connected' || status.type === 'disconnected')) {
@@ -352,10 +367,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
 		const sessions = await this.getAllSessions();
-		if (sessions.length === 1) {
-			return sessions[0];
-		}
-
 		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
@@ -448,7 +459,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		if (session) {
 			const sessionItem = (await this.getAllSessions()).find(s => s.session.id === session.sessionId);
 			if (sessionItem) {
-				return sessionItem.session.idToken ?? sessionItem.session.accessToken;
+				return this.getPreferredTokenFromSession(sessionItem);
 			}
 		}
 		return undefined;
@@ -789,7 +800,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_HOST_NAME]: {
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
 			pattern: '^(\\w[\\w-]*)?$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash."),
 			maxLength: 20,
@@ -798,7 +809,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
 			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
 			type: 'boolean',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
 			default: false,
 		}
 	}

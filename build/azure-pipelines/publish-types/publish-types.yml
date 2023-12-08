@@ -12,7 +12,9 @@ pool:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
@@ -79,4 +81,4 @@ steps:
       --data '{"channel":"'"$CHANNEL"'", "link_names": true, "text":"'"$MESSAGE2"'"}' \
       https://slack.com/api/chat.postMessage
 
-    displayName: Send message on Slack
+    displayName: Send message linking to changes on Slack

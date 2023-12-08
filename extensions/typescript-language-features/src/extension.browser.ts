@@ -8,22 +8,24 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
+import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
 import { ExperimentationTelemetryReporter, IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
+import { AutoInstallerFs } from './filesystems/autoInstallerFs';
+import { MemFs } from './filesystems/memFs';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
+import { Logger } from './logging/logger';
 import RemoteRepositories from './remoteRepositories.browser';
 import { API } from './tsServer/api';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { PluginManager } from './tsServer/plugins';
 import { WorkerServerProcessFactory } from './tsServer/serverProcess.browser';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './tsServer/versionProvider';
 import { ActiveJsTsEditorTracker } from './ui/activeJsTsEditorTracker';
-import { TypeScriptServiceConfiguration } from './configuration/configuration';
-import { BrowserServiceConfigurationProvider } from './configuration/configuration.browser';
-import { Logger } from './logging/logger';
+import { Disposable } from './utils/dispose';
 import { getPackageInfo } from './utils/packageInfo';
 import { isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { PluginManager } from './tsServer/plugins';
-import { Disposable } from './utils/dispose';
 
 class StaticVersionProvider implements ITypeScriptVersionProvider {
 
@@ -60,7 +62,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 		new TypeScriptVersion(
 			TypeScriptVersionSource.Bundled,
 			vscode.Uri.joinPath(context.extensionUri, 'dist/browser/typescript/tsserver.web.js').toString(),
-			API.fromSimpleString('5.1.3')));
+			API.fromSimpleString('5.3.2')));
 
 	let experimentTelemetryReporter: IExperimentationTelemetryReporter | undefined;
 	const packageInfo = getPackageInfo(context);
@@ -98,6 +100,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<Api> {
 
 	context.subscriptions.push(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker, async () => {
 		await startPreloadWorkspaceContentsIfNeeded(context, logger);
+	}));
+	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-global-typings', new MemFs(), {
+		isCaseSensitive: true,
+		isReadonly: false
+	}));
+	context.subscriptions.push(vscode.workspace.registerFileSystemProvider('vscode-node-modules', new AutoInstallerFs(), {
+		isCaseSensitive: true,
+		isReadonly: false
 	}));
 
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);

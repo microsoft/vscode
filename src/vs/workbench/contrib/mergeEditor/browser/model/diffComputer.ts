@@ -5,7 +5,7 @@
 
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { IReader } from 'vs/base/common/observable';
-import { RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { RangeMapping as DiffRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -35,6 +35,9 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
 		const diffAlgorithm = this.mergeAlgorithm.read(reader);
+		const inputVersion = textModel1.getVersionId();
+		const outputVersion = textModel2.getVersionId();
+
 		const result = await this.editorWorkerService.computeDiff(
 			textModel1.uri,
 			textModel2.uri,
@@ -56,13 +59,20 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 		const changes = result.changes.map(c =>
 			new DetailedLineRangeMapping(
-				toLineRange(c.originalRange),
+				toLineRange(c.original),
 				textModel1,
-				toLineRange(c.modifiedRange),
+				toLineRange(c.modified),
 				textModel2,
 				c.innerChanges?.map(ic => toRangeMapping(ic))
 			)
 		);
+
+		const newInputVersion = textModel1.getVersionId();
+		const newOutputVersion = textModel2.getVersionId();
+
+		if (inputVersion !== newInputVersion || outputVersion !== newOutputVersion) {
+			return { diffs: null };
+		}
 
 		assertFn(() => {
 			for (const c of changes) {

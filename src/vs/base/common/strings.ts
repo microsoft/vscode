@@ -42,6 +42,9 @@ const _format2Regexp = /{([^}]+)}/g;
  * Similar to `format` but with objects instead of positional arguments.
  */
 export function format2(template: string, values: Record<string, unknown>): string {
+	if (Object.keys(values).length === 0) {
+		return template;
+	}
 	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
 }
 
@@ -87,6 +90,17 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	}
 
 	return `${value.substr(0, maxLength)}${suffix}`;
+}
+
+export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
+	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+
+	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
 }
 
 /**
@@ -215,17 +229,6 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// (e.g. ends in an endless loop) it will match an empty string.
 	const match = regexp.exec('');
 	return !!(match && regexp.lastIndex === 0);
-}
-
-export function regExpContainsBackreference(regexpValue: string): boolean {
-	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
-}
-
-export function regExpFlags(regexp: RegExp): string {
-	return (regexp.global ? 'g' : '')
-		+ (regexp.ignoreCase ? 'i' : '')
-		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
 }
 
 export function splitLines(str: string): string[] {

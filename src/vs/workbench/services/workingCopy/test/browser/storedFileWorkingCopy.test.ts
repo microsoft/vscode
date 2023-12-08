@@ -18,6 +18,7 @@ import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises, timeout } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -129,43 +130,36 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelWithCustomSaveFactory();
 
-	let disposables: DisposableStore;
-	const resource = URI.file('test/resource');
+	const disposables = new DisposableStore();
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>;
 
-	function createWorkingCopy(uri: URI = resource) {
-		const workingCopy: StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave> = new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', uri, basename(uri), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService);
-
-		return workingCopy;
-	}
-
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		const resource = URI.file('test/resource');
+		workingCopy = disposables.add(new StoredFileWorkingCopy<TestStoredFileWorkingCopyModelWithCustomSave>('testStoredFileWorkingCopyType', resource, basename(resource), factory, options => workingCopy.resolve(options), accessor.fileService, accessor.logService, accessor.workingCopyFileService, accessor.filesConfigurationService, accessor.workingCopyBackupService, accessor.workingCopyService, accessor.notificationService, accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService));
 	});
 
 	teardown(() => {
-		workingCopy.dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('save (custom implemented)', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// unresolved
 		await workingCopy.save();
@@ -194,13 +188,15 @@ suite('StoredFileWorkingCopy (with custom save)', function () {
 		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ERROR), true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('StoredFileWorkingCopy', function () {
 
 	const factory = new TestStoredFileWorkingCopyModelFactory();
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	const resource = URI.file('test/resource');
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
@@ -213,16 +209,20 @@ suite('StoredFileWorkingCopy', function () {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		workingCopy = createWorkingCopy();
+		workingCopy = disposables.add(createWorkingCopy());
 	});
 
 	teardown(() => {
 		workingCopy.dispose();
-		disposables.dispose();
+
+		for (const workingCopy of accessor.workingCopyService.workingCopies) {
+			(workingCopy as StoredFileWorkingCopy<TestStoredFileWorkingCopyModel>).dispose();
+		}
+
+		disposables.clear();
 	});
 
 	test('registers with working copy service', async () => {
@@ -234,7 +234,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('orphaned tracking', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			assert.strictEqual(workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN), false);
 
 			let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -262,19 +262,19 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isResolved(), true);
 
 		let changeDirtyCounter = 0;
-		workingCopy.onDidChangeDirty(() => {
+		disposables.add(workingCopy.onDidChangeDirty(() => {
 			changeDirtyCounter++;
-		});
+		}));
 
 		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
+		disposables.add(workingCopy.onDidChangeContent(() => {
 			contentChangeCounter++;
-		});
+		}));
 
 		let savedCounter = 0;
-		workingCopy.onDidSave(() => {
+		disposables.add(workingCopy.onDidSave(() => {
 			savedCounter++;
-		});
+		}));
 
 		// Dirty from: Model content change
 		workingCopy.model?.updateContents('hello dirty');
@@ -344,9 +344,9 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('resolve (without backup)', async () => {
 		let onDidResolveCounter = 0;
-		workingCopy.onDidResolve(() => {
+		disposables.add(workingCopy.onDidResolve(() => {
 			onDidResolveCounter++;
-		});
+		}));
 
 		// resolve from file
 		await workingCopy.resolve();
@@ -411,7 +411,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('resolve (with backup, preserves metadata and orphaned state)', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			await workingCopy.resolve({ contents: bufferToStream(VSBuffer.fromString('hello backup')) });
 
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -440,7 +440,7 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('resolve (updates orphaned state accordingly)', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			await workingCopy.resolve();
 
 			const orphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
@@ -482,7 +482,7 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('resolve (FILE_NOT_MODIFIED_SINCE still updates readonly state)', async () => {
 		let readonlyChangeCounter = 0;
-		workingCopy.onDidChangeReadonly(() => readonlyChangeCounter++);
+		disposables.add(workingCopy.onDidChangeReadonly(() => readonlyChangeCounter++));
 
 		await workingCopy.resolve();
 
@@ -547,15 +547,15 @@ suite('StoredFileWorkingCopy', function () {
 	test('save (no errors) - simple', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// unresolved
 		await workingCopy.save();
@@ -579,15 +579,15 @@ suite('StoredFileWorkingCopy', function () {
 	test('save (no errors) - save reason', async () => {
 		let savedCounter = 0;
 		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
 			lastSaveEvent = e;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// save reason
 		await workingCopy.resolve();
@@ -605,14 +605,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - multiple', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change
@@ -631,14 +631,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - multiple, cancellation', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// multiple saves in parallel are fine and result
 		// in just one save operation (the second one
@@ -657,14 +657,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - not forced but not dirty', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// no save when not forced and not dirty
 		await workingCopy.resolve();
@@ -676,14 +676,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors) - forced but not dirty', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(e => {
+		disposables.add(workingCopy.onDidSave(e => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		// save when forced even when not dirty
 		await workingCopy.resolve();
@@ -694,16 +694,16 @@ suite('StoredFileWorkingCopy', function () {
 	});
 
 	test('save (no errors) - save clears orphaned', async () => {
-		runWithFakedTimers({}, async () => {
+		return runWithFakedTimers({}, async () => {
 			let savedCounter = 0;
-			workingCopy.onDidSave(e => {
+			disposables.add(workingCopy.onDidSave(e => {
 				savedCounter++;
-			});
+			}));
 
 			let saveErrorCounter = 0;
-			workingCopy.onDidSaveError(() => {
+			disposables.add(workingCopy.onDidSaveError(() => {
 				saveErrorCounter++;
-			});
+			}));
 
 			await workingCopy.resolve();
 
@@ -726,14 +726,14 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (errors)', async () => {
 		let savedCounter = 0;
-		workingCopy.onDidSave(reason => {
+		disposables.add(workingCopy.onDidSave(reason => {
 			savedCounter++;
-		});
+		}));
 
 		let saveErrorCounter = 0;
-		workingCopy.onDidSaveError(() => {
+		disposables.add(workingCopy.onDidSaveError(() => {
 			saveErrorCounter++;
-		});
+		}));
 
 		await workingCopy.resolve();
 
@@ -904,9 +904,9 @@ suite('StoredFileWorkingCopy', function () {
 		workingCopy.model?.updateContents('hello revert');
 
 		let revertedCounter = 0;
-		workingCopy.onDidRevert(() => {
+		disposables.add(workingCopy.onDidRevert(() => {
 			revertedCounter++;
-		});
+		}));
 
 		// revert: soft
 		await workingCopy.revert({ soft: true });
@@ -1000,14 +1000,14 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isDisposed(), false);
 
 		let disposedEvent = false;
-		workingCopy.onWillDispose(() => {
+		disposables.add(workingCopy.onWillDispose(() => {
 			disposedEvent = true;
-		});
+		}));
 
 		let disposedModelEvent = false;
-		workingCopy.model.onWillDispose(() => {
+		disposables.add(workingCopy.model.onWillDispose(() => {
 			disposedModelEvent = true;
-		});
+		}));
 
 		workingCopy.dispose();
 
@@ -1026,13 +1026,15 @@ suite('StoredFileWorkingCopy', function () {
 		accessor.fileService.readonly = false;
 
 		let readonlyEvent = false;
-		workingCopy.onDidChangeReadonly(() => {
+		disposables.add(workingCopy.onDidChangeReadonly(() => {
 			readonlyEvent = true;
-		});
+		}));
 
 		await workingCopy.resolve();
 
 		assert.strictEqual(workingCopy.isReadonly(), false);
 		assert.strictEqual(readonlyEvent, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -8,10 +8,9 @@ import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
@@ -28,6 +27,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	get instances(): ITerminalInstance[] {
 		return this.groups.reduce((p, c) => p.concat(c.terminalInstances), [] as ITerminalInstance[]);
 	}
+
+	lastAccessedMenu: 'inline-tab' | 'tab-list' = 'inline-tab';
 
 	private _terminalGroupCountContextKey: IContextKey<number>;
 
@@ -60,8 +61,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -81,10 +81,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this._viewsService.closeView(TERMINAL_VIEW_ID);
 			TerminalContextKeys.tabsMouse.bindTo(this._contextKeyService).set(false);
 		}
-	}
-
-	showTabs() {
-		this._configurationService.updateValue(TerminalSettingId.TabsEnabled, true);
 	}
 
 	get activeGroup(): ITerminalGroup | undefined {

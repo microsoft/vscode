@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/typeHierarchy';
-import { Dimension } from 'vs/base/browser/dom';
+import { Dimension, isKeyboardEvent } from 'vs/base/browser/dom';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeNode, TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
@@ -279,7 +279,7 @@ export class TypeHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._disposables.add(this._tree.onDidChangeSelection(e => {
 			const [element] = e.elements;
 			// don't close on click
-			if (element && e.browserEvent instanceof KeyboardEvent) {
+			if (element && isKeyboardEvent(e.browserEvent)) {
 				this.dispose();
 				this._editorService.openEditor({
 					resource: element.item.uri,

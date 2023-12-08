@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareBy, findLast, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
+import { compareBy, lastOrDefault, numberComparator } from 'vs/base/common/arrays';
+import { findLast } from 'vs/base/common/arraysFind';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Position } from 'vs/editor/common/core/position';

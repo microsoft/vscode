@@ -8,7 +8,7 @@ use std::process::Command;
 
 use clap::Parser;
 use cli::{
-	commands::{args, tunnels, update, version, CommandContext},
+	commands::{args, serve_web, tunnels, update, version, CommandContext},
 	constants::get_default_user_agent,
 	desktop, log,
 	state::LauncherPaths,
@@ -97,6 +97,10 @@ async fn main() -> Result<(), std::convert::Infallible> {
 
 			Some(args::Commands::CommandShell(cs_args)) => {
 				tunnels::command_shell(context!(), cs_args).await
+			}
+
+			Some(args::Commands::ServeWeb(sw_args)) => {
+				serve_web::serve_web(context!(), sw_args).await
 			}
 
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {

@@ -130,7 +130,7 @@ export class ExtensionsResource implements IProfileResource {
 					extensionsToEnableOrDisable.push({ extension: e.identifier, enable: !e.disabled });
 				}
 			}
-			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
+			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)) && !extension.isApplicationScoped);
 			for (const { extension, enable } of extensionsToEnableOrDisable) {
 				if (enable) {
 					this.logService.trace(`Importing Profile (${profile.name}): Enabling extension...`, extension.id);

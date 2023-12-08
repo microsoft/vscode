@@ -14,52 +14,96 @@ const createStatsCollector = require('../../../node_modules/mocha/lib/stats-coll
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
+const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
+const yaserver = require('yaserver');
+const http = require('http');
+const { randomBytes } = require('crypto');
+const minimist = require('minimist');
 
-// opts
-const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
-const optimist = require('optimist')
-	// .describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('build', 'run with build output (out-build)').boolean('build')
-	.describe('run', 'only run tests matching <relative_file_path>').string('run')
-	.describe('grep', 'only run tests matching <pattern>').alias('grep', 'g').alias('grep', 'f').string('grep')
-	.describe('debug', 'do not run browsers headless').alias('debug', ['debug-browser']).boolean('debug')
-	.describe('sequential', 'only run suites for a single browser at a time').boolean('sequential')
-	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
-	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
-	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
-	.describe('tfs', 'tfs').string('tfs')
-	.describe('help', 'show the help').alias('help', 'h');
+/**
+ * @type {{
+ * run: string;
+ * grep: string;
+ * runGlob: string;
+ * browser: string;
+ * reporter: string;
+ * 'reporter-options': string;
+ * tfs: string;
+ * build: boolean;
+ * debug: boolean;
+ * sequential: boolean;
+ * help: boolean;
+ * }}
+*/
+const args = minimist(process.argv.slice(2), {
+	boolean: ['build', 'debug', 'sequential', 'help'],
+	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
+	default: {
+		build: false,
+		browser: ['chromium', 'firefox', 'webkit'],
+		reporter: process.platform === 'win32' ? 'list' : 'spec',
+		'reporter-options': ''
+	},
+	alias: {
+		grep: ['g', 'f'],
+		runGlob: ['glob', 'runGrep'],
+		debug: ['debug-browser'],
+		help: 'h'
+	},
+	describe: {
+		build: 'run with build output (out-build)',
+		run: 'only run tests matching <relative_file_path>',
+		grep: 'only run tests matching <pattern>',
+		debug: 'do not run browsers headless',
+		sequential: 'only run suites for a single browser at a time',
+		browser: 'browsers in which tests should run',
+		reporter: 'the mocha reporter',
+		'reporter-options': 'the mocha reporter options',
+		tfs: 'tfs',
+		help: 'show the help'
+	}
+});
 
-// logic
-const argv = optimist.argv;
+if (args.help) {
+	console.log(`Usage: node ${process.argv[1]} [options]
 
-if (argv.help) {
-	optimist.showHelp();
+Options:
+--build              run with build output (out-build)
+--run <relative_file_path> only run tests matching <relative_file_path>
+--grep, -g, -f <pattern> only run tests matching <pattern>
+--debug, --debug-browser do not run browsers headless
+--sequential         only run suites for a single browser at a time
+--browser <browser>  browsers in which tests should run
+--reporter <reporter> the mocha reporter
+--reporter-options <reporter-options> the mocha reporter options
+--tfs <tfs>          tfs
+--help, -h           show the help`);
 	process.exit(0);
 }
 
 const withReporter = (function () {
-	if (argv.tfs) {
+	if (args.tfs) {
 		{
 			return (browserType, runner) => {
 				new mocha.reporters.Spec(runner);
 				new MochaJUnitReporter(runner, {
 					reporterOptions: {
-						testsuitesTitle: `${argv.tfs} ${process.platform}`,
-						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+						testsuitesTitle: `${args.tfs} ${process.platform}`,
+						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${args.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 					}
 				});
 			};
 		}
 	} else {
-		return (_, runner) => applyReporter(runner, argv);
+		return (_, runner) => applyReporter(runner, args);
 	}
 })();
 
-const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../../${outdir}`);
+const outdir = args.build ? 'out-build' : 'out';
+const rootDir = path.resolve(__dirname, '..', '..', '..');
+const out = path.join(rootDir, `${outdir}`);
 
 function ensureIsArray(a) {
 	return Array.isArray(a) ? a : [a];
@@ -71,10 +115,10 @@ const testModules = (async function () {
 	let isDefaultModules = true;
 	let promise;
 
-	if (argv.run) {
+	if (args.run) {
 		// use file list (--run)
 		isDefaultModules = false;
-		promise = Promise.resolve(ensureIsArray(argv.run).map(file => {
+		promise = Promise.resolve(ensureIsArray(args.run).map(file => {
 			file = file.replace(/^src/, 'out');
 			file = file.replace(/\.ts$/, '.js');
 			return path.relative(out, file);
@@ -83,7 +127,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.run || defaultGlob;
+		const pattern = args.runGlob || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
@@ -125,19 +169,74 @@ function consoleLogFn(msg) {
 	return console.log;
 }
 
+async function createServer() {
+	// Demand a prefix to avoid issues with other services on the
+	// machine being able to access the test server.
+	const prefix = '/' + randomBytes(16).toString('hex');
+	const serveStatic = await yaserver.createServer({ rootDir });
+
+	/** Handles a request for a remote method call, invoking `fn` and returning the result */
+	const remoteMethod = async (req, response, fn) => {
+		const params = await new Promise((resolve, reject) => {
+			const body = [];
+			req.on('data', chunk => body.push(chunk));
+			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
+			req.on('error', reject);
+		});
+
+		const result = await fn(...params);
+		response.writeHead(200, { 'Content-Type': 'application/json' });
+		response.end(JSON.stringify(result));
+	};
+
+	const server = http.createServer((request, response) => {
+		if (!request.url?.startsWith(prefix)) {
+			return response.writeHead(404).end();
+		}
+
+		// rewrite the URL so the static server can handle the request correctly
+		request.url = request.url.slice(prefix.length);
+
+		switch (request.url) {
+			case '/remoteMethod/__readFileInTests':
+				return remoteMethod(request, response, p => fs.promises.readFile(p, 'utf-8'));
+			case '/remoteMethod/__writeFileInTests':
+				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(p, contents));
+			case '/remoteMethod/__readDirInTests':
+				return remoteMethod(request, response, p => fs.promises.readdir(p));
+			case '/remoteMethod/__unlinkInTests':
+				return remoteMethod(request, response, p => fs.promises.unlink(p));
+			case '/remoteMethod/__mkdirPInTests':
+				return remoteMethod(request, response, p => fs.promises.mkdir(p, { recursive: true }));
+			default:
+				return serveStatic.handle(request, response);
+		}
+	});
+
+	return new Promise((resolve, reject) => {
+		server.listen(0, 'localhost', () => {
+			resolve({
+				dispose: () => server.close(),
+				// @ts-ignore
+				url: `http://localhost:${server.address().port}${prefix}`
+			});
+		});
+		server.on('error', reject);
+	});
+}
+
 async function runTestsInBrowser(testModules, browserType) {
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
+	const server = await createServer();
+	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
-	if (argv.build) {
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-			target.search = `?build=true&ci=true`;
-		} else {
-			target.search = `?build=true`;
-		}
-	} else if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-		target.search = `?ci=true`;
+	const target = new URL(server.url + '/test/unit/browser/renderer.html');
+	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
+	if (args.build) {
+		target.searchParams.set('build', 'true');
+	}
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		target.searchParams.set('ci', 'true');
 	}
 
 	const emitter = new events.EventEmitter();
@@ -175,11 +274,12 @@ async function runTestsInBrowser(testModules, browserType) {
 		// @ts-expect-error
 		await page.evaluate(opts => loadAndRun(opts), {
 			modules: testModules,
-			grep: argv.grep,
+			grep: args.grep,
 		});
 	} catch (err) {
 		console.error(err);
 	}
+	server.dispose();
 	await browser.close();
 
 	if (failingTests.length > 0) {
@@ -249,14 +349,14 @@ class EchoRunner extends events.EventEmitter {
 testModules.then(async modules => {
 
 	// run tests in selected browsers
-	const browserTypes = Array.isArray(argv.browser)
-		? argv.browser : [argv.browser];
+	const browserTypes = Array.isArray(args.browser)
+		? args.browser : [args.browser];
 
 	let messages = [];
 	let didFail = false;
 
 	try {
-		if (argv.sequential) {
+		if (args.sequential) {
 			for (const browserType of browserTypes) {
 				messages.push(await runTestsInBrowser(modules, browserType));
 			}

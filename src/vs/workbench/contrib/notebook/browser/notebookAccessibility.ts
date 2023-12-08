@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -26,7 +26,13 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	content.push(descriptionForCommand('notebook.cell.focusInOutput',
 		localize('notebook.cell.focusInOutput', 'The Focus Output command ({0}) will set focus in the cell\'s output.'),
 		localize('notebook.cell.focusInOutputNoKb', 'The Quit Edit command will set focus in the cell\'s output and is currently not triggerable by a keybinding.'), keybindingService));
-	content.push(localize('notebook.cellNavigation', 'The up and down arrows will move focus between cells while focused on the outer cell container'));
+	content.push(descriptionForCommand('notebook.focusNextEditor',
+		localize('notebook.focusNextEditor', 'The Focus Next Cell Editor command ({0}) will set focus in the next cell\'s editor.'),
+		localize('notebook.focusNextEditorNoKb', 'The Focus Next Cell Editor command will set focus in the next cell\'s editor and is currently not triggerable by a keybinding.'), keybindingService));
+	content.push(descriptionForCommand('notebook.focusPreviousEditor',
+		localize('notebook.focusPreviousEditor', 'The Focus Previous Cell Editor command ({0}) will set focus in the previous cell\'s editor.'),
+		localize('notebook.focusPreviousEditorNoKb', 'The Focus Previous Cell Editor command will set focus in the previous cell\'s editor and is currently not triggerable by a keybinding.'), keybindingService));
+	content.push(localize('notebook.cellNavigation', 'The up and down arrows will also move focus between cells while focused on the outer cell container.'));
 	content.push(descriptionForCommand('notebook.cell.executeAndFocusContainer',
 		localize('notebook.cell.executeAndFocusContainer', 'The Execute Cell command ({0}) executes the cell that currently has focus.',),
 		localize('notebook.cell.executeAndFocusContainerNoKb', 'The Execute Cell command executes the cell that currently has focus and is currently not triggerable by a keybinding.'), keybindingService));
@@ -34,7 +40,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor): string {
 	content.push(localize('notebook.changeCellType', 'The Change Cell to Code/Markdown commands are used to switch between cell types.'));
 
 
-	return content.join('\n');
+	return content.join('\n\n');
 }
 
 function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
@@ -49,12 +55,13 @@ export async function runAccessibilityHelpAction(accessor: ServicesAccessor, edi
 	const accessibleViewService = accessor.get(IAccessibleViewService);
 	const helpText = getAccessibilityHelpText(accessor);
 	accessibleViewService.show({
+		id: AccessibleViewProviderId.Notebook,
 		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
 		provideContent: () => helpText,
 		onClose: () => {
 			editor.focus();
 		},
-		options: { type: AccessibleViewType.Help, ariaLabel: 'Notebook accessibility help' }
+		options: { type: AccessibleViewType.Help }
 	});
 }
 
@@ -108,16 +115,14 @@ export function showAccessibleOutput(accessibleViewService: IAccessibleViewServi
 	}
 
 	accessibleViewService.show({
+		id: AccessibleViewProviderId.Notebook,
 		verbositySettingKey: AccessibilityVerbositySettingId.Notebook,
 		provideContent(): string { return outputContent; },
 		onClose() {
 			notebookEditor?.setFocus(selections[0]);
 			activePane?.focus();
 		},
-		options: {
-			ariaLabel: localize('NotebookCellOutputAccessibleView', "Notebook Cell Output Accessible View"),
-			type: AccessibleViewType.View
-		}
+		options: { type: AccessibleViewType.View }
 	});
 	return true;
 }

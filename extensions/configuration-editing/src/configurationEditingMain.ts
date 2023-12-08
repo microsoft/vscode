@@ -54,6 +54,7 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 				return [
 					{ label: 'workspaceFolder', detail: vscode.l10n.t("The path of the folder opened in VS Code") },
 					{ label: 'workspaceFolderBasename', detail: vscode.l10n.t("The name of the folder opened in VS Code without any slashes (/)") },
+					{ label: 'fileWorkspaceFolderBasename', detail: vscode.l10n.t("The current opened file workspace folder name without any slashes (/)") },
 					{ label: 'relativeFile', detail: vscode.l10n.t("The current opened file relative to ${workspaceFolder}") },
 					{ label: 'relativeFileDirname', detail: vscode.l10n.t("The current opened file's dirname relative to ${workspaceFolder}") },
 					{ label: 'file', detail: vscode.l10n.t("The current opened file") },

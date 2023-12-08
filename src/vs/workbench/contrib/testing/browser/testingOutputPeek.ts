@@ -26,7 +26,9 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { autorun } from 'vs/base/common/observable';
 import { count } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
@@ -36,8 +38,8 @@ import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/ed
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget2 } from 'vs/editor/browser/widget/diffEditorWidget2/diffEditorWidget2';
-import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget2 } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -48,6 +50,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -62,20 +65,23 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IDetachedXtermTerminal, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { DetachedProcessInfo } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { IDetachedTerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
@@ -83,12 +89,13 @@ import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, maxCountPriority, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IRichLocation, ITestErrorMessage, ITestItem, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, getMarkId } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -98,28 +105,38 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 class MessageSubject {
 	public readonly test: ITestItem;
 	public readonly message: ITestMessage;
-	public readonly messages: ITestMessage[];
 	public readonly expectedUri: URI;
 	public readonly actualUri: URI;
 	public readonly messageUri: URI;
 	public readonly revealLocation: IRichLocation | undefined;
 
 	public get isDiffable() {
-		const message = this.messages[this.messageIndex];
-		return message.type === TestMessageType.Error && isDiffable(message);
+		return this.message.type === TestMessageType.Error && isDiffable(this.message);
 	}
 
-	constructor(public readonly resultId: string, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
+	public get contextValue() {
+		return this.message.type === TestMessageType.Error ? this.message.contextValue : undefined;
+	}
+
+	public get context(): ITestMessageMenuArgs {
+		return {
+			$mid: MarshalledId.TestMessageMenuArgs,
+			extId: this.test.extId,
+			message: ITestMessage.serialize(this.message),
+		};
+	}
+
+	constructor(public readonly result: ITestResult, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
 		this.test = test.item;
-		this.messages = test.tasks[taskIndex].messages;
+		const messages = test.tasks[taskIndex].messages;
 		this.messageIndex = messageIndex;
 
-		const parts = { messageIndex, resultId, taskIndex, testExtId: test.item.extId };
+		const parts = { messageIndex, resultId: result.id, taskIndex, testExtId: test.item.extId };
 		this.expectedUri = buildTestUri({ ...parts, type: TestUriType.ResultExpectedOutput });
 		this.actualUri = buildTestUri({ ...parts, type: TestUriType.ResultActualOutput });
 		this.messageUri = buildTestUri({ ...parts, type: TestUriType.ResultMessage });
 
-		const message = this.message = this.messages[this.messageIndex];
+		const message = this.message = messages[this.messageIndex];
 		this.revealLocation = message.location ?? (test.item.uri && test.item.range ? { uri: test.item.uri, range: Range.lift(test.item.range) } : undefined);
 	}
 }
@@ -128,30 +145,29 @@ class TaskSubject {
 	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
 
-	constructor(public readonly resultId: string, public readonly taskIndex: number) {
-		this.outputUri = buildTestUri({ resultId, taskIndex, type: TestUriType.TaskOutput });
+	constructor(public readonly result: ITestResult, public readonly taskIndex: number) {
+		this.outputUri = buildTestUri({ resultId: result.id, taskIndex, type: TestUriType.TaskOutput });
 	}
 }
 
 class TestOutputSubject {
+	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
+	public readonly task: ITestRunTask;
 
-	public get outputUri() {
-		return buildTestUri({ resultId: this.resultId, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
-	}
-
-	constructor(public readonly resultId: string, public readonly taskIndex: number, public readonly task: ITestRunTask, public readonly test: TestResultItem) {
+	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly test: TestResultItem) {
+		this.outputUri = buildTestUri({ resultId: this.result.id, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
+		this.task = result.tasks[this.taskIndex];
 	}
 }
 
 type InspectSubject = MessageSubject | TaskSubject | TestOutputSubject;
 
-const equalsSubject = (a: InspectSubject, b: InspectSubject) =>
-	a.resultId === b.resultId && a.taskIndex === b.taskIndex && (
-		(a instanceof MessageSubject && b instanceof MessageSubject && a.messageIndex === b.messageIndex) ||
-		(a instanceof TaskSubject && b instanceof TaskSubject) ||
-		(a instanceof TestOutputSubject && b instanceof TestOutputSubject && a.test === b.test)
-	);
+const equalsSubject = (a: InspectSubject, b: InspectSubject) => (
+	(a instanceof MessageSubject && b instanceof MessageSubject && a.message === b.message) ||
+	(a instanceof TaskSubject && b instanceof TaskSubject && a.result === b.result && a.taskIndex === b.taskIndex) ||
+	(a instanceof TestOutputSubject && b instanceof TestOutputSubject && a.test === b.test && a.taskIndex === b.taskIndex)
+);
 
 /** Iterates through every message in every result */
 function* allMessages(results: readonly ITestResult[]) {
@@ -228,15 +244,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return false;
 		}
 
-		const message = candidate.message;
 		this.showPeekFromUri({
 			type: TestUriType.ResultMessage,
-			documentUri: message.location!.uri,
+			documentUri: candidate.location.uri,
 			taskIndex: candidate.taskId,
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: message.location!.range, ...options });
+		}, undefined, { selection: candidate.location.range, ...options });
 		return true;
 	}
 
@@ -457,9 +472,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		const fallbackLocation = test.item.uri && test.item.range
+			? { uri: test.item.uri, range: test.item.range }
+			: undefined;
+
+		let best: { taskId: number; index: number; message: ITestMessage; location: IRichLocation } | undefined;
 		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
-			if (!isFailedState(task.state) || !message.location) {
+			const location = message.location || fallbackLocation;
+			if (!isFailedState(task.state) || !location) {
 				return;
 			}
 
@@ -467,7 +487,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 				return;
 			}
 
-			best = { taskId, index: messageIndex, message };
+			best = { taskId, index: messageIndex, message, location };
 		});
 
 		return best;
@@ -614,7 +634,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		let found = false;
 		for (const { messageIndex, taskIndex, result, test } of allMessages(this.testResults.results)) {
-			if (subject instanceof TaskSubject && result.id === subject.resultId) {
+			if (subject instanceof TaskSubject && result.id === subject.result.id) {
 				found = true; // open the first message found in the current result
 			}
 
@@ -629,11 +649,11 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 				return;
 			}
 
-			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.resultId === result.id) {
+			if (subject instanceof TestOutputSubject && subject.test.item.extId === test.item.extId && subject.taskIndex === taskIndex && subject.result.id === result.id) {
 				found = true;
 			}
 
-			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.resultId === result.id) {
+			if (subject instanceof MessageSubject && subject.test.extId === test.item.extId && subject.messageIndex === messageIndex && subject.taskIndex === taskIndex && subject.result.id === result.id) {
 				found = true;
 			}
 		}
@@ -651,20 +671,20 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		let previous: { messageIndex: number; taskIndex: number; result: ITestResult; test: TestResultItem } | undefined;
 		for (const m of allMessages(this.testResults.results)) {
 			if (subject instanceof TaskSubject) {
-				if (m.result.id === subject.resultId) {
+				if (m.result.id === subject.result.id) {
 					break;
 				}
 				continue;
 			}
 
 			if (subject instanceof TestOutputSubject) {
-				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.resultId && m.taskIndex === subject.taskIndex) {
+				if (m.test.item.extId === subject.test.item.extId && m.result.id === subject.result.id && m.taskIndex === subject.taskIndex) {
 					break;
 				}
 				continue;
 			}
 
-			if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.resultId === m.result.id) {
+			if (subject.test.extId === m.test.item.extId && subject.messageIndex === m.messageIndex && subject.taskIndex === m.taskIndex && subject.result.id === m.result.id) {
 				break;
 			}
 
@@ -720,25 +740,28 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return undefined;
 		}
 
+		const result = this.testResults.results.find(r => r.id === parts.resultId);
+		if (!result) {
+			return;
+		}
+
 		if (parts.type === TestUriType.TaskOutput) {
-			return new TaskSubject(parts.resultId, parts.taskIndex);
+			return new TaskSubject(result, parts.taskIndex);
 		}
 
 		if (parts.type === TestUriType.TestOutput) {
-			const result = this.testResults.results.find(r => r.id === parts.resultId);
-			const test = result?.getStateById(parts.testExtId);
-			const task = result?.tasks[parts.taskIndex];
-			if (!test || !task) { return; }
-			return new TestOutputSubject(parts.resultId, parts.taskIndex, task, test);
+			const test = result.getStateById(parts.testExtId);
+			if (!test) { return; }
+			return new TestOutputSubject(result, parts.taskIndex, test);
 		}
 
-		const { resultId, testExtId, taskIndex, messageIndex } = parts;
-		const test = this.testResults.getResult(parts.resultId)?.getStateById(testExtId);
+		const { testExtId, taskIndex, messageIndex } = parts;
+		const test = result?.getStateById(testExtId);
 		if (!test || !test.tasks[parts.taskIndex]) {
 			return;
 		}
 
-		return new MessageSubject(resultId, test, taskIndex, messageIndex);
+		return new MessageSubject(result, test, taskIndex, messageIndex);
 	}
 }
 
@@ -746,8 +769,14 @@ class TestResultsViewContent extends Disposable {
 	private static lastSplitWidth?: number;
 
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
+	private readonly currentSubjectStore = this._register(new DisposableStore());
+	private messageContextKeyService!: IContextKeyService;
+	private contextKeyTestMessage!: IContextKey<string>;
+	private contextKeyResultOutdated!: IContextKey<boolean>;
+
 	private dimension?: dom.Dimension;
 	private splitView!: SplitView;
+	private messageContainer!: HTMLElement;
 	private contentProviders!: IPeekOutputRenderer[];
 	private contentProvidersUpdateLimiter = this._register(new Limiter(1));
 
@@ -761,9 +790,11 @@ class TestResultsViewContent extends Disposable {
 		private readonly options: {
 			historyVisible: IObservableValue<boolean>;
 			showRevealLocationOnMessages: boolean;
+			locationForProgress: string;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -774,7 +805,7 @@ class TestResultsViewContent extends Disposable {
 
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
-		const messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
+		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
@@ -782,12 +813,16 @@ class TestResultsViewContent extends Disposable {
 			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
 		];
 
+		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(this.messageContainer));
+		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
+		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
+
 		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
 		const tree = this._register(this.instantiationService.createInstance(
 			OutputPeekTree,
 			treeContainer,
 			this.didReveal.event,
-			{ showRevealLocationOnMessages }
+			{ showRevealLocationOnMessages, locationForProgress: this.options.locationForProgress },
 		));
 
 		this.onDidRequestReveal = tree.onDidRequestReview;
@@ -834,14 +869,54 @@ class TestResultsViewContent extends Disposable {
 	 * Shows a message in-place without showing or changing the peek location.
 	 * This is mostly used if peeking a message without a location.
 	 */
-	public async reveal(opts: { subject: InspectSubject; preserveFocus: boolean }) {
+	public reveal(opts: { subject: InspectSubject; preserveFocus: boolean }) {
 		this.didReveal.fire(opts);
 
-		if (!this.current || !equalsSubject(this.current, opts.subject)) {
-			this.current = opts.subject;
-			await this.contentProvidersUpdateLimiter.queue(() => Promise.all(
-				this.contentProviders.map(p => p.update(opts.subject))));
+		if (this.current && equalsSubject(this.current, opts.subject)) {
+			return Promise.resolve();
 		}
+
+		this.current = opts.subject;
+		return this.contentProvidersUpdateLimiter.queue(async () => {
+			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
+
+			this.currentSubjectStore.clear();
+			this.populateFloatingClick(opts.subject);
+		});
+	}
+
+	private populateFloatingClick(subject: InspectSubject) {
+		if (!(subject instanceof MessageSubject)) {
+			return;
+		}
+
+		this.currentSubjectStore.add(toDisposable(() => {
+			this.contextKeyResultOutdated.reset();
+			this.contextKeyTestMessage.reset();
+		}));
+
+		this.contextKeyTestMessage.set(subject.contextValue || '');
+		if (subject.result instanceof LiveTestResult) {
+			this.contextKeyResultOutdated.set(subject.result.getStateById(subject.test.extId)?.retired ?? false);
+			this.currentSubjectStore.add(subject.result.onChange(ev => {
+				if (ev.item.item.extId === subject.test.extId) {
+					this.contextKeyResultOutdated.set(ev.item.retired ?? false);
+				}
+			}));
+		} else {
+			this.contextKeyResultOutdated.set(true);
+		}
+
+
+		this.currentSubjectStore.add(
+			this.instantiationService
+				.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService]))
+				.createInstance(FloatingClickMenu, {
+					container: this.messageContainer,
+					menuId: MenuId.TestMessageContent,
+					getActionArg: () => (subject as MessageSubject).context,
+				})
+		);
 	}
 
 	public onLayoutBody(height: number, width: number) {
@@ -898,7 +973,7 @@ class TestResultsPeek extends PeekViewWidget {
 			this.scopedContextKeyService = this._disposables.add(this.contextKeyService.createScoped(container));
 			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
 			const instaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
-			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false }));
+			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false, locationForProgress: Testing.ResultsViewId }));
 		}
 
 		super._fillContainer(container);
@@ -990,6 +1065,7 @@ export class TestResultsView extends ViewPane {
 	private readonly content = this._register(this.instantiationService.createInstance(TestResultsViewContent, undefined, {
 		historyVisible: staticObservableValue(true),
 		showRevealLocationOnMessages: true,
+		locationForProgress: Testing.ExplorerViewId,
 	}));
 
 	constructor(
@@ -1018,10 +1094,11 @@ export class TestResultsView extends ViewPane {
 			return;
 		}
 
-		this.content.reveal({
-			preserveFocus,
-			subject: new TaskSubject(result.id, 0),
-		});
+		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
+	}
+
+	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
+		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -1031,7 +1108,7 @@ export class TestResultsView extends ViewPane {
 
 		const [lastResult] = this.resultService.results;
 		if (lastResult && lastResult.tasks.length) {
-			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult.id, 0) });
+			this.content.reveal({ preserveFocus: true, subject: new TaskSubject(lastResult, 0) });
 		}
 	}
 
@@ -1077,6 +1154,7 @@ const diffEditorOptions: IDiffEditorConstructionOptions = {
 	renderOverviewRuler: false,
 	ignoreTrimWhitespace: false,
 	renderSideBySide: true,
+	useInlineViewWhenSpaceIsLimited: false,
 	originalAriaLabel: localize('testingOutputExpected', 'Expected result'),
 	modifiedAriaLabel: localize('testingOutputActual', 'Actual result'),
 	diffAlgorithm: 'advanced',
@@ -1086,7 +1164,7 @@ const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { act
 	message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 
 class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
-	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget2>());
+	private readonly widget = this._register(new MutableDisposable<DiffEditorWidget>());
 	private readonly model = this._register(new MutableDisposable());
 	private dimension?: dom.IDimension;
 
@@ -1116,13 +1194,13 @@ class DiffContentProvider extends Disposable implements IPeekOutputRenderer {
 		const model = this.model.value = new SimpleDiffEditorModel(original, modified);
 		if (!this.widget.value) {
 			this.widget.value = this.editor ? this.instantiationService.createInstance(
-				EmbeddedDiffEditorWidget2,
+				EmbeddedDiffEditorWidget,
 				this.container,
 				diffEditorOptions,
 				{},
 				this.editor,
 			) : this.instantiationService.createInstance(
-				DiffEditorWidget2,
+				DiffEditorWidget,
 				this.container,
 				diffEditorOptions,
 				{},
@@ -1290,14 +1368,13 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private readonly xtermLayoutDelayer = this._register(new Delayer(50));
 
 	/** Active terminal instance. */
-	private readonly terminal = this._register(new MutableDisposable<IDetachedXtermTerminal>());
+	private readonly terminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
 	/** Listener for streaming result data */
 	private readonly outputDataListener = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly isInPeekView: boolean,
-		@ITestResultService private readonly resultService: ITestResultService,
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkspaceContextService private readonly workspaceContext: IWorkspaceContextService,
@@ -1308,11 +1385,11 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private async makeTerminal() {
 		const prev = this.terminal.value;
 		if (prev) {
-			prev.clearBuffer();
-			prev.clearSearchDecorations();
+			prev.xterm.clearBuffer();
+			prev.xterm.clearSearchDecorations();
 			// clearBuffer tries to retain the prompt line, but this doesn't exist for tests.
 			// So clear the screen (J) and move to home (H) to ensure previous data is cleaned up.
-			prev.write(`\x1b[2J\x1b[0;0H`);
+			prev.xterm.write(`\x1b[2J\x1b[0;0H`);
 			return prev;
 		}
 
@@ -1326,11 +1403,12 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 			updateCwd: () => { },
 		});
 
-		return this.terminal.value = await this.terminalService.createDetachedXterm({
+		return this.terminal.value = await this.terminalService.createDetachedTerminal({
 			rows: 10,
 			cols: 80,
 			readonly: true,
 			capabilities,
+			processInfo: new DetachedProcessInfo({ initialCwd: cwd.value }),
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
@@ -1365,6 +1443,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		const testItem = subject instanceof TestOutputSubject ? subject.test.item : subject.test;
 		const terminal = await this.updateGenerically<ITaskRawOutput>({
 			subject,
+			noOutputMessage: localize('caseNoOutput', 'The test case did not report any output.'),
 			getTarget: result => result?.tasks[subject.taskIndex].output,
 			*doInitialWrite(output, results) {
 				that.updateCwd(testItem.uri);
@@ -1379,23 +1458,24 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 					}
 				}
 			},
-			doListenForMoreData: (output, result, terminal) => result.onChange(e => {
+			doListenForMoreData: (output, result, write) => result.onChange(e => {
 				if (e.reason === TestResultItemChangeReason.NewMessage && e.item.item.extId === testItem.extId && e.message.type === TestMessageType.Output) {
 					for (const chunk of output.getRangeIter(e.message.offset, e.message.length)) {
-						terminal.write(chunk.buffer);
+						write(chunk.buffer);
 					}
 				}
 			}),
 		});
 
 		if (subject instanceof MessageSubject && subject.message.type === TestMessageType.Output && subject.message.marker !== undefined) {
-			terminal?.selectMarkedRange(getMarkId(subject.message.marker, true), getMarkId(subject.message.marker, false), /* scrollIntoView= */ true);
+			terminal?.xterm.selectMarkedRange(getMarkId(subject.message.marker, true), getMarkId(subject.message.marker, false), /* scrollIntoView= */ true);
 		}
 	}
 
 	private updateForTaskSubject(subject: TaskSubject) {
 		return this.updateGenerically<ITestRunTaskResults>({
 			subject,
+			noOutputMessage: localize('runNoOutput', 'The test run did not record any output.'),
 			getTarget: result => result?.tasks[subject.taskIndex],
 			doInitialWrite: (task, result) => {
 				// Update the cwd and use the first test to try to hint at the correct cwd,
@@ -1403,21 +1483,18 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
 				return task.output.buffers;
 			},
-			doListenForMoreData: (task, _result, terminal) => task.output.onDidWriteData(e => terminal.write(e.buffer)),
+			doListenForMoreData: (task, _result, write) => task.output.onDidWriteData(e => write(e.buffer)),
 		});
 	}
 
 	private async updateGenerically<T>(opts: {
 		subject: InspectSubject;
+		noOutputMessage: string;
 		getTarget: (result: ITestResult) => T | undefined;
 		doInitialWrite: (target: T, result: LiveTestResult) => Iterable<VSBuffer>;
-		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedXtermTerminal) => IDisposable | undefined;
+		doListenForMoreData: (target: T, result: LiveTestResult, write: (s: Uint8Array) => void) => IDisposable;
 	}) {
-		const result = this.resultService.getResult(opts.subject.resultId);
-		if (!result) {
-			return this.clear();
-		}
-
+		const result = opts.subject.result;
 		const target = opts.getTarget(result);
 		if (!target) {
 			return this.clear();
@@ -1431,17 +1508,32 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 			for (const chunk of opts.doInitialWrite(target, result)) {
 				didWriteData ||= chunk.byteLength > 0;
 				pendingWrites.value++;
-				terminal.write(chunk.buffer, () => pendingWrites.value--);
+				terminal.xterm.write(chunk.buffer, () => pendingWrites.value--);
 			}
 		} else {
+			didWriteData = true;
 			this.writeNotice(terminal, localize('runNoOutputForPast', 'Test output is only available for new test runs.'));
 		}
 
 		this.attachTerminalToDom(terminal);
-		this.outputDataListener.value = result instanceof LiveTestResult ? opts.doListenForMoreData(target, result, terminal) : undefined;
+		this.outputDataListener.clear();
+
+		if (result instanceof LiveTestResult && !result.completedAt) {
+			const l1 = result.onComplete(() => {
+				if (!didWriteData) {
+					this.writeNotice(terminal, opts.noOutputMessage);
+				}
+			});
+			const l2 = opts.doListenForMoreData(target, result, data => {
+				terminal.xterm.write(data);
+				didWriteData ||= data.byteLength > 0;
+			});
+
+			this.outputDataListener.value = combinedDisposable(l1, l2);
+		}
 
 		if (!this.outputDataListener.value && !didWriteData) {
-			this.writeNotice(terminal, localize('runNoOutput', 'The test run did not record any output.'));
+			this.writeNotice(terminal, opts.noOutputMessage);
 		}
 
 		// Ensure pending writes finish, otherwise the selection in `updateForTestSubject`
@@ -1468,13 +1560,13 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		}
 	}
 
-	private writeNotice(terminal: IDetachedXtermTerminal, str: string) {
-		terminal.write(`\x1b[2m${str}\x1b[0m`);
+	private writeNotice(terminal: IDetachedTerminalInstance, str: string) {
+		terminal.xterm.write(formatMessageForTerminal(str));
 	}
 
-	private attachTerminalToDom(terminal: IDetachedXtermTerminal) {
-		terminal.write('\x1b[?25l'); // hide cursor
-		requestAnimationFrame(() => this.layoutTerminal(terminal));
+	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
+		terminal.xterm.write('\x1b[?25l'); // hide cursor
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(this.container), () => this.layoutTerminal(terminal));
 		terminal.attachToElement(this.container, { enableGpu: false });
 	}
 
@@ -1492,13 +1584,13 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 
 	private layoutTerminal(
-		xterm: IDetachedXtermTerminal,
+		{ xterm }: IDetachedTerminalInstance,
 		width = this.dimensions?.width ?? this.container.clientWidth,
 		height = this.dimensions?.height ?? this.container.clientHeight
 	) {
 		width -= 10 + 20; // scrollbar width + margin
 		this.xtermLayoutDelayer.trigger(() => {
-			const scaled = getXtermScaledDimensions(xterm.getFont(), width, height);
+			const scaled = getXtermScaledDimensions(dom.getWindow(this.container), xterm.getFont(), width, height);
 			if (scaled) {
 				xterm.resize(scaled.cols, scaled.rows);
 			}
@@ -1506,10 +1598,14 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	}
 }
 
-const hintMessagePeekHeight = (msg: ITestMessage) =>
-	isDiffable(msg)
+const hintMessagePeekHeight = (msg: ITestMessage) => {
+	const msgHeight = isDiffable(msg)
 		? Math.max(hintPeekStrHeight(msg.actual), hintPeekStrHeight(msg.expected))
 		: hintPeekStrHeight(typeof msg.message === 'string' ? msg.message : msg.message.value);
+
+	// add 8ish lines for the size of the title and decorations in the peek.
+	return msgHeight + 8;
+};
 
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');
@@ -1518,8 +1614,7 @@ const firstLine = (str: string) => {
 
 const isMultiline = (str: string | undefined) => !!str && str.includes('\n');
 
-// add 5ish lines for the size of the title and decorations in the peek.
-const hintPeekStrHeight = (str: string) => Math.min(count(str, '\n') + 5, 24);
+const hintPeekStrHeight = (str: string) => Math.min(count(str, '\n'), 24);
 
 class SimpleDiffEditorModel extends EditorModel {
 	public readonly original = this._original.object.textEditorModel;
@@ -1543,7 +1638,7 @@ function getOuterEditorFromDiffEditor(codeEditorService: ICodeEditorService): IC
 	const diffEditors = codeEditorService.listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget2) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
 			return diffEditor.getParentEditor();
 		}
 	}
@@ -1603,13 +1698,50 @@ class TestResultElement implements ITreeElement {
 	constructor(public readonly value: ITestResult) { }
 }
 
+const openCoverageLabel = localize('openTestCoverage', 'View Test Coverage');
+const closeCoverageLabel = localize('closeTestCoverage', 'Close Test Coverage');
+
+class CoverageElement implements ITreeElement {
+	public readonly type = 'coverage';
+	public readonly context: undefined;
+	public readonly id = `coverage-${this.results.id}/${this.task.id}`;
+	public readonly onDidChange: Event<void>;
+
+	public get label() {
+		return this.isOpen ? closeCoverageLabel : openCoverageLabel;
+	}
+
+	public get icon() {
+		return this.isOpen ? widgetClose : icons.testingCoverage;
+	}
+
+	public get isOpen() {
+		return this.coverageService.selected.get()?.fromTaskId === this.task.id;
+	}
+
+	constructor(
+		private readonly results: ITestResult,
+		public readonly task: ITestRunTaskResults,
+		private readonly coverageService: ITestCoverageService,
+	) {
+		this.onDidChange = Event.fromObservableLight(coverageService.selected);
+	}
+
+}
+
 class TestCaseElement implements ITreeElement {
-	public readonly changeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.changeEmitter.event;
 	public readonly type = 'test';
 	public readonly context = this.test.item.extId;
 	public readonly id = `${this.results.id}/${this.test.item.extId}`;
 	public readonly description?: string;
+
+	public get onDidChange() {
+		if (!(this.results instanceof LiveTestResult)) {
+			return Event.None;
+		}
+
+		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId);
+	}
 
 	public get state() {
 		return this.test.tasks[this.taskIndex].state;
@@ -1628,23 +1760,15 @@ class TestCaseElement implements ITreeElement {
 	}
 
 	public get outputSubject() {
-		return new TestOutputSubject(this.results.id, this.taskIndex, this.task, this.test);
+		return new TestOutputSubject(this.results, this.taskIndex, this.test);
 	}
 
+
 	constructor(
-		private readonly results: ITestResult,
-		private readonly task: ITestRunTask,
+		public readonly results: ITestResult,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
-	) {
-		for (const parent of resultItemParents(results, test)) {
-			if (parent !== test) {
-				this.description = this.description
-					? parent.item.label + flatTestItemDelimiter + this.description
-					: parent.item.label;
-			}
-		}
-	}
+	) { }
 }
 
 class TaskElement implements ITreeElement {
@@ -1660,7 +1784,7 @@ class TaskElement implements ITreeElement {
 		return this.results.tasks[this.index].running ? icons.testingStatesToIcons.get(TestResultState.Running) : undefined;
 	}
 
-	constructor(public readonly results: ITestResult, public readonly task: ITestRunTask, public readonly index: number) {
+	constructor(public readonly results: ITestResult, public readonly task: ITestRunTaskResults, public readonly index: number) {
 		this.id = `${results.id}/${index}`;
 		this.task = results.tasks[index];
 		this.context = String(index);
@@ -1670,13 +1794,31 @@ class TaskElement implements ITreeElement {
 
 class TestMessageElement implements ITreeElement {
 	public readonly type = 'message';
-	public readonly context: URI;
 	public readonly id: string;
 	public readonly label: string;
 	public readonly uri: URI;
 	public readonly location?: IRichLocation;
 	public readonly description?: string;
-	public readonly onDidChange = Event.None;
+	public readonly contextValue?: string;
+	public readonly message: ITestMessage;
+
+	public get onDidChange() {
+		if (!(this.result instanceof LiveTestResult)) {
+			return Event.None;
+		}
+
+		// rerender when the test case changes so it gets retired events
+		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId);
+	}
+
+	public get context(): ITestMessageMenuArgs {
+		return {
+			$mid: MarshalledId.TestMessageMenuArgs,
+			extId: this.test.item.extId,
+			message: ITestMessage.serialize(this.message),
+		};
+	}
+
 
 	constructor(
 		public readonly result: ITestResult,
@@ -1684,10 +1826,11 @@ class TestMessageElement implements ITreeElement {
 		public readonly taskIndex: number,
 		public readonly messageIndex: number,
 	) {
-		const m = test.tasks[taskIndex].messages[messageIndex];
+		const m = this.message = test.tasks[taskIndex].messages[messageIndex];
 
 		this.location = m.location;
-		this.uri = this.context = buildTestUri({
+		this.contextValue = m.type === TestMessageType.Error ? m.contextValue : undefined;
+		this.uri = buildTestUri({
 			type: TestUriType.ResultMessage,
 			messageIndex,
 			resultId: result.id,
@@ -1708,7 +1851,7 @@ class TestMessageElement implements ITreeElement {
 	}
 }
 
-type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TaskElement;
+type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TaskElement | CoverageElement;
 
 class OutputPeekTree extends Disposable {
 	private disposed = false;
@@ -1721,11 +1864,13 @@ class OutputPeekTree extends Disposable {
 	constructor(
 		container: HTMLElement,
 		onDidReveal: Event<{ subject: InspectSubject; preserveFocus: boolean }>,
-		options: { showRevealLocationOnMessages: boolean },
+		options: { showRevealLocationOnMessages: boolean; locationForProgress: string },
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestResultService results: ITestResultService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITestExplorerFilterState explorerFilter: ITestExplorerFilterState,
+		@ITestCoverageService coverageService: ITestCoverageService,
+		@IProgressService progressService: IProgressService,
 	) {
 		super();
 
@@ -1771,20 +1916,31 @@ class OutputPeekTree extends Disposable {
 
 		const cc = new CreationCache<TreeElement>();
 		const getTaskChildren = (taskElem: TaskElement): Iterable<ICompressedTreeElement<TreeElement>> => {
-			const tests = Iterable.filter(taskElem.results.tests, test => test.tasks[taskElem.index].state >= TestResultState.Running || test.tasks[taskElem.index].messages.length > 0);
-
-			return Iterable.map(tests, test => ({
-				element: taskElem.itemsCache.getOrCreate(test, () => new TestCaseElement(taskElem.results, taskElem.task, test, taskElem.index)),
+			const { results, index, itemsCache, task } = taskElem;
+			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0);
+			let result: Iterable<ICompressedTreeElement<TreeElement>> = Iterable.map(tests, test => ({
+				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
 				incompressible: true,
-				children: getTestChildren(taskElem.results, test, taskElem.index),
+				children: getTestChildren(results, test, index),
 			}));
+
+			if (task.coverage.get()) {
+				result = Iterable.concat(
+					Iterable.single<ICompressedTreeElement<TreeElement>>({
+						element: new CoverageElement(results, task, coverageService),
+					}),
+					result,
+				);
+			}
+
+			return result;
 		};
 
 		const getTestChildren = (result: ITestResult, test: TestResultItem, taskIndex: number): Iterable<ICompressedTreeElement<TreeElement>> => {
 			return test.tasks[taskIndex].messages
 				.map((m, messageIndex) =>
 					m.type === TestMessageType.Error
-						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: true }
+						? { element: cc.getOrCreate(m, () => new TestMessageElement(result, test, taskIndex, messageIndex)), incompressible: false }
 						: undefined
 				)
 				.filter(isDefined);
@@ -1823,17 +1979,32 @@ class OutputPeekTree extends Disposable {
 			taskChildrenToUpdate.clear();
 		}, 300));
 
+		const queueTaskChildrenUpdate = (taskNode: TaskElement) => {
+			taskChildrenToUpdate.add(taskNode);
+			if (!taskChildrenUpdate.isScheduled()) {
+				taskChildrenUpdate.schedule();
+			}
+		};
+
 		const attachToResults = (result: LiveTestResult) => {
 			const resultNode = cc.get(result)! as TestResultElement;
 			const disposable = new DisposableStore();
-			disposable.add(result.onNewTask(() => {
+			disposable.add(result.onNewTask(i => {
 				if (result.tasks.length === 1) {
-					this.requestReveal.fire(new TaskSubject(result.id, 0)); // reveal the first task in new runs
+					this.requestReveal.fire(new TaskSubject(result, 0)); // reveal the first task in new runs
 				}
 
 				if (this.tree.hasElement(resultNode)) {
 					this.tree.setChildren(resultNode, getResultChildren(result), { diffIdentityProvider });
 				}
+
+				// note: tasks are bounded and their lifetime is equivalent to that of
+				// the test result, so this doesn't leak indefinitely.
+				const task = result.tasks[i];
+				disposable.add(autorun(reader => {
+					task.coverage.read(reader); // add it to the autorun
+					queueTaskChildrenUpdate(cc.get(task) as TaskElement);
+				}));
 			}));
 			disposable.add(result.onEndTask(index => {
 				(cc.get(result.tasks[index]) as TaskElement | undefined)?.changeEmitter.fire();
@@ -1852,14 +2023,10 @@ class OutputPeekTree extends Disposable {
 						if (e.reason === TestResultItemChangeReason.NewMessage && e.message.type === TestMessageType.Error) {
 							this.tree.setChildren(itemNode, getTestChildren(result, e.item, index), { diffIdentityProvider });
 						}
-						itemNode.changeEmitter.fire();
 						return;
 					}
 
-					taskChildrenToUpdate.add(taskNode);
-					if (!taskChildrenUpdate.isScheduled()) {
-						taskChildrenUpdate.schedule();
-					}
+					queueTaskChildrenUpdate(taskNode);
 				}
 			}));
 
@@ -1908,10 +2075,10 @@ class OutputPeekTree extends Disposable {
 			if (subject instanceof TaskSubject) {
 				const resultItem = this.tree.getNode(null).children.find(c => {
 					if (c.element instanceof TaskElement) {
-						return c.element.results.id === subject.resultId && c.element.index === subject.taskIndex;
+						return c.element.results.id === subject.result.id && c.element.index === subject.taskIndex;
 					}
 					if (c.element instanceof TestResultElement) {
-						return c.element.id === subject.resultId;
+						return c.element.id === subject.result.id;
 					}
 					return false;
 				});
@@ -1947,7 +2114,21 @@ class OutputPeekTree extends Disposable {
 
 		this._register(this.tree.onDidOpen(async e => {
 			if (e.element instanceof TestMessageElement) {
-				this.requestReveal.fire(new MessageSubject(e.element.result.id, e.element.test, e.element.taskIndex, e.element.messageIndex));
+				this.requestReveal.fire(new MessageSubject(e.element.result, e.element.test, e.element.taskIndex, e.element.messageIndex));
+			} else if (e.element instanceof TestCaseElement) {
+				const t = e.element;
+				const message = mapFindTestMessage(e.element.test, (_t, _m, mesasgeIndex, taskIndex) =>
+					new MessageSubject(t.results, t.test, taskIndex, mesasgeIndex));
+				this.requestReveal.fire(message || new TestOutputSubject(t.results, 0, t.test));
+			} else if (e.element instanceof CoverageElement) {
+				const task = e.element.task;
+				if (e.element.isOpen) {
+					return coverageService.closeCoverage();
+				}
+				progressService.withProgress(
+					{ location: options.locationForProgress },
+					() => coverageService.openCoverage(task, true)
+				);
 			}
 		}));
 
@@ -2017,8 +2198,8 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	public renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ITreeElement>, FuzzyScore>, _index: number, templateData: TemplateData): void {
 		const chain = node.element.elements;
 		const lastElement = chain[chain.length - 1];
-		if (lastElement instanceof TaskElement && chain.length >= 2) {
-			this.doRender(chain[chain.length - 2], templateData);
+		if ((lastElement instanceof TaskElement || lastElement instanceof TestMessageElement) && chain.length >= 2) {
+			this.doRender(chain[chain.length - 2], templateData, lastElement);
 		} else {
 			this.doRender(lastElement, templateData);
 		}
@@ -2062,20 +2243,26 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 	}
 
 	/** Called to render a new element */
-	private doRender(element: ITreeElement, templateData: TemplateData) {
+	private doRender(element: ITreeElement, templateData: TemplateData, subjectElement?: ITreeElement) {
 		templateData.elementDisposable.clear();
-		templateData.elementDisposable.add(element.onDidChange(() => this.doRender(element, templateData)));
-		this.doRenderInner(element, templateData);
+		templateData.elementDisposable.add(
+			element.onDidChange(() => this.doRender(element, templateData, subjectElement)),
+		);
+		this.doRenderInner(element, templateData, subjectElement);
 	}
 
 	/** Called, and may be re-called, to render or re-render an element */
-	private doRenderInner(element: ITreeElement, templateData: TemplateData) {
-		if (element.labelWithIcons) {
-			dom.reset(templateData.label, ...element.labelWithIcons);
-		} else if (element.description) {
-			dom.reset(templateData.label, element.label, dom.$('span.test-label-description', {}, element.description));
+	private doRenderInner(element: ITreeElement, templateData: TemplateData, subjectElement: ITreeElement | undefined) {
+		let { label, labelWithIcons, description } = element;
+		if (subjectElement instanceof TestMessageElement) {
+			description = subjectElement.label;
+		}
+
+		const descriptionElement = description ? dom.$('span.test-label-description', {}, description) : '';
+		if (labelWithIcons) {
+			dom.reset(templateData.label, ...labelWithIcons, descriptionElement);
 		} else {
-			dom.reset(templateData.label, element.label);
+			dom.reset(templateData.label, label, descriptionElement);
 		}
 
 		const icon = element.icon;
@@ -2083,7 +2270,7 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 
 		const actions = this.treeActions.provideActionBar(element);
 		templateData.actionBar.clear();
-		templateData.actionBar.context = element;
+		templateData.actionBar.context = element.context;
 		templateData.actionBar.push(actions.primary, { icon: true, label: false });
 	}
 }
@@ -2102,130 +2289,139 @@ class TreeActionsProvider {
 	public provideActionBar(element: ITreeElement) {
 		const test = element instanceof TestCaseElement ? element.test : undefined;
 		const capabilities = test ? this.testProfileService.capabilitiesForTest(test) : 0;
-		const contextOverlay = this.contextKeyService.createOverlay([
+
+		const contextKeys: [string, unknown][] = [
 			['peek', Testing.OutputPeekContributionId],
 			[TestingContextKeys.peekItemType.key, element.type],
-			...getTestItemContextOverlay(test, capabilities),
-		]);
-		const menu = this.menuService.createMenu(MenuId.TestPeekElement, contextOverlay);
+		];
 
-		try {
-			const primary: IAction[] = [];
-			const secondary: IAction[] = [];
+		let id = MenuId.TestPeekElement;
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
 
-			if (element instanceof TaskElement) {
+		if (element instanceof TaskElement) {
+			primary.push(new Action(
+				'testing.outputPeek.showResultOutput',
+				localize('testing.showResultOutput', "Show Result Output"),
+				ThemeIcon.asClassName(Codicon.terminal),
+				undefined,
+				() => this.requestReveal.fire(new TaskSubject(element.results, element.index)),
+			));
+		}
+
+		if (element instanceof TestResultElement) {
+			// only show if there are no collapsed test nodes that have more specific choices
+			if (element.value.tasks.length === 1) {
 				primary.push(new Action(
 					'testing.outputPeek.showResultOutput',
 					localize('testing.showResultOutput', "Show Result Output"),
 					ThemeIcon.asClassName(Codicon.terminal),
 					undefined,
-					() => this.requestReveal.fire(new TaskSubject(element.results.id, element.index)),
+					() => this.requestReveal.fire(new TaskSubject(element.value, 0)),
 				));
 			}
 
-			if (element instanceof TestResultElement) {
-				// only show if there are no collapsed test nodes that have more specific choices
-				if (element.value.tasks.length === 1) {
-					primary.push(new Action(
-						'testing.outputPeek.showResultOutput',
-						localize('testing.showResultOutput', "Show Result Output"),
-						ThemeIcon.asClassName(Codicon.terminal),
-						undefined,
-						() => this.requestReveal.fire(new TaskSubject(element.value.id, 0)),
-					));
-				}
+			primary.push(new Action(
+				'testing.outputPeek.reRunLastRun',
+				localize('testing.reRunLastRun', "Rerun Test Run"),
+				ThemeIcon.asClassName(icons.testingRunIcon),
+				undefined,
+				() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
+			));
 
+			if (capabilities & TestRunProfileBitset.Debug) {
 				primary.push(new Action(
-					'testing.outputPeek.reRunLastRun',
-					localize('testing.reRunLastRun', "Rerun Test Run"),
+					'testing.outputPeek.debugLastRun',
+					localize('testing.debugLastRun', "Debug Test Run"),
+					ThemeIcon.asClassName(icons.testingDebugIcon),
+					undefined,
+					() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
+				));
+			}
+		}
+
+		if (element instanceof TestCaseElement || element instanceof TestMessageElement) {
+			contextKeys.push(
+				[TestingContextKeys.testResultOutdated.key, element.test.retired],
+				...getTestItemContextOverlay(element.test, capabilities),
+			);
+		}
+
+		if (element instanceof TestCaseElement) {
+			const extId = element.test.item.extId;
+			if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
+				primary.push(new Action(
+					'testing.outputPeek.showResultOutput',
+					localize('testing.showResultOutput', "Show Result Output"),
+					ThemeIcon.asClassName(Codicon.terminal),
+					undefined,
+					() => this.requestReveal.fire(element.outputSubject),
+				));
+			}
+
+			secondary.push(new Action(
+				'testing.outputPeek.revealInExplorer',
+				localize('testing.revealInExplorer', "Reveal in Test Explorer"),
+				ThemeIcon.asClassName(Codicon.listTree),
+				undefined,
+				() => this.commandService.executeCommand('_revealTestInExplorer', extId),
+			));
+
+			if (capabilities & TestRunProfileBitset.Run) {
+				primary.push(new Action(
+					'testing.outputPeek.runTest',
+					localize('run test', 'Run Test'),
 					ThemeIcon.asClassName(icons.testingRunIcon),
 					undefined,
-					() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
+					() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Run, extId),
 				));
-
-				if (capabilities & TestRunProfileBitset.Debug) {
-					primary.push(new Action(
-						'testing.outputPeek.debugLastRun',
-						localize('testing.debugLastRun', "Debug Test Run"),
-						ThemeIcon.asClassName(icons.testingDebugIcon),
-						undefined,
-						() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
-					));
-				}
 			}
 
-			if (element instanceof TestCaseElement) {
-				const extId = element.test.item.extId;
+			if (capabilities & TestRunProfileBitset.Debug) {
 				primary.push(new Action(
-					'testing.outputPeek.goToFile',
-					localize('testing.goToFile', "Go to Source"),
+					'testing.outputPeek.debugTest',
+					localize('debug test', 'Debug Test'),
+					ThemeIcon.asClassName(icons.testingDebugIcon),
+					undefined,
+					() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
+				));
+			}
+
+			primary.push(new Action(
+				'testing.outputPeek.goToFile',
+				localize('testing.goToFile', "Go to Source"),
+				ThemeIcon.asClassName(Codicon.goToFile),
+				undefined,
+				() => this.commandService.executeCommand('vscode.revealTest', extId),
+			));
+		}
+
+		if (element instanceof TestMessageElement) {
+			id = MenuId.TestMessageContext;
+			contextKeys.push([TestingContextKeys.testMessageContext.key, element.contextValue]);
+			if (this.showRevealLocationOnMessages && element.location) {
+				primary.push(new Action(
+					'testing.outputPeek.goToError',
+					localize('testing.goToError', "Go to Source"),
 					ThemeIcon.asClassName(Codicon.goToFile),
 					undefined,
-					() => this.commandService.executeCommand('vscode.revealTest', extId),
+					() => this.editorService.openEditor({
+						resource: element.location!.uri,
+						options: {
+							selection: element.location!.range,
+							preserveFocus: true,
+						}
+					}),
 				));
-
-				if (element.test.tasks[element.taskIndex].messages.some(m => m.type === TestMessageType.Output)) {
-					primary.push(new Action(
-						'testing.outputPeek.showResultOutput',
-						localize('testing.showResultOutput', "Show Result Output"),
-						ThemeIcon.asClassName(Codicon.terminal),
-						undefined,
-						() => this.requestReveal.fire(element.outputSubject),
-					));
-				}
-
-				secondary.push(new Action(
-					'testing.outputPeek.revealInExplorer',
-					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
-					ThemeIcon.asClassName(Codicon.listTree),
-					undefined,
-					() => this.commandService.executeCommand('_revealTestInExplorer', extId),
-				));
-
-				if (capabilities & TestRunProfileBitset.Run) {
-					primary.push(new Action(
-						'testing.outputPeek.runTest',
-						localize('run test', 'Run Test'),
-						ThemeIcon.asClassName(icons.testingRunIcon),
-						undefined,
-						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Run, extId),
-					));
-				}
-
-				if (capabilities & TestRunProfileBitset.Debug) {
-					primary.push(new Action(
-						'testing.outputPeek.debugTest',
-						localize('debug test', 'Debug Test'),
-						ThemeIcon.asClassName(icons.testingDebugIcon),
-						undefined,
-						() => this.commandService.executeCommand('vscode.runTestsById', TestRunProfileBitset.Debug, extId),
-					));
-				}
 			}
+		}
 
-			if (element instanceof TestMessageElement) {
-				if (this.showRevealLocationOnMessages && element.location) {
-					primary.push(new Action(
-						'testing.outputPeek.goToError',
-						localize('testing.goToError', "Go to Source"),
-						ThemeIcon.asClassName(Codicon.goToFile),
-						undefined,
-						() => this.editorService.openEditor({
-							resource: element.location!.uri,
-							options: {
-								selection: element.location!.range,
-								preserveFocus: true,
-							}
-						}),
-					));
-				}
-			}
 
-			const result = { primary, secondary };
-			createAndFillInActionBarActions(menu, {
-				shouldForwardArgs: true,
-			}, result, 'inline');
-
+		const contextOverlay = this.contextKeyService.createOverlay(contextKeys);
+		const result = { primary, secondary };
+		const menu = this.menuService.createMenu(id, contextOverlay);
+		try {
+			createAndFillInActionBarActions(menu, { arg: element.context }, result, 'inline');
 			return result;
 		} finally {
 			menu.dispose();

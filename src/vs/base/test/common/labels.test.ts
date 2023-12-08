@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import * as labels from 'vs/base/common/labels';
 import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {
@@ -161,6 +162,7 @@ suite('Labels', () => {
 	test('getPathLabel', () => {
 		const winFileUri = URI.file('c:/some/folder/file.txt');
 		const nixFileUri = URI.file('/some/folder/file.txt');
+		const nixBadFileUri = URI.revive({ scheme: 'vscode', authority: 'file', path: '//some/folder/file.txt' });
 		const uncFileUri = URI.file('c:/some/folder/file.txt').with({ authority: 'auth' });
 		const remoteFileUri = URI.file('/some/folder/file.txt').with({ scheme: 'vscode-test', authority: 'auth' });
 
@@ -189,6 +191,7 @@ suite('Labels', () => {
 
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: nixUserHome } }), '\\some\\folder\\file.txt');
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixBadFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '/some/folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
 
 		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: remoteUserHome } }), '\\some\\folder\\file.txt');
@@ -231,4 +234,6 @@ suite('Labels', () => {
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
 		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

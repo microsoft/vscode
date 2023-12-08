@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestWorkspaceTrustManagementService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -52,10 +52,10 @@ import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/u
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -63,14 +63,11 @@ let installEvent: Emitter<InstallExtensionEvent>,
 	uninstallEvent: Emitter<UninstallExtensionEvent>,
 	didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-let disposables: DisposableStore;
-
-function setupTest() {
-	disposables = new DisposableStore();
-	installEvent = new Emitter<InstallExtensionEvent>();
-	didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-	uninstallEvent = new Emitter<UninstallExtensionEvent>();
-	didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+function setupTest(disposables: Pick<DisposableStore, 'add'>) {
+	installEvent = disposables.add(new Emitter<InstallExtensionEvent>());
+	didInstallEvent = disposables.add(new Emitter<readonly InstallExtensionResult[]>());
+	uninstallEvent = disposables.add(new Emitter<UninstallExtensionEvent>());
+	didUninstallEvent = disposables.add(new Emitter<DidUninstallExtensionEvent>());
 
 	instantiationService = disposables.add(new TestInstantiationService());
 
@@ -123,11 +120,11 @@ function setupTest() {
 		}
 	});
 
-	instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-	instantiationService.stub(ILabelService, { onDidChangeFormatters: new Emitter<IFormatterChangeEvent>().event });
+	instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+	instantiationService.stub(ILabelService, { onDidChangeFormatters: disposables.add(new Emitter<IFormatterChangeEvent>()).event });
 
-	instantiationService.stub(ILifecycleService, new TestLifecycleService());
-	instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
+	instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
+	instantiationService.stub(IExtensionTipsService, disposables.add(instantiationService.createInstance(TestExtensionTipsService)));
 	instantiationService.stub(IExtensionRecommendationsService, {});
 	instantiationService.stub(IURLService, NativeURLService);
 
@@ -137,28 +134,28 @@ function setupTest() {
 	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ extensions: [], onDidChangeExtensions: Event.None, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false, whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
 	(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 
-	instantiationService.stub(IUserDataSyncEnablementService, instantiationService.createInstance(UserDataSyncEnablementService));
+	instantiationService.stub(IUserDataSyncEnablementService, disposables.add(instantiationService.createInstance(UserDataSyncEnablementService)));
 
 	instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
-	instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 }
 
 
 suite('ExtensionsActions', () => {
 
-	setup(setupTest);
-	teardown(() => disposables.dispose());
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	setup(() => setupTest(disposables));
 
 	test('Install action is disabled when there is no extension', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
+		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test Install action when state is installed', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		return workbenchService.queryLocal()
@@ -176,8 +173,8 @@ suite('ExtensionsActions', () => {
 
 	test('Test InstallingLabelAction when state is installing', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallingLabelAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallingLabelAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return workbenchService.queryGallery(CancellationToken.None)
@@ -193,8 +190,8 @@ suite('ExtensionsActions', () => {
 
 	test('Test Install action when state is uninstalled', async () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		const paged = await workbenchService.queryGallery(CancellationToken.None);
@@ -206,8 +203,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Install action when extension is system action', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -221,8 +218,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Install action when extension doesnot has gallery', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false });
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -236,15 +233,15 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Uninstall action is disabled when there is no extension', () => {
-		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UninstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test Uninstall action when state is uninstalling', () => {
-		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UninstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -259,8 +256,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Uninstall action when state is installed and is user extension', () => {
-		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UninstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -274,8 +271,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Uninstall action when state is installed and is system extension', () => {
-		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UninstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -289,8 +286,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Uninstall action when state is installing and is user extension', () => {
-		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UninstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -306,8 +303,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test Uninstall action after extension is installed', async () => {
-		const testObject: ExtensionsActions.UninstallAction = instantiationService.createInstance(ExtensionsActions.UninstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UninstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UninstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -325,15 +322,15 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test UpdateAction when there is no extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test UpdateAction when extension is uninstalled', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
@@ -344,8 +341,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test UpdateAction when extension is installed and not outdated', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -359,8 +356,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test UpdateAction when extension is installed outdated and system extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', { version: '1.0.0' }, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -374,8 +371,8 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test UpdateAction when extension is installed outdated and user extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -389,19 +386,19 @@ suite('ExtensionsActions', () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
 				assert.ok(!testObject.enabled);
 				return new Promise<void>(c => {
-					testObject.onDidChange(() => {
+					disposables.add(testObject.onDidChange(() => {
 						if (testObject.enabled) {
 							c();
 						}
-					});
+					}));
 					instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 				});
 			});
 	});
 
 	test('Test UpdateAction when extension is installing and outdated and user extension', async () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.UpdateAction = disposables.add(instantiationService.createInstance(ExtensionsActions.UpdateAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -412,33 +409,33 @@ suite('ExtensionsActions', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
 		await new Promise<void>(c => {
-			testObject.onDidChange(() => {
+			disposables.add(testObject.onDidChange(() => {
 				if (testObject.enabled) {
 					c();
 				}
-			});
+			}));
 			instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 		});
 		await new Promise<void>(c => {
-			testObject.onDidChange(() => {
+			disposables.add(testObject.onDidChange(() => {
 				if (!testObject.enabled) {
 					c();
 				}
-			});
+			}));
 			installEvent.fire({ identifier: local.identifier, source: gallery });
 		});
 	});
 
 	test('Test ManageExtensionAction when there is no extension', () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test ManageExtensionAction when extension is installed', () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -447,13 +444,13 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
 	test('Test ManageExtensionAction when extension is uninstalled', () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -462,13 +459,13 @@ suite('ExtensionsActions', () => {
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
 	test('Test ManageExtensionAction when extension is installing', () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -479,13 +476,13 @@ suite('ExtensionsActions', () => {
 				installEvent.fire({ identifier: gallery.identifier, source: gallery });
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
 	test('Test ManageExtensionAction when extension is queried from gallery and installed', async () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -498,12 +495,12 @@ suite('ExtensionsActions', () => {
 		await promise;
 		assert.ok(testObject.enabled);
 		assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-		assert.strictEqual('', testObject.tooltip);
+		assert.strictEqual('Manage', testObject.tooltip);
 	});
 
 	test('Test ManageExtensionAction when extension is system extension', () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', {}, { type: ExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -512,13 +509,13 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
 	test('Test ManageExtensionAction when extension is uninstalling', () => {
-		const testObject: ExtensionsActions.ManageExtensionAction = instantiationService.createInstance(ExtensionsActions.ManageExtensionAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ManageExtensionAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ManageExtensionAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -529,12 +526,12 @@ suite('ExtensionsActions', () => {
 
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
-				assert.strictEqual('Uninstalling', testObject.tooltip);
+				assert.strictEqual('Manage', testObject.tooltip);
 			});
 	});
 
 	test('Test EnableForWorkspaceAction when there is no extension', () => {
-		const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
+		const testObject: ExtensionsActions.EnableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction));
 
 		assert.ok(!testObject.enabled);
 	});
@@ -545,7 +542,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
+				const testObject: ExtensionsActions.EnableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction));
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -559,7 +556,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
+						const testObject: ExtensionsActions.EnableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -574,7 +571,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
+						const testObject: ExtensionsActions.EnableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -590,7 +587,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction);
+						const testObject: ExtensionsActions.EnableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableForWorkspaceAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -598,7 +595,7 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test EnableGloballyAction when there is no extension', () => {
-		const testObject: ExtensionsActions.EnableGloballyAction = instantiationService.createInstance(ExtensionsActions.EnableGloballyAction);
+		const testObject: ExtensionsActions.EnableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableGloballyAction));
 
 		assert.ok(!testObject.enabled);
 	});
@@ -609,7 +606,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.EnableGloballyAction = instantiationService.createInstance(ExtensionsActions.EnableGloballyAction);
+				const testObject: ExtensionsActions.EnableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableGloballyAction));
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -623,7 +620,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableGloballyAction = instantiationService.createInstance(ExtensionsActions.EnableGloballyAction);
+						const testObject: ExtensionsActions.EnableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableGloballyAction));
 						testObject.extension = extensions[0];
 						assert.ok(!testObject.enabled);
 					});
@@ -638,7 +635,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableGloballyAction = instantiationService.createInstance(ExtensionsActions.EnableGloballyAction);
+						const testObject: ExtensionsActions.EnableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableGloballyAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -654,7 +651,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableGloballyAction = instantiationService.createInstance(ExtensionsActions.EnableGloballyAction);
+						const testObject: ExtensionsActions.EnableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableGloballyAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -662,7 +659,7 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test EnableAction when there is no extension', () => {
-		const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+		const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 
 		assert.ok(!testObject.enabled);
 	});
@@ -673,7 +670,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+				const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -687,7 +684,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+						const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -702,7 +699,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+						const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 						testObject.extension = extensions[0];
 						assert.ok(testObject.enabled);
 					});
@@ -715,7 +712,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+				const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -727,9 +724,9 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+				const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 				testObject.extension = page.firstPage[0];
-				instantiationService.createInstance(ExtensionContainers, [testObject]);
+				disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 				installEvent.fire({ identifier: gallery.identifier, source: gallery });
 				assert.ok(!testObject.enabled);
@@ -742,7 +739,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.EnableDropDownAction = instantiationService.createInstance(ExtensionsActions.EnableDropDownAction);
+				const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 				testObject.extension = extensions[0];
 				uninstallEvent.fire({ identifier: local.identifier });
 				assert.ok(!testObject.enabled);
@@ -750,7 +747,7 @@ suite('ExtensionsActions', () => {
 	});
 
 	test('Test DisableForWorkspaceAction when there is no extension', () => {
-		const testObject: ExtensionsActions.DisableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction);
+		const testObject: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
 
 		assert.ok(!testObject.enabled);
 	});
@@ -763,7 +760,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.DisableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction);
+						const testObject: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
 						testObject.extension = extensions[0];
 						assert.ok(!testObject.enabled);
 					});
@@ -778,7 +775,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.DisableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction);
+						const testObject: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
 						testObject.extension = extensions[0];
 						assert.ok(!testObject.enabled);
 					});
@@ -797,14 +794,14 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.DisableForWorkspaceAction = instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction);
+				const testObject: ExtensionsActions.DisableForWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableForWorkspaceAction));
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 			});
 	});
 
 	test('Test DisableGloballyAction when there is no extension', () => {
-		const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+		const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 
 		assert.ok(!testObject.enabled);
 	});
@@ -817,7 +814,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+						const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 						testObject.extension = extensions[0];
 						assert.ok(!testObject.enabled);
 					});
@@ -832,7 +829,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+						const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 						testObject.extension = extensions[0];
 						assert.ok(!testObject.enabled);
 					});
@@ -850,7 +847,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 			});
@@ -867,7 +864,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 			});
@@ -887,7 +884,7 @@ suite('ExtensionsActions', () => {
 
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
-						const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+						const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 						testObject.extension = extensions[0];
 						assert.ok(!testObject.enabled);
 					});
@@ -905,7 +902,7 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
-				const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = page.firstPage[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -922,9 +919,9 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None)
 			.then(page => {
-				const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = page.firstPage[0];
-				instantiationService.createInstance(ExtensionContainers, [testObject]);
+				disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 				installEvent.fire({ identifier: gallery.identifier, source: gallery });
 				assert.ok(!testObject.enabled);
 			});
@@ -941,9 +938,9 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				const testObject: ExtensionsActions.DisableGloballyAction = instantiationService.createInstance(ExtensionsActions.DisableGloballyAction);
+				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = extensions[0];
-				instantiationService.createInstance(ExtensionContainers, [testObject]);
+				disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 				uninstallEvent.fire({ identifier: local.identifier });
 				assert.ok(!testObject.enabled);
 			});
@@ -953,19 +950,20 @@ suite('ExtensionsActions', () => {
 
 suite('ReloadAction', () => {
 
-	setup(setupTest);
-	teardown(() => disposables.dispose());
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => setupTest(disposables));
 
 	test('Test ReloadAction when there is no extension', () => {
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test ReloadAction when extension state is installing', async () => {
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
@@ -977,8 +975,8 @@ suite('ReloadAction', () => {
 	});
 
 	test('Test ReloadAction when extension state is uninstalling', async () => {
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -996,8 +994,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -1021,8 +1019,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => true,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -1043,8 +1041,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
@@ -1067,9 +1065,9 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
@@ -1090,8 +1088,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => true,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
 		testObject.extension = extensions[0];
@@ -1109,8 +1107,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
@@ -1135,9 +1133,9 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1145,11 +1143,11 @@ suite('ReloadAction', () => {
 		testObject.extension = extensions[0];
 
 		return new Promise<void>(c => {
-			testObject.onDidChange(() => {
+			disposables.add(testObject.onDidChange(() => {
 				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to enable the updated extension.') {
 					c();
 				}
-			});
+			}));
 			const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
 			installEvent.fire({ identifier: gallery.identifier, source: gallery });
 			didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
@@ -1166,8 +1164,8 @@ suite('ReloadAction', () => {
 		});
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await workbenchService.queryLocal();
@@ -1188,9 +1186,9 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1211,9 +1209,9 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		instantiationService.set(IExtensionsWorkbenchService, disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a');
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1234,8 +1232,8 @@ suite('ReloadAction', () => {
 		});
 		const local = aLocalExtension('a');
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await workbenchService.queryLocal();
@@ -1256,8 +1254,8 @@ suite('ReloadAction', () => {
 		});
 		const local = aLocalExtension('a');
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await workbenchService.queryLocal();
@@ -1277,8 +1275,8 @@ suite('ReloadAction', () => {
 		});
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const extensions = await workbenchService.queryLocal();
@@ -1301,8 +1299,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -1323,8 +1321,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const local = aLocalExtension('a', { version: '1.0.1', contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } });
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1344,7 +1342,7 @@ suite('ReloadAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			extensions: [toExtensionDescription(remoteExtension)],
@@ -1352,11 +1350,11 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1378,7 +1376,7 @@ suite('ReloadAction', () => {
 		localExtensionManagementService.onDidUninstallExtension = onDidUninstallEvent.event;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			extensions: [toExtensionDescription(remoteExtension)],
@@ -1386,11 +1384,11 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1414,8 +1412,8 @@ suite('ReloadAction', () => {
 		const localExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a') });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
@@ -1425,8 +1423,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1453,8 +1451,8 @@ suite('ReloadAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
@@ -1464,8 +1462,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1493,7 +1491,7 @@ suite('ReloadAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			extensions: [toExtensionDescription(localExtension)],
@@ -1501,11 +1499,11 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1525,8 +1523,8 @@ suite('ReloadAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace', 'ui'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
@@ -1536,8 +1534,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1557,8 +1555,8 @@ suite('ReloadAction', () => {
 		remoteExtensionManagementService.onDidInstallExtensions = onDidInstallEvent.event;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
@@ -1568,8 +1566,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1589,8 +1587,8 @@ suite('ReloadAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace', 'ui'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
@@ -1600,8 +1598,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1621,8 +1619,8 @@ suite('ReloadAction', () => {
 		remoteExtensionManagementService.onDidInstallExtensions = onDidInstallEvent.event;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const onDidChangeExtensionsEmitter = new Emitter<{ added: IExtensionDescription[]; removed: IExtensionDescription[] }>();
@@ -1632,8 +1630,8 @@ suite('ReloadAction', () => {
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1650,18 +1648,18 @@ suite('ReloadAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['ui', 'workspace'], 'browser': 'browser.js' }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, null, createExtensionManagementService([remoteExtension]), createExtensionManagementService([webExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			extensions: [toExtensionDescription(remoteExtension)],
 			onDidChangeExtensions: Event.None,
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1678,18 +1676,18 @@ suite('ReloadAction', () => {
 		const localExtension = aLocalExtension('a', { extensionKind: ['workspace', 'ui'], 'browser': 'browser.js' }, { location: URI.file('pub.a') });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), null, createExtensionManagementService([webExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
 			extensions: [toExtensionDescription(localExtension)],
 			onDidChangeExtensions: Event.None,
 			canAddExtension: (extension) => false,
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
 		});
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
-		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject: ExtensionsActions.ReloadAction = disposables.add(instantiationService.createInstance(ExtensionsActions.ReloadAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1702,21 +1700,22 @@ suite('ReloadAction', () => {
 
 suite('RemoteInstallAction', () => {
 
-	setup(setupTest);
-	teardown(() => disposables.dispose());
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => setupTest(disposables));
 
 	test('Test remote install action is enabled for local workspace extension', async () => {
 		// multi server setup
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1734,15 +1733,15 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const gallery = aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1767,15 +1766,15 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), remoteExtensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const gallery = aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1801,15 +1800,15 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([remoteWorkspaceExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1824,14 +1823,14 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace', 'ui'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localWorkspaceExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1846,14 +1845,14 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['ui', 'workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localWorkspaceExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, true);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, true));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1868,14 +1867,14 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['ui', 'workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localWorkspaceExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1887,13 +1886,13 @@ suite('RemoteInstallAction', () => {
 		// multi server setup
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1904,13 +1903,13 @@ suite('RemoteInstallAction', () => {
 		// multi server setup
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const pager = await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = pager.firstPage[0];
@@ -1928,13 +1927,13 @@ suite('RemoteInstallAction', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(INativeWorkbenchEnvironmentService, environmentService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1950,8 +1949,8 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localWorkspaceExtension]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1965,15 +1964,15 @@ suite('RemoteInstallAction', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localWorkspaceExtension]);
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -1991,13 +1990,13 @@ suite('RemoteInstallAction', () => {
 		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), createExtensionManagementService([remoteWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2011,13 +2010,13 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2030,13 +2029,13 @@ suite('RemoteInstallAction', () => {
 		const localWorkspaceSystemExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`), type: ExtensionType.System });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceSystemExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceSystemExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2049,13 +2048,13 @@ suite('RemoteInstallAction', () => {
 		const localUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2069,13 +2068,13 @@ suite('RemoteInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localUIExtension]), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2088,13 +2087,13 @@ suite('RemoteInstallAction', () => {
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([languagePackExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: languagePackExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2109,15 +2108,15 @@ suite('RemoteInstallAction', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [languagePackExtension]);
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: languagePackExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2132,21 +2131,22 @@ suite('RemoteInstallAction', () => {
 
 suite('LocalInstallAction', () => {
 
-	setup(setupTest);
-	teardown(() => disposables.dispose());
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => setupTest(disposables));
 
 	test('Test local install action is enabled for remote ui extension', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2161,13 +2161,13 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui', 'workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2185,15 +2185,15 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const gallery = aGalleryExtension('a', { identifier: remoteUIExtension.identifier });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2218,15 +2218,15 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionsWorkbenchService, workbenchService, 'open', undefined);
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const gallery = aGalleryExtension('a', { identifier: remoteUIExtension.identifier });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2252,15 +2252,15 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		const localUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localUIExtension], EnablementState.DisabledGlobally);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2274,13 +2274,13 @@ suite('LocalInstallAction', () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2291,13 +2291,13 @@ suite('LocalInstallAction', () => {
 		// multi server setup
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a')));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const pager = await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = pager.firstPage[0];
@@ -2315,13 +2315,13 @@ suite('LocalInstallAction', () => {
 		instantiationService.stub(INativeWorkbenchEnvironmentService, environmentService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2335,13 +2335,13 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aSingleRemoteExtensionManagementServerService(instantiationService, createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2356,13 +2356,13 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localUIExtension]), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2376,15 +2376,15 @@ suite('LocalInstallAction', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [remoteUIExtension]);
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2401,13 +2401,13 @@ suite('LocalInstallAction', () => {
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUIExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2420,13 +2420,13 @@ suite('LocalInstallAction', () => {
 		const remoteUISystemExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }), type: ExtensionType.System });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUISystemExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteUISystemExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2439,13 +2439,13 @@ suite('LocalInstallAction', () => {
 		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: remoteWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2459,13 +2459,13 @@ suite('LocalInstallAction', () => {
 		const remoteWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]), createExtensionManagementService([remoteWorkspaceExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: localWorkspaceExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		testObject.extension = extensions[0];
@@ -2478,13 +2478,13 @@ suite('LocalInstallAction', () => {
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([languagePackExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: languagePackExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);
@@ -2499,15 +2499,15 @@ suite('LocalInstallAction', () => {
 		const extensionManagementService = instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), extensionManagementService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 		const languagePackExtension = aLocalExtension('a', { contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [languagePackExtension]);
-		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
 
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: languagePackExtension.identifier })));
-		const testObject = instantiationService.createInstance(ExtensionsActions.LocalInstallAction);
-		instantiationService.createInstance(ExtensionContainers, [testObject]);
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.LocalInstallAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
 		const extensions = await workbenchService.queryLocal(extensionManagementServerService.remoteExtensionManagementServer!);
 		await workbenchService.queryGallery(CancellationToken.None);

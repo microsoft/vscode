@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { ConfirmResult, IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
@@ -40,7 +39,7 @@ export interface IMergeEditorInputModelFactory {
 	createInputModel(args: MergeEditorArgs): Promise<IMergeEditorInputModel>;
 }
 
-export interface IMergeEditorInputModel extends IDisposable, IEditorModel {
+export interface IMergeEditorInputModel extends IDisposable {
 	readonly resultUri: URI;
 
 	readonly model: MergeEditorModel;
@@ -126,16 +125,14 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 }
 
 class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
-	private readonly savedAltVersionId = observableValue('initialAltVersionId', this.model.resultTextModel.getAlternativeVersionId());
+	private readonly savedAltVersionId = observableValue(this, this.model.resultTextModel.getAlternativeVersionId());
 	private readonly altVersionId = observableFromEvent(
 		e => this.model.resultTextModel.onDidChangeContent(e),
 		() =>
 			/** @description getAlternativeVersionId */ this.model.resultTextModel.getAlternativeVersionId()
 	);
 
-	public readonly isDirty = derived(
-		(reader) => /** @description isDirty */ this.altVersionId.read(reader) !== this.savedAltVersionId.read(reader)
-	);
+	public readonly isDirty = derived(this, (reader) => this.altVersionId.read(reader) !== this.savedAltVersionId.read(reader));
 
 	private finished = false;
 
@@ -476,7 +473,7 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 				primaryButton: someUnhandledConflicts
 					? localize({ key: 'workspace.closeWithConflicts', comment: ['&& denotes a mnemonic'] }, '&&Close with Conflicts')
 					: localize({ key: 'workspace.close', comment: ['&& denotes a mnemonic'] }, '&&Close'),
-				checkbox: { label: localize('noMoreWarn', "Don't ask again") }
+				checkbox: { label: localize('noMoreWarn', "Do not ask me again") }
 			});
 
 			if (checkboxChecked) {

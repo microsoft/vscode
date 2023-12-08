@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -100,6 +101,8 @@ suite('Editor Model - Model Decorations', () => {
 	teardown(() => {
 		thisModel.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('single character decoration', () => {
 		addDecoration(thisModel, 1, 1, 1, 2, 'myType');
@@ -206,53 +209,57 @@ suite('Editor Model - Model Decorations', () => {
 
 	test('decorations emit event on add', () => {
 		let listenerCalled = 0;
-		thisModel.onDidChangeDecorations((e) => {
+		const disposable = thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 		});
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 		assert.strictEqual(listenerCalled, 1, 'listener called');
+		disposable.dispose();
 	});
 
 	test('decorations emit event on change', () => {
 		let listenerCalled = 0;
 		const decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.onDidChangeDecorations((e) => {
+		const disposable = thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 		});
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.changeDecoration(decId, new Range(1, 1, 1, 2));
 		});
 		assert.strictEqual(listenerCalled, 1, 'listener called');
+		disposable.dispose();
 	});
 
 	test('decorations emit event on remove', () => {
 		let listenerCalled = 0;
 		const decId = addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		thisModel.onDidChangeDecorations((e) => {
+		const disposable = thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 		});
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.removeDecoration(decId);
 		});
 		assert.strictEqual(listenerCalled, 1, 'listener called');
+		disposable.dispose();
 	});
 
 	test('decorations emit event when inserting one line text before it', () => {
 		let listenerCalled = 0;
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
-		thisModel.onDidChangeDecorations((e) => {
+		const disposable = thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 		});
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'Hallo ')]);
 		assert.strictEqual(listenerCalled, 1, 'listener called');
+		disposable.dispose();
 	});
 
 	test('decorations do not emit event on no-op deltaDecorations', () => {
 		let listenerCalled = 0;
 
-		thisModel.onDidChangeDecorations((e) => {
+		const disposable = thisModel.onDidChangeDecorations((e) => {
 			listenerCalled++;
 		});
 
@@ -262,6 +269,7 @@ suite('Editor Model - Model Decorations', () => {
 		});
 
 		assert.strictEqual(listenerCalled, 0, 'listener not called');
+		disposable.dispose();
 	});
 
 	// --------- editing text & effects on decorations
@@ -415,6 +423,8 @@ suite('Editor Model - Model Decorations', () => {
 });
 
 suite('Decorations and editing', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function _runTest(decRange: Range, stickiness: TrackedRangeStickiness, editRange: Range, editText: string, editForceMoveMarkers: boolean, expectedDecRange: Range, msg: string): void {
 		const model = createTextModel([
@@ -1112,6 +1122,8 @@ interface ILightWeightDecoration {
 }
 
 suite('deltaDecorations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function decoration(id: string, startLineNumber: number, startColumn: number, endLineNumber: number, endColum: number): ILightWeightDecoration {
 		return {

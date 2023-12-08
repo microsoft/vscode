@@ -121,7 +121,172 @@
 			"rules": {
 				"local/code-no-test-only": "error",
 				"local/code-no-test-async-suite": "warn",
-				"local/code-no-unexternalized-strings": "off"
+				"local/code-no-unexternalized-strings": "off",
+				"local/code-must-use-result": [
+					"warn",
+					[
+						{
+							"message": "Expression must be awaited",
+							"functions": [
+								"assertSnapshot",
+								"assertHeap"
+							]
+						}
+					]
+				]
+			}
+		},
+		{
+			"files": [
+				"src/vs/**/*.test.ts"
+			],
+			"rules": {
+				"local/code-ensure-no-disposables-leak-in-test": [
+					"warn",
+					{
+						// Files should (only) be removed from the list they adopt the leak detector
+						"exclude": [
+							"src/vs/base/parts/sandbox/test/electron-sandbox/globals.test.ts",
+							"src/vs/base/test/browser/browser.test.ts",
+							"src/vs/base/test/browser/comparers.test.ts",
+							"src/vs/base/test/browser/hash.test.ts",
+							"src/vs/base/test/browser/indexedDB.test.ts",
+							"src/vs/base/test/browser/ui/menu/menubar.test.ts",
+							"src/vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
+							"src/vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
+							"src/vs/base/test/common/arrays.test.ts",
+							"src/vs/base/test/common/arraysFind.test.ts",
+							"src/vs/base/test/common/cache.test.ts",
+							"src/vs/base/test/common/charCode.test.ts",
+							"src/vs/base/test/common/collections.test.ts",
+							"src/vs/base/test/common/color.test.ts",
+							"src/vs/base/test/common/decorators.test.ts",
+							"src/vs/base/test/common/diff/diff.test.ts",
+							"src/vs/base/test/common/errors.test.ts",
+							"src/vs/base/test/common/filters.perf.test.ts",
+							"src/vs/base/test/common/filters.test.ts",
+							"src/vs/base/test/common/iconLabels.test.ts",
+							"src/vs/base/test/common/iterator.test.ts",
+							"src/vs/base/test/common/json.test.ts",
+							"src/vs/base/test/common/jsonEdit.test.ts",
+							"src/vs/base/test/common/jsonFormatter.test.ts",
+							"src/vs/base/test/common/keybindings.test.ts",
+							"src/vs/base/test/common/keyCodes.test.ts",
+							"src/vs/base/test/common/linkedList.test.ts",
+							"src/vs/base/test/common/linkedText.test.ts",
+							"src/vs/base/test/common/map.test.ts",
+							"src/vs/base/test/common/markdownString.test.ts",
+							"src/vs/base/test/common/marshalling.test.ts",
+							"src/vs/base/test/common/network.test.ts",
+							"src/vs/base/test/common/observable.test.ts",
+							"src/vs/base/test/common/path.test.ts",
+							"src/vs/base/test/common/resources.test.ts",
+							"src/vs/base/test/common/resourceTree.test.ts",
+							"src/vs/base/test/common/scrollable.test.ts",
+							"src/vs/base/test/common/skipList.test.ts",
+							"src/vs/base/test/common/stripComments.test.ts",
+							"src/vs/base/test/common/ternarySearchtree.test.ts",
+							"src/vs/base/test/common/types.test.ts",
+							"src/vs/base/test/common/uri.test.ts",
+							"src/vs/base/test/common/uuid.test.ts",
+							"src/vs/base/test/node/crypto.test.ts",
+							"src/vs/base/test/node/css.build.test.ts",
+							"src/vs/base/test/node/id.test.ts",
+							"src/vs/base/test/node/snapshot.test.ts",
+							"src/vs/editor/contrib/codeAction/test/browser/codeActionKeybindingResolver.test.ts",
+							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
+							"src/vs/editor/contrib/dropOrPasteInto/test/browser/editSort.test.ts",
+							"src/vs/editor/contrib/folding/test/browser/foldingModel.test.ts",
+							"src/vs/editor/contrib/folding/test/browser/foldingRanges.test.ts",
+							"src/vs/editor/contrib/folding/test/browser/indentFold.test.ts",
+							"src/vs/editor/contrib/folding/test/browser/indentRangeProvider.test.ts",
+							"src/vs/editor/contrib/gotoSymbol/test/browser/referencesModel.test.ts",
+							"src/vs/editor/contrib/smartSelect/test/browser/smartSelect.test.ts",
+							"src/vs/editor/contrib/snippet/test/browser/snippetParser.test.ts",
+							"src/vs/editor/contrib/snippet/test/browser/snippetSession.test.ts",
+							"src/vs/editor/contrib/snippet/test/browser/snippetVariables.test.ts",
+							"src/vs/editor/contrib/suggest/test/browser/completionModel.test.ts",
+							"src/vs/editor/contrib/suggest/test/browser/suggestMemory.test.ts",
+							"src/vs/editor/test/common/services/languageService.test.ts",
+							"src/vs/editor/test/node/classification/typescript.test.ts",
+							"src/vs/editor/test/node/diffing/defaultLinesDiffComputer.test.ts",
+							"src/vs/editor/test/node/diffing/fixtures.test.ts",
+							"src/vs/platform/configuration/test/common/configuration.test.ts",
+							"src/vs/platform/configuration/test/common/configurationModels.test.ts",
+							"src/vs/platform/configuration/test/common/configurationRegistry.test.ts",
+							"src/vs/platform/contextkey/test/common/contextkey.test.ts",
+							"src/vs/platform/contextkey/test/common/parser.test.ts",
+							"src/vs/platform/contextkey/test/common/scanner.test.ts",
+							"src/vs/platform/extensionManagement/test/common/extensionManagement.test.ts",
+							"src/vs/platform/extensions/test/common/extensionValidator.test.ts",
+							"src/vs/platform/instantiation/test/common/graph.test.ts",
+							"src/vs/platform/instantiation/test/common/instantiationService.test.ts",
+							"src/vs/platform/keybinding/test/common/abstractKeybindingService.test.ts",
+							"src/vs/platform/keybinding/test/common/keybindingLabels.test.ts",
+							"src/vs/platform/keybinding/test/common/keybindingResolver.test.ts",
+							"src/vs/platform/markers/test/common/markerService.test.ts",
+							"src/vs/platform/opener/test/common/opener.test.ts",
+							"src/vs/platform/progress/test/common/progress.test.ts",
+							"src/vs/platform/registry/test/common/platform.test.ts",
+							"src/vs/platform/remote/test/common/remoteHosts.test.ts",
+							"src/vs/platform/telemetry/test/browser/1dsAppender.test.ts",
+							"src/vs/platform/userDataSync/test/common/extensionsMerge.test.ts",
+							"src/vs/platform/userDataSync/test/common/globalStateMerge.test.ts",
+							"src/vs/platform/userDataSync/test/common/settingsMerge.test.ts",
+							"src/vs/platform/userDataSync/test/common/userDataProfilesManifestMerge.test.ts",
+							"src/vs/platform/workspace/test/common/workspace.test.ts",
+							"src/vs/platform/workspaces/test/electron-main/workspaces.test.ts",
+							"src/vs/server/test/node/serverConnectionToken.test.ts",
+							"src/vs/workbench/api/test/browser/extHostApiCommands.test.ts",
+							"src/vs/workbench/api/test/browser/extHostBulkEdits.test.ts",
+							"src/vs/workbench/api/test/browser/extHostDocumentSaveParticipant.test.ts",
+							"src/vs/workbench/api/test/browser/extHostTextEditor.test.ts",
+							"src/vs/workbench/api/test/browser/extHostTypeConverter.test.ts",
+							"src/vs/workbench/api/test/browser/extHostWorkspace.test.ts",
+							"src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts",
+							"src/vs/workbench/api/test/browser/mainThreadDocuments.test.ts",
+							"src/vs/workbench/api/test/common/extHostExtensionActivator.test.ts",
+							"src/vs/workbench/api/test/node/extHostTunnelService.test.ts",
+							"src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts",
+							"src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts",
+							"src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts",
+							"src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts",
+							"src/vs/workbench/contrib/extensions/test/electron-sandbox/extension.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/cellDnd.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/contrib/contributedStatusBarItemController.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/contrib/executionStatusBarItem.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/contrib/layoutActions.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/contrib/outputCopyTests.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookBrowser.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookTextModel.test.ts",
+							"src/vs/workbench/contrib/search/test/common/extractRange.test.ts",
+							"src/vs/workbench/contrib/snippets/test/browser/snippetFile.test.ts",
+							"src/vs/workbench/contrib/snippets/test/browser/snippetsRegistry.test.ts",
+							"src/vs/workbench/contrib/snippets/test/browser/snippetsRewrite.test.ts",
+							"src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts",
+							"src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts",
+							"src/vs/workbench/services/commands/test/common/commandService.test.ts",
+							"src/vs/workbench/services/configuration/test/common/configurationModels.test.ts",
+							"src/vs/workbench/services/extensions/test/common/extensionDescriptionRegistry.test.ts",
+							"src/vs/workbench/services/keybinding/test/browser/keybindingIO.test.ts",
+							"src/vs/workbench/services/keybinding/test/node/fallbackKeyboardMapper.test.ts",
+							"src/vs/workbench/services/keybinding/test/node/macLinuxKeyboardMapper.test.ts",
+							"src/vs/workbench/services/keybinding/test/node/windowsKeyboardMapper.test.ts",
+							"src/vs/workbench/services/search/test/browser/queryBuilder.test.ts",
+							"src/vs/workbench/services/search/test/common/ignoreFile.test.ts",
+							"src/vs/workbench/services/search/test/common/queryBuilder.test.ts",
+							"src/vs/workbench/services/search/test/common/replace.test.ts",
+							"src/vs/workbench/services/search/test/common/searchHelpers.test.ts",
+							"src/vs/workbench/services/search/test/node/ripgrepTextSearchEngineUtils.test.ts",
+							"src/vs/workbench/services/telemetry/test/browser/commonProperties.test.ts",
+							"src/vs/workbench/services/themes/test/node/tokenStyleResolving.test.ts",
+							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
+							"src/vs/workbench/test/browser/quickAccess.test.ts"
+						]
+					}
+				]
 			}
 		},
 		{
@@ -172,6 +337,7 @@
 							"drop",
 							"edit",
 							"end",
+							"execute",
 							"expand",
 							"grant",
 							"hide",
@@ -197,10 +363,354 @@
 		},
 		{
 			"files": [
+				"**/vscode.d.ts"
+			],
+			"rules": {
+				"jsdoc/tag-lines": "off",
+				"jsdoc/valid-types": "off",
+				"jsdoc/no-multi-asterisks": [
+					"warn",
+					{
+						"allowWhitespace": true
+					}
+				],
+				"jsdoc/require-jsdoc": [
+					"warn",
+					{
+						"enableFixer": false,
+						"contexts": [
+							"TSInterfaceDeclaration",
+							"TSPropertySignature",
+							"TSMethodSignature",
+							"TSDeclareFunction",
+							"ClassDeclaration",
+							"MethodDefinition",
+							"PropertyDeclaration",
+							"TSEnumDeclaration",
+							"TSEnumMember",
+							"ExportNamedDeclaration"
+						]
+					}
+				],
+				"jsdoc/check-param-names": [
+					"warn",
+					{
+						"enableFixer": false,
+						"checkDestructured": false
+					}
+				],
+				"jsdoc/require-returns": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/**/{common,browser}/**/*.ts"
 			],
 			"rules": {
 				"local/code-amd-node-module": "warn"
+			}
+		},
+		{
+			"files": [
+				"src/**/{browser,electron-sandbox}/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-global-document-listener": "warn",
+				"no-restricted-syntax": [
+					"warn",
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
+						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
+						"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
+						"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
+						"message": "Use DOM.isDragEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='activeElement']",
+						"message": "Use <targetWindow>.document.activeElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='contains']",
+						"message": "Use <targetWindow>.document.contains to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='styleSheets']",
+						"message": "Use <targetWindow>.document.styleSheets to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='fullscreenElement']",
+						"message": "Use <targetWindow>.document.fullscreenElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='body']",
+						"message": "Use <targetWindow>.document.body to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='addEventListener']",
+						"message": "Use <targetWindow>.document.addEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='removeEventListener']",
+						"message": "Use <targetWindow>.document.removeEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='hasFocus']",
+						"message": "Use <targetWindow>.document.hasFocus to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='head']",
+						"message": "Use <targetWindow>.document.head to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='exitFullscreen']",
+						"message": "Use <targetWindow>.document.exitFullscreen to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementById']",
+						"message": "Use <targetWindow>.document.getElementById to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByClassName']",
+						"message": "Use <targetWindow>.document.getElementsByClassName to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByName']",
+						"message": "Use <targetWindow>.document.getElementsByName to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByTagName']",
+						"message": "Use <targetWindow>.document.getElementsByTagName to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getElementsByTagNameNS']",
+						"message": "Use <targetWindow>.document.getElementsByTagNameNS to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='getSelection']",
+						"message": "Use <targetWindow>.document.getSelection to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='open']",
+						"message": "Use <targetWindow>.document.open to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='close']",
+						"message": "Use <targetWindow>.document.close to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='documentElement']",
+						"message": "Use <targetWindow>.document.documentElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='visibilityState']",
+						"message": "Use <targetWindow>.document.visibilityState to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='querySelector']",
+						"message": "Use <targetWindow>.document.querySelector to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='querySelectorAll']",
+						"message": "Use <targetWindow>.document.querySelectorAll to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='elementFromPoint']",
+						"message": "Use <targetWindow>.document.elementFromPoint to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='elementsFromPoint']",
+						"message": "Use <targetWindow>.document.elementsFromPoint to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onkeydown']",
+						"message": "Use <targetWindow>.document.onkeydown to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onkeyup']",
+						"message": "Use <targetWindow>.document.onkeyup to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onmousedown']",
+						"message": "Use <targetWindow>.document.onmousedown to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onmouseup']",
+						"message": "Use <targetWindow>.document.onmouseup to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='execCommand']",
+						"message": "Use <targetWindow>.document.execCommand to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					}
+				],
+				"no-restricted-globals": [
+					"warn",
+					"name",
+					"length",
+					"event",
+					"closed",
+					"external",
+					"status",
+					"origin",
+					"orientation",
+					"context",
+					{
+						"name": "setInterval",
+						"message": "Use <targetWindow>.setInterval to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "clearInterval",
+						"message": "Use <targetWindow>.clearInterval to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "requestAnimationFrame",
+						"message": "Use <targetWindow>.requestAnimationFrame to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "cancelAnimationFrame",
+						"message": "Use <targetWindow>.cancelAnimationFrame to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "requestIdleCallback",
+						"message": "Use <targetWindow>.requestIdleCallback to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "cancelIdleCallback",
+						"message": "Use <targetWindow>.cancelIdleCallback to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "window",
+						"message": "Use <targetWindow> to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "addEventListener",
+						"message": "Use <targetWindow>.addEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "removeEventListener",
+						"message": "Use <targetWindow>.removeEventListener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "getComputedStyle",
+						"message": "Use <targetWindow>.getComputedStyle to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "focus",
+						"message": "Use <targetWindow>.focus to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "blur",
+						"message": "Use <targetWindow>.blur to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "close",
+						"message": "Use <targetWindow>.close to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "dispatchEvent",
+						"message": "Use <targetWindow>.dispatchEvent to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "getSelection",
+						"message": "Use <targetWindow>.getSelection to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "matchMedia",
+						"message": "Use <targetWindow>.matchMedia to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "open",
+						"message": "Use <targetWindow>.open to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "parent",
+						"message": "Use <targetWindow>.parent to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "postMessage",
+						"message": "Use <targetWindow>.postMessage to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "devicePixelRatio",
+						"message": "Use <targetWindow>.devicePixelRatio to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "frames",
+						"message": "Use <targetWindow>.frames to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "frameElement",
+						"message": "Use <targetWindow>.frameElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "innerHeight",
+						"message": "Use <targetWindow>.innerHeight to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "innerWidth",
+						"message": "Use <targetWindow>.innerWidth to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "outerHeight",
+						"message": "Use <targetWindow>.outerHeight to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "outerWidth",
+						"message": "Use <targetWindow>.outerWidth to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "opener",
+						"message": "Use <targetWindow>.opener to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "origin",
+						"message": "Use <targetWindow>.origin to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screen",
+						"message": "Use <targetWindow>.screen to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenLeft",
+						"message": "Use <targetWindow>.screenLeft to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenTop",
+						"message": "Use <targetWindow>.screenTop to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenX",
+						"message": "Use <targetWindow>.screenX to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "screenY",
+						"message": "Use <targetWindow>.screenY to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "scrollX",
+						"message": "Use <targetWindow>.scrollX to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "scrollY",
+						"message": "Use <targetWindow>.scrollY to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "top",
+						"message": "Use <targetWindow>.top to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"name": "visualViewport",
+						"message": "Use <targetWindow>.visualViewport to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					}
+				]
 			}
 		},
 		{
@@ -267,14 +777,14 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"xterm",
-							"xterm-addon-canvas",
-							"xterm-addon-image",
-							"xterm-addon-search",
-							"xterm-addon-serialize",
-							"xterm-addon-unicode11",
-							"xterm-addon-webgl",
-							"xterm-headless",
+							"@xterm/addon-canvas",
+							"@xterm/addon-image",
+							"@xterm/addon-search",
+							"@xterm/addon-serialize",
+							"@xterm/addon-unicode11",
+							"@xterm/addon-webgl",
+							"@xterm/headless",
+							"@xterm/xterm",
 							"yauzl",
 							"yazl",
 							"zlib"
@@ -471,11 +981,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
@@ -500,11 +1010,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",

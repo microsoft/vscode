@@ -52,14 +52,14 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 
 	appInsightsCore.initialize(coreConfig, []);
 
-	// appInsightsCore.addTelemetryInitializer((envelope) => {
-	// 	if (addInternalFlag) {
-	// 		envelope['ext'] = envelope['ext'] ?? {};
-	// 		envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
-	// 		// Sets it to be internal only based on Windows UTC flagging
-	// 		envelope['ext']['utc']['flags'] = 0x0000811ECD;
-	// 	}
-	// });
+	appInsightsCore.addTelemetryInitializer((envelope) => {
+		if (addInternalFlag) {
+			envelope['ext'] = envelope['ext'] ?? {};
+			envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
+			// Sets it to be internal only based on Windows UTC flagging
+			envelope['ext']['utc']['flags'] = 0x0000811ECD;
+		}
+	});
 
 	return appInsightsCore;
 }

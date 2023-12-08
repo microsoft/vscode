@@ -18,6 +18,7 @@ interface IUserDataProfileInfo {
 	readonly id: string;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly icon?: string;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
@@ -119,7 +120,7 @@ function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[]
 	const removed = fromKeys.filter(key => !toKeys.includes(key));
 	const updated: string[] = [];
 
-	for (const { id, name, shortName, useDefaultFlags } of from) {
+	for (const { id, name, shortName, icon, useDefaultFlags } of from) {
 		if (removed.includes(id)) {
 			continue;
 		}
@@ -127,6 +128,7 @@ function compare(from: IUserDataProfileInfo[] | null, to: IUserDataProfileInfo[]
 		if (!toProfile
 			|| toProfile.name !== name
 			|| toProfile.shortName !== shortName
+			|| toProfile.icon !== icon
 			|| !equals(toProfile.useDefaultFlags, useDefaultFlags)
 		) {
 			updated.push(id);

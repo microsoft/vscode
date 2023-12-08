@@ -51,12 +51,12 @@ interface IFileMatchTemplate {
 }
 
 interface IMatchTemplate {
+	lineNumber: HTMLElement;
 	parent: HTMLElement;
 	before: HTMLElement;
 	match: HTMLElement;
 	replace: HTMLElement;
 	after: HTMLElement;
-	lineNumber: HTMLElement;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
 	contextKeyService: IContextKeyService;
@@ -310,12 +310,12 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	renderTemplate(container: HTMLElement): IMatchTemplate {
 		container.classList.add('linematch');
 
+		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
 		const parent = DOM.append(container, DOM.$('a.plain.match'));
 		const before = DOM.append(parent, DOM.$('span'));
 		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
 		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
 		const after = DOM.append(parent, DOM.$('span'));
-		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
 		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
 
 		const disposables = new DisposableStore();
@@ -352,7 +352,9 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
 		const preview = match.preview();
-		const replace = this.searchModel.isReplaceActive() && !!this.searchModel.replaceString && !(match instanceof MatchInNotebook && match.isWebviewMatch());
+		const replace = this.searchModel.isReplaceActive() &&
+			!!this.searchModel.replaceString &&
+			!(match instanceof MatchInNotebook && match.isReadonly());
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
@@ -361,13 +363,13 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
-		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isWebviewMatch()));
+		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
-		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
+		const lineNumberStr = showLineNumbers ? `${match.range().startLineNumber}:` : '';
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;

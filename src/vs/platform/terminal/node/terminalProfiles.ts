@@ -18,6 +18,10 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import { ThemeIcon } from 'vs/base/common/themables';
 import { dirname, resolve } from 'path';
 
+const enum Constants {
+	UnixShellsPath = '/etc/shells'
+}
+
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 let logIfWslNotInstalled: boolean = true;
 
@@ -323,6 +327,7 @@ async function getGitBashPaths(): Promise<string[]> {
 	}
 
 	// Add special installs that don't follow the standard directory structure
+	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git\\current\\bin\\bash.exe`);
 	gitBashPaths.push(`${process.env['UserProfile']}\\scoop\\apps\\git-with-openssh\\current\\bin\\bash.exe`);
 
 	return gitBashPaths;
@@ -404,8 +409,8 @@ async function detectAvailableUnixProfiles(
 	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
 
 	// Add non-quick launch profiles
-	if (includeDetectedProfiles) {
-		const contents = (await fsProvider.readFile('/etc/shells')).toString();
+	if (includeDetectedProfiles && await fsProvider.existsFile(Constants.UnixShellsPath)) {
+		const contents = (await fsProvider.readFile(Constants.UnixShellsPath)).toString();
 		const profiles = (
 			(testPaths || contents.split('\n'))
 				.map(e => {

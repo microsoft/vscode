@@ -124,22 +124,24 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		const extensionsToRemove: IScannedProfileExtension[] = [];
 		const extensionsToAdd: IScannedProfileExtension[] = [];
 		try {
-			await this.withProfileExtensions(profileLocation, profileExtensions => {
+			await this.withProfileExtensions(profileLocation, existingExtensions => {
 				const result: IScannedProfileExtension[] = [];
-				for (const extension of profileExtensions) {
-					if (extensions.some(([e]) => areSameExtensions(e.identifier, extension.identifier))) {
-						// Remove the existing extension
-						extensionsToRemove.push(extension);
+				for (const existing of existingExtensions) {
+					if (extensions.some(([e]) => areSameExtensions(e.identifier, existing.identifier) && e.manifest.version !== existing.version)) {
+						// Remove the existing extension with different version
+						extensionsToRemove.push(existing);
 					} else {
-						result.push(extension);
+						result.push(existing);
 					}
 				}
 				for (const [extension, metadata] of extensions) {
-					if (!result.some(e => areSameExtensions(e.identifier, extension.identifier) && e.version === extension.manifest.version)) {
-						// Add only if the same version of the extension is not already added
-						const extensionToAdd = { identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata };
+					const index = result.findIndex(e => areSameExtensions(e.identifier, extension.identifier) && e.version === extension.manifest.version);
+					const extensionToAdd = { identifier: extension.identifier, version: extension.manifest.version, location: extension.location, metadata };
+					if (index === -1) {
 						extensionsToAdd.push(extensionToAdd);
 						result.push(extensionToAdd);
+					} else {
+						result.splice(index, 1, extensionToAdd);
 					}
 				}
 				if (extensionsToAdd.length) {
@@ -189,7 +191,6 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 
 	async removeExtensionFromProfile(extension: IExtension, profileLocation: URI): Promise<void> {
 		const extensionsToRemove: IScannedProfileExtension[] = [];
-		this._onRemoveExtensions.fire({ extensions: extensionsToRemove, profileLocation });
 		try {
 			await this.withProfileExtensions(profileLocation, profileExtensions => {
 				const result: IScannedProfileExtension[] = [];

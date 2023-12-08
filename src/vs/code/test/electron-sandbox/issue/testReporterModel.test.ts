@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 
 suite('IssueReporter', () => {
-
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('sets defaults to include all data', () => {
 		const issueReporterModel = new IssueReporterModel();
 		assert.deepStrictEqual(issueReporterModel.getData(), {
 			allExtensions: [],
 			includeSystemInfo: true,
+			includeExtensionData: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,

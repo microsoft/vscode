@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
-import { CursorMove } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { withTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { CursorMove } from 'vs/editor/common/cursor/cursorMoveCommands';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('Cursor move command test', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const TEXT = [
 		'    \tMy First Line\t ',
@@ -417,6 +420,8 @@ suite('Cursor move command test', () => {
 });
 
 suite('Cursor move by blankline test', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const TEXT = [
 		'    \tMy First Line\t ',

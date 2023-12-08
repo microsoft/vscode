@@ -1,0 +1,19 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 16
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 17
+      },
+      text: "Hello Mr. @agent",
+      kind: "text"
+    }
+  ],
+  text: "Hello Mr. @agent"
+}

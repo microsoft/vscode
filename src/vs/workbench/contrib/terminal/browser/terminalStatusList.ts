@@ -13,6 +13,7 @@ import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/co
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
+import { mainWindow } from 'vs/base/browser/window';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -70,7 +71,9 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		let result: ITerminalStatus | undefined;
 		for (const s of this._statuses.values()) {
 			if (!result || s.severity >= result.severity) {
-				result = s;
+				if (s.icon || !result?.icon) {
+					result = s;
+				}
 			}
 		}
 		return result;
@@ -82,11 +85,11 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		status = this._applyAnimationSetting(status);
 		const outTimeout = this._statusTimeouts.get(status.id);
 		if (outTimeout) {
-			window.clearTimeout(outTimeout);
+			mainWindow.clearTimeout(outTimeout);
 			this._statusTimeouts.delete(status.id);
 		}
 		if (duration && duration > 0) {
-			const timeout = window.setTimeout(() => this.remove(status), duration);
+			const timeout = mainWindow.setTimeout(() => this.remove(status), duration);
 			this._statusTimeouts.set(status.id, timeout);
 		}
 		const existingStatus = this._statuses.get(status.id);

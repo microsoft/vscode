@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { workbenchInstantiationService, TestServiceAccessor, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,12 +25,12 @@ import { TextEditorService } from 'vs/workbench/services/textfile/common/textEdi
 
 suite('Files - FileEditorInput', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	function createFileInput(resource: URI, preferredResource?: URI, preferredLanguageId?: string, preferredName?: string, preferredDescription?: string, preferredContents?: string): FileEditorInput {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredLanguageId, preferredContents);
+		return disposables.add(instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredLanguageId, preferredContents));
 	}
 
 	class TestTextEditorService extends TextEditorService {
@@ -44,7 +44,6 @@ suite('Files - FileEditorInput', () => {
 	}
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService({
 			textEditorService: instantiationService => instantiationService.createInstance(TestTextEditorService)
 		}, disposables);
@@ -53,7 +52,7 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	teardown(() => {
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('Basics', async function () {
@@ -128,20 +127,15 @@ suite('Files - FileEditorInput', () => {
 	});
 
 	test('reports as readonly with readonly file scheme', async function () {
-
-		const inMemoryFilesystemProvider = new InMemoryFileSystemProvider();
+		const inMemoryFilesystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		inMemoryFilesystemProvider.setReadOnly(true);
 
-		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', inMemoryFilesystemProvider);
-		try {
-			const input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingReadonlyScheme' }));
+		disposables.add(accessor.fileService.registerProvider('someTestingReadonlyScheme', inMemoryFilesystemProvider));
+		const input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingReadonlyScheme' }));
 
-			assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
-			assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
-			assert.ok(input.isReadonly());
-		} finally {
-			disposable.dispose();
-		}
+		assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(input.isReadonly());
 	});
 
 	test('preferred resource', function () {
@@ -158,9 +152,9 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), preferredResource.toString());
 
 		let didChangeLabel = false;
-		const listener = inputWithPreferredResource.onDidChangeLabel(e => {
+		disposables.add(inputWithPreferredResource.onDidChangeLabel(e => {
 			didChangeLabel = true;
-		});
+		}));
 
 		assert.strictEqual(inputWithPreferredResource.getName(), 'UPDATEFILE.js');
 
@@ -171,20 +165,18 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), otherPreferredResource.toString());
 		assert.strictEqual(inputWithPreferredResource.getName(), 'updateFILE.js');
 		assert.strictEqual(didChangeLabel, true);
-
-		listener.dispose();
 	});
 
 	test('preferred language', async function () {
 		const languageId = 'file-input-test';
-		const registration = accessor.languageService.registerLanguage({
+		disposables.add(accessor.languageService.registerLanguage({
 			id: languageId,
-		});
+		}));
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, languageId);
 		assert.strictEqual(input.getPreferredLanguageId(), languageId);
 
-		const model = await input.resolve() as TextFileEditorModel;
+		const model = disposables.add(await input.resolve() as TextFileEditorModel);
 		assert.strictEqual(model.textEditorModel!.getLanguageId(), languageId);
 
 		input.setLanguageId('text');
@@ -194,16 +186,14 @@ suite('Files - FileEditorInput', () => {
 		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		input2.setPreferredLanguageId(languageId);
 
-		const model2 = await input2.resolve() as TextFileEditorModel;
+		const model2 = disposables.add(await input2.resolve() as TextFileEditorModel);
 		assert.strictEqual(model2.textEditorModel!.getLanguageId(), languageId);
-
-		registration.dispose();
 	});
 
 	test('preferred contents', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined, undefined, 'My contents');
 
-		const model = await input.resolve() as TextFileEditorModel;
+		const model = disposables.add(await input.resolve() as TextFileEditorModel);
 		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
 		assert.strictEqual(input.isDirty(), true);
 
@@ -248,15 +238,14 @@ suite('Files - FileEditorInput', () => {
 		await input.setEncoding('utf16', EncodingMode.Encode);
 		assert.strictEqual(input.getEncoding(), 'utf16');
 
-		const resolved = await input.resolve() as TextFileEditorModel;
+		const resolved = disposables.add(await input.resolve() as TextFileEditorModel);
 		assert.strictEqual(input.getEncoding(), resolved.getEncoding());
-		resolved.dispose();
 	});
 
 	test('save', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		const resolved = await input.resolve() as TextFileEditorModel;
+		const resolved = disposables.add(await input.resolve() as TextFileEditorModel);
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 		assert.ok(input.isModified());
@@ -264,13 +253,12 @@ suite('Files - FileEditorInput', () => {
 		await input.save(0);
 		assert.ok(!input.isDirty());
 		assert.ok(!input.isModified());
-		resolved.dispose();
 	});
 
 	test('revert', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		const resolved = await input.resolve() as TextFileEditorModel;
+		const resolved = disposables.add(await input.resolve() as TextFileEditorModel);
 		resolved.textEditorModel!.setValue('changed');
 		assert.ok(input.isDirty());
 		assert.ok(input.isModified());
@@ -281,8 +269,6 @@ suite('Files - FileEditorInput', () => {
 
 		input.dispose();
 		assert.ok(input.isDisposed());
-
-		resolved.dispose();
 	});
 
 	test('resolve handles binary files', async function () {
@@ -290,9 +276,8 @@ suite('Files - FileEditorInput', () => {
 
 		accessor.textFileService.setReadStreamErrorOnce(new TextFileOperationError('error', TextFileOperationResult.FILE_IS_BINARY));
 
-		const resolved = await input.resolve();
+		const resolved = disposables.add(await input.resolve());
 		assert.ok(resolved);
-		resolved.dispose();
 	});
 
 	test('resolve throws for too large files', async function () {
@@ -306,42 +291,36 @@ suite('Files - FileEditorInput', () => {
 			e = error;
 		}
 		assert.ok(e);
-		input.dispose();
 	});
 
 	test('attaches to model when created and reports dirty', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		let listenerCount = 0;
-		const listener = input.onDidChangeDirty(() => {
+		disposables.add(input.onDidChangeDirty(() => {
 			listenerCount++;
-		});
+		}));
 
 		// instead of going through file input resolve method
 		// we resolve the model directly through the service
-		const model = await accessor.textFileService.files.resolve(input.resource);
+		const model = disposables.add(await accessor.textFileService.files.resolve(input.resource));
 		model.textEditorModel?.setValue('hello world');
 
 		assert.strictEqual(listenerCount, 1);
 		assert.ok(input.isDirty());
-
-		input.dispose();
-		listener.dispose();
 	});
 
 	test('force open text/binary', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 		input.setForceOpenAsBinary();
 
-		let resolved = await input.resolve();
+		let resolved = disposables.add(await input.resolve());
 		assert.ok(resolved instanceof BinaryEditorModel);
 
 		input.setForceOpenAsText();
 
-		resolved = await input.resolve();
+		resolved = disposables.add(await input.resolve());
 		assert.ok(resolved instanceof TextFileEditorModel);
-
-		resolved.dispose();
 	});
 
 	test('file editor serializer', async function () {
@@ -349,7 +328,7 @@ suite('Files - FileEditorInput', () => {
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
-		const disposable = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer);
+		disposables.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer('workbench.editors.files.fileEditorInput', FileEditorInputSerializer));
 
 		const editorSerializer = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).getEditorSerializer(input.typeId);
 		if (!editorSerializer) {
@@ -377,8 +356,6 @@ suite('Files - FileEditorInput', () => {
 		const inputWithPreferredResourceDeserialized = editorSerializer.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
 		assert.strictEqual(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
 		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
-
-		disposable.dispose();
 	});
 
 	test('preferred name/description', async function () {
@@ -387,9 +364,9 @@ suite('Files - FileEditorInput', () => {
 		const customFileInput = createFileInput(toResource.call(this, '/foo/bar/updatefile.js').with({ scheme: 'test-custom' }), undefined, undefined, 'My Name', 'My Description');
 
 		let didChangeLabelCounter = 0;
-		customFileInput.onDidChangeLabel(() => {
+		disposables.add(customFileInput.onDidChangeLabel(() => {
 			didChangeLabelCounter++;
-		});
+		}));
 
 		assert.strictEqual(customFileInput.getName(), 'My Name');
 		assert.strictEqual(customFileInput.getDescription(), 'My Description');
@@ -408,9 +385,9 @@ suite('Files - FileEditorInput', () => {
 		const fileInput = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), undefined, undefined, 'My Name', 'My Description');
 
 		didChangeLabelCounter = 0;
-		fileInput.onDidChangeLabel(() => {
+		disposables.add(fileInput.onDidChangeLabel(() => {
 			didChangeLabelCounter++;
-		});
+		}));
 
 		assert.notStrictEqual(fileInput.getName(), 'My Name');
 		assert.notStrictEqual(fileInput.getDescription(), 'My Description');
@@ -422,19 +399,17 @@ suite('Files - FileEditorInput', () => {
 		assert.notStrictEqual(fileInput.getDescription(), 'My Description 2');
 
 		assert.strictEqual(didChangeLabelCounter, 0);
-
-		fileInput.dispose();
 	});
 
 	test('reports readonly changes', async function () {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		let listenerCount = 0;
-		const listener = input.onDidChangeCapabilities(() => {
+		disposables.add(input.onDidChangeCapabilities(() => {
 			listenerCount++;
-		});
+		}));
 
-		const model = await accessor.textFileService.files.resolve(input.resource);
+		const model = disposables.add(await accessor.textFileService.files.resolve(input.resource));
 
 		assert.strictEqual(model.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
@@ -465,8 +440,7 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
 		assert.strictEqual(input.isReadonly(), false);
 		assert.strictEqual(listenerCount, 2);
-
-		input.dispose();
-		listener.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

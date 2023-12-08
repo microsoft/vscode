@@ -32,7 +32,7 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 	async readExtensionResource(uri: URI): Promise<string> {
 		uri = FileAccess.uriToBrowserUri(uri);
 
-		if (uri.scheme !== Schemas.http && uri.scheme !== Schemas.https) {
+		if (uri.scheme !== Schemas.http && uri.scheme !== Schemas.https && uri.scheme !== Schemas.data) {
 			const result = await this._fileService.readFile(uri);
 			return result.value.toString();
 		}

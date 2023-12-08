@@ -8,7 +8,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
-import type { IBufferLine, Terminal } from 'xterm';
+import type { IBufferLine, Terminal } from '@xterm/xterm';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalBackend, ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
@@ -33,7 +33,7 @@ const lineNumberPrefixMatchers = [
 	// Eslint:
 	//   /some/file
 	//     16:5  error ...
-	/ *(?<link>(?<line>\d+):(?<col>\d+)?)/
+	/^ *(?<link>(?<line>\d+):(?<col>\d+)?)/
 ];
 
 const gitDiffMatchers = [

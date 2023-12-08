@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as strings from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
@@ -265,22 +266,6 @@ suite('Strings', () => {
 		assert(regExpWithFlags.multiline);
 	});
 
-	test('regExpContainsBackreference', () => {
-		assert(strings.regExpContainsBackreference('foo \\5 bar'));
-		assert(strings.regExpContainsBackreference('\\2'));
-		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
-		assert(strings.regExpContainsBackreference('(A).*?\\1'));
-		assert(strings.regExpContainsBackreference('\\\\\\1'));
-		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
-
-		assert(!strings.regExpContainsBackreference(''));
-		assert(!strings.regExpContainsBackreference('\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\\\1'));
-		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
-		assert(!strings.regExpContainsBackreference('123'));
-	});
-
 	test('getLeadingWhitespace', () => {
 		assert.strictEqual(strings.getLeadingWhitespace('  foo'), '  ');
 		assert.strictEqual(strings.getLeadingWhitespace('  foo', 2), '');
@@ -385,6 +370,11 @@ suite('Strings', () => {
 	test('truncate', () => {
 		assert.strictEqual('hello world', strings.truncate('hello world', 100));
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
+	});
+
+	test('truncateMiddle', () => {
+		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
+		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
 	});
 
 	test('replaceAsync', async () => {
@@ -521,4 +511,6 @@ suite('Strings', () => {
 			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
