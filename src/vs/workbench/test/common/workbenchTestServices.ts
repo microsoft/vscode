@@ -310,9 +310,9 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 
 	_serviceBrand: undefined;
 
-	readonly onAutoSaveConfigurationChange = Event.None;
-	readonly onReadonlyChange = Event.None;
-	readonly onFilesAssociationChange = Event.None;
+	readonly onDidChangeAutoSaveConfiguration = Event.None;
+	readonly onDidChangeReadonly = Event.None;
+	readonly onDidChangeFilesAssociation = Event.None;
 
 	readonly isHotExitEnabled = false;
 	readonly hotExitConfiguration = undefined;

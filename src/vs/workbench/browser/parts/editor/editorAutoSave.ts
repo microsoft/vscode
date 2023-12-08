@@ -47,7 +47,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChange()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(() => this.onAutoSaveConfigurationChange()));
+		this._register(this.filesConfigurationService.onDidChangeAutoSaveConfiguration(() => this.onDidChangeAutoSaveConfiguration()));
 
 		// Working Copy events
 		this._register(this.workingCopyService.onDidRegister(workingCopy => this.onDidRegister(workingCopy)));
@@ -112,7 +112,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		}
 	}
 
-	private onAutoSaveConfigurationChange(): void {
+	private onDidChangeAutoSaveConfiguration(): void {
 
 		// Trigger a save-all when auto save is enabled
 		let reason: SaveReason | undefined = undefined;

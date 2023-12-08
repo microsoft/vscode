@@ -51,7 +51,7 @@ export interface IFilesConfigurationService {
 
 	//#region Auto Save
 
-	readonly onAutoSaveConfigurationChange: Event<void>;
+	readonly onDidChangeAutoSaveConfiguration: Event<void>;
 
 	getAutoSaveConfiguration(resourceoOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration;
 
@@ -63,7 +63,7 @@ export interface IFilesConfigurationService {
 
 	//#region Configured Readonly
 
-	readonly onReadonlyChange: Event<void>;
+	readonly onDidChangeReadonly: Event<void>;
 
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString;
 
@@ -71,7 +71,7 @@ export interface IFilesConfigurationService {
 
 	//#endregion
 
-	readonly onFilesAssociationChange: Event<void>;
+	readonly onDidChangeFilesAssociation: Event<void>;
 
 	readonly isHotExitEnabled: boolean;
 
@@ -95,14 +95,14 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		fileReadonly: { value: localize('fileReadonly', "Editor is read-only because the file is read-only."), isTrusted: true }
 	};
 
-	private readonly _onAutoSaveConfigurationChange = this._register(new Emitter<void>());
-	readonly onAutoSaveConfigurationChange = this._onAutoSaveConfigurationChange.event;
+	private readonly _onDidChangeAutoSaveConfiguration = this._register(new Emitter<void>());
+	readonly onDidChangeAutoSaveConfiguration = this._onDidChangeAutoSaveConfiguration.event;
 
-	private readonly _onFilesAssociationChange = this._register(new Emitter<void>());
-	readonly onFilesAssociationChange = this._onFilesAssociationChange.event;
+	private readonly _onDidChangeFilesAssociation = this._register(new Emitter<void>());
+	readonly onDidChangeFilesAssociation = this._onDidChangeFilesAssociation.event;
 
-	private readonly _onReadonlyConfigurationChange = this._register(new Emitter<void>());
-	readonly onReadonlyChange = this._onReadonlyConfigurationChange.event;
+	private readonly _onDidChangeReadonly = this._register(new Emitter<void>());
+	readonly onDidChangeReadonly = this._onDidChangeReadonly.event;
 
 	private currentGlobalAutoSaveConfig: IAutoSaveConfiguration;
 	private currentFilesAssociationConfig: IStringDictionary<string>;
@@ -147,7 +147,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			this.configurationService
 		));
 
-		this._register(matcher.onExpressionChange(() => this._onReadonlyConfigurationChange.fire()));
+		this._register(matcher.onExpressionChange(() => this._onDidChangeReadonly.fire()));
 
 		return matcher;
 	}
@@ -211,7 +211,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			this.sessionReadonlyOverrides.set(resource, readonly);
 		}
 
-		this._onReadonlyConfigurationChange.fire();
+		this._onDidChangeReadonly.fire();
 	}
 
 	private registerListeners(): void {
@@ -230,7 +230,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		this.currentGlobalAutoSaveConfig = this.computeAutoSaveConfiguration(undefined, configuration?.files?.autoSave, configuration?.files?.autoSaveDelay);
 		this.autoSaveAfterShortDelayContext.set(this.getAutoSaveMode(undefined) === AutoSaveMode.AFTER_SHORT_DELAY);
 		if (fromEvent) {
-			this._onAutoSaveConfigurationChange.fire();
+			this._onDidChangeAutoSaveConfiguration.fire();
 		}
 
 		// Check for change in files associations
@@ -238,7 +238,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (!equals(this.currentFilesAssociationConfig, filesAssociation)) {
 			this.currentFilesAssociationConfig = filesAssociation;
 			if (fromEvent) {
-				this._onFilesAssociationChange.fire();
+				this._onDidChangeFilesAssociation.fire();
 			}
 		}
 
@@ -255,7 +255,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (readonlyFromPermissions !== Boolean(this.configuredReadonlyFromPermissions)) {
 			this.configuredReadonlyFromPermissions = readonlyFromPermissions;
 			if (fromEvent) {
-				this._onReadonlyConfigurationChange.fire();
+				this._onDidChangeReadonly.fire();
 			}
 		}
 	}
