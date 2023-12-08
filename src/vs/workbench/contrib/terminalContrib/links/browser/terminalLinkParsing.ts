@@ -197,7 +197,7 @@ function parseIntOptional(value: string | undefined): number | undefined {
 // characters the path is not allowed to _start_ with, the second `[]` includes characters not
 // allowed at all in the path. If the characters show up in both regexes the link will stop at that
 // character, otherwise it will stop at a space character.
-const linkWithSuffixPathCharacters = /(?<path>[^\s\|<>\[\({][^\s\|<>]*)$/;
+const linkWithSuffixPathCharacters = /(?<path>(?:file:\/\/\/)?[^\s\|<>\[\({][^\s\|<>]*)$/;
 
 export function detectLinks(line: string, os: OperatingSystem) {
 	// 1: Detect all links on line via suffixes first
@@ -304,7 +304,7 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 }
 
 enum RegexPathConstants {
-	PathPrefix = '(?:\\.\\.?|\\~)',
+	PathPrefix = '(?:\\.\\.?|\\~|file:\/\/)',
 	PathSeparatorClause = '\\/',
 	// '":; are allowed in paths but they are often separators so ignore them
 	// Also disallow \\ to prevent a catastropic backtracking case #24795
@@ -324,10 +324,10 @@ enum RegexPathConstants {
 const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
 
 /**
- * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:` and
- * `\\?\C` (UNC path).
+ * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:`,
+ * `file:///c:` (uri) and `\\?\C:` (UNC path).
  */
-export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
 
 /**
  * A regex that matches Windows paths, such as `\\?\c:\foo`, `c:\foo`, `~\foo`, `.\foo`, `..\foo`

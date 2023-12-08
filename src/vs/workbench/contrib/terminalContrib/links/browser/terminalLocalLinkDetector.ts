@@ -110,7 +110,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
 			const osPath = osPathModule(os);
-			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~')) {
+			const isUri = parsedLink.path.text.startsWith('file://');
+			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~') || isUri) {
 				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
@@ -265,7 +266,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
 		for (const link of linkCandidates) {
-			const result = await this._linkResolver.resolveLink(this._processManager, link);
+			let uri: URI | undefined;
+			if (link.startsWith('file://')) {
+				uri = URI.parse(link);
+			}
+			const result = await this._linkResolver.resolveLink(this._processManager, link, uri);
 			if (result) {
 				return result;
 			}
