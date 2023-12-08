@@ -11,7 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableFromEvent, observableSignalFromEvent } from 'vs/base/common/observable';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { appendRemoveOnDispose } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -21,10 +21,10 @@ import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManage
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
-export class OverviewRulerPart extends Disposable {
+export class OverviewRulerFeature extends Disposable {
 	private static readonly ONE_OVERVIEW_WIDTH = 15;
-	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerPart.ONE_OVERVIEW_WIDTH * 2;
-	public readonly width = OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH;
+	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerFeature.ONE_OVERVIEW_WIDTH * 2;
+	public readonly width = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
 	constructor(
 		private readonly _editors: DiffEditorEditors,
@@ -52,7 +52,7 @@ export class OverviewRulerPart extends Disposable {
 		viewportDomElement.setPosition('absolute');
 
 		const diffOverviewRoot = h('div.diffOverview', {
-			style: { position: 'absolute', top: '0px', width: OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px' }
+			style: { position: 'absolute', top: '0px', width: OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH + 'px' }
 		}).root;
 		this._register(appendRemoveOnDispose(diffOverviewRoot, viewportDomElement.domNode));
 		this._register(addStandardDisposableListener(diffOverviewRoot, EventType.POINTER_DOWN, (e) => {
@@ -129,18 +129,18 @@ export class OverviewRulerPart extends Disposable {
 				const width = this._rootWidth.read(reader);
 				const layoutInfo = this._modifiedEditorLayoutInfo.read(reader);
 				if (layoutInfo) {
-					const freeSpace = OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH - 2 * OverviewRulerPart.ONE_OVERVIEW_WIDTH;
+					const freeSpace = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH - 2 * OverviewRulerFeature.ONE_OVERVIEW_WIDTH;
 					originalOverviewRuler.setLayout({
 						top: 0,
 						height: height,
-						right: freeSpace + OverviewRulerPart.ONE_OVERVIEW_WIDTH,
-						width: OverviewRulerPart.ONE_OVERVIEW_WIDTH,
+						right: freeSpace + OverviewRulerFeature.ONE_OVERVIEW_WIDTH,
+						width: OverviewRulerFeature.ONE_OVERVIEW_WIDTH,
 					});
 					modifiedOverviewRuler.setLayout({
 						top: 0,
 						height: height,
 						right: 0,
-						width: OverviewRulerPart.ONE_OVERVIEW_WIDTH,
+						width: OverviewRulerFeature.ONE_OVERVIEW_WIDTH,
 					});
 					const scrollTop = this._editors.modifiedScrollTop.read(reader);
 					const scrollHeight = this._editors.modifiedScrollHeight.read(reader);
@@ -163,8 +163,8 @@ export class OverviewRulerPart extends Disposable {
 				}
 
 				diffOverviewRoot.style.height = height + 'px';
-				diffOverviewRoot.style.left = (width - OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
-				viewportDomElement.setWidth(OverviewRulerPart.ENTIRE_DIFF_OVERVIEW_WIDTH);
+				diffOverviewRoot.style.left = (width - OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH) + 'px';
+				viewportDomElement.setWidth(OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH);
 			}));
 		}));
 	}

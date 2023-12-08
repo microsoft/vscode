@@ -284,7 +284,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			const decorationCount = toLineIndex(command.endMarker) - startLine;
 			for (let i = 0; i < decorationCount; i++) {
 				const decoration = this._terminal.registerDecoration({
-					marker: this._createMarkerForOffset(command.executedMarker, i)
+					marker: this._createMarkerForOffset(startLine, i)
 				});
 				if (decoration) {
 					store.add(decoration);

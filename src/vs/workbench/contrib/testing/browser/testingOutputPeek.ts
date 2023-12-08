@@ -26,7 +26,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { autorun } from 'vs/base/common/observable';
 import { count } from 'vs/base/common/strings';
@@ -71,6 +71,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
+import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -152,9 +153,11 @@ class TaskSubject {
 class TestOutputSubject {
 	public readonly outputUri: URI;
 	public readonly revealLocation: undefined;
+	public readonly task: ITestRunTask;
 
-	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly task: ITestRunTask, public readonly test: TestResultItem) {
+	constructor(public readonly result: ITestResult, public readonly taskIndex: number, public readonly test: TestResultItem) {
 		this.outputUri = buildTestUri({ resultId: this.result.id, taskIndex: this.taskIndex, testExtId: this.test.item.extId, type: TestUriType.TestOutput });
+		this.task = result.tasks[this.taskIndex];
 	}
 }
 
@@ -241,15 +244,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			return false;
 		}
 
-		const message = candidate.message;
 		this.showPeekFromUri({
 			type: TestUriType.ResultMessage,
-			documentUri: message.location!.uri,
+			documentUri: candidate.location.uri,
 			taskIndex: candidate.taskId,
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: message.location!.range, ...options });
+		}, undefined, { selection: candidate.location.range, ...options });
 		return true;
 	}
 
@@ -470,9 +472,14 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the first failed message that can be displayed from the result.
 	 */
 	private getFailedCandidateMessage(test: TestResultItem) {
-		let best: { taskId: number; index: number; message: ITestMessage } | undefined;
+		const fallbackLocation = test.item.uri && test.item.range
+			? { uri: test.item.uri, range: test.item.range }
+			: undefined;
+
+		let best: { taskId: number; index: number; message: ITestMessage; location: IRichLocation } | undefined;
 		mapFindTestMessage(test, (task, message, messageIndex, taskId) => {
-			if (!isFailedState(task.state) || !message.location) {
+			const location = message.location || fallbackLocation;
+			if (!isFailedState(task.state) || !location) {
 				return;
 			}
 
@@ -480,7 +487,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 				return;
 			}
 
-			best = { taskId, index: messageIndex, message };
+			best = { taskId, index: messageIndex, message, location };
 		});
 
 		return best;
@@ -744,9 +751,8 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 
 		if (parts.type === TestUriType.TestOutput) {
 			const test = result.getStateById(parts.testExtId);
-			const task = result.tasks[parts.taskIndex];
-			if (!test || !task) { return; }
-			return new TestOutputSubject(result, parts.taskIndex, task, test);
+			if (!test) { return; }
+			return new TestOutputSubject(result, parts.taskIndex, test);
 		}
 
 		const { testExtId, taskIndex, messageIndex } = parts;
@@ -1091,6 +1097,10 @@ export class TestResultsView extends ViewPane {
 		this.content.reveal({ preserveFocus, subject: new TaskSubject(result, 0) });
 	}
 
+	public showMessage(result: ITestResult, test: TestResultItem, taskIndex: number, messageIndex: number) {
+		this.content.reveal({ preserveFocus: false, subject: new MessageSubject(result, test, taskIndex, messageIndex) });
+	}
+
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.content.fillBody(container);
@@ -1433,6 +1443,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		const testItem = subject instanceof TestOutputSubject ? subject.test.item : subject.test;
 		const terminal = await this.updateGenerically<ITaskRawOutput>({
 			subject,
+			noOutputMessage: localize('caseNoOutput', 'The test case did not report any output.'),
 			getTarget: result => result?.tasks[subject.taskIndex].output,
 			*doInitialWrite(output, results) {
 				that.updateCwd(testItem.uri);
@@ -1447,10 +1458,10 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 					}
 				}
 			},
-			doListenForMoreData: (output, result, { xterm }) => result.onChange(e => {
+			doListenForMoreData: (output, result, write) => result.onChange(e => {
 				if (e.reason === TestResultItemChangeReason.NewMessage && e.item.item.extId === testItem.extId && e.message.type === TestMessageType.Output) {
 					for (const chunk of output.getRangeIter(e.message.offset, e.message.length)) {
-						xterm.write(chunk.buffer);
+						write(chunk.buffer);
 					}
 				}
 			}),
@@ -1464,6 +1475,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 	private updateForTaskSubject(subject: TaskSubject) {
 		return this.updateGenerically<ITestRunTaskResults>({
 			subject,
+			noOutputMessage: localize('runNoOutput', 'The test run did not record any output.'),
 			getTarget: result => result?.tasks[subject.taskIndex],
 			doInitialWrite: (task, result) => {
 				// Update the cwd and use the first test to try to hint at the correct cwd,
@@ -1471,15 +1483,16 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 				this.updateCwd(Iterable.find(result.tests, t => !!t.item.uri)?.item.uri);
 				return task.output.buffers;
 			},
-			doListenForMoreData: (task, _result, { xterm }) => task.output.onDidWriteData(e => xterm.write(e.buffer)),
+			doListenForMoreData: (task, _result, write) => task.output.onDidWriteData(e => write(e.buffer)),
 		});
 	}
 
 	private async updateGenerically<T>(opts: {
 		subject: InspectSubject;
+		noOutputMessage: string;
 		getTarget: (result: ITestResult) => T | undefined;
 		doInitialWrite: (target: T, result: LiveTestResult) => Iterable<VSBuffer>;
-		doListenForMoreData: (target: T, result: LiveTestResult, terminal: IDetachedTerminalInstance) => IDisposable | undefined;
+		doListenForMoreData: (target: T, result: LiveTestResult, write: (s: Uint8Array) => void) => IDisposable;
 	}) {
 		const result = opts.subject.result;
 		const target = opts.getTarget(result);
@@ -1503,10 +1516,24 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 		}
 
 		this.attachTerminalToDom(terminal);
-		this.outputDataListener.value = result instanceof LiveTestResult ? opts.doListenForMoreData(target, result, terminal) : undefined;
+		this.outputDataListener.clear();
+
+		if (result instanceof LiveTestResult && !result.completedAt) {
+			const l1 = result.onComplete(() => {
+				if (!didWriteData) {
+					this.writeNotice(terminal, opts.noOutputMessage);
+				}
+			});
+			const l2 = opts.doListenForMoreData(target, result, data => {
+				terminal.xterm.write(data);
+				didWriteData ||= data.byteLength > 0;
+			});
+
+			this.outputDataListener.value = combinedDisposable(l1, l2);
+		}
 
 		if (!this.outputDataListener.value && !didWriteData) {
-			this.writeNotice(terminal, localize('runNoOutput', 'The test run did not record any output.'));
+			this.writeNotice(terminal, opts.noOutputMessage);
 		}
 
 		// Ensure pending writes finish, otherwise the selection in `updateForTestSubject`
@@ -1671,20 +1698,34 @@ class TestResultElement implements ITreeElement {
 	constructor(public readonly value: ITestResult) { }
 }
 
-const coverageLabel = localize('openTestCoverage', 'View Test Coverage');
+const openCoverageLabel = localize('openTestCoverage', 'View Test Coverage');
+const closeCoverageLabel = localize('closeTestCoverage', 'Close Test Coverage');
 
 class CoverageElement implements ITreeElement {
 	public readonly type = 'coverage';
 	public readonly context: undefined;
 	public readonly id = `coverage-${this.results.id}/${this.task.id}`;
-	public readonly label = coverageLabel;
-	public readonly onDidChange = Event.None;
-	public readonly icon = icons.testingCoverage;
+	public readonly onDidChange: Event<void>;
+
+	public get label() {
+		return this.isOpen ? closeCoverageLabel : openCoverageLabel;
+	}
+
+	public get icon() {
+		return this.isOpen ? widgetClose : icons.testingCoverage;
+	}
+
+	public get isOpen() {
+		return this.coverageService.selected.get()?.fromTaskId === this.task.id;
+	}
 
 	constructor(
 		private readonly results: ITestResult,
 		public readonly task: ITestRunTaskResults,
-	) { }
+		private readonly coverageService: ITestCoverageService,
+	) {
+		this.onDidChange = Event.fromObservableLight(coverageService.selected);
+	}
 
 }
 
@@ -1719,12 +1760,12 @@ class TestCaseElement implements ITreeElement {
 	}
 
 	public get outputSubject() {
-		return new TestOutputSubject(this.results, this.taskIndex, this.task, this.test);
+		return new TestOutputSubject(this.results, this.taskIndex, this.test);
 	}
 
+
 	constructor(
-		private readonly results: ITestResult,
-		private readonly task: ITestRunTask,
+		public readonly results: ITestResult,
 		public readonly test: TestResultItem,
 		public readonly taskIndex: number,
 	) { }
@@ -1878,7 +1919,7 @@ class OutputPeekTree extends Disposable {
 			const { results, index, itemsCache, task } = taskElem;
 			const tests = Iterable.filter(results.tests, test => test.tasks[index].state >= TestResultState.Running || test.tasks[index].messages.length > 0);
 			let result: Iterable<ICompressedTreeElement<TreeElement>> = Iterable.map(tests, test => ({
-				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, task, test, index)),
+				element: itemsCache.getOrCreate(test, () => new TestCaseElement(results, test, index)),
 				incompressible: true,
 				children: getTestChildren(results, test, index),
 			}));
@@ -1886,7 +1927,7 @@ class OutputPeekTree extends Disposable {
 			if (task.coverage.get()) {
 				result = Iterable.concat(
 					Iterable.single<ICompressedTreeElement<TreeElement>>({
-						element: new CoverageElement(results, task),
+						element: new CoverageElement(results, task, coverageService),
 					}),
 					result,
 				);
@@ -2074,8 +2115,16 @@ class OutputPeekTree extends Disposable {
 		this._register(this.tree.onDidOpen(async e => {
 			if (e.element instanceof TestMessageElement) {
 				this.requestReveal.fire(new MessageSubject(e.element.result, e.element.test, e.element.taskIndex, e.element.messageIndex));
+			} else if (e.element instanceof TestCaseElement) {
+				const t = e.element;
+				const message = mapFindTestMessage(e.element.test, (_t, _m, mesasgeIndex, taskIndex) =>
+					new MessageSubject(t.results, t.test, taskIndex, mesasgeIndex));
+				this.requestReveal.fire(message || new TestOutputSubject(t.results, 0, t.test));
 			} else if (e.element instanceof CoverageElement) {
 				const task = e.element.task;
+				if (e.element.isOpen) {
+					return coverageService.closeCoverage();
+				}
 				progressService.withProgress(
 					{ location: options.locationForProgress },
 					() => coverageService.openCoverage(task, true)

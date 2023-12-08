@@ -120,10 +120,15 @@
 	margin: 3px 12px 3px 3px;
 	line-height: 17px;
 	font-size: 12px;
+	height: 17px;
+	overflow: hidden;
 }
 
 .test-explorer .monaco-list-row .error p {
 	margin: 0;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	white-space: nowrap;
 }
 
 .test-explorer .monaco-list-row .error a {
@@ -213,6 +218,22 @@
 .monaco-editor .zone-widget.test-output-peek .zone-widget-container.peekview-widget {
 	border-top-width: 2px;
 	border-bottom-width: 2px;
+}
+
+.monaco-editor .zone-widget.test-output-peek .type-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .monaco-editor-background,
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .inputarea.ime-input,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .zone-widget.test-output-peek .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
 }
 
 .test-output-peek-message-container {
@@ -340,6 +361,8 @@
 	color: var(--vscode-testing-message-info-decorationForeground) !important;
 }
 
+/** -- coverage  */
+
 .test-coverage-list-item {
 	display: flex;
 }
@@ -368,4 +391,17 @@
 	height: 100%;
 	position: absolute;
 	opacity: 0.7;
+}
+
+/** -- coverage in the explorer  */
+
+.explorer-item-with-test-coverage {
+	display: flex;
+}
+
+.explorer-item-with-test-coverage .explorer-item {
+	flex-grow: 1;
+}
+.explorer-item-with-test-coverage .monaco-icon-label::after {
+	margin-right: 12px; /* slightly reduce because the bars handle the scrollbar margin */
 }

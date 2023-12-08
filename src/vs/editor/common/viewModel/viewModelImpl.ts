@@ -257,6 +257,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
+		if (e.hasChanged(EditorOption.renderValidationDecorations)) {
+			this._decorations.reset();
+			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+		}
+
 		eventsCollector.emitViewEvent(new viewEvents.ViewConfigurationChangedEvent(e));
 		this.viewLayout.onConfigurationChanged(e);
 
@@ -801,7 +806,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public modifyPosition(position: Position, offset: number): Position {
 		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(position);
-		return this.model.modifyPosition(modelPosition, offset);
+		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
+		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {

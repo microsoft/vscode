@@ -178,8 +178,7 @@ class InputEditorDecorations extends Disposable {
 					range: {
 						startLineNumber: agentPart.editorRange.startLineNumber,
 						endLineNumber: agentPart.editorRange.endLineNumber,
-						// startColumn: agentPart.editorRange.endColumn + 1,
-						startColumn: 25,
+						startColumn: agentPart.editorRange.endColumn + 1,
 						endColumn: 1000
 					},
 					renderOptions: {
@@ -468,18 +467,35 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				return <CompletionList>{
-					suggestions: agents.flatMap((agent, i) => commands[i].map((c, i) => {
-						const agentLabel = `@${agent.id}`;
-						const withSlash = `/${c.name}`;
-						return <CompletionItem>{
-							label: { label: withSlash, description: agentLabel },
-							insertText: `${agentLabel} ${withSlash} `,
-							detail: `(${agentLabel}) ${c.description}`,
+				const justAgents: CompletionItem[] = agents
+					.filter(a => !a.metadata.isDefault)
+					.map(agent => {
+						const agentLabel = `${chatAgentLeader}${agent.id}`;
+						return {
+							label: { label: agentLabel, description: agent.metadata.description },
+							filterText: `${chatSubcommandLeader}${agent.id}`,
+							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
-							kind: CompletionItemKind.Text, // The icons are disabled here anyway
+							kind: CompletionItemKind.Text,
+							sortText: `${chatSubcommandLeader}${agent.id}`,
 						};
-					}))
+					});
+
+				return {
+					suggestions: justAgents.concat(
+						agents.flatMap((agent, i) => commands[i].map((c, i) => {
+							const agentLabel = `${chatAgentLeader}${agent.id}`;
+							const withSlash = `${chatSubcommandLeader}${c.name}`;
+							return {
+								label: { label: withSlash, description: agentLabel },
+								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								insertText: `${agentLabel} ${withSlash} `,
+								detail: `(${agentLabel}) ${c.description}`,
+								range: new Range(1, 1, 1, 1),
+								kind: CompletionItemKind.Text, // The icons are disabled here anyway
+								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+							} satisfies CompletionItem;
+						})))
 				};
 			}
 		}));

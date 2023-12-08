@@ -118,12 +118,12 @@ export class ChatRequestDynamicVariablePart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string, readonly data: IChatRequestVariableValue[]) { }
 
 	get referenceText(): string {
-		// This will need to be unique like for de-duping file names
 		return this.text;
 	}
 
 	get promptText(): string {
-		return `[${this.text}](values:${this.referenceText})`;
+		// This needs to be dynamically generated for de-duping
+		return ``;
 	}
 }
 

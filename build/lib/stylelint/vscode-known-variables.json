@@ -241,6 +241,7 @@
 		"--vscode-editorInlayHint-typeBackground",
 		"--vscode-editorInlayHint-typeForeground",
 		"--vscode-editorLightBulb-foreground",
+		"--vscode-editorLightBulbAi-foreground",
 		"--vscode-editorLightBulbAutoFix-foreground",
 		"--vscode-editorLineNumber-activeForeground",
 		"--vscode-editorLineNumber-dimmedForeground",

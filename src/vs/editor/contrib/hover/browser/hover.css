@@ -14,6 +14,10 @@
 	border-radius: 3px;
 }
 
+.monaco-editor .monaco-hover.locked {
+	outline: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
 .monaco-editor .monaco-hover a {
 	color: var(--vscode-textLink-foreground);
 }

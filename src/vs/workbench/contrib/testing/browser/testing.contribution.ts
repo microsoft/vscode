@@ -46,6 +46,8 @@ import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
 import { ITestCoverageService, TestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
+import { ExplorerExtensions, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -232,3 +234,12 @@ CommandsRegistry.registerCommand({
 });
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguration);
+
+Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
+	create(insta, container) {
+		return insta.createInstance(
+			ExplorerTestCoverageBars,
+			{ compact: true, container }
+		);
+	},
+});

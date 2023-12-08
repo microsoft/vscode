@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -26,7 +26,7 @@ import { SetMap } from 'vs/base/common/map';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
@@ -1457,7 +1457,6 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	private readonly _rootDomNode: HTMLElement;
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
-	private _mouseUpTimerDisposable = new MutableDisposable();
 
 	constructor(
 		container: HTMLElement,
@@ -1563,42 +1562,14 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		const templateData = renderer.renderTemplate(stickyElement);
 		renderer.renderElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
 
-		const mouseListenerDisposable = this.registerMouseListeners(stickyElement, stickyNode, currentWidgetHeight);
-
 		// Remove the element from the DOM when state is disposed
 		const disposable = toDisposable(() => {
 			renderer.disposeElement(nodeCopy, stickyNode.startIndex, templateData, stickyNode.height);
 			renderer.disposeTemplate(templateData);
-			mouseListenerDisposable.dispose();
 			stickyElement.remove();
 		});
 
 		return { element: stickyElement, disposable };
-	}
-
-	private registerMouseListeners(stickyElement: HTMLElement, stickyNode: StickyScrollNode<T, TFilterData>, currentWidgetHeight: number): IDisposable {
-
-		return addDisposableListener(stickyElement, 'mouseup', (e: MouseEvent) => {
-			const isRightClick = e.button === 2;
-			if (isRightClick) {
-				return;
-			}
-
-			if (isMonacoCustomToggle(e.target as HTMLElement) || isActionItem(e.target as HTMLElement)) {
-				return;
-			}
-
-			// Timeout 0 ensures that the tree handles the click event first
-			this._mouseUpTimerDisposable.value = disposableTimeout(() => {
-				const elementTop = this.view.getElementTop(stickyNode.startIndex);
-				// We can't rely on the current sticky node's position
-				// because the node might be partially scrolled under the widget
-				const previousStickyNodeBottom = currentWidgetHeight;
-				this.view.scrollTop = elementTop - previousStickyNodeBottom;
-				this.view.setFocus([stickyNode.startIndex]);
-				this.view.setSelection([stickyNode.startIndex]);
-			}, 0);
-		});
 	}
 
 	private setVisible(visible: boolean): void {
@@ -1606,7 +1577,6 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	}
 
 	dispose(): void {
-		this._mouseUpTimerDisposable.dispose();
 		this._previousState?.dispose();
 		this._rootDomNode.remove();
 	}
@@ -1791,7 +1761,11 @@ class Trait<T> {
 
 class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<ITreeNode<T, TFilterData>> {
 
-	constructor(list: TreeNodeList<T, TFilterData, TRef>, private tree: AbstractTree<T, TFilterData, TRef>) {
+	constructor(
+		list: TreeNodeList<T, TFilterData, TRef>,
+		private tree: AbstractTree<T, TFilterData, TRef>,
+		private stickyScrollProvider: () => StickyScrollController<T, TFilterData, TRef> | undefined
+	) {
 		super(list);
 	}
 
@@ -1840,6 +1814,8 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			if (!this.tree.expandOnDoubleClick && e.browserEvent.detail === 2) {
 				return super.onViewPointer(e);
 			}
+		} else {
+			this.handleStickyScrollMouseEvent(e, node);
 		}
 
 		if (node.collapsible && (!isStickyElement || onTwistie)) {
@@ -1860,6 +1836,24 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 	}
 
+	private handleStickyScrollMouseEvent(e: IListMouseEvent<ITreeNode<T, TFilterData>>, node: ITreeNode<T, TFilterData>): void {
+		if (isMonacoCustomToggle(e.browserEvent.target as HTMLElement) || isActionItem(e.browserEvent.target as HTMLElement)) {
+			return;
+		}
+
+		const stickyScrollController = this.stickyScrollProvider();
+		if (!stickyScrollController) {
+			throw new Error('Sticky scroll controller not found');
+		}
+
+		const nodeIndex = this.list.indexOf(node);
+		const elementScrollTop = this.list.getElementTop(nodeIndex);
+		const elementTargetViewTop = stickyScrollController.nodePositionTopBelowWidget(node);
+		this.tree.scrollTop = elementScrollTop - elementTargetViewTop;
+		this.list.setFocus([nodeIndex]);
+		this.list.setSelection([nodeIndex]);
+	}
+
 	protected override onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
 		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
@@ -1877,6 +1871,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 
 interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeNode<T, TFilterData>> {
 	readonly tree: AbstractTree<T, TFilterData, TRef>;
+	readonly stickyScrollProvider: () => StickyScrollController<T, TFilterData, TRef> | undefined;
 }
 
 /**
@@ -1899,7 +1894,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 	}
 
 	protected override createMouseController(options: ITreeNodeListOptions<T, TFilterData, TRef>): MouseController<ITreeNode<T, TFilterData>> {
-		return new TreeNodeListMouseController(this, options.tree);
+		return new TreeNodeListMouseController(this, options.tree, options.stickyScrollProvider);
 	}
 
 	override splice(start: number, deleteCount: number, elements: readonly ITreeNode<T, TFilterData>[] = []): void {
@@ -2058,7 +2053,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.focus = new Trait(() => this.view.getFocusedElements()[0], _options.identityProvider);
 		this.selection = new Trait(() => this.view.getSelectedElements()[0], _options.identityProvider);
 		this.anchor = new Trait(() => this.view.getAnchorElement(), _options.identityProvider);
-		this.view = new TreeNodeList(_user, container, this.treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
+		this.view = new TreeNodeList(_user, container, this.treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this, stickyScrollProvider: () => this.stickyScrollController });
 
 		this.model = this.createModel(_user, this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
