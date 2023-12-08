@@ -158,7 +158,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (actions.validActions.length <= 0) {
 			return this.hide();
 		}
-		if (this._enablementSetting() === ShowLightbulbIconMode.Off) {
+		if (this._editor.getOption(EditorOption.lightbulb).enabled === ShowLightbulbIconMode.Off) {
 			return this.hide();
 		}
 
@@ -214,10 +214,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._updateLightBulbTitleAndIcon();
 	}
 
-	private _enablementSetting(): ShowLightbulbIconMode {
-		return this._editor.getOption(EditorOption.lightbulb).enabled;
-	}
-
 	private _updateLightBulbTitleAndIcon(): void {
 		this._domNode.classList.remove(...this._iconClasses);
 		this._iconClasses = [];
@@ -237,10 +233,9 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		};
 		let icon: ThemeIcon;
-		const showOnEmptyLines = this._enablementSetting() === ShowLightbulbIconMode.On;
-		if (showOnEmptyLines && this.state.actions.allAIFixes) {
+		if (this.state.actions.allAIFixes) {
 			icon = Codicon.sparkleFilled;
-			if (this.state.actions.allAIFixes && this.state.actions.validActions.length === 1) {
+			if (this.state.actions.validActions.length === 1) {
 				if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
 					const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
 					this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
