@@ -226,7 +226,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			}
 		}));
 
-		// Marker changes
+		// Marker changes (only relevant when `files.autoSaveWhenNoErrors` is enabled)
 		this._register(this.markerService.onMarkerChanged(e => {
 			for (const uri of e) {
 				const autoSaveConfiguration = this.autoSaveConfigurationCache.get(uri);
@@ -311,7 +311,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		if (typeof autoSaveDelay === 'number' || autoSaveFocusChange || autoSaveApplicationChange) {
 			if (
 				(filesConfiguration.autoSaveWorkspaceFilesOnly && resource && !this.contextService.isInsideWorkspace(resource)) ||
-				(filesConfiguration.autoSaveWhenNoErrors && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0)
+				(filesConfiguration.autoSaveWhenNoErrors && resource && this.markerService.read({ resource, take: 1, severities: MarkerSeverity.Error }).length > 0)
 			) {
 				autoSaveDelay = undefined;
 				autoSaveFocusChange = undefined;
@@ -355,7 +355,6 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration {
 		const resource = this.toResource(resourceOrEditor);
-
 		if (resource) {
 			let resourceAutoSaveConfiguration = this.autoSaveConfigurationCache.get(resource);
 			if (!resourceAutoSaveConfiguration) {
