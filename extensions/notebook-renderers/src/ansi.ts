@@ -395,7 +395,7 @@ function appendStylizedStringToContainer(
 
 	let container = document.createElement('span');
 
-	if (container.childElementCount === 0) {
+	if (container.childElementCount === 0 && false) {
 		// plain text
 		container = linkify(stringContent, true, workspaceFolder, trustHtml);
 	}
