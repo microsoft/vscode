@@ -120,7 +120,6 @@ export class ToolBar extends Disposable {
 					);
 					result.setActionContext(this.actionBar.context);
 					this.submenuActionViewItems.push(result);
-					this.disposables.add(result);
 					this.disposables.add(this._onDidChangeDropdownVisibility.add(result.onDidChangeVisibility));
 
 					return result;
