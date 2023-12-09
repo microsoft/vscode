@@ -150,8 +150,9 @@ body.web {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
 }
 
-.monaco-workbench .monaco-icon-label.product-icon::before {
+.monaco-workbench .product-icon[class*='codicon-']::before {
 	font-family: 'codicon';
+	width: 16px;
 	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
 	padding-right: 3px;
 }
