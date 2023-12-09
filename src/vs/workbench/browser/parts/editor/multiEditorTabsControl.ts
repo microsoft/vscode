@@ -1464,6 +1464,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					badges: fileDecorationBadges
 				},
 				icon: editor.getIcon(),
+				hideIcon: options.showIcons === false,
 			}
 		);
 
