@@ -764,7 +764,7 @@ function _parseColor(colorValue: string | null, colorPalette: { [key: string]: s
 			return hex;
 		}
 	}
-	return null;
+	return '#f00'; //default to red to make it easily detectable
 }
 
 function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): Promise<any> {

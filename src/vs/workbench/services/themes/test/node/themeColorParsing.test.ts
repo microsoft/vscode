@@ -16,6 +16,7 @@ import { TestProductService, mock } from 'vs/workbench/test/common/workbenchTest
 import * as assert from 'assert';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('Theme color parsing', () => {
@@ -48,8 +49,8 @@ suite('Theme color parsing', () => {
 
 		const defaultBadgeForeground = colorRegistry.resolveDefaultColor('badge.foreground', themeData);
 		assert.equal(themeData.getColor('badge.foreground')?.toString(), defaultBadgeForeground?.toString());
-		const defaultEditorGroupDropBackground = colorRegistry.resolveDefaultColor('editorGroup.dropBackground', themeData);
-		assert.equal(themeData.getColor('editorGroup.dropBackground')?.toString(), defaultEditorGroupDropBackground);
+
+		assert.equal(themeData.getColor('editorGroup.dropBackground')?.toString(), '#ff0000');
 
 	});
 
@@ -60,11 +61,9 @@ suite('Theme color parsing', () => {
 		const colorRegistry = getColorRegistry();
 
 		assert.equal(themeData.isLoaded, true);
-		const defaultEditorGroupEmptyBackground = colorRegistry.resolveDefaultColor('editorGroup.emptyBackground', themeData);
-		assert.equal(themeData.getColor('editorGroup.emptyBackground')?.toString(), defaultEditorGroupEmptyBackground?.toString());
+		assert.equal(themeData.getColor('editorGroup.emptyBackground')?.toString(), '#ff0000');
 
-		const defaultStatusBarBorder = colorRegistry.resolveDefaultColor('statusBar.border', themeData);
-		assert.equal(themeData.getColor('statusBar.border')?.toString(), defaultStatusBarBorder?.toString());
+		assert.equal(themeData.getColor('statusBar.border')?.toString(), '#ff0000');
 
 		assert.equal(themeData.getColor('focusBorder')?.toString(), '#0400ff');
 		assert.equal(themeData.getColor('badge.background')?.toString(), '#fce566');
@@ -72,9 +71,9 @@ suite('Theme color parsing', () => {
 		const defaultBadgeForeground = colorRegistry.resolveDefaultColor('badge.foreground', themeData);
 		assert.equal(themeData.getColor('badge.foreground')?.toString(), defaultBadgeForeground?.toString());
 
-		const defaultEditorGroupDropBackground = colorRegistry.resolveDefaultColor('editorGroup.dropBackground', themeData);
-		assert.equal(themeData.getColor('editorGroup.dropBackground')?.toString(), defaultEditorGroupDropBackground?.toString());
+		assert.equal(themeData.getColor('editorGroup.dropBackground')?.toString(), '#ff0000');
 
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
