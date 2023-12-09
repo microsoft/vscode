@@ -147,6 +147,8 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const configurationService = new TestConfigurationService();
 		if (autoSaveEnabled) {
 			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		} else {
+			configurationService.setUserConfiguration('files', { autoSave: 'off', autoSaveDelay: 1 });
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
