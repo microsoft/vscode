@@ -9,7 +9,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { ByteSize, IFileReadLimits, IFileService, getLargeFileConfirmationLimit } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -24,7 +24,6 @@ import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { isConfigured } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 const enum ForceOpenAs {
@@ -99,9 +98,9 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IPathService private readonly pathService: IPathService,
-		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
-		super(resource, preferredResource, editorService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, preferredResource, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 
 		this.model = this.textFileService.files.get(resource);
 
@@ -394,29 +393,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			// Bubble any other error up
 			throw error;
 		}
-	}
-
-	private ensureLimits(options?: IFileEditorInputOptions): IFileReadLimits | undefined {
-		if (options?.limits) {
-			return options.limits; // respect passed in limits if any
-		}
-
-		// We want to determine the large file configuration based on the best defaults
-		// for the resource but also respecting user settings. We only apply user settings
-		// if explicitly configured by the user. Otherwise we pick the best limit for the
-		// resource scheme.
-
-		const defaultSizeLimit = getLargeFileConfirmationLimit(this.resource);
-		let configuredSizeLimit: number | undefined = undefined;
-
-		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(this.resource, null, 'workbench.editorLargeFileConfirmation');
-		if (isConfigured(configuredSizeLimitMb)) {
-			configuredSizeLimit = configuredSizeLimitMb.value * ByteSize.MB; // normalize to MB
-		}
-
-		return {
-			size: configuredSizeLimit ?? defaultSizeLimit
-		};
 	}
 
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {

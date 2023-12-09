@@ -5,7 +5,7 @@
 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, getWindow } from 'vs/base/browser/dom';
+import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
-import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -545,13 +545,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			return false;
 		}
 
-		const activeElement = target.ownerDocument.activeElement;
+		const activeElement = getActiveElement();
 		if (activeElement === target.ownerDocument.body) {
 			return true; // always restore focus if nothing is focused currently
 		}
 
 		// otherwise check for the active element being an ancestor of the target
-		return isAncestor(activeElement, target);
+		return isAncestorOfActiveElement(target);
 	}
 
 	private isTwoDimensionalGrid(): boolean {
@@ -810,12 +810,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Update container
 		this.updateContainer();
-
-		// Update locked state: clear when we are at just 1 group
-		// in case we are in the main editor part
-		if (this.count === 1 && !this.isAuxiliary) {
-			firstOrDefault(this.groups)?.lock(false);
-		}
 
 		// Event
 		this._onDidRemoveGroup.fire(groupView);

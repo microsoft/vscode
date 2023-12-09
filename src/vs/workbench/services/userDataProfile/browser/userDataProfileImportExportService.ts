@@ -75,7 +75,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { DEFAULT_ICON, ICONS } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-import { WorkbenchIconSelectBox } from 'vs/workbench/browser/iconSelectBox';
+import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/browser/iconSelectBox';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';

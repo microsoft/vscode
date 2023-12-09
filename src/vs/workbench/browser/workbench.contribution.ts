@@ -246,7 +246,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.dragToOpenWindow': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new window. Press and hold `Alt`-key while dragging to toggle this dynamically.")
+				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new window. Press and hold the `Alt` key while dragging to toggle this dynamically.")
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
@@ -505,11 +505,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['side', 'top', 'hidden'],
 				'default': 'side',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the activity bar. It can either show to the `side` or `top` (requires {0} set to {1}) of the primary side bar or `hidden`.", '`#window.titleBarStyle#`', '`custom`'),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the Activity Bar. It can either show to the `side` or `top` (requires {0} set to {1}) of the Primary Side Bar or `hidden`.", '`#window.titleBarStyle#`', '`custom`'),
 				'enumDescriptions': [
-					localize('workbench.activityBar.location.side', "Show the activity bar to the side of the primary side bar."),
-					localize('workbench.activityBar.location.top', "Show the activity bar on top of the primary side bar."),
-					localize('workbench.activityBar.location.hide', "Hide the activity bar.")
+					localize('workbench.activityBar.location.side', "Show the Activity Bar to the side of the Primary Side Bar."),
+					localize('workbench.activityBar.location.top', "Show the Activity Bar on top of the Primary Side Bar."),
+					localize('workbench.activityBar.location.hide', "Hide the Activity Bar.")
 				]
 			},
 			'workbench.activityBar.iconClickBehavior': {
@@ -762,7 +762,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'zenMode.showTabs': {
 				'type': 'string',
 				'enum': ['multiple', 'single', 'none'],
-				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab or hide the editor title area completely."),
+				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab, or hide the editor title area completely."),
 				'enumDescriptions': [
 					localize('zenMode.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
 					localize('zenMode.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),

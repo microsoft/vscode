@@ -15,7 +15,7 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
+import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';

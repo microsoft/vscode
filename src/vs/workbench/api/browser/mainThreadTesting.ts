@@ -11,6 +11,7 @@ import { ISettableObservable } from 'vs/base/common/observable';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
@@ -35,6 +36,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 	constructor(
 		extHostContext: IExtHostContext,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITestService private readonly testService: ITestService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@ITestResultService private readonly resultService: ITestResultService,
@@ -118,7 +120,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void {
-		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId, tests.map(ITestItem.deserialize)));
+		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId,
+			tests.map(t => ITestItem.deserialize(this.uriIdentityService, t))));
 	}
 
 	/**
@@ -197,7 +200,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
 			for (const message of messages) {
-				r.appendMessage(testId, taskId, ITestMessage.deserialize(message));
+				r.appendMessage(testId, taskId, ITestMessage.deserialize(this.uriIdentityService, message));
 			}
 		}
 	}
@@ -277,7 +280,8 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	 * @inheritdoc
 	 */
 	public $publishDiff(controllerId: string, diff: TestsDiffOp.Serialized[]): void {
-		this.testService.publishDiff(controllerId, diff.map(TestsDiffOp.deserialize));
+		this.testService.publishDiff(controllerId,
+			diff.map(d => TestsDiffOp.deserialize(this.uriIdentityService, d)));
 	}
 
 	public async $runTests(req: ResolvedTestRunRequest, token: CancellationToken): Promise<string> {

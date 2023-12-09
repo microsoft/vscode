@@ -36,7 +36,7 @@ async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
     try {
         let startTime = 0;
         if (verbose) {
-            log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? `(${10 - retries} retry}` : ''}`);
+            log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? ` (${10 - retries} retry)` : ''}`);
             startTime = new Date().getTime();
         }
         const controller = new AbortController();
