@@ -697,7 +697,6 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			if (this.viewItems.length >= 1) {
 				const sashIndex = Math.max(index - 1, 0);
 				const sashItem = this.sashItems.splice(sashIndex, 1)[0];
-				sashItem.sash.dispose();
 				sashItem.disposable.dispose();
 			}
 
@@ -734,7 +733,6 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 			for (const sashItem of sashItems) {
 				sashItem.disposable.dispose();
-				sashItem.sash.dispose();
 			}
 
 			this.relayout();
