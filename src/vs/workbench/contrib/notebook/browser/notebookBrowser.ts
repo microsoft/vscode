@@ -158,6 +158,7 @@ export interface IFocusNotebookCellOptions {
 	readonly revealBehavior?: ScrollToRevealBehavior | undefined;
 	readonly outputId?: string;
 	readonly altOutputId?: string;
+	readonly outputWebviewFocused?: boolean;
 }
 
 //#endregion

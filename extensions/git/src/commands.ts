@@ -107,13 +107,24 @@ class BranchDeleteItem implements QuickPickItem {
 
 class MergeItem implements QuickPickItem {
 
-	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
+	private shortCommit: string;
 
-	constructor(protected ref: Ref) { }
+	get label(): string {
+		return this.ref.type === RefType.RemoteHead ?
+			`$(cloud) ${this.ref.name ?? this.shortCommit}` :
+			`${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name ?? this.shortCommit}`;
+	}
 
-	async run(repository: Repository): Promise<void> {
-		await repository.merge(this.ref.name! || this.ref.commit!);
+	get description(): string {
+		return this.ref.type === RefType.RemoteHead ? l10n.t('Remote branch at {0}', this.shortCommit) : this.shortCommit;
+	}
+
+	constructor(private readonly repository: Repository, private readonly ref: Ref) {
+		this.shortCommit = (this.ref.commit ?? '').substring(0, 8);
+	}
+
+	async run(): Promise<void> {
+		await this.repository.merge(this.ref.name ?? this.ref.commit!);
 	}
 }
 
@@ -2486,11 +2497,11 @@ export class CommandCenter {
 
 			const heads = refs.filter(ref => ref.type === RefType.Head)
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(repository, ref as Branch));
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(repository, ref as Branch));
 
 			return [...heads, ...remoteHeads];
 		};
@@ -2502,7 +2513,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await choice.run(repository);
+		await choice.run();
 	}
 
 	@command('git.mergeAbort', { repository: true })
@@ -3264,18 +3275,21 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	async stash(repository: Repository): Promise<void> {
-		await this._stash(repository);
+	async stash(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository);
+		return result;
 	}
 
 	@command('git.stashStaged', { repository: true })
-	async stashStaged(repository: Repository): Promise<void> {
-		await this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, false, true);
+		return result;
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	async stashIncludeUntracked(repository: Repository): Promise<void> {
-		await this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, true);
+		return result;
 	}
 
 	@command('git.stashPop', { repository: true })
@@ -3629,26 +3643,6 @@ export class CommandCenter {
 			await this.model.openRepository(unsafeRepository);
 			this.model.deleteUnsafeRepository(unsafeRepository);
 		}
-	}
-
-	@command('git.generateCommitMessage', { repository: true })
-	async generateCommitMessage(repository: Repository): Promise<void> {
-		if (!repository || !this.model.commitMessageProvider) {
-			return;
-		}
-
-		await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
-			await repository.generateCommitMessage();
-		});
-	}
-
-	@command('git.generateCommitMessageCancel', { repository: true })
-	generateCommitMessageCancel(repository: Repository): void {
-		if (!repository || !this.model.commitMessageProvider) {
-			return;
-		}
-
-		repository.generateCommitMessageCancel();
 	}
 
 	@command('git.viewChanges', { repository: true })

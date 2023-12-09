@@ -55,6 +55,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private readonly rawListeners = new DisposableStore();
+	private readonly globalDisposables = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
@@ -105,7 +106,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose = new DisposableStore();
+		const toDispose = this.globalDisposables;
 		const replListener = toDispose.add(new MutableDisposable());
 		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 		if (lifecycleService) {
@@ -1310,6 +1311,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	public dispose() {
 		this.cancelAllRequests();
 		this.rawListeners.dispose();
+		this.globalDisposables.dispose();
 	}
 
 	//---- sources

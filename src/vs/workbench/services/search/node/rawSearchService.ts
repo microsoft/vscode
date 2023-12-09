@@ -362,8 +362,10 @@ export class SearchService implements IRawSearchService {
 				}
 
 				if (error) {
+					progressCallback({ message: 'Search finished. Error: ' + error.message });
 					e(error);
 				} else {
+					progressCallback({ message: 'Search finished. Stats: ' + JSON.stringify(complete.stats) });
 					c(complete);
 				}
 			});

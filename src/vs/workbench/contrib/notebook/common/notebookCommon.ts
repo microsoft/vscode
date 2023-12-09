@@ -30,6 +30,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IFileReadLimits } from 'vs/platform/files/common/files';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -224,6 +225,7 @@ export interface ICellOutput {
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 	asDto(): IOutputDto;
 	bumpVersion(): void;
+	dispose(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -787,6 +789,11 @@ export interface INotebookLoadOptions {
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromFile?: boolean;
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
 }
 
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {

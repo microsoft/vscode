@@ -325,7 +325,6 @@ export class InlineChatController implements IEditorContribution {
 
 		this._showWidget(true, initPosition);
 
-		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._updatePlaceholder();
 
 		if (!session) {
@@ -479,7 +478,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		return this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? '';
 	}
 
 
