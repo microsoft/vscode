@@ -229,6 +229,7 @@ export class WindowTitle extends Disposable {
 	 * {activeEditorLong}: e.g. /Users/Development/myFolder/myFileFolder/myFile.txt
 	 * {activeEditorMedium}: e.g. myFolder/myFileFolder/myFile.txt
 	 * {activeEditorShort}: e.g. myFile.txt
+	 * {activeEditorLanguage}: e.g. JavaScript
 	 * {activeFolderLong}: e.g. /Users/Development/myFolder/myFileFolder
 	 * {activeFolderMedium}: e.g. myFolder/myFileFolder
 	 * {activeFolderShort}: e.g. myFileFolder
@@ -288,6 +289,7 @@ export class WindowTitle extends Disposable {
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
 		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
+		const acriveEditorLanguage = editor ? this.editorService.activeTextEditorLanguageId : '';
 		const activeFolderShort = editorFolderResource ? basename(editorFolderResource) : '';
 		const activeFolderMedium = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource, { relative: true }) : '';
 		const activeFolderLong = editorFolderResource ? this.labelService.getUriLabel(editorFolderResource) : '';
@@ -307,6 +309,7 @@ export class WindowTitle extends Disposable {
 			activeEditorShort,
 			activeEditorLong,
 			activeEditorMedium,
+			acriveEditorLanguage,
 			activeFolderShort,
 			activeFolderMedium,
 			activeFolderLong,
