@@ -460,7 +460,7 @@ export class OpenEditorsView extends ViewPane {
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode(workingCopy.resource) === AutoSaveMode.AFTER_SHORT_DELAY) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}

@@ -181,7 +181,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		// if a short auto save is configured, treat this as being saved
-		return this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
+		return this.filesConfigurationService.getAutoSaveMode(this) === AutoSaveMode.AFTER_SHORT_DELAY;
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {

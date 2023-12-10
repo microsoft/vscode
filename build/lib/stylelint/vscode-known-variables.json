@@ -277,6 +277,8 @@
 		"--vscode-editorPane-background",
 		"--vscode-editorRuler-foreground",
 		"--vscode-editorStickyScroll-background",
+		"--vscode-editorStickyScroll-border",
+		"--vscode-editorStickyScroll-shadow",
 		"--vscode-editorStickyScrollHover-background",
 		"--vscode-editorSuggestWidget-background",
 		"--vscode-editorSuggestWidget-border",

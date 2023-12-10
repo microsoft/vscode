@@ -316,8 +316,10 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 /**
  * Sticky scroll
  */
-export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: editorBackground, dark: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorStickyScrollBackground', "Sticky scroll background color for the editor"));
-export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) }, nls.localize('editorStickyScrollHoverBackground', "Sticky scroll on hover background color for the editor"));
+export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: editorBackground, dark: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorStickyScrollBackground', "Background color of sticky scroll in the editor"));
+export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) }, nls.localize('editorStickyScrollHoverBackground', "Background color of sticky scroll on hover in the editor"));
+export const editorStickyScrollBorder = registerColor('editorStickyScroll.border', { dark: null, light: null, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorStickyScrollBorder', "Border color of sticky scroll in the editor"));
+export const editorStickyScrollShadow = registerColor('editorStickyScroll.shadow', { dark: scrollbarShadow, light: scrollbarShadow, hcDark: scrollbarShadow, hcLight: scrollbarShadow }, nls.localize('editorStickyScrollShadow', " Shadow color of sticky scroll in the editor"));
 
 /**
  * Editor widgets

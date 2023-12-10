@@ -719,7 +719,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		const zoomFactor = getZoomFactor();
 
-		const noMenubar = this.currentMenubarVisibility === 'hidden' || (!isWeb && isMacintosh);
+		const noMenubar = this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh);
 		const noCommandCenter = !this.isCommandCenterVisible;
 		const noToolBarActions = !this.layoutControlEnabled && !this.editorActionsEnabled && !this.activityActionsEnabled;
 

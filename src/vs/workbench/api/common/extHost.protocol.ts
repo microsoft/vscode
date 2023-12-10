@@ -231,6 +231,7 @@ export interface ITextEditorConfigurationUpdate {
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	indentSize: number;
+	originalIndentSize: number | 'tabSize';
 	insertSpaces: boolean;
 	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: RenderLineNumbersType;

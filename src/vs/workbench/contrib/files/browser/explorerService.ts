@@ -286,6 +286,9 @@ export class ExplorerService implements IExplorerService {
 		const previouslyCutItems = this.cutItems;
 		this.cutItems = cut ? items : undefined;
 		await this.clipboardService.writeResources(items.map(s => s.resource));
+		if (items.length === 1) {
+			await this.clipboardService.writeText(items[0].name);
+		}
 
 		this.view?.itemsCopied(items, cut, previouslyCutItems);
 	}
