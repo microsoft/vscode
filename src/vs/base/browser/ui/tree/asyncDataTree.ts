@@ -11,7 +11,7 @@ import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOption
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
+import { IAsyncDataSource, ICollapseStateChangeEvent, IObjectTreeElement, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeMouseEvent, ITreeNode, ITreeRenderer, ITreeSorter, ObjectTreeElementCollapseState, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
 import { CancelablePromise, createCancelablePromise, Promises, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -31,13 +31,15 @@ interface IAsyncDataTreeNode<TInput, T> {
 	hasChildren: boolean;
 	stale: boolean;
 	slow: boolean;
-	collapsedByDefault: boolean | undefined;
+	readonly defaultCollapseState: undefined | ObjectTreeElementCollapseState.PreserveOrCollapsed | ObjectTreeElementCollapseState.PreserveOrExpanded;
+	forceExpanded: boolean;
 }
 
 interface IAsyncDataTreeNodeRequiredProps<TInput, T> extends Partial<IAsyncDataTreeNode<TInput, T>> {
 	readonly element: TInput | T;
 	readonly parent: IAsyncDataTreeNode<TInput, T> | null;
 	readonly hasChildren: boolean;
+	readonly defaultCollapseState: undefined | ObjectTreeElementCollapseState.PreserveOrCollapsed | ObjectTreeElementCollapseState.PreserveOrExpanded;
 }
 
 function createAsyncDataTreeNode<TInput, T>(props: IAsyncDataTreeNodeRequiredProps<TInput, T>): IAsyncDataTreeNode<TInput, T> {
@@ -47,7 +49,7 @@ function createAsyncDataTreeNode<TInput, T>(props: IAsyncDataTreeNodeRequiredPro
 		refreshPromise: undefined,
 		stale: true,
 		slow: false,
-		collapsedByDefault: undefined
+		forceExpanded: false
 	};
 }
 
@@ -321,7 +323,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	protected readonly root: IAsyncDataTreeNode<TInput, T>;
 	private readonly nodes = new Map<null | T, IAsyncDataTreeNode<TInput, T>>();
 	private readonly sorter?: ITreeSorter<T>;
-	private readonly collapseByDefault?: { (e: T): boolean };
+	private readonly getDefaultCollapseState: { (e: T): undefined | ObjectTreeElementCollapseState.PreserveOrCollapsed | ObjectTreeElementCollapseState.PreserveOrExpanded };
 
 	private readonly subTreeRefreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, Promise<void>>();
 	private readonly refreshPromises = new Map<IAsyncDataTreeNode<TInput, T>, CancelablePromise<Iterable<T>>>();
@@ -387,7 +389,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.identityProvider = options.identityProvider;
 		this.autoExpandSingleChildren = typeof options.autoExpandSingleChildren === 'undefined' ? false : options.autoExpandSingleChildren;
 		this.sorter = options.sorter;
-		this.collapseByDefault = options.collapseByDefault;
+		this.getDefaultCollapseState = e => options.collapseByDefault ? (options.collapseByDefault(e) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded) : undefined;
 
 		this.tree = this.createTree(user, container, delegate, renderers, options);
 		this.onDidChangeFindMode = this.tree.onDidChangeFindMode;
@@ -395,7 +397,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.root = createAsyncDataTreeNode({
 			element: undefined!,
 			parent: null,
-			hasChildren: true
+			hasChildren: true,
+			defaultCollapseState: undefined
 		});
 
 		if (this.identityProvider) {
@@ -935,10 +938,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			const hasChildren = !!this.dataSource.hasChildren(element);
 
 			if (!this.identityProvider) {
-				const asyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, hasChildren });
+				const asyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, hasChildren, defaultCollapseState: this.getDefaultCollapseState(element) });
 
-				if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
-					asyncDataTreeNode.collapsedByDefault = false;
+				if (hasChildren && asyncDataTreeNode.defaultCollapseState === ObjectTreeElementCollapseState.PreserveOrExpanded) {
 					childrenToRefresh.push(asyncDataTreeNode);
 				}
 
@@ -966,15 +968,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 					} else {
 						childrenToRefresh.push(asyncDataTreeNode);
 					}
-				} else if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
-					asyncDataTreeNode.collapsedByDefault = false;
+				} else if (hasChildren && !result.collapsed) {
 					childrenToRefresh.push(asyncDataTreeNode);
 				}
 
 				return asyncDataTreeNode;
 			}
 
-			const childAsyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, id, hasChildren });
+			const childAsyncDataTreeNode = createAsyncDataTreeNode({ element, parent: node, id, hasChildren, defaultCollapseState: this.getDefaultCollapseState(element) });
 
 			if (viewStateContext && viewStateContext.viewState.focus && viewStateContext.viewState.focus.indexOf(id) > -1) {
 				viewStateContext.focus.push(childAsyncDataTreeNode);
@@ -986,8 +987,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 			if (viewStateContext && viewStateContext.viewState.expanded && viewStateContext.viewState.expanded.indexOf(id) > -1) {
 				childrenToRefresh.push(childAsyncDataTreeNode);
-			} else if (hasChildren && this.collapseByDefault && !this.collapseByDefault(element)) {
-				childAsyncDataTreeNode.collapsedByDefault = false;
+			} else if (hasChildren && childAsyncDataTreeNode.defaultCollapseState === ObjectTreeElementCollapseState.PreserveOrExpanded) {
 				childrenToRefresh.push(childAsyncDataTreeNode);
 			}
 
@@ -1006,7 +1006,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		// TODO@joao this doesn't take filter into account
 		if (node !== this.root && this.autoExpandSingleChildren && children.length === 1 && childrenToRefresh.length === 0) {
-			children[0].collapsedByDefault = false;
+			children[0].forceExpanded = true;
 			childrenToRefresh.push(children[0]);
 		}
 
@@ -1042,15 +1042,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			};
 		}
 
-		let collapsed: boolean | undefined;
+		let collapsed: boolean | ObjectTreeElementCollapseState.PreserveOrCollapsed | ObjectTreeElementCollapseState.PreserveOrExpanded | undefined;
 
 		if (viewStateContext && viewStateContext.viewState.expanded && node.id && viewStateContext.viewState.expanded.indexOf(node.id) > -1) {
 			collapsed = false;
+		} else if (node.forceExpanded) {
+			collapsed = false;
+			node.forceExpanded = false;
 		} else {
-			collapsed = node.collapsedByDefault;
+			collapsed = node.defaultCollapseState;
 		}
-
-		node.collapsedByDefault = undefined;
 
 		return {
 			element: node,

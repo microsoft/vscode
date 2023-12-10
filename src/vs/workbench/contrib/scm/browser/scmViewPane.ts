@@ -57,7 +57,7 @@ import { compare, format } from 'vs/base/common/strings';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { LinkDetector } from 'vs/editor/contrib/links/browser/links';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -388,8 +388,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		};
 
 		// Setup height change listener on next tick
-		const timeout = disposableTimeout(startListeningContentHeightChange, 0);
-		templateData.elementDisposables.add(timeout);
+		disposableTimeout(startListeningContentHeightChange, 0, templateData.elementDisposables);
 
 		// Layout the editor whenever the outer layout happens
 		const layoutEditor = () => templateData.inputWidget.layout();
@@ -2199,7 +2198,7 @@ class SCMInputWidget {
 				LinkDetector.ID,
 				MenuPreventer.ID,
 				MessageController.ID,
-				ModesHoverController.ID,
+				HoverController.ID,
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,
@@ -2912,7 +2911,6 @@ export class SCMViewPane extends ViewPane {
 			const repositoryDisposables = new DisposableStore();
 
 			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren(repository)));
-			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 

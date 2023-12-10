@@ -62,7 +62,8 @@ export class DebugService implements IDebugService {
 	private readonly _onDidChangeState: Emitter<State>;
 	private readonly _onDidNewSession: Emitter<IDebugSession>;
 	private readonly _onWillNewSession: Emitter<IDebugSession>;
-	private readonly _onDidEndSession: Emitter<IDebugSession>;
+	private readonly _onDidEndSession: Emitter<{ session: IDebugSession; restart: boolean }>;
+	private readonly restartingSessions = new Set<IDebugSession>();
 	private debugStorage: DebugStorage;
 	private model: DebugModel;
 	private viewModel: ViewModel;
@@ -114,7 +115,7 @@ export class DebugService implements IDebugService {
 		this._onDidChangeState = new Emitter<State>();
 		this._onDidNewSession = new Emitter<IDebugSession>();
 		this._onWillNewSession = new Emitter<IDebugSession>();
-		this._onDidEndSession = new Emitter<IDebugSession>();
+		this._onDidEndSession = new Emitter();
 
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager, { onDidNewSession: this.onDidNewSession });
 		this.disposables.add(this.adapterManager);
@@ -315,7 +316,7 @@ export class DebugService implements IDebugService {
 		return this._onWillNewSession.event;
 	}
 
-	get onDidEndSession(): Event<IDebugSession> {
+	get onDidEndSession(): Event<{ session: IDebugSession; restart: boolean }> {
 		return this._onDidEndSession.event;
 	}
 
@@ -493,7 +494,7 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
+				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, resolvedConfig.type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
 					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
 						await launch.openConfigFile({ preserveFocus: true, type }, initCancellationToken.token);
@@ -656,13 +657,16 @@ export class DebugService implements IDebugService {
 	}
 
 	private registerSessionListeners(session: DebugSession): void {
-		const sessionRunningScheduler = new RunOnceScheduler(() => {
+		const listenerDisposables = new DisposableStore();
+		this.disposables.add(listenerDisposables);
+
+		const sessionRunningScheduler = listenerDisposables.add(new RunOnceScheduler(() => {
 			// Do not immediatly defocus the stack frame if the session is running
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}
-		}, 200);
-		this.disposables.add(session.onDidChangeState(() => {
+		}, 200));
+		listenerDisposables.add(session.onDidChangeState(() => {
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				sessionRunningScheduler.schedule();
 			}
@@ -670,8 +674,12 @@ export class DebugService implements IDebugService {
 				this.onStateChange();
 			}
 		}));
-
-		this.disposables.add(session.onDidEndAdapter(async adapterExitEvent => {
+		listenerDisposables.add(this.onDidEndSession(e => {
+			if (e.session === session && !e.restart) {
+				this.disposables.delete(listenerDisposables);
+			}
+		}));
+		listenerDisposables.add(session.onDidEndAdapter(async adapterExitEvent => {
 
 			if (adapterExitEvent) {
 				if (adapterExitEvent.error) {
@@ -696,7 +704,7 @@ export class DebugService implements IDebugService {
 			}
 			this.endInitializingState();
 			this.cancelTokens(session.getId());
-			this._onDidEndSession.fire(session);
+			this._onDidEndSession.fire({ session, restart: this.restartingSessions.has(session) });
 
 			const focusedSession = this.viewModel.focusedSession;
 			if (focusedSession && focusedSession.getId() === session.getId()) {
@@ -796,42 +804,66 @@ export class DebugService implements IDebugService {
 		}
 		session.configuration.__restart = restartData;
 
+		const doRestart = async (fn: () => Promise<boolean | undefined>) => {
+			this.restartingSessions.add(session);
+			let didRestart = false;
+			try {
+				didRestart = (await fn()) !== false;
+			} catch (e) {
+				didRestart = false;
+				throw e;
+			} finally {
+				this.restartingSessions.delete(session);
+				// we previously may have issued an onDidEndSession with restart: true,
+				// assuming the adapter exited (in `registerSessionListeners`). But the
+				// restart failed, so emit the final termination now.
+				if (!didRestart) {
+					this._onDidEndSession.fire({ session, restart: false });
+				}
+			}
+		};
+
 		if (session.capabilities.supportsRestartRequest) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
-				await session.restart();
+				await doRestart(async () => {
+					await session.restart();
+					return true;
+				});
 			}
 
 			return;
 		}
 
 		const shouldFocus = !!this.viewModel.focusedSession && session.getId() === this.viewModel.focusedSession.getId();
-		// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
-		if (isAutoRestart) {
-			await session.disconnect(true);
-		} else {
-			await session.terminate(true);
-		}
+		return doRestart(async () => {
+			// If the restart is automatic  -> disconnect, otherwise -> terminate #55064
+			if (isAutoRestart) {
+				await session.disconnect(true);
+			} else {
+				await session.terminate(true);
+			}
 
-		return new Promise<void>((c, e) => {
-			setTimeout(async () => {
-				const taskResult = await runTasks();
-				if (taskResult !== TaskRunResult.Success) {
-					return;
-				}
+			return new Promise<boolean>((c, e) => {
+				setTimeout(async () => {
+					const taskResult = await runTasks();
+					if (taskResult !== TaskRunResult.Success) {
+						return c(false);
+					}
 
-				if (!resolved) {
-					return c(undefined);
-				}
+					if (!resolved) {
+						return c(false);
+					}
 
-				try {
-					await this.launchOrAttachToSession(session, shouldFocus);
-					this._onDidNewSession.fire(session);
-					c(undefined);
-				} catch (error) {
-					e(error);
-				}
-			}, 300);
+					try {
+						await this.launchOrAttachToSession(session, shouldFocus);
+						this._onDidNewSession.fire(session);
+						c(true);
+					} catch (error) {
+						e(error);
+					}
+				}, 300);
+			});
 		});
 	}
 
