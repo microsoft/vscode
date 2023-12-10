@@ -92,7 +92,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 	private maybeTriggerAutoSave(reason: SaveReason, editorIdentifier?: IEditorIdentifier): void {
 		if (editorIdentifier) {
-			if (editorIdentifier.editor.isReadonly() || editorIdentifier.editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			if (
+				!editorIdentifier.editor.isDirty() ||
+				editorIdentifier.editor.isReadonly() ||
+				editorIdentifier.editor.hasCapability(EditorInputCapabilities.Untitled)
+			) {
 				return; // no auto save for readonly or untitled editors
 			}
 
@@ -170,13 +174,13 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private scheduleAutoSave(workingCopy: IWorkingCopy): void {
+		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
+			return; // we never auto save untitled working copies
+		}
+
 		const autoSaveAfterDelay = this.filesConfigurationService.getAutoSaveConfiguration(workingCopy.resource).autoSaveDelay;
 		if (typeof autoSaveAfterDelay !== 'number') {
 			return; // auto save after delay must be enabled
-		}
-
-		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
-			return; // we never auto save untitled working copies
 		}
 
 		// Clear any running auto save operation
