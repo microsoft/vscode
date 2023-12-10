@@ -710,10 +710,11 @@ export function isEmojiImprecise(x: number): boolean {
 /**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
+ * The return value can be longer than the given value of `n`. Leading whitespace is always trimmed.
  */
 export function lcut(text: string, n: number, prefix = '') {
 	if (text.length < n) {
-		return text;
+		return text.trimStart();
 	}
 
 	const re = /\b/g;
