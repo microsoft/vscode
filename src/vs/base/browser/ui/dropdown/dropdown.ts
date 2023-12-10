@@ -62,11 +62,7 @@ class BaseDropdown extends ActionRunner {
 					return;
 				}
 
-				if (this.visible) {
-					this.hide();
-				} else {
-					this.show();
-				}
+				this.showOrHide()
 			}));
 		}
 
@@ -75,11 +71,7 @@ class BaseDropdown extends ActionRunner {
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true); // https://github.com/microsoft/vscode/issues/57997
 
-				if (this.visible) {
-					this.hide();
-				} else {
-					this.show();
-				}
+				this.showOrHide()
 			}
 		}));
 
@@ -118,6 +110,19 @@ class BaseDropdown extends ActionRunner {
 			this._onDidChangeVisibility.fire(false);
 		}
 	}
+
+	showOrHide(): void {
+		if (!this.visible) {
+			//show
+			this.visible = true;
+			this._onDidChangeVisibility.fire(true);
+		} else {
+			//hide
+			this.visible = false;
+			this._onDidChangeVisibility.fire(false);
+		}
+	}
+
 
 	isVisible(): boolean {
 		return !!this.visible;
