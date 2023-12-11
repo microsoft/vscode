@@ -57,6 +57,7 @@ export class BreadcrumbsWidget {
 	private _focusedItemIdx: number = -1;
 	private _selectedItemIdx: number = -1;
 
+	private _pendingDimLayout: IDisposable | undefined;
 	private _pendingLayout: IDisposable | undefined;
 	private _dimension: dom.Dimension | undefined;
 
@@ -100,6 +101,7 @@ export class BreadcrumbsWidget {
 	dispose(): void {
 		this._disposables.dispose();
 		this._pendingLayout?.dispose();
+		this._pendingDimLayout?.dispose();
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
@@ -112,11 +114,12 @@ export class BreadcrumbsWidget {
 		if (dim && dom.Dimension.equals(dim, this._dimension)) {
 			return;
 		}
-		this._pendingLayout?.dispose();
 		if (dim) {
 			// only measure
-			this._pendingLayout = this._updateDimensions(dim);
+			this._pendingDimLayout?.dispose();
+			this._pendingDimLayout = this._updateDimensions(dim);
 		} else {
+			this._pendingLayout?.dispose();
 			this._pendingLayout = this._updateScrollbar();
 		}
 	}
