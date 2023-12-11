@@ -290,7 +290,7 @@ suite('Notebook builtin output renderer', () => {
 
 	test(`No filepath links in text output when disabled`, async () => {
 		LinkDetector.injectedHtmlCreator = (value: string) => value;
-		const context = createContext({ outputWordWrap: true, outputScrolling: true, linkifyFilepaths: true });
+		const context = createContext({ outputWordWrap: true, outputScrolling: true, linkifyFilepaths: false });
 		const renderer = await activate(context);
 		assert.ok(renderer, 'Renderer not created');
 

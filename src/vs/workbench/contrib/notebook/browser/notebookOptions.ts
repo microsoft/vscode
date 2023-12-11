@@ -107,6 +107,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly outputLineHeight?: boolean;
 	readonly outputWordWrap?: boolean;
 	readonly outputScrolling?: boolean;
+	readonly outputLinkifyFilepaths?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({
@@ -358,6 +359,7 @@ export class NotebookOptions extends Disposable {
 		const outputLineHeight = e.affectsConfiguration(NotebookSetting.outputLineHeight);
 		const outputScrolling = e.affectsConfiguration(NotebookSetting.outputScrolling);
 		const outputWordWrap = e.affectsConfiguration(NotebookSetting.outputWordWrap);
+		const outputLinkifyFilepaths = e.affectsConfiguration(NotebookSetting.LinkifyOutputFilepaths);
 
 		if (
 			!cellStatusBarVisibility
@@ -382,7 +384,8 @@ export class NotebookOptions extends Disposable {
 			&& !interactiveWindowCollapseCodeCells
 			&& !outputLineHeight
 			&& !outputScrolling
-			&& !outputWordWrap) {
+			&& !outputWordWrap
+			&& !outputLinkifyFilepaths) {
 			return;
 		}
 
@@ -481,6 +484,10 @@ export class NotebookOptions extends Disposable {
 			configuration.outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 		}
 
+		if (outputLinkifyFilepaths) {
+			configuration.outputLinkifyFilepaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilepaths);
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -507,7 +514,8 @@ export class NotebookOptions extends Disposable {
 			interactiveWindowCollapseCodeCells,
 			outputLineHeight,
 			outputScrolling,
-			outputWordWrap
+			outputWordWrap,
+			outputLinkifyFilepaths
 		});
 	}
 

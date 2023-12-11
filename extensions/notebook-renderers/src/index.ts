@@ -353,6 +353,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> });
 
+	latestContext.onDidChangeSettings(e => {
+		console.log('settings changed', JSON.stringify(e));
+	});
+
 	const style = document.createElement('style');
 	style.textContent = `
 	#container div.output.remove-padding {
