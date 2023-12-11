@@ -1896,6 +1896,7 @@ class SCMInputWidget {
 	};
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
+	private readonly contextKeyService: IContextKeyService;
 
 	private element: HTMLElement;
 	private editorContainer: HTMLElement;
@@ -2072,17 +2073,26 @@ class SCMInputWidget {
 	}
 
 	private createToolbar(input: ISCMInput): SCMInputWidgetToolbar {
-		const actionRunner = this.instantiationService.createInstance(SCMInputWidgetActionRunner, input);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['scmProvider', input.repository.provider.contextValue],
+			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
+			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
+		]);
+
+		const serviceCollection = new ServiceCollection([IContextKeyService, contextKeyService]);
+		const instantiationService = this.instantiationService.createChild(serviceCollection);
+
+		const actionRunner = instantiationService.createInstance(SCMInputWidgetActionRunner, input);
 		this.repositoryDisposables.add(actionRunner);
 
-		const toolbar: SCMInputWidgetToolbar = this.instantiationService.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, input, actionRunner, {
+		const toolbar: SCMInputWidgetToolbar = instantiationService.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, input, actionRunner, {
 			actionRunner,
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction && toolbar.dropdownActions.length > 1) {
-					return this.instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, toolbar.dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, { actionRunner });
+					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, toolbar.dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, { actionRunner });
 				}
 
-				return createActionViewItem(this.instantiationService, action);
+				return createActionViewItem(instantiationService, action);
 			},
 			menuOptions: {
 				shouldForwardArgs: true
@@ -2135,8 +2145,8 @@ class SCMInputWidget {
 
 		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
 
-		const contextKeyService2 = contextKeyService.createScoped(this.element);
-		this.repositoryIdContextKey = contextKeyService2.createKey('scmRepository', undefined);
+		this.contextKeyService = contextKeyService.createScoped(this.element);
+		this.repositoryIdContextKey = this.contextKeyService.createKey('scmRepository', undefined);
 
 		const editorOptions: IEditorConstructionOptions = {
 			...getSimpleEditorOptions(configurationService),
@@ -2180,7 +2190,7 @@ class SCMInputWidget {
 			])
 		};
 
-		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
+		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		const instantiationService2 = instantiationService.createChild(services);
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
 		this.disposables.add(this.inputEditor);
@@ -2203,8 +2213,8 @@ class SCMInputWidget {
 			}, 0);
 		}));
 
-		const firstLineKey = contextKeyService2.createKey<boolean>('scmInputIsInFirstPosition', false);
-		const lastLineKey = contextKeyService2.createKey<boolean>('scmInputIsInLastPosition', false);
+		const firstLineKey = this.contextKeyService.createKey<boolean>('scmInputIsInFirstPosition', false);
+		const lastLineKey = this.contextKeyService.createKey<boolean>('scmInputIsInLastPosition', false);
 
 		this.disposables.add(this.inputEditor.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputEditor._getViewModel()!;
