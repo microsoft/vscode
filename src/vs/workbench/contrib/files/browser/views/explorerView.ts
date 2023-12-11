@@ -670,7 +670,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
-	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
+	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true, subtreeChanged: boolean = false): Promise<void> {
 		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
 			// Tree node doesn't exist yet, when it becomes visible we will refresh
 			return Promise.resolve(undefined);
@@ -683,7 +683,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const toRefresh = item || this.tree.getInput();
 		return this.tree.updateChildren(toRefresh, recursive, !!item, {
 			diffIdentityProvider: identityProvider
-		});
+		}, subtreeChanged);
 	}
 
 	override getOptimalWidth(): number {

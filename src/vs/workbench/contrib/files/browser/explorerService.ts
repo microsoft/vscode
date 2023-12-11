@@ -458,7 +458,7 @@ export class ExplorerService implements IExplorerService {
 						await this.view?.refresh(false, oldNestedParent);
 					}
 					// Refresh Parent (View)
-					await this.view?.refresh(shouldDeepRefresh, parent);
+					await this.view?.refresh(shouldDeepRefresh, parent, undefined, true);
 				}
 			}));
 		}

@@ -52,7 +52,7 @@ export const IExplorerService = createDecorator<IExplorerService>('explorerServi
 export interface IExplorerView {
 	autoReveal: boolean | 'force' | 'focusNoScroll';
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
+	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing?: boolean, subtreeChanged?: boolean): Promise<void>;
 	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;

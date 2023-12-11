@@ -531,8 +531,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
-		const firstRefreshableElement = this.getFirstExpandedParent(element);
+	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T>, subtreeChanged: boolean = false): Promise<void> {
+		const firstRefreshableElement = subtreeChanged ? this.getFirstExpandedParent(element) : element;
 		const forceRecursive = firstRefreshableElement !== element;
 		await this._updateChildren(firstRefreshableElement, recursive || forceRecursive, rerender, undefined, options);
 	}
