@@ -1416,13 +1416,9 @@ interface RepositoryVisibilityItem {
 
 class RepositoryVisibilityActionController {
 
-	private alwaysShowRepositories = false;
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
-	private scmProviderContextKey: IContextKey<string | undefined>;
-	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
-	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -1433,12 +1429,6 @@ class RepositoryVisibilityActionController {
 	) {
 		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
 		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
-		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
-		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
-		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
-
-		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		this.onDidChangeConfiguration();
 
 		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
@@ -1492,27 +1482,9 @@ class RepositoryVisibilityActionController {
 		this.repositoryVisibilityCountContextKey.set(count);
 	}
 
-	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
-		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
-			this.alwaysShowRepositories = this.contextKeyService.getContextKeyValue('scm.alwaysShowRepositories') === true;
-			this.updateRepositoryContextKeys();
-		}
-	}
-
 	private updateRepositoryContextKeys(): void {
 		this.repositoryCountContextKey.set(this.items.size);
 		this.repositoryVisibilityCountContextKey.set(Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0));
-
-		if (!this.alwaysShowRepositories && this.items.size === 1) {
-			const provider = Iterable.first(this.items.keys())!.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
-			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
-			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
-		} else {
-			this.scmProviderContextKey.set(undefined);
-			this.scmProviderRootUriContextKey.set(undefined);
-			this.scmProviderHasRootUriContextKey.set(false);
-		}
 	}
 
 	dispose(): void {
@@ -2560,6 +2532,10 @@ export class SCMViewPane extends ViewPane {
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
 
+	private scmProviderContextKey: IContextKey<string | undefined>;
+	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
+	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
+
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -2594,6 +2570,9 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
+		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
+		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
+		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
 
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = { height: undefined, width: undefined, onDidChange: this._onDidLayout.event };
@@ -3090,6 +3069,7 @@ export class SCMViewPane extends ViewPane {
 						this.inputRenderer.getRenderedInputWidget(focusedInput)?.forEach(widget => widget.focus());
 					}
 
+					this.updateScmProviderContextKeys();
 					this.updateRepositoryCollapseAllContextKeys();
 				}));
 	}
@@ -3099,6 +3079,19 @@ export class SCMViewPane extends ViewPane {
 		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
 		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
 		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
+	}
+
+	private updateScmProviderContextKeys(): void {
+		if (!this.alwaysShowRepositories && this.items.size === 1) {
+			const provider = Iterable.first(this.items.keys())!.provider;
+			this.scmProviderContextKey.set(provider.contextValue);
+			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
+			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
+		} else {
+			this.scmProviderContextKey.set(undefined);
+			this.scmProviderRootUriContextKey.set(undefined);
+			this.scmProviderHasRootUriContextKey.set(false);
+		}
 	}
 
 	private updateRepositoryCollapseAllContextKeys(): void {
