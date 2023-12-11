@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow, getWindowId, getActiveElement } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, trackFocus } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -281,6 +281,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
 
+	private lastFocusedPart: Parts | undefined;
+
 	private disposed = false;
 
 	constructor(
@@ -393,6 +395,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			disposables.add(window.onDidLayout(dimension => this.handleContainerDidLayout(window.container, dimension)));
 			disposables.add(toDisposable(() => this.auxWindowStylesLoaded.delete(window.container)));
 		}));
+
+		this.whenRestored.then(() => {
+			this.lastFocusedPart = this.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : Parts.EDITOR_PART;
+			const editorContainer = this.getContainer(mainWindow, Parts.EDITOR_PART);
+			if (editorContainer) {
+				this._register(trackFocus(editorContainer)).onDidFocus(() => {
+					this.lastFocusedPart = Parts.EDITOR_PART;
+				});
+			}
+			const panelContainer = this.getContainer(mainWindow, Parts.PANEL_PART);
+			if (panelContainer) {
+				this._register(trackFocus(panelContainer)).onDidFocus(() => {
+					this.lastFocusedPart = Parts.PANEL_PART;
+				});
+			}
+		});
 	}
 
 	private onMenubarToggled(visible: boolean): void {
@@ -1748,7 +1766,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Pass Focus to Editor or Panel if Sidebar is now hidden
 			const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+			if (activePanel && (this.lastFocusedPart === Parts.PANEL_PART || !this.isVisible(Parts.EDITOR_PART))) {
 				activePanel.focus();
 			} else {
 				this.focus();
@@ -1988,7 +2006,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Pass Focus to Editor or Panel if Auxiliary Bar is now hidden
 			const activePanel = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
-			if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
+			if (activePanel && (this.lastFocusedPart === Parts.PANEL_PART || !this.isVisible(Parts.EDITOR_PART))) {
 				activePanel.focus();
 			} else {
 				this.focus();
