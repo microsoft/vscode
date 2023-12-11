@@ -2262,7 +2262,8 @@ class SCMInputWidget {
 	}
 
 	getContentHeight(): number {
-		const editorContentHeight = this.inputEditor.getContentHeight();
+		const inputEditorMinHeight = this.getInputEditorMinHeight();
+		const editorContentHeight = Math.max(this.inputEditor.getContentHeight(), inputEditorMinHeight);
 		const editorContextHeightMax = this.getInputEditorMaxHeight();
 
 		return Math.min(editorContentHeight, editorContextHeightMax);
@@ -2407,6 +2408,11 @@ class SCMInputWidget {
 		return typeof inputMaxLines === 'number' ? clamp(inputMaxLines, 1, 50) : 10;
 	}
 
+	private getInputEditorMinLines(): number {
+		const inputMinLines = this.configurationService.getValue('scm.inputMinLines');
+		return typeof inputMinLines === 'number' ? clamp(inputMinLines, 1, 50) : 1;
+	}
+
 	private getInputEditorMaxHeight(): number {
 		const maxLines = this.getInputEditorMaxLines();
 		const fontSize = this.getInputEditorFontSize();
@@ -2414,6 +2420,15 @@ class SCMInputWidget {
 		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
 
 		return maxLines * lineHeight + top + bottom;
+	}
+
+	private getInputEditorMinHeight(): number {
+		const minLines = this.getInputEditorMinLines();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
+
+		return minLines * lineHeight + top + bottom;
 	}
 
 	private getToolbarWidth(): number {
