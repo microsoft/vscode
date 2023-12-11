@@ -6,9 +6,10 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IDiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CellViewModelStateChangeEvent, ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -69,9 +70,9 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 
 	protected _outputCollection: number[] = [];
 	protected _outputsTop: PrefixSumComputer | null = null;
-	protected readonly _onDidChangeOutputLayout = new Emitter<void>();
-	readonly onDidChangeOutputLayout = this._onDidChangeOutputLayout.event;
 
+	protected readonly _onDidChangeOutputLayout = this._register(new Emitter<void>());
+	readonly onDidChangeOutputLayout = this._onDidChangeOutputLayout.event;
 
 	constructor(
 		readonly textModel: NotebookCellTextModel,
@@ -83,7 +84,8 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		this._outputViewModels = this.textModel.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 		this._register(this.textModel.onDidChangeOutputs((splice) => {
 			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
-			this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
+			const removed = this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
+			removed.forEach(vm => vm.dispose());
 
 			this._outputsTop = null;
 			this._onDidChangeOutputLayout.fire();
@@ -109,7 +111,7 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 			throw new Error('Output index out of range!');
 		}
 
-		return this._outputsTop!.getAccumulatedValue(index - 1);
+		return this._outputsTop!.getPrefixSum(index - 1);
 	}
 
 	updateOutputHeight(index: number, height: number): void {
@@ -119,7 +121,7 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 
 		this._ensureOutputsTop();
 		this._outputCollection[index] = height;
-		if (this._outputsTop!.changeValue(index, height)) {
+		if (this._outputsTop!.setValue(index, height)) {
 			this._onDidChangeOutputLayout.fire();
 		}
 	}
@@ -127,6 +129,14 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 	getOutputTotalHeight() {
 		this._ensureOutputsTop();
 
-		return this._outputsTop?.getTotalValue() ?? 0;
+		return this._outputsTop?.getTotalSum() ?? 0;
+	}
+
+	public override dispose(): void {
+		super.dispose();
+
+		this._outputViewModels.forEach(output => {
+			output.dispose();
+		});
 	}
 }

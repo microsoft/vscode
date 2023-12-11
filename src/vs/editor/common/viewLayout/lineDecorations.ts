@@ -5,11 +5,11 @@
 
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
-import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
-import { LinePartMetadata } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { LinePartMetadata } from 'vs/editor/common/viewLayout/linePart';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 
 export class LineDecoration {
-	_lineDecorationBrand: void;
+	_lineDecorationBrand: void = undefined;
 
 	constructor(
 		public readonly startColumn: number,
@@ -65,7 +65,8 @@ export class LineDecoration {
 			return [];
 		}
 
-		let result: LineDecoration[] = [], resultLen = 0;
+		const result: LineDecoration[] = [];
+		let resultLen = 0;
 
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
 			const d = lineDecorations[i];
@@ -96,23 +97,24 @@ export class LineDecoration {
 	}
 
 	public static compare(a: LineDecoration, b: LineDecoration): number {
-		if (a.startColumn === b.startColumn) {
-			if (a.endColumn === b.endColumn) {
-				const typeCmp = LineDecoration._typeCompare(a.type, b.type);
-				if (typeCmp === 0) {
-					if (a.className < b.className) {
-						return -1;
-					}
-					if (a.className > b.className) {
-						return 1;
-					}
-					return 0;
-				}
-				return typeCmp;
-			}
+		if (a.startColumn !== b.startColumn) {
+			return a.startColumn - b.startColumn;
+		}
+
+		if (a.endColumn !== b.endColumn) {
 			return a.endColumn - b.endColumn;
 		}
-		return a.startColumn - b.startColumn;
+
+		const typeCmp = LineDecoration._typeCompare(a.type, b.type);
+		if (typeCmp !== 0) {
+			return typeCmp;
+		}
+
+		if (a.className !== b.className) {
+			return a.className < b.className ? -1 : 1;
+		}
+
+		return 0;
 	}
 }
 
@@ -211,7 +213,7 @@ export class LineDecorationsNormalizer {
 			return [];
 		}
 
-		let result: DecorationSegment[] = [];
+		const result: DecorationSegment[] = [];
 
 		const stack = new Stack();
 		let nextStartOffset = 0;

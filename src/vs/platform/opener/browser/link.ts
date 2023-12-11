@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { $, EventHelper, EventLike } from 'vs/base/browser/dom';
+import { $, append, EventHelper, EventLike, clearNode } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
+import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import 'vs/css!./link';
 
 export interface ILinkDescriptor {
-	readonly label: string;
+	readonly label: string | HTMLElement;
 	readonly href: string;
 	readonly title?: string;
+	readonly tabIndex?: number;
 }
 
 export interface ILinkOptions {
@@ -26,7 +27,7 @@ export interface ILinkOptions {
 
 export class Link extends Disposable {
 
-	readonly el: HTMLAnchorElement;
+	private el: HTMLAnchorElement;
 	private _enabled: boolean = true;
 
 	get enabled(): boolean {
@@ -53,26 +54,52 @@ export class Link extends Disposable {
 		this._enabled = enabled;
 	}
 
+	set link(link: ILinkDescriptor) {
+		if (typeof link.label === 'string') {
+			this.el.textContent = link.label;
+		} else {
+			clearNode(this.el);
+			this.el.appendChild(link.label);
+		}
+
+		this.el.href = link.href;
+
+		if (typeof link.tabIndex !== 'undefined') {
+			this.el.tabIndex = link.tabIndex;
+		}
+
+		if (typeof link.title !== 'undefined') {
+			this.el.title = link.title;
+		}
+
+		this._link = link;
+	}
+
 	constructor(
-		link: ILinkDescriptor,
-		options: ILinkOptions | undefined = undefined,
+		container: HTMLElement,
+		private _link: ILinkDescriptor,
+		options: ILinkOptions = {},
 		@IOpenerService openerService: IOpenerService
 	) {
 		super();
 
-		this.el = $<HTMLAnchorElement>('a.monaco-link', {
-			tabIndex: 0,
-			href: link.href,
-			title: link.title
-		}, link.label);
+		this.el = append(container, $('a.monaco-link', {
+			tabIndex: _link.tabIndex ?? 0,
+			href: _link.href,
+			title: _link.title
+		}, _link.label));
+
+		this.el.setAttribute('role', 'button');
 
 		const onClickEmitter = this._register(new DomEmitter(this.el, 'click'));
 		const onKeyPress = this._register(new DomEmitter(this.el, 'keypress'));
-		const onEnterPress = Event.chain(onKeyPress.event)
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.Enter)
-			.event;
-		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress);
+		const onEnterPress = Event.chain(onKeyPress.event, $ =>
+			$.map(e => new StandardKeyboardEvent(e))
+				.filter(e => e.keyCode === KeyCode.Enter)
+		);
+		const onTap = this._register(new DomEmitter(this.el, TouchEventType.Tap)).event;
+		this._register(Gesture.addTarget(this.el));
+		const onOpen = Event.any<EventLike>(onClickEmitter.event, onEnterPress, onTap);
 
 		this._register(onOpen(e => {
 			if (!this.enabled) {
@@ -82,24 +109,12 @@ export class Link extends Disposable {
 			EventHelper.stop(e, true);
 
 			if (options?.opener) {
-				options.opener(link.href);
+				options.opener(this._link.href);
 			} else {
-				openerService.open(link.href, { allowCommands: true });
+				openerService.open(this._link.href, { allowCommands: true });
 			}
 		}));
 
 		this.enabled = true;
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	const textLinkForegroundColor = theme.getColor(textLinkForeground);
-	if (textLinkForegroundColor) {
-		collector.addRule(`.monaco-link { color: ${textLinkForegroundColor}; }`);
-	}
-
-	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
-	if (textLinkActiveForegroundColor) {
-		collector.addRule(`.monaco-link:hover { color: ${textLinkActiveForegroundColor}; }`);
-	}
-});

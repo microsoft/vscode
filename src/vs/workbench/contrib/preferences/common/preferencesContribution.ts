@@ -7,25 +7,23 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInputWithOptions } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContributedEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
-import { PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { EditorInputWithOptions } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -37,65 +35,66 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IModeService private readonly modeService: IModeService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
-				this.handleSettingsEditorOverride();
+			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING) || e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
+				this.handleSettingsEditorRegistration();
 			}
 		});
-		this.handleSettingsEditorOverride();
+		this.handleSettingsEditorRegistration();
 
 		this.start();
 	}
 
-	private handleSettingsEditorOverride(): void {
+	private handleSettingsEditorRegistration(): void {
 
 		// dispose any old listener we had
 		dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
-		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
-			this.editorOpeningListener = this.editorOverrideService.registerEditor(
+		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING) || !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
+			this.editorOpeningListener = this.editorResolverService.registerEditor(
 				'**/settings.json',
 				{
-					id: PreferencesEditorInput.ID,
-					detail: 'Split Settings Editor (deprecated)',
-					label: 'label',
-					priority: ContributedEditorPriority.builtin,
+					id: SideBySideEditorInput.ID,
+					label: nls.localize('splitSettingsEditorLabel', "Split Settings Editor"),
+					priority: RegisteredEditorPriority.builtin,
 				},
 				{},
-				(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup): IEditorInputWithOptions => {
-					// Global User Settings File
-					if (isEqual(resource, this.environmentService.settingsResource)) {
-						return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource, group), options };
-					}
-
-					// Single Folder Workspace Settings File
-					const state = this.workspaceService.getWorkbenchState();
-					if (state === WorkbenchState.FOLDER) {
-						const folders = this.workspaceService.getWorkspace().folders;
-						if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
-							return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource, group), options };
+				{
+					createEditorInput: ({ resource, options }): EditorInputWithOptions => {
+						// Global User Settings File
+						if (isEqual(resource, this.userDataProfileService.currentProfile.settingsResource)) {
+							return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource), options };
 						}
-					}
 
-					// Multi Folder Workspace Settings File
-					else if (state === WorkbenchState.WORKSPACE) {
-						const folders = this.workspaceService.getWorkspace().folders;
-						for (const folder of folders) {
-							if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
-								return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource, group), options };
+						// Single Folder Workspace Settings File
+						const state = this.workspaceService.getWorkbenchState();
+						if (state === WorkbenchState.FOLDER) {
+							const folders = this.workspaceService.getWorkspace().folders;
+							if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
+								return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource), options };
 							}
 						}
-					}
 
-					return { editor: this.editorService.createEditorInput({ resource }), options };
+						// Multi Folder Workspace Settings File
+						else if (state === WorkbenchState.WORKSPACE) {
+							const folders = this.workspaceService.getWorkspace().folders;
+							for (const folder of folders) {
+								if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
+									return { editor: this.preferencesService.createSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource), options };
+								}
+							}
+						}
+
+						return { editor: this.textEditorService.createTextEditor({ resource }), options };
+					}
 				}
 			);
 		}
@@ -104,39 +103,32 @@ export class PreferencesContribution implements IWorkbenchContribution {
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
-			provideTextContent: (uri: URI): Promise<ITextModel | null> | null => {
+			provideTextContent: async (uri: URI): Promise<ITextModel | null> => {
 				if (uri.scheme !== 'vscode') {
 					return null;
 				}
 				if (uri.authority === 'schemas') {
-					const schemaModel = this.getSchemaModel(uri);
-					if (schemaModel) {
-						return Promise.resolve(schemaModel);
-					}
+					return this.getSchemaModel(uri);
 				}
 				return this.preferencesService.resolveModel(uri);
 			}
 		});
 	}
 
-	private getSchemaModel(uri: URI): ITextModel | null {
-		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-		if (schema) {
-			const modelContent = JSON.stringify(schema);
-			const languageSelection = this.modeService.create('jsonc');
-			const model = this.modelService.createModel(modelContent, languageSelection, uri);
-			const disposables = new DisposableStore();
-			disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
-				if (schemaUri === uri.toString()) {
-					schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-					model.setValue(JSON.stringify(schema));
-				}
-			}));
-			disposables.add(model.onWillDispose(() => disposables.dispose()));
-
-			return model;
-		}
-		return null;
+	private getSchemaModel(uri: URI): ITextModel {
+		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()] ?? {} /* Use empty schema if not yet registered */;
+		const modelContent = JSON.stringify(schema);
+		const languageSelection = this.languageService.createById('jsonc');
+		const model = this.modelService.createModel(modelContent, languageSelection, uri);
+		const disposables = new DisposableStore();
+		disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
+			if (schemaUri === uri.toString()) {
+				schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
+				model.setValue(JSON.stringify(schema));
+			}
+		}));
+		disposables.add(model.onWillDispose(() => disposables.dispose()));
+		return model;
 	}
 
 	dispose(): void {
@@ -161,9 +153,9 @@ registry.registerConfiguration({
 			'enum': ['hide', 'filter'],
 			'enumDescriptions': [
 				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
-				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
+				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking on a category will filter the results to that category."),
 			],
-			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
+			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the Settings editor Table of Contents while searching. If this setting is being changed in the Settings editor, the setting will take effect after the search query is modified."),
 			'default': 'filter',
 			'scope': ConfigurationScope.WINDOW
 		},

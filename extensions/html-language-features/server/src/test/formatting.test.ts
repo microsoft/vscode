@@ -10,16 +10,16 @@ import * as assert from 'assert';
 import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
 
 import { format } from '../modes/formatting';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs';
 
 suite('HTML Embedded Formatting', () => {
 
 	async function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): Promise<void> {
-		let workspace = {
+		const workspace = {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
-		const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+		const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -32,21 +32,21 @@ suite('HTML Embedded Formatting', () => {
 			rangeStartOffset = 0;
 			rangeEndOffset = value.length;
 		}
-		let document = TextDocument.create('test://test/test.html', 'html', 0, value);
-		let range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
+		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
+		const range = Range.create(document.positionAt(rangeStartOffset), document.positionAt(rangeEndOffset));
 		if (!formatOptions) {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		let result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
+		const result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
 
-		let actual = TextDocument.applyEdits(document, result);
+		const actual = TextDocument.applyEdits(document, result);
 		assert.strictEqual(actual, expected, message);
 	}
 
 	async function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): Promise<void> {
-		let input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
-		let expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
+		const input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
+		const expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		await assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 
@@ -77,7 +77,7 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('HTML & Multiple Scripts', async () => {
-		await assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){    }\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n  </script>\n  <script>\n    function(x) {}\n  </script>\n</head>\n\n</html>');
+		await assertFormat('<html><head>\n<script>\nif(x){\nbar(); }\n</script><script>\nfunction(x){    }\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    if (x) {\n      bar();\n    }\n  </script>\n  <script>\n    function(x) { }\n  </script>\n</head>\n\n</html>');
 	});
 
 	test('HTML & Styles', async () => {
@@ -85,16 +85,13 @@ suite('HTML Embedded Formatting', () => {
 	});
 
 	test('EndWithNewline', async () => {
-		let options = {
-			html: {
-				format: {
-					endWithNewline: true
-				}
-			}
-		};
-		await assertFormat('<html><body><p>Hello</p></body></html>', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>\n', options);
-		await assertFormat('<html>|<body><p>Hello</p></body>|</html>', '<html><body>\n  <p>Hello</p>\n</body></html>', options);
-		await assertFormat('<html><head><script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n  </script>\n</head>\n\n</html>\n', options);
+		const options: FormattingOptions = FormattingOptions.create(2, true);
+		options.insertFinalNewline = true;
+
+		await assertFormat('<html><body><p>Hello</p></body></html>', '<html>\n\n<body>\n  <p>Hello</p>\n</body>\n\n</html>\n', {}, options);
+		await assertFormat('<html>|<body><p>Hello</p></body>|</html>', '<html><body>\n  <p>Hello</p>\n</body></html>', {}, options);
+		await assertFormat('<html>|<body><p>Hello</p></body></html>|', '<html><body>\n  <p>Hello</p>\n</body>\n\n</html>\n', {}, options);
+		await assertFormat('<html><head><script>\nvar x=1;\n</script></head></html>', '<html>\n\n<head>\n  <script>\n    var x = 1;\n  </script>\n</head>\n\n</html>\n', {}, options);
 	});
 
 	test('Inside script', async () => {
@@ -120,7 +117,7 @@ suite('HTML Embedded Formatting', () => {
 				'<body>',
 				'',
 				'    <script>',
-				'        function f(x) {}',
+				'        function f(x) { }',
 				'        f(function () {',
 				'        // ',
 				'',
@@ -143,7 +140,7 @@ suite('HTML Embedded Formatting', () => {
 				'<body>',
 				'',
 				'  <script>',
-				'    function f(x) {}',
+				'    function f(x) { }',
 				'    f(function () {',
 				'      // ',
 				'',
@@ -160,7 +157,7 @@ suite('HTML Embedded Formatting', () => {
 		);
 	});
 	test('#58435', async () => {
-		let options = {
+		const options = {
 			html: {
 				format: {
 					contentUnformatted: 'textarea'

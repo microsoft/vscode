@@ -2,579 +2,620 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { ThemeIcon } from 'vs/base/common/themables';
+import { isString } from 'vs/base/common/types';
 
-import { Emitter, Event } from 'vs/base/common/event';
+const _codiconFontCharacters: { [id: string]: number } = Object.create(null);
 
-export interface IIconRegistry {
-	readonly all: IterableIterator<Codicon>;
-	readonly onDidRegister: Event<Codicon>;
-	get(id: string): Codicon | undefined;
-}
-
-class Registry implements IIconRegistry {
-
-	private readonly _icons = new Map<string, Codicon>();
-	private readonly _onDidRegister = new Emitter<Codicon>();
-
-	public add(icon: Codicon) {
-		const existing = this._icons.get(icon.id);
-		if (!existing) {
-			this._icons.set(icon.id, icon);
-			this._onDidRegister.fire(icon);
-		} else if (icon.description) {
-			existing.description = icon.description;
-		} else {
-			console.error(`Duplicate registration of codicon ${icon.id}`);
+function register(id: string, fontCharacter: number | string): ThemeIcon {
+	if (isString(fontCharacter)) {
+		const val = _codiconFontCharacters[fontCharacter];
+		if (val === undefined) {
+			throw new Error(`${id} references an unknown codicon: ${fontCharacter}`);
 		}
+		fontCharacter = val;
 	}
-
-	public get(id: string): Codicon | undefined {
-		return this._icons.get(id);
-	}
-
-	public get all(): IterableIterator<Codicon> {
-		return this._icons.values();
-	}
-
-	public get onDidRegister(): Event<Codicon> {
-		return this._onDidRegister.event;
-	}
+	_codiconFontCharacters[id] = fontCharacter;
+	return { id };
 }
 
-const _registry = new Registry();
-
-export const iconRegistry: IIconRegistry = _registry;
-
-export function registerCodicon(id: string, def: Codicon): Codicon {
-	return new Codicon(id, def);
+/**
+ * Only to be used by the iconRegistry.
+ */
+export function getCodiconFontCharacters(): { [id: string]: number } {
+	return _codiconFontCharacters;
 }
 
-// Selects all codicon names encapsulated in the `$()` syntax and wraps the
-// results with spaces so that screen readers can read the text better.
-export function getCodiconAriaLabel(text: string | undefined) {
-	if (!text) {
-		return '';
-	}
-
-	return text.replace(/\$\((.*?)\)/g, (_match, codiconName) => ` ${codiconName} `).trim();
+/**
+ * Only to be used by the iconRegistry.
+ */
+export function getAllCodicons(): ThemeIcon[] {
+	return Object.values(Codicon);
 }
 
-export class Codicon implements CSSIcon {
-	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
-		_registry.add(this);
-	}
-	public get classNames() { return 'codicon codicon-' + this.id; }
-	// classNamesArray is useful for migrating to ES6 classlist
-	public get classNamesArray() { return ['codicon', 'codicon-' + this.id]; }
-	public get cssSelector() { return '.codicon.codicon-' + this.id; }
-}
-
-export function getClassNamesArray(id: string, modifier?: string) {
-	const classNames = ['codicon', 'codicon-' + id];
-	if (modifier) {
-		classNames.push('codicon-modifier-' + modifier);
-	}
-	return classNames;
-}
-
-export interface CSSIcon {
-	readonly id: string;
-}
-
-
-export namespace CSSIcon {
-	export const iconNameSegment = '[A-Za-z0-9]+';
-	export const iconNameExpression = '[A-Za-z0-9\\-]+';
-	export const iconModifierExpression = '~[A-Za-z]+';
-
-	const cssIconIdRegex = new RegExp(`^(${iconNameExpression})(${iconModifierExpression})?$`);
-
-	export function asClassNameArray(icon: CSSIcon): string[] {
-		if (icon instanceof Codicon) {
-			return ['codicon', 'codicon-' + icon.id];
-		}
-		const match = cssIconIdRegex.exec(icon.id);
-		if (!match) {
-			return asClassNameArray(Codicon.error);
-		}
-		let [, id, modifier] = match;
-		const classNames = ['codicon', 'codicon-' + id];
-		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substr(1));
-		}
-		return classNames;
-	}
-
-	export function asClassName(icon: CSSIcon): string {
-		return asClassNameArray(icon).join(' ');
-	}
-
-	export function asCSSSelector(icon: CSSIcon): string {
-		return '.' + asClassNameArray(icon).join('.');
-	}
-}
-
-
-
-interface IconDefinition {
-	fontCharacter: string;
-}
-
-export namespace Codicon {
+/**
+ * The Codicon library is a set of default icons that are built-in in VS Code.
+ *
+ * In the product (outside of base) Codicons should only be used as defaults. In order to have all icons in VS Code
+ * themeable, component should define new, UI component specific icons using `iconRegistry.registerIcon`.
+ * In that call a Codicon can be named as default.
+ */
+export const Codicon = {
 
 	// built-in icons, with image name
-	export const add = new Codicon('add', { fontCharacter: '\\ea60' });
-	export const plus = new Codicon('plus', { fontCharacter: '\\ea60' });
-	export const gistNew = new Codicon('gist-new', { fontCharacter: '\\ea60' });
-	export const repoCreate = new Codicon('repo-create', { fontCharacter: '\\ea60' });
-	export const lightbulb = new Codicon('lightbulb', { fontCharacter: '\\ea61' });
-	export const lightBulb = new Codicon('light-bulb', { fontCharacter: '\\ea61' });
-	export const repo = new Codicon('repo', { fontCharacter: '\\ea62' });
-	export const repoDelete = new Codicon('repo-delete', { fontCharacter: '\\ea62' });
-	export const gistFork = new Codicon('gist-fork', { fontCharacter: '\\ea63' });
-	export const repoForked = new Codicon('repo-forked', { fontCharacter: '\\ea63' });
-	export const gitPullRequest = new Codicon('git-pull-request', { fontCharacter: '\\ea64' });
-	export const gitPullRequestAbandoned = new Codicon('git-pull-request-abandoned', { fontCharacter: '\\ea64' });
-	export const recordKeys = new Codicon('record-keys', { fontCharacter: '\\ea65' });
-	export const keyboard = new Codicon('keyboard', { fontCharacter: '\\ea65' });
-	export const tag = new Codicon('tag', { fontCharacter: '\\ea66' });
-	export const tagAdd = new Codicon('tag-add', { fontCharacter: '\\ea66' });
-	export const tagRemove = new Codicon('tag-remove', { fontCharacter: '\\ea66' });
-	export const person = new Codicon('person', { fontCharacter: '\\ea67' });
-	export const personFollow = new Codicon('person-follow', { fontCharacter: '\\ea67' });
-	export const personOutline = new Codicon('person-outline', { fontCharacter: '\\ea67' });
-	export const personFilled = new Codicon('person-filled', { fontCharacter: '\\ea67' });
-	export const gitBranch = new Codicon('git-branch', { fontCharacter: '\\ea68' });
-	export const gitBranchCreate = new Codicon('git-branch-create', { fontCharacter: '\\ea68' });
-	export const gitBranchDelete = new Codicon('git-branch-delete', { fontCharacter: '\\ea68' });
-	export const sourceControl = new Codicon('source-control', { fontCharacter: '\\ea68' });
-	export const mirror = new Codicon('mirror', { fontCharacter: '\\ea69' });
-	export const mirrorPublic = new Codicon('mirror-public', { fontCharacter: '\\ea69' });
-	export const star = new Codicon('star', { fontCharacter: '\\ea6a' });
-	export const starAdd = new Codicon('star-add', { fontCharacter: '\\ea6a' });
-	export const starDelete = new Codicon('star-delete', { fontCharacter: '\\ea6a' });
-	export const starEmpty = new Codicon('star-empty', { fontCharacter: '\\ea6a' });
-	export const comment = new Codicon('comment', { fontCharacter: '\\ea6b' });
-	export const commentAdd = new Codicon('comment-add', { fontCharacter: '\\ea6b' });
-	export const alert = new Codicon('alert', { fontCharacter: '\\ea6c' });
-	export const warning = new Codicon('warning', { fontCharacter: '\\ea6c' });
-	export const search = new Codicon('search', { fontCharacter: '\\ea6d' });
-	export const searchSave = new Codicon('search-save', { fontCharacter: '\\ea6d' });
-	export const logOut = new Codicon('log-out', { fontCharacter: '\\ea6e' });
-	export const signOut = new Codicon('sign-out', { fontCharacter: '\\ea6e' });
-	export const logIn = new Codicon('log-in', { fontCharacter: '\\ea6f' });
-	export const signIn = new Codicon('sign-in', { fontCharacter: '\\ea6f' });
-	export const eye = new Codicon('eye', { fontCharacter: '\\ea70' });
-	export const eyeUnwatch = new Codicon('eye-unwatch', { fontCharacter: '\\ea70' });
-	export const eyeWatch = new Codicon('eye-watch', { fontCharacter: '\\ea70' });
-	export const circleFilled = new Codicon('circle-filled', { fontCharacter: '\\ea71' });
-	export const primitiveDot = new Codicon('primitive-dot', { fontCharacter: '\\ea71' });
-	export const closeDirty = new Codicon('close-dirty', { fontCharacter: '\\ea71' });
-	export const debugBreakpoint = new Codicon('debug-breakpoint', { fontCharacter: '\\ea71' });
-	export const debugBreakpointDisabled = new Codicon('debug-breakpoint-disabled', { fontCharacter: '\\ea71' });
-	export const debugHint = new Codicon('debug-hint', { fontCharacter: '\\ea71' });
-	export const primitiveSquare = new Codicon('primitive-square', { fontCharacter: '\\ea72' });
-	export const edit = new Codicon('edit', { fontCharacter: '\\ea73' });
-	export const pencil = new Codicon('pencil', { fontCharacter: '\\ea73' });
-	export const info = new Codicon('info', { fontCharacter: '\\ea74' });
-	export const issueOpened = new Codicon('issue-opened', { fontCharacter: '\\ea74' });
-	export const gistPrivate = new Codicon('gist-private', { fontCharacter: '\\ea75' });
-	export const gitForkPrivate = new Codicon('git-fork-private', { fontCharacter: '\\ea75' });
-	export const lock = new Codicon('lock', { fontCharacter: '\\ea75' });
-	export const mirrorPrivate = new Codicon('mirror-private', { fontCharacter: '\\ea75' });
-	export const close = new Codicon('close', { fontCharacter: '\\ea76' });
-	export const removeClose = new Codicon('remove-close', { fontCharacter: '\\ea76' });
-	export const x = new Codicon('x', { fontCharacter: '\\ea76' });
-	export const repoSync = new Codicon('repo-sync', { fontCharacter: '\\ea77' });
-	export const sync = new Codicon('sync', { fontCharacter: '\\ea77' });
-	export const clone = new Codicon('clone', { fontCharacter: '\\ea78' });
-	export const desktopDownload = new Codicon('desktop-download', { fontCharacter: '\\ea78' });
-	export const beaker = new Codicon('beaker', { fontCharacter: '\\ea79' });
-	export const microscope = new Codicon('microscope', { fontCharacter: '\\ea79' });
-	export const vm = new Codicon('vm', { fontCharacter: '\\ea7a' });
-	export const deviceDesktop = new Codicon('device-desktop', { fontCharacter: '\\ea7a' });
-	export const file = new Codicon('file', { fontCharacter: '\\ea7b' });
-	export const fileText = new Codicon('file-text', { fontCharacter: '\\ea7b' });
-	export const more = new Codicon('more', { fontCharacter: '\\ea7c' });
-	export const ellipsis = new Codicon('ellipsis', { fontCharacter: '\\ea7c' });
-	export const kebabHorizontal = new Codicon('kebab-horizontal', { fontCharacter: '\\ea7c' });
-	export const mailReply = new Codicon('mail-reply', { fontCharacter: '\\ea7d' });
-	export const reply = new Codicon('reply', { fontCharacter: '\\ea7d' });
-	export const organization = new Codicon('organization', { fontCharacter: '\\ea7e' });
-	export const organizationFilled = new Codicon('organization-filled', { fontCharacter: '\\ea7e' });
-	export const organizationOutline = new Codicon('organization-outline', { fontCharacter: '\\ea7e' });
-	export const newFile = new Codicon('new-file', { fontCharacter: '\\ea7f' });
-	export const fileAdd = new Codicon('file-add', { fontCharacter: '\\ea7f' });
-	export const newFolder = new Codicon('new-folder', { fontCharacter: '\\ea80' });
-	export const fileDirectoryCreate = new Codicon('file-directory-create', { fontCharacter: '\\ea80' });
-	export const trash = new Codicon('trash', { fontCharacter: '\\ea81' });
-	export const trashcan = new Codicon('trashcan', { fontCharacter: '\\ea81' });
-	export const history = new Codicon('history', { fontCharacter: '\\ea82' });
-	export const clock = new Codicon('clock', { fontCharacter: '\\ea82' });
-	export const folder = new Codicon('folder', { fontCharacter: '\\ea83' });
-	export const fileDirectory = new Codicon('file-directory', { fontCharacter: '\\ea83' });
-	export const symbolFolder = new Codicon('symbol-folder', { fontCharacter: '\\ea83' });
-	export const logoGithub = new Codicon('logo-github', { fontCharacter: '\\ea84' });
-	export const markGithub = new Codicon('mark-github', { fontCharacter: '\\ea84' });
-	export const github = new Codicon('github', { fontCharacter: '\\ea84' });
-	export const terminal = new Codicon('terminal', { fontCharacter: '\\ea85' });
-	export const console = new Codicon('console', { fontCharacter: '\\ea85' });
-	export const repl = new Codicon('repl', { fontCharacter: '\\ea85' });
-	export const zap = new Codicon('zap', { fontCharacter: '\\ea86' });
-	export const symbolEvent = new Codicon('symbol-event', { fontCharacter: '\\ea86' });
-	export const error = new Codicon('error', { fontCharacter: '\\ea87' });
-	export const stop = new Codicon('stop', { fontCharacter: '\\ea87' });
-	export const variable = new Codicon('variable', { fontCharacter: '\\ea88' });
-	export const symbolVariable = new Codicon('symbol-variable', { fontCharacter: '\\ea88' });
-	export const array = new Codicon('array', { fontCharacter: '\\ea8a' });
-	export const symbolArray = new Codicon('symbol-array', { fontCharacter: '\\ea8a' });
-	export const symbolModule = new Codicon('symbol-module', { fontCharacter: '\\ea8b' });
-	export const symbolPackage = new Codicon('symbol-package', { fontCharacter: '\\ea8b' });
-	export const symbolNamespace = new Codicon('symbol-namespace', { fontCharacter: '\\ea8b' });
-	export const symbolObject = new Codicon('symbol-object', { fontCharacter: '\\ea8b' });
-	export const symbolMethod = new Codicon('symbol-method', { fontCharacter: '\\ea8c' });
-	export const symbolFunction = new Codicon('symbol-function', { fontCharacter: '\\ea8c' });
-	export const symbolConstructor = new Codicon('symbol-constructor', { fontCharacter: '\\ea8c' });
-	export const symbolBoolean = new Codicon('symbol-boolean', { fontCharacter: '\\ea8f' });
-	export const symbolNull = new Codicon('symbol-null', { fontCharacter: '\\ea8f' });
-	export const symbolNumeric = new Codicon('symbol-numeric', { fontCharacter: '\\ea90' });
-	export const symbolNumber = new Codicon('symbol-number', { fontCharacter: '\\ea90' });
-	export const symbolStructure = new Codicon('symbol-structure', { fontCharacter: '\\ea91' });
-	export const symbolStruct = new Codicon('symbol-struct', { fontCharacter: '\\ea91' });
-	export const symbolParameter = new Codicon('symbol-parameter', { fontCharacter: '\\ea92' });
-	export const symbolTypeParameter = new Codicon('symbol-type-parameter', { fontCharacter: '\\ea92' });
-	export const symbolKey = new Codicon('symbol-key', { fontCharacter: '\\ea93' });
-	export const symbolText = new Codicon('symbol-text', { fontCharacter: '\\ea93' });
-	export const symbolReference = new Codicon('symbol-reference', { fontCharacter: '\\ea94' });
-	export const goToFile = new Codicon('go-to-file', { fontCharacter: '\\ea94' });
-	export const symbolEnum = new Codicon('symbol-enum', { fontCharacter: '\\ea95' });
-	export const symbolValue = new Codicon('symbol-value', { fontCharacter: '\\ea95' });
-	export const symbolRuler = new Codicon('symbol-ruler', { fontCharacter: '\\ea96' });
-	export const symbolUnit = new Codicon('symbol-unit', { fontCharacter: '\\ea96' });
-	export const activateBreakpoints = new Codicon('activate-breakpoints', { fontCharacter: '\\ea97' });
-	export const archive = new Codicon('archive', { fontCharacter: '\\ea98' });
-	export const arrowBoth = new Codicon('arrow-both', { fontCharacter: '\\ea99' });
-	export const arrowDown = new Codicon('arrow-down', { fontCharacter: '\\ea9a' });
-	export const arrowLeft = new Codicon('arrow-left', { fontCharacter: '\\ea9b' });
-	export const arrowRight = new Codicon('arrow-right', { fontCharacter: '\\ea9c' });
-	export const arrowSmallDown = new Codicon('arrow-small-down', { fontCharacter: '\\ea9d' });
-	export const arrowSmallLeft = new Codicon('arrow-small-left', { fontCharacter: '\\ea9e' });
-	export const arrowSmallRight = new Codicon('arrow-small-right', { fontCharacter: '\\ea9f' });
-	export const arrowSmallUp = new Codicon('arrow-small-up', { fontCharacter: '\\eaa0' });
-	export const arrowUp = new Codicon('arrow-up', { fontCharacter: '\\eaa1' });
-	export const bell = new Codicon('bell', { fontCharacter: '\\eaa2' });
-	export const bold = new Codicon('bold', { fontCharacter: '\\eaa3' });
-	export const book = new Codicon('book', { fontCharacter: '\\eaa4' });
-	export const bookmark = new Codicon('bookmark', { fontCharacter: '\\eaa5' });
-	export const debugBreakpointConditionalUnverified = new Codicon('debug-breakpoint-conditional-unverified', { fontCharacter: '\\eaa6' });
-	export const debugBreakpointConditional = new Codicon('debug-breakpoint-conditional', { fontCharacter: '\\eaa7' });
-	export const debugBreakpointConditionalDisabled = new Codicon('debug-breakpoint-conditional-disabled', { fontCharacter: '\\eaa7' });
-	export const debugBreakpointDataUnverified = new Codicon('debug-breakpoint-data-unverified', { fontCharacter: '\\eaa8' });
-	export const debugBreakpointData = new Codicon('debug-breakpoint-data', { fontCharacter: '\\eaa9' });
-	export const debugBreakpointDataDisabled = new Codicon('debug-breakpoint-data-disabled', { fontCharacter: '\\eaa9' });
-	export const debugBreakpointLogUnverified = new Codicon('debug-breakpoint-log-unverified', { fontCharacter: '\\eaaa' });
-	export const debugBreakpointLog = new Codicon('debug-breakpoint-log', { fontCharacter: '\\eaab' });
-	export const debugBreakpointLogDisabled = new Codicon('debug-breakpoint-log-disabled', { fontCharacter: '\\eaab' });
-	export const briefcase = new Codicon('briefcase', { fontCharacter: '\\eaac' });
-	export const broadcast = new Codicon('broadcast', { fontCharacter: '\\eaad' });
-	export const browser = new Codicon('browser', { fontCharacter: '\\eaae' });
-	export const bug = new Codicon('bug', { fontCharacter: '\\eaaf' });
-	export const calendar = new Codicon('calendar', { fontCharacter: '\\eab0' });
-	export const caseSensitive = new Codicon('case-sensitive', { fontCharacter: '\\eab1' });
-	export const check = new Codicon('check', { fontCharacter: '\\eab2' });
-	export const checklist = new Codicon('checklist', { fontCharacter: '\\eab3' });
-	export const chevronDown = new Codicon('chevron-down', { fontCharacter: '\\eab4' });
-	export const chevronLeft = new Codicon('chevron-left', { fontCharacter: '\\eab5' });
-	export const chevronRight = new Codicon('chevron-right', { fontCharacter: '\\eab6' });
-	export const chevronUp = new Codicon('chevron-up', { fontCharacter: '\\eab7' });
-	export const chromeClose = new Codicon('chrome-close', { fontCharacter: '\\eab8' });
-	export const chromeMaximize = new Codicon('chrome-maximize', { fontCharacter: '\\eab9' });
-	export const chromeMinimize = new Codicon('chrome-minimize', { fontCharacter: '\\eaba' });
-	export const chromeRestore = new Codicon('chrome-restore', { fontCharacter: '\\eabb' });
-	export const circleOutline = new Codicon('circle-outline', { fontCharacter: '\\eabc' });
-	export const debugBreakpointUnverified = new Codicon('debug-breakpoint-unverified', { fontCharacter: '\\eabc' });
-	export const circleSlash = new Codicon('circle-slash', { fontCharacter: '\\eabd' });
-	export const circuitBoard = new Codicon('circuit-board', { fontCharacter: '\\eabe' });
-	export const clearAll = new Codicon('clear-all', { fontCharacter: '\\eabf' });
-	export const clippy = new Codicon('clippy', { fontCharacter: '\\eac0' });
-	export const closeAll = new Codicon('close-all', { fontCharacter: '\\eac1' });
-	export const cloudDownload = new Codicon('cloud-download', { fontCharacter: '\\eac2' });
-	export const cloudUpload = new Codicon('cloud-upload', { fontCharacter: '\\eac3' });
-	export const code = new Codicon('code', { fontCharacter: '\\eac4' });
-	export const collapseAll = new Codicon('collapse-all', { fontCharacter: '\\eac5' });
-	export const colorMode = new Codicon('color-mode', { fontCharacter: '\\eac6' });
-	export const commentDiscussion = new Codicon('comment-discussion', { fontCharacter: '\\eac7' });
-	export const compareChanges = new Codicon('compare-changes', { fontCharacter: '\\eafd' });
-	export const creditCard = new Codicon('credit-card', { fontCharacter: '\\eac9' });
-	export const dash = new Codicon('dash', { fontCharacter: '\\eacc' });
-	export const dashboard = new Codicon('dashboard', { fontCharacter: '\\eacd' });
-	export const database = new Codicon('database', { fontCharacter: '\\eace' });
-	export const debugContinue = new Codicon('debug-continue', { fontCharacter: '\\eacf' });
-	export const debugDisconnect = new Codicon('debug-disconnect', { fontCharacter: '\\ead0' });
-	export const debugPause = new Codicon('debug-pause', { fontCharacter: '\\ead1' });
-	export const debugRestart = new Codicon('debug-restart', { fontCharacter: '\\ead2' });
-	export const debugStart = new Codicon('debug-start', { fontCharacter: '\\ead3' });
-	export const debugStepInto = new Codicon('debug-step-into', { fontCharacter: '\\ead4' });
-	export const debugStepOut = new Codicon('debug-step-out', { fontCharacter: '\\ead5' });
-	export const debugStepOver = new Codicon('debug-step-over', { fontCharacter: '\\ead6' });
-	export const debugStop = new Codicon('debug-stop', { fontCharacter: '\\ead7' });
-	export const debug = new Codicon('debug', { fontCharacter: '\\ead8' });
-	export const deviceCameraVideo = new Codicon('device-camera-video', { fontCharacter: '\\ead9' });
-	export const deviceCamera = new Codicon('device-camera', { fontCharacter: '\\eada' });
-	export const deviceMobile = new Codicon('device-mobile', { fontCharacter: '\\eadb' });
-	export const diffAdded = new Codicon('diff-added', { fontCharacter: '\\eadc' });
-	export const diffIgnored = new Codicon('diff-ignored', { fontCharacter: '\\eadd' });
-	export const diffModified = new Codicon('diff-modified', { fontCharacter: '\\eade' });
-	export const diffRemoved = new Codicon('diff-removed', { fontCharacter: '\\eadf' });
-	export const diffRenamed = new Codicon('diff-renamed', { fontCharacter: '\\eae0' });
-	export const diff = new Codicon('diff', { fontCharacter: '\\eae1' });
-	export const discard = new Codicon('discard', { fontCharacter: '\\eae2' });
-	export const editorLayout = new Codicon('editor-layout', { fontCharacter: '\\eae3' });
-	export const emptyWindow = new Codicon('empty-window', { fontCharacter: '\\eae4' });
-	export const exclude = new Codicon('exclude', { fontCharacter: '\\eae5' });
-	export const extensions = new Codicon('extensions', { fontCharacter: '\\eae6' });
-	export const eyeClosed = new Codicon('eye-closed', { fontCharacter: '\\eae7' });
-	export const fileBinary = new Codicon('file-binary', { fontCharacter: '\\eae8' });
-	export const fileCode = new Codicon('file-code', { fontCharacter: '\\eae9' });
-	export const fileMedia = new Codicon('file-media', { fontCharacter: '\\eaea' });
-	export const filePdf = new Codicon('file-pdf', { fontCharacter: '\\eaeb' });
-	export const fileSubmodule = new Codicon('file-submodule', { fontCharacter: '\\eaec' });
-	export const fileSymlinkDirectory = new Codicon('file-symlink-directory', { fontCharacter: '\\eaed' });
-	export const fileSymlinkFile = new Codicon('file-symlink-file', { fontCharacter: '\\eaee' });
-	export const fileZip = new Codicon('file-zip', { fontCharacter: '\\eaef' });
-	export const files = new Codicon('files', { fontCharacter: '\\eaf0' });
-	export const filter = new Codicon('filter', { fontCharacter: '\\eaf1' });
-	export const flame = new Codicon('flame', { fontCharacter: '\\eaf2' });
-	export const foldDown = new Codicon('fold-down', { fontCharacter: '\\eaf3' });
-	export const foldUp = new Codicon('fold-up', { fontCharacter: '\\eaf4' });
-	export const fold = new Codicon('fold', { fontCharacter: '\\eaf5' });
-	export const folderActive = new Codicon('folder-active', { fontCharacter: '\\eaf6' });
-	export const folderOpened = new Codicon('folder-opened', { fontCharacter: '\\eaf7' });
-	export const gear = new Codicon('gear', { fontCharacter: '\\eaf8' });
-	export const gift = new Codicon('gift', { fontCharacter: '\\eaf9' });
-	export const gistSecret = new Codicon('gist-secret', { fontCharacter: '\\eafa' });
-	export const gist = new Codicon('gist', { fontCharacter: '\\eafb' });
-	export const gitCommit = new Codicon('git-commit', { fontCharacter: '\\eafc' });
-	export const gitCompare = new Codicon('git-compare', { fontCharacter: '\\eafd' });
-	export const gitMerge = new Codicon('git-merge', { fontCharacter: '\\eafe' });
-	export const githubAction = new Codicon('github-action', { fontCharacter: '\\eaff' });
-	export const githubAlt = new Codicon('github-alt', { fontCharacter: '\\eb00' });
-	export const globe = new Codicon('globe', { fontCharacter: '\\eb01' });
-	export const grabber = new Codicon('grabber', { fontCharacter: '\\eb02' });
-	export const graph = new Codicon('graph', { fontCharacter: '\\eb03' });
-	export const gripper = new Codicon('gripper', { fontCharacter: '\\eb04' });
-	export const heart = new Codicon('heart', { fontCharacter: '\\eb05' });
-	export const home = new Codicon('home', { fontCharacter: '\\eb06' });
-	export const horizontalRule = new Codicon('horizontal-rule', { fontCharacter: '\\eb07' });
-	export const hubot = new Codicon('hubot', { fontCharacter: '\\eb08' });
-	export const inbox = new Codicon('inbox', { fontCharacter: '\\eb09' });
-	export const issueClosed = new Codicon('issue-closed', { fontCharacter: '\\eb0a' });
-	export const issueReopened = new Codicon('issue-reopened', { fontCharacter: '\\eb0b' });
-	export const issues = new Codicon('issues', { fontCharacter: '\\eb0c' });
-	export const italic = new Codicon('italic', { fontCharacter: '\\eb0d' });
-	export const jersey = new Codicon('jersey', { fontCharacter: '\\eb0e' });
-	export const json = new Codicon('json', { fontCharacter: '\\eb0f' });
-	export const kebabVertical = new Codicon('kebab-vertical', { fontCharacter: '\\eb10' });
-	export const key = new Codicon('key', { fontCharacter: '\\eb11' });
-	export const law = new Codicon('law', { fontCharacter: '\\eb12' });
-	export const lightbulbAutofix = new Codicon('lightbulb-autofix', { fontCharacter: '\\eb13' });
-	export const linkExternal = new Codicon('link-external', { fontCharacter: '\\eb14' });
-	export const link = new Codicon('link', { fontCharacter: '\\eb15' });
-	export const listOrdered = new Codicon('list-ordered', { fontCharacter: '\\eb16' });
-	export const listUnordered = new Codicon('list-unordered', { fontCharacter: '\\eb17' });
-	export const liveShare = new Codicon('live-share', { fontCharacter: '\\eb18' });
-	export const loading = new Codicon('loading', { fontCharacter: '\\eb19' });
-	export const location = new Codicon('location', { fontCharacter: '\\eb1a' });
-	export const mailRead = new Codicon('mail-read', { fontCharacter: '\\eb1b' });
-	export const mail = new Codicon('mail', { fontCharacter: '\\eb1c' });
-	export const markdown = new Codicon('markdown', { fontCharacter: '\\eb1d' });
-	export const megaphone = new Codicon('megaphone', { fontCharacter: '\\eb1e' });
-	export const mention = new Codicon('mention', { fontCharacter: '\\eb1f' });
-	export const milestone = new Codicon('milestone', { fontCharacter: '\\eb20' });
-	export const mortarBoard = new Codicon('mortar-board', { fontCharacter: '\\eb21' });
-	export const move = new Codicon('move', { fontCharacter: '\\eb22' });
-	export const multipleWindows = new Codicon('multiple-windows', { fontCharacter: '\\eb23' });
-	export const mute = new Codicon('mute', { fontCharacter: '\\eb24' });
-	export const noNewline = new Codicon('no-newline', { fontCharacter: '\\eb25' });
-	export const note = new Codicon('note', { fontCharacter: '\\eb26' });
-	export const octoface = new Codicon('octoface', { fontCharacter: '\\eb27' });
-	export const openPreview = new Codicon('open-preview', { fontCharacter: '\\eb28' });
-	export const package_ = new Codicon('package', { fontCharacter: '\\eb29' });
-	export const paintcan = new Codicon('paintcan', { fontCharacter: '\\eb2a' });
-	export const pin = new Codicon('pin', { fontCharacter: '\\eb2b' });
-	export const play = new Codicon('play', { fontCharacter: '\\eb2c' });
-	export const run = new Codicon('run', { fontCharacter: '\\eb2c' });
-	export const plug = new Codicon('plug', { fontCharacter: '\\eb2d' });
-	export const preserveCase = new Codicon('preserve-case', { fontCharacter: '\\eb2e' });
-	export const preview = new Codicon('preview', { fontCharacter: '\\eb2f' });
-	export const project = new Codicon('project', { fontCharacter: '\\eb30' });
-	export const pulse = new Codicon('pulse', { fontCharacter: '\\eb31' });
-	export const question = new Codicon('question', { fontCharacter: '\\eb32' });
-	export const quote = new Codicon('quote', { fontCharacter: '\\eb33' });
-	export const radioTower = new Codicon('radio-tower', { fontCharacter: '\\eb34' });
-	export const reactions = new Codicon('reactions', { fontCharacter: '\\eb35' });
-	export const references = new Codicon('references', { fontCharacter: '\\eb36' });
-	export const refresh = new Codicon('refresh', { fontCharacter: '\\eb37' });
-	export const regex = new Codicon('regex', { fontCharacter: '\\eb38' });
-	export const remoteExplorer = new Codicon('remote-explorer', { fontCharacter: '\\eb39' });
-	export const remote = new Codicon('remote', { fontCharacter: '\\eb3a' });
-	export const remove = new Codicon('remove', { fontCharacter: '\\eb3b' });
-	export const replaceAll = new Codicon('replace-all', { fontCharacter: '\\eb3c' });
-	export const replace = new Codicon('replace', { fontCharacter: '\\eb3d' });
-	export const repoClone = new Codicon('repo-clone', { fontCharacter: '\\eb3e' });
-	export const repoForcePush = new Codicon('repo-force-push', { fontCharacter: '\\eb3f' });
-	export const repoPull = new Codicon('repo-pull', { fontCharacter: '\\eb40' });
-	export const repoPush = new Codicon('repo-push', { fontCharacter: '\\eb41' });
-	export const report = new Codicon('report', { fontCharacter: '\\eb42' });
-	export const requestChanges = new Codicon('request-changes', { fontCharacter: '\\eb43' });
-	export const rocket = new Codicon('rocket', { fontCharacter: '\\eb44' });
-	export const rootFolderOpened = new Codicon('root-folder-opened', { fontCharacter: '\\eb45' });
-	export const rootFolder = new Codicon('root-folder', { fontCharacter: '\\eb46' });
-	export const rss = new Codicon('rss', { fontCharacter: '\\eb47' });
-	export const ruby = new Codicon('ruby', { fontCharacter: '\\eb48' });
-	export const saveAll = new Codicon('save-all', { fontCharacter: '\\eb49' });
-	export const saveAs = new Codicon('save-as', { fontCharacter: '\\eb4a' });
-	export const save = new Codicon('save', { fontCharacter: '\\eb4b' });
-	export const screenFull = new Codicon('screen-full', { fontCharacter: '\\eb4c' });
-	export const screenNormal = new Codicon('screen-normal', { fontCharacter: '\\eb4d' });
-	export const searchStop = new Codicon('search-stop', { fontCharacter: '\\eb4e' });
-	export const server = new Codicon('server', { fontCharacter: '\\eb50' });
-	export const settingsGear = new Codicon('settings-gear', { fontCharacter: '\\eb51' });
-	export const settings = new Codicon('settings', { fontCharacter: '\\eb52' });
-	export const shield = new Codicon('shield', { fontCharacter: '\\eb53' });
-	export const smiley = new Codicon('smiley', { fontCharacter: '\\eb54' });
-	export const sortPrecedence = new Codicon('sort-precedence', { fontCharacter: '\\eb55' });
-	export const splitHorizontal = new Codicon('split-horizontal', { fontCharacter: '\\eb56' });
-	export const splitVertical = new Codicon('split-vertical', { fontCharacter: '\\eb57' });
-	export const squirrel = new Codicon('squirrel', { fontCharacter: '\\eb58' });
-	export const starFull = new Codicon('star-full', { fontCharacter: '\\eb59' });
-	export const starHalf = new Codicon('star-half', { fontCharacter: '\\eb5a' });
-	export const symbolClass = new Codicon('symbol-class', { fontCharacter: '\\eb5b' });
-	export const symbolColor = new Codicon('symbol-color', { fontCharacter: '\\eb5c' });
-	export const symbolConstant = new Codicon('symbol-constant', { fontCharacter: '\\eb5d' });
-	export const symbolEnumMember = new Codicon('symbol-enum-member', { fontCharacter: '\\eb5e' });
-	export const symbolField = new Codicon('symbol-field', { fontCharacter: '\\eb5f' });
-	export const symbolFile = new Codicon('symbol-file', { fontCharacter: '\\eb60' });
-	export const symbolInterface = new Codicon('symbol-interface', { fontCharacter: '\\eb61' });
-	export const symbolKeyword = new Codicon('symbol-keyword', { fontCharacter: '\\eb62' });
-	export const symbolMisc = new Codicon('symbol-misc', { fontCharacter: '\\eb63' });
-	export const symbolOperator = new Codicon('symbol-operator', { fontCharacter: '\\eb64' });
-	export const symbolProperty = new Codicon('symbol-property', { fontCharacter: '\\eb65' });
-	export const wrench = new Codicon('wrench', { fontCharacter: '\\eb65' });
-	export const wrenchSubaction = new Codicon('wrench-subaction', { fontCharacter: '\\eb65' });
-	export const symbolSnippet = new Codicon('symbol-snippet', { fontCharacter: '\\eb66' });
-	export const tasklist = new Codicon('tasklist', { fontCharacter: '\\eb67' });
-	export const telescope = new Codicon('telescope', { fontCharacter: '\\eb68' });
-	export const textSize = new Codicon('text-size', { fontCharacter: '\\eb69' });
-	export const threeBars = new Codicon('three-bars', { fontCharacter: '\\eb6a' });
-	export const thumbsdown = new Codicon('thumbsdown', { fontCharacter: '\\eb6b' });
-	export const thumbsup = new Codicon('thumbsup', { fontCharacter: '\\eb6c' });
-	export const tools = new Codicon('tools', { fontCharacter: '\\eb6d' });
-	export const triangleDown = new Codicon('triangle-down', { fontCharacter: '\\eb6e' });
-	export const triangleLeft = new Codicon('triangle-left', { fontCharacter: '\\eb6f' });
-	export const triangleRight = new Codicon('triangle-right', { fontCharacter: '\\eb70' });
-	export const triangleUp = new Codicon('triangle-up', { fontCharacter: '\\eb71' });
-	export const twitter = new Codicon('twitter', { fontCharacter: '\\eb72' });
-	export const unfold = new Codicon('unfold', { fontCharacter: '\\eb73' });
-	export const unlock = new Codicon('unlock', { fontCharacter: '\\eb74' });
-	export const unmute = new Codicon('unmute', { fontCharacter: '\\eb75' });
-	export const unverified = new Codicon('unverified', { fontCharacter: '\\eb76' });
-	export const verified = new Codicon('verified', { fontCharacter: '\\eb77' });
-	export const versions = new Codicon('versions', { fontCharacter: '\\eb78' });
-	export const vmActive = new Codicon('vm-active', { fontCharacter: '\\eb79' });
-	export const vmOutline = new Codicon('vm-outline', { fontCharacter: '\\eb7a' });
-	export const vmRunning = new Codicon('vm-running', { fontCharacter: '\\eb7b' });
-	export const watch = new Codicon('watch', { fontCharacter: '\\eb7c' });
-	export const whitespace = new Codicon('whitespace', { fontCharacter: '\\eb7d' });
-	export const wholeWord = new Codicon('whole-word', { fontCharacter: '\\eb7e' });
-	export const window = new Codicon('window', { fontCharacter: '\\eb7f' });
-	export const wordWrap = new Codicon('word-wrap', { fontCharacter: '\\eb80' });
-	export const zoomIn = new Codicon('zoom-in', { fontCharacter: '\\eb81' });
-	export const zoomOut = new Codicon('zoom-out', { fontCharacter: '\\eb82' });
-	export const listFilter = new Codicon('list-filter', { fontCharacter: '\\eb83' });
-	export const listFlat = new Codicon('list-flat', { fontCharacter: '\\eb84' });
-	export const listSelection = new Codicon('list-selection', { fontCharacter: '\\eb85' });
-	export const selection = new Codicon('selection', { fontCharacter: '\\eb85' });
-	export const listTree = new Codicon('list-tree', { fontCharacter: '\\eb86' });
-	export const debugBreakpointFunctionUnverified = new Codicon('debug-breakpoint-function-unverified', { fontCharacter: '\\eb87' });
-	export const debugBreakpointFunction = new Codicon('debug-breakpoint-function', { fontCharacter: '\\eb88' });
-	export const debugBreakpointFunctionDisabled = new Codicon('debug-breakpoint-function-disabled', { fontCharacter: '\\eb88' });
-	export const debugStackframeActive = new Codicon('debug-stackframe-active', { fontCharacter: '\\eb89' });
-	export const debugStackframeDot = new Codicon('debug-stackframe-dot', { fontCharacter: '\\eb8a' });
-	export const debugStackframe = new Codicon('debug-stackframe', { fontCharacter: '\\eb8b' });
-	export const debugStackframeFocused = new Codicon('debug-stackframe-focused', { fontCharacter: '\\eb8b' });
-	export const debugBreakpointUnsupported = new Codicon('debug-breakpoint-unsupported', { fontCharacter: '\\eb8c' });
-	export const symbolString = new Codicon('symbol-string', { fontCharacter: '\\eb8d' });
-	export const debugReverseContinue = new Codicon('debug-reverse-continue', { fontCharacter: '\\eb8e' });
-	export const debugStepBack = new Codicon('debug-step-back', { fontCharacter: '\\eb8f' });
-	export const debugRestartFrame = new Codicon('debug-restart-frame', { fontCharacter: '\\eb90' });
-	export const callIncoming = new Codicon('call-incoming', { fontCharacter: '\\eb92' });
-	export const callOutgoing = new Codicon('call-outgoing', { fontCharacter: '\\eb93' });
-	export const menu = new Codicon('menu', { fontCharacter: '\\eb94' });
-	export const expandAll = new Codicon('expand-all', { fontCharacter: '\\eb95' });
-	export const feedback = new Codicon('feedback', { fontCharacter: '\\eb96' });
-	export const groupByRefType = new Codicon('group-by-ref-type', { fontCharacter: '\\eb97' });
-	export const ungroupByRefType = new Codicon('ungroup-by-ref-type', { fontCharacter: '\\eb98' });
-	export const account = new Codicon('account', { fontCharacter: '\\eb99' });
-	export const bellDot = new Codicon('bell-dot', { fontCharacter: '\\eb9a' });
-	export const debugConsole = new Codicon('debug-console', { fontCharacter: '\\eb9b' });
-	export const library = new Codicon('library', { fontCharacter: '\\eb9c' });
-	export const output = new Codicon('output', { fontCharacter: '\\eb9d' });
-	export const runAll = new Codicon('run-all', { fontCharacter: '\\eb9e' });
-	export const syncIgnored = new Codicon('sync-ignored', { fontCharacter: '\\eb9f' });
-	export const pinned = new Codicon('pinned', { fontCharacter: '\\eba0' });
-	export const githubInverted = new Codicon('github-inverted', { fontCharacter: '\\eba1' });
-	export const debugAlt = new Codicon('debug-alt', { fontCharacter: '\\eb91' });
-	export const serverProcess = new Codicon('server-process', { fontCharacter: '\\eba2' });
-	export const serverEnvironment = new Codicon('server-environment', { fontCharacter: '\\eba3' });
-	export const pass = new Codicon('pass', { fontCharacter: '\\eba4' });
-	export const stopCircle = new Codicon('stop-circle', { fontCharacter: '\\eba5' });
-	export const playCircle = new Codicon('play-circle', { fontCharacter: '\\eba6' });
-	export const record = new Codicon('record', { fontCharacter: '\\eba7' });
-	export const debugAltSmall = new Codicon('debug-alt-small', { fontCharacter: '\\eba8' });
-	export const vmConnect = new Codicon('vm-connect', { fontCharacter: '\\eba9' });
-	export const cloud = new Codicon('cloud', { fontCharacter: '\\ebaa' });
-	export const merge = new Codicon('merge', { fontCharacter: '\\ebab' });
-	export const exportIcon = new Codicon('export', { fontCharacter: '\\ebac' });
-	export const graphLeft = new Codicon('graph-left', { fontCharacter: '\\ebad' });
-	export const magnet = new Codicon('magnet', { fontCharacter: '\\ebae' });
-	export const notebook = new Codicon('notebook', { fontCharacter: '\\ebaf' });
-	export const redo = new Codicon('redo', { fontCharacter: '\\ebb0' });
-	export const checkAll = new Codicon('check-all', { fontCharacter: '\\ebb1' });
-	export const pinnedDirty = new Codicon('pinned-dirty', { fontCharacter: '\\ebb2' });
-	export const passFilled = new Codicon('pass-filled', { fontCharacter: '\\ebb3' });
-	export const circleLargeFilled = new Codicon('circle-large-filled', { fontCharacter: '\\ebb4' });
-	export const circleLargeOutline = new Codicon('circle-large-outline', { fontCharacter: '\\ebb5' });
-	export const combine = new Codicon('combine', { fontCharacter: '\\ebb6' });
-	export const gather = new Codicon('gather', { fontCharacter: '\\ebb6' });
-	export const table = new Codicon('table', { fontCharacter: '\\ebb7' });
-	export const variableGroup = new Codicon('variable-group', { fontCharacter: '\\ebb8' });
-	export const typeHierarchy = new Codicon('type-hierarchy', { fontCharacter: '\\ebb9' });
-	export const typeHierarchySub = new Codicon('type-hierarchy-sub', { fontCharacter: '\\ebba' });
-	export const typeHierarchySuper = new Codicon('type-hierarchy-super', { fontCharacter: '\\ebbb' });
-	export const gitPullRequestCreate = new Codicon('git-pull-request-create', { fontCharacter: '\\ebbc' });
-	export const runAbove = new Codicon('run-above', { fontCharacter: '\\ebbd' });
-	export const runBelow = new Codicon('run-below', { fontCharacter: '\\ebbe' });
-	export const notebookTemplate = new Codicon('notebook-template', { fontCharacter: '\\ebbf' });
-	export const debugRerun = new Codicon('debug-rerun', { fontCharacter: '\\ebc0' });
-	export const workspaceTrusted = new Codicon('workspace-trusted', { fontCharacter: '\\ebc1' });
-	export const workspaceUntrusted = new Codicon('workspace-untrusted', { fontCharacter: '\\ebc2' });
-	export const workspaceUnspecified = new Codicon('workspace-unspecified', { fontCharacter: '\\ebc3' });
-	export const terminalCmd = new Codicon('terminal-cmd', { fontCharacter: '\\ebc4' });
-	export const terminalDebian = new Codicon('terminal-debian', { fontCharacter: '\\ebc5' });
-	export const terminalLinux = new Codicon('terminal-linux', { fontCharacter: '\\ebc6' });
-	export const terminalPowershell = new Codicon('terminal-powershell', { fontCharacter: '\\ebc7' });
-	export const terminalTmux = new Codicon('terminal-tmux', { fontCharacter: '\\ebc8' });
-	export const terminalUbuntu = new Codicon('terminal-ubuntu', { fontCharacter: '\\ebc9' });
-	export const terminalBash = new Codicon('terminal-bash', { fontCharacter: '\\ebca' });
-	export const arrowSwap = new Codicon('arrow-swap', { fontCharacter: '\\ebcb' });
-	export const copy = new Codicon('copy', { fontCharacter: '\\ebcc' });
-	export const personAdd = new Codicon('person-add', { fontCharacter: '\\ebcd' });
-	export const filterFilled = new Codicon('filter-filled', { fontCharacter: '\\ebce' });
-	export const wand = new Codicon('wand', { fontCharacter: '\\ebcf' });
-	export const debugLineByLine = new Codicon('debug-line-by-line', { fontCharacter: '\\ebd0' });
-	export const inspect = new Codicon('inspect', { fontCharacter: '\\ebd1' });
+	add: register('add', 0xea60),
+	plus: register('plus', 0xea60),
+	gistNew: register('gist-new', 0xea60),
+	repoCreate: register('repo-create', 0xea60),
+	lightbulb: register('lightbulb', 0xea61),
+	lightBulb: register('light-bulb', 0xea61),
+	repo: register('repo', 0xea62),
+	repoDelete: register('repo-delete', 0xea62),
+	gistFork: register('gist-fork', 0xea63),
+	repoForked: register('repo-forked', 0xea63),
+	gitPullRequest: register('git-pull-request', 0xea64),
+	gitPullRequestAbandoned: register('git-pull-request-abandoned', 0xea64),
+	recordKeys: register('record-keys', 0xea65),
+	keyboard: register('keyboard', 0xea65),
+	tag: register('tag', 0xea66),
+	tagAdd: register('tag-add', 0xea66),
+	tagRemove: register('tag-remove', 0xea66),
+	gitPullRequestLabel: register('git-pull-request-label', 0xea66),
+	person: register('person', 0xea67),
+	personFollow: register('person-follow', 0xea67),
+	personOutline: register('person-outline', 0xea67),
+	personFilled: register('person-filled', 0xea67),
+	gitBranch: register('git-branch', 0xea68),
+	gitBranchCreate: register('git-branch-create', 0xea68),
+	gitBranchDelete: register('git-branch-delete', 0xea68),
+	sourceControl: register('source-control', 0xea68),
+	mirror: register('mirror', 0xea69),
+	mirrorPublic: register('mirror-public', 0xea69),
+	star: register('star', 0xea6a),
+	starAdd: register('star-add', 0xea6a),
+	starDelete: register('star-delete', 0xea6a),
+	starEmpty: register('star-empty', 0xea6a),
+	comment: register('comment', 0xea6b),
+	commentAdd: register('comment-add', 0xea6b),
+	alert: register('alert', 0xea6c),
+	warning: register('warning', 0xea6c),
+	search: register('search', 0xea6d),
+	searchSave: register('search-save', 0xea6d),
+	logOut: register('log-out', 0xea6e),
+	signOut: register('sign-out', 0xea6e),
+	logIn: register('log-in', 0xea6f),
+	signIn: register('sign-in', 0xea6f),
+	eye: register('eye', 0xea70),
+	eyeUnwatch: register('eye-unwatch', 0xea70),
+	eyeWatch: register('eye-watch', 0xea70),
+	circleFilled: register('circle-filled', 0xea71),
+	primitiveDot: register('primitive-dot', 0xea71),
+	closeDirty: register('close-dirty', 0xea71),
+	debugBreakpoint: register('debug-breakpoint', 0xea71),
+	debugBreakpointDisabled: register('debug-breakpoint-disabled', 0xea71),
+	debugHint: register('debug-hint', 0xea71),
+	primitiveSquare: register('primitive-square', 0xea72),
+	edit: register('edit', 0xea73),
+	pencil: register('pencil', 0xea73),
+	info: register('info', 0xea74),
+	issueOpened: register('issue-opened', 0xea74),
+	gistPrivate: register('gist-private', 0xea75),
+	gitForkPrivate: register('git-fork-private', 0xea75),
+	lock: register('lock', 0xea75),
+	mirrorPrivate: register('mirror-private', 0xea75),
+	close: register('close', 0xea76),
+	removeClose: register('remove-close', 0xea76),
+	x: register('x', 0xea76),
+	repoSync: register('repo-sync', 0xea77),
+	sync: register('sync', 0xea77),
+	clone: register('clone', 0xea78),
+	desktopDownload: register('desktop-download', 0xea78),
+	beaker: register('beaker', 0xea79),
+	microscope: register('microscope', 0xea79),
+	vm: register('vm', 0xea7a),
+	deviceDesktop: register('device-desktop', 0xea7a),
+	file: register('file', 0xea7b),
+	fileText: register('file-text', 0xea7b),
+	more: register('more', 0xea7c),
+	ellipsis: register('ellipsis', 0xea7c),
+	kebabHorizontal: register('kebab-horizontal', 0xea7c),
+	mailReply: register('mail-reply', 0xea7d),
+	reply: register('reply', 0xea7d),
+	organization: register('organization', 0xea7e),
+	organizationFilled: register('organization-filled', 0xea7e),
+	organizationOutline: register('organization-outline', 0xea7e),
+	newFile: register('new-file', 0xea7f),
+	fileAdd: register('file-add', 0xea7f),
+	newFolder: register('new-folder', 0xea80),
+	fileDirectoryCreate: register('file-directory-create', 0xea80),
+	trash: register('trash', 0xea81),
+	trashcan: register('trashcan', 0xea81),
+	history: register('history', 0xea82),
+	clock: register('clock', 0xea82),
+	folder: register('folder', 0xea83),
+	fileDirectory: register('file-directory', 0xea83),
+	symbolFolder: register('symbol-folder', 0xea83),
+	logoGithub: register('logo-github', 0xea84),
+	markGithub: register('mark-github', 0xea84),
+	github: register('github', 0xea84),
+	terminal: register('terminal', 0xea85),
+	console: register('console', 0xea85),
+	repl: register('repl', 0xea85),
+	zap: register('zap', 0xea86),
+	symbolEvent: register('symbol-event', 0xea86),
+	error: register('error', 0xea87),
+	stop: register('stop', 0xea87),
+	variable: register('variable', 0xea88),
+	symbolVariable: register('symbol-variable', 0xea88),
+	array: register('array', 0xea8a),
+	symbolArray: register('symbol-array', 0xea8a),
+	symbolModule: register('symbol-module', 0xea8b),
+	symbolPackage: register('symbol-package', 0xea8b),
+	symbolNamespace: register('symbol-namespace', 0xea8b),
+	symbolObject: register('symbol-object', 0xea8b),
+	symbolMethod: register('symbol-method', 0xea8c),
+	symbolFunction: register('symbol-function', 0xea8c),
+	symbolConstructor: register('symbol-constructor', 0xea8c),
+	symbolBoolean: register('symbol-boolean', 0xea8f),
+	symbolNull: register('symbol-null', 0xea8f),
+	symbolNumeric: register('symbol-numeric', 0xea90),
+	symbolNumber: register('symbol-number', 0xea90),
+	symbolStructure: register('symbol-structure', 0xea91),
+	symbolStruct: register('symbol-struct', 0xea91),
+	symbolParameter: register('symbol-parameter', 0xea92),
+	symbolTypeParameter: register('symbol-type-parameter', 0xea92),
+	symbolKey: register('symbol-key', 0xea93),
+	symbolText: register('symbol-text', 0xea93),
+	symbolReference: register('symbol-reference', 0xea94),
+	goToFile: register('go-to-file', 0xea94),
+	symbolEnum: register('symbol-enum', 0xea95),
+	symbolValue: register('symbol-value', 0xea95),
+	symbolRuler: register('symbol-ruler', 0xea96),
+	symbolUnit: register('symbol-unit', 0xea96),
+	activateBreakpoints: register('activate-breakpoints', 0xea97),
+	archive: register('archive', 0xea98),
+	arrowBoth: register('arrow-both', 0xea99),
+	arrowDown: register('arrow-down', 0xea9a),
+	arrowLeft: register('arrow-left', 0xea9b),
+	arrowRight: register('arrow-right', 0xea9c),
+	arrowSmallDown: register('arrow-small-down', 0xea9d),
+	arrowSmallLeft: register('arrow-small-left', 0xea9e),
+	arrowSmallRight: register('arrow-small-right', 0xea9f),
+	arrowSmallUp: register('arrow-small-up', 0xeaa0),
+	arrowUp: register('arrow-up', 0xeaa1),
+	bell: register('bell', 0xeaa2),
+	bold: register('bold', 0xeaa3),
+	book: register('book', 0xeaa4),
+	bookmark: register('bookmark', 0xeaa5),
+	debugBreakpointConditionalUnverified: register('debug-breakpoint-conditional-unverified', 0xeaa6),
+	debugBreakpointConditional: register('debug-breakpoint-conditional', 0xeaa7),
+	debugBreakpointConditionalDisabled: register('debug-breakpoint-conditional-disabled', 0xeaa7),
+	debugBreakpointDataUnverified: register('debug-breakpoint-data-unverified', 0xeaa8),
+	debugBreakpointData: register('debug-breakpoint-data', 0xeaa9),
+	debugBreakpointDataDisabled: register('debug-breakpoint-data-disabled', 0xeaa9),
+	debugBreakpointLogUnverified: register('debug-breakpoint-log-unverified', 0xeaaa),
+	debugBreakpointLog: register('debug-breakpoint-log', 0xeaab),
+	debugBreakpointLogDisabled: register('debug-breakpoint-log-disabled', 0xeaab),
+	briefcase: register('briefcase', 0xeaac),
+	broadcast: register('broadcast', 0xeaad),
+	browser: register('browser', 0xeaae),
+	bug: register('bug', 0xeaaf),
+	calendar: register('calendar', 0xeab0),
+	caseSensitive: register('case-sensitive', 0xeab1),
+	check: register('check', 0xeab2),
+	checklist: register('checklist', 0xeab3),
+	chevronDown: register('chevron-down', 0xeab4),
+	dropDownButton: register('drop-down-button', 0xeab4),
+	chevronLeft: register('chevron-left', 0xeab5),
+	chevronRight: register('chevron-right', 0xeab6),
+	chevronUp: register('chevron-up', 0xeab7),
+	chromeClose: register('chrome-close', 0xeab8),
+	chromeMaximize: register('chrome-maximize', 0xeab9),
+	chromeMinimize: register('chrome-minimize', 0xeaba),
+	chromeRestore: register('chrome-restore', 0xeabb),
+	circle: register('circle', 0xeabc),
+	circleOutline: register('circle-outline', 0xeabc),
+	debugBreakpointUnverified: register('debug-breakpoint-unverified', 0xeabc),
+	circleSlash: register('circle-slash', 0xeabd),
+	circuitBoard: register('circuit-board', 0xeabe),
+	clearAll: register('clear-all', 0xeabf),
+	clippy: register('clippy', 0xeac0),
+	closeAll: register('close-all', 0xeac1),
+	cloudDownload: register('cloud-download', 0xeac2),
+	cloudUpload: register('cloud-upload', 0xeac3),
+	code: register('code', 0xeac4),
+	collapseAll: register('collapse-all', 0xeac5),
+	colorMode: register('color-mode', 0xeac6),
+	commentDiscussion: register('comment-discussion', 0xeac7),
+	compareChanges: register('compare-changes', 0xeafd),
+	creditCard: register('credit-card', 0xeac9),
+	dash: register('dash', 0xeacc),
+	dashboard: register('dashboard', 0xeacd),
+	database: register('database', 0xeace),
+	debugContinue: register('debug-continue', 0xeacf),
+	debugDisconnect: register('debug-disconnect', 0xead0),
+	debugPause: register('debug-pause', 0xead1),
+	debugRestart: register('debug-restart', 0xead2),
+	debugStart: register('debug-start', 0xead3),
+	debugStepInto: register('debug-step-into', 0xead4),
+	debugStepOut: register('debug-step-out', 0xead5),
+	debugStepOver: register('debug-step-over', 0xead6),
+	debugStop: register('debug-stop', 0xead7),
+	debug: register('debug', 0xead8),
+	deviceCameraVideo: register('device-camera-video', 0xead9),
+	deviceCamera: register('device-camera', 0xeada),
+	deviceMobile: register('device-mobile', 0xeadb),
+	diffAdded: register('diff-added', 0xeadc),
+	diffIgnored: register('diff-ignored', 0xeadd),
+	diffModified: register('diff-modified', 0xeade),
+	diffRemoved: register('diff-removed', 0xeadf),
+	diffRenamed: register('diff-renamed', 0xeae0),
+	diff: register('diff', 0xeae1),
+	discard: register('discard', 0xeae2),
+	editorLayout: register('editor-layout', 0xeae3),
+	emptyWindow: register('empty-window', 0xeae4),
+	exclude: register('exclude', 0xeae5),
+	extensions: register('extensions', 0xeae6),
+	eyeClosed: register('eye-closed', 0xeae7),
+	fileBinary: register('file-binary', 0xeae8),
+	fileCode: register('file-code', 0xeae9),
+	fileMedia: register('file-media', 0xeaea),
+	filePdf: register('file-pdf', 0xeaeb),
+	fileSubmodule: register('file-submodule', 0xeaec),
+	fileSymlinkDirectory: register('file-symlink-directory', 0xeaed),
+	fileSymlinkFile: register('file-symlink-file', 0xeaee),
+	fileZip: register('file-zip', 0xeaef),
+	files: register('files', 0xeaf0),
+	filter: register('filter', 0xeaf1),
+	flame: register('flame', 0xeaf2),
+	foldDown: register('fold-down', 0xeaf3),
+	foldUp: register('fold-up', 0xeaf4),
+	fold: register('fold', 0xeaf5),
+	folderActive: register('folder-active', 0xeaf6),
+	folderOpened: register('folder-opened', 0xeaf7),
+	gear: register('gear', 0xeaf8),
+	gift: register('gift', 0xeaf9),
+	gistSecret: register('gist-secret', 0xeafa),
+	gist: register('gist', 0xeafb),
+	gitCommit: register('git-commit', 0xeafc),
+	gitCompare: register('git-compare', 0xeafd),
+	gitMerge: register('git-merge', 0xeafe),
+	githubAction: register('github-action', 0xeaff),
+	githubAlt: register('github-alt', 0xeb00),
+	globe: register('globe', 0xeb01),
+	grabber: register('grabber', 0xeb02),
+	graph: register('graph', 0xeb03),
+	gripper: register('gripper', 0xeb04),
+	heart: register('heart', 0xeb05),
+	home: register('home', 0xeb06),
+	horizontalRule: register('horizontal-rule', 0xeb07),
+	hubot: register('hubot', 0xeb08),
+	inbox: register('inbox', 0xeb09),
+	issueClosed: register('issue-closed', 0xeba4),
+	issueReopened: register('issue-reopened', 0xeb0b),
+	issues: register('issues', 0xeb0c),
+	italic: register('italic', 0xeb0d),
+	jersey: register('jersey', 0xeb0e),
+	json: register('json', 0xeb0f),
+	bracket: register('bracket', 0xeb0f),
+	kebabVertical: register('kebab-vertical', 0xeb10),
+	key: register('key', 0xeb11),
+	law: register('law', 0xeb12),
+	lightbulbAutofix: register('lightbulb-autofix', 0xeb13),
+	linkExternal: register('link-external', 0xeb14),
+	link: register('link', 0xeb15),
+	listOrdered: register('list-ordered', 0xeb16),
+	listUnordered: register('list-unordered', 0xeb17),
+	liveShare: register('live-share', 0xeb18),
+	loading: register('loading', 0xeb19),
+	location: register('location', 0xeb1a),
+	mailRead: register('mail-read', 0xeb1b),
+	mail: register('mail', 0xeb1c),
+	markdown: register('markdown', 0xeb1d),
+	megaphone: register('megaphone', 0xeb1e),
+	mention: register('mention', 0xeb1f),
+	milestone: register('milestone', 0xeb20),
+	gitPullRequestMilestone: register('git-pull-request-milestone', 0xeb20),
+	mortarBoard: register('mortar-board', 0xeb21),
+	move: register('move', 0xeb22),
+	multipleWindows: register('multiple-windows', 0xeb23),
+	mute: register('mute', 0xeb24),
+	noNewline: register('no-newline', 0xeb25),
+	note: register('note', 0xeb26),
+	octoface: register('octoface', 0xeb27),
+	openPreview: register('open-preview', 0xeb28),
+	package: register('package', 0xeb29),
+	paintcan: register('paintcan', 0xeb2a),
+	pin: register('pin', 0xeb2b),
+	play: register('play', 0xeb2c),
+	run: register('run', 0xeb2c),
+	plug: register('plug', 0xeb2d),
+	preserveCase: register('preserve-case', 0xeb2e),
+	preview: register('preview', 0xeb2f),
+	project: register('project', 0xeb30),
+	pulse: register('pulse', 0xeb31),
+	question: register('question', 0xeb32),
+	quote: register('quote', 0xeb33),
+	radioTower: register('radio-tower', 0xeb34),
+	reactions: register('reactions', 0xeb35),
+	references: register('references', 0xeb36),
+	refresh: register('refresh', 0xeb37),
+	regex: register('regex', 0xeb38),
+	remoteExplorer: register('remote-explorer', 0xeb39),
+	remote: register('remote', 0xeb3a),
+	remove: register('remove', 0xeb3b),
+	replaceAll: register('replace-all', 0xeb3c),
+	replace: register('replace', 0xeb3d),
+	repoClone: register('repo-clone', 0xeb3e),
+	repoForcePush: register('repo-force-push', 0xeb3f),
+	repoPull: register('repo-pull', 0xeb40),
+	repoPush: register('repo-push', 0xeb41),
+	report: register('report', 0xeb42),
+	requestChanges: register('request-changes', 0xeb43),
+	rocket: register('rocket', 0xeb44),
+	rootFolderOpened: register('root-folder-opened', 0xeb45),
+	rootFolder: register('root-folder', 0xeb46),
+	rss: register('rss', 0xeb47),
+	ruby: register('ruby', 0xeb48),
+	saveAll: register('save-all', 0xeb49),
+	saveAs: register('save-as', 0xeb4a),
+	save: register('save', 0xeb4b),
+	screenFull: register('screen-full', 0xeb4c),
+	screenNormal: register('screen-normal', 0xeb4d),
+	searchStop: register('search-stop', 0xeb4e),
+	server: register('server', 0xeb50),
+	settingsGear: register('settings-gear', 0xeb51),
+	settings: register('settings', 0xeb52),
+	shield: register('shield', 0xeb53),
+	smiley: register('smiley', 0xeb54),
+	sortPrecedence: register('sort-precedence', 0xeb55),
+	splitHorizontal: register('split-horizontal', 0xeb56),
+	splitVertical: register('split-vertical', 0xeb57),
+	squirrel: register('squirrel', 0xeb58),
+	starFull: register('star-full', 0xeb59),
+	starHalf: register('star-half', 0xeb5a),
+	symbolClass: register('symbol-class', 0xeb5b),
+	symbolColor: register('symbol-color', 0xeb5c),
+	symbolCustomColor: register('symbol-customcolor', 0xeb5c),
+	symbolConstant: register('symbol-constant', 0xeb5d),
+	symbolEnumMember: register('symbol-enum-member', 0xeb5e),
+	symbolField: register('symbol-field', 0xeb5f),
+	symbolFile: register('symbol-file', 0xeb60),
+	symbolInterface: register('symbol-interface', 0xeb61),
+	symbolKeyword: register('symbol-keyword', 0xeb62),
+	symbolMisc: register('symbol-misc', 0xeb63),
+	symbolOperator: register('symbol-operator', 0xeb64),
+	symbolProperty: register('symbol-property', 0xeb65),
+	wrench: register('wrench', 0xeb65),
+	wrenchSubaction: register('wrench-subaction', 0xeb65),
+	symbolSnippet: register('symbol-snippet', 0xeb66),
+	tasklist: register('tasklist', 0xeb67),
+	telescope: register('telescope', 0xeb68),
+	textSize: register('text-size', 0xeb69),
+	threeBars: register('three-bars', 0xeb6a),
+	thumbsdown: register('thumbsdown', 0xeb6b),
+	thumbsup: register('thumbsup', 0xeb6c),
+	tools: register('tools', 0xeb6d),
+	triangleDown: register('triangle-down', 0xeb6e),
+	triangleLeft: register('triangle-left', 0xeb6f),
+	triangleRight: register('triangle-right', 0xeb70),
+	triangleUp: register('triangle-up', 0xeb71),
+	twitter: register('twitter', 0xeb72),
+	unfold: register('unfold', 0xeb73),
+	unlock: register('unlock', 0xeb74),
+	unmute: register('unmute', 0xeb75),
+	unverified: register('unverified', 0xeb76),
+	verified: register('verified', 0xeb77),
+	versions: register('versions', 0xeb78),
+	vmActive: register('vm-active', 0xeb79),
+	vmOutline: register('vm-outline', 0xeb7a),
+	vmRunning: register('vm-running', 0xeb7b),
+	watch: register('watch', 0xeb7c),
+	whitespace: register('whitespace', 0xeb7d),
+	wholeWord: register('whole-word', 0xeb7e),
+	window: register('window', 0xeb7f),
+	wordWrap: register('word-wrap', 0xeb80),
+	zoomIn: register('zoom-in', 0xeb81),
+	zoomOut: register('zoom-out', 0xeb82),
+	listFilter: register('list-filter', 0xeb83),
+	listFlat: register('list-flat', 0xeb84),
+	listSelection: register('list-selection', 0xeb85),
+	selection: register('selection', 0xeb85),
+	listTree: register('list-tree', 0xeb86),
+	debugBreakpointFunctionUnverified: register('debug-breakpoint-function-unverified', 0xeb87),
+	debugBreakpointFunction: register('debug-breakpoint-function', 0xeb88),
+	debugBreakpointFunctionDisabled: register('debug-breakpoint-function-disabled', 0xeb88),
+	debugStackframeActive: register('debug-stackframe-active', 0xeb89),
+	circleSmallFilled: register('circle-small-filled', 0xeb8a),
+	debugStackframeDot: register('debug-stackframe-dot', 0xeb8a),
+	debugStackframe: register('debug-stackframe', 0xeb8b),
+	debugStackframeFocused: register('debug-stackframe-focused', 0xeb8b),
+	debugBreakpointUnsupported: register('debug-breakpoint-unsupported', 0xeb8c),
+	symbolString: register('symbol-string', 0xeb8d),
+	debugReverseContinue: register('debug-reverse-continue', 0xeb8e),
+	debugStepBack: register('debug-step-back', 0xeb8f),
+	debugRestartFrame: register('debug-restart-frame', 0xeb90),
+	callIncoming: register('call-incoming', 0xeb92),
+	callOutgoing: register('call-outgoing', 0xeb93),
+	menu: register('menu', 0xeb94),
+	expandAll: register('expand-all', 0xeb95),
+	feedback: register('feedback', 0xeb96),
+	gitPullRequestReviewer: register('git-pull-request-reviewer', 0xeb96),
+	groupByRefType: register('group-by-ref-type', 0xeb97),
+	ungroupByRefType: register('ungroup-by-ref-type', 0xeb98),
+	account: register('account', 0xeb99),
+	gitPullRequestAssignee: register('git-pull-request-assignee', 0xeb99),
+	bellDot: register('bell-dot', 0xeb9a),
+	debugConsole: register('debug-console', 0xeb9b),
+	library: register('library', 0xeb9c),
+	output: register('output', 0xeb9d),
+	runAll: register('run-all', 0xeb9e),
+	syncIgnored: register('sync-ignored', 0xeb9f),
+	pinned: register('pinned', 0xeba0),
+	githubInverted: register('github-inverted', 0xeba1),
+	debugAlt: register('debug-alt', 0xeb91),
+	serverProcess: register('server-process', 0xeba2),
+	serverEnvironment: register('server-environment', 0xeba3),
+	pass: register('pass', 0xeba4),
+	stopCircle: register('stop-circle', 0xeba5),
+	playCircle: register('play-circle', 0xeba6),
+	record: register('record', 0xeba7),
+	debugAltSmall: register('debug-alt-small', 0xeba8),
+	vmConnect: register('vm-connect', 0xeba9),
+	cloud: register('cloud', 0xebaa),
+	merge: register('merge', 0xebab),
+	exportIcon: register('export', 0xebac),
+	graphLeft: register('graph-left', 0xebad),
+	magnet: register('magnet', 0xebae),
+	notebook: register('notebook', 0xebaf),
+	redo: register('redo', 0xebb0),
+	checkAll: register('check-all', 0xebb1),
+	pinnedDirty: register('pinned-dirty', 0xebb2),
+	passFilled: register('pass-filled', 0xebb3),
+	circleLargeFilled: register('circle-large-filled', 0xebb4),
+	circleLarge: register('circle-large', 0xebb5),
+	circleLargeOutline: register('circle-large-outline', 0xebb5),
+	combine: register('combine', 0xebb6),
+	gather: register('gather', 0xebb6),
+	table: register('table', 0xebb7),
+	variableGroup: register('variable-group', 0xebb8),
+	typeHierarchy: register('type-hierarchy', 0xebb9),
+	typeHierarchySub: register('type-hierarchy-sub', 0xebba),
+	typeHierarchySuper: register('type-hierarchy-super', 0xebbb),
+	gitPullRequestCreate: register('git-pull-request-create', 0xebbc),
+	runAbove: register('run-above', 0xebbd),
+	runBelow: register('run-below', 0xebbe),
+	notebookTemplate: register('notebook-template', 0xebbf),
+	debugRerun: register('debug-rerun', 0xebc0),
+	workspaceTrusted: register('workspace-trusted', 0xebc1),
+	workspaceUntrusted: register('workspace-untrusted', 0xebc2),
+	workspaceUnspecified: register('workspace-unspecified', 0xebc3),
+	terminalCmd: register('terminal-cmd', 0xebc4),
+	terminalDebian: register('terminal-debian', 0xebc5),
+	terminalLinux: register('terminal-linux', 0xebc6),
+	terminalPowershell: register('terminal-powershell', 0xebc7),
+	terminalTmux: register('terminal-tmux', 0xebc8),
+	terminalUbuntu: register('terminal-ubuntu', 0xebc9),
+	terminalBash: register('terminal-bash', 0xebca),
+	arrowSwap: register('arrow-swap', 0xebcb),
+	copy: register('copy', 0xebcc),
+	personAdd: register('person-add', 0xebcd),
+	filterFilled: register('filter-filled', 0xebce),
+	wand: register('wand', 0xebcf),
+	debugLineByLine: register('debug-line-by-line', 0xebd0),
+	inspect: register('inspect', 0xebd1),
+	layers: register('layers', 0xebd2),
+	layersDot: register('layers-dot', 0xebd3),
+	layersActive: register('layers-active', 0xebd4),
+	compass: register('compass', 0xebd5),
+	compassDot: register('compass-dot', 0xebd6),
+	compassActive: register('compass-active', 0xebd7),
+	azure: register('azure', 0xebd8),
+	issueDraft: register('issue-draft', 0xebd9),
+	gitPullRequestClosed: register('git-pull-request-closed', 0xebda),
+	gitPullRequestDraft: register('git-pull-request-draft', 0xebdb),
+	debugAll: register('debug-all', 0xebdc),
+	debugCoverage: register('debug-coverage', 0xebdd),
+	runErrors: register('run-errors', 0xebde),
+	folderLibrary: register('folder-library', 0xebdf),
+	debugContinueSmall: register('debug-continue-small', 0xebe0),
+	beakerStop: register('beaker-stop', 0xebe1),
+	graphLine: register('graph-line', 0xebe2),
+	graphScatter: register('graph-scatter', 0xebe3),
+	pieChart: register('pie-chart', 0xebe4),
+	bracketDot: register('bracket-dot', 0xebe5),
+	bracketError: register('bracket-error', 0xebe6),
+	lockSmall: register('lock-small', 0xebe7),
+	azureDevops: register('azure-devops', 0xebe8),
+	verifiedFilled: register('verified-filled', 0xebe9),
+	newLine: register('newline', 0xebea),
+	layout: register('layout', 0xebeb),
+	layoutActivitybarLeft: register('layout-activitybar-left', 0xebec),
+	layoutActivitybarRight: register('layout-activitybar-right', 0xebed),
+	layoutPanelLeft: register('layout-panel-left', 0xebee),
+	layoutPanelCenter: register('layout-panel-center', 0xebef),
+	layoutPanelJustify: register('layout-panel-justify', 0xebf0),
+	layoutPanelRight: register('layout-panel-right', 0xebf1),
+	layoutPanel: register('layout-panel', 0xebf2),
+	layoutSidebarLeft: register('layout-sidebar-left', 0xebf3),
+	layoutSidebarRight: register('layout-sidebar-right', 0xebf4),
+	layoutStatusbar: register('layout-statusbar', 0xebf5),
+	layoutMenubar: register('layout-menubar', 0xebf6),
+	layoutCentered: register('layout-centered', 0xebf7),
+	layoutSidebarRightOff: register('layout-sidebar-right-off', 0xec00),
+	layoutPanelOff: register('layout-panel-off', 0xec01),
+	layoutSidebarLeftOff: register('layout-sidebar-left-off', 0xec02),
+	target: register('target', 0xebf8),
+	indent: register('indent', 0xebf9),
+	recordSmall: register('record-small', 0xebfa),
+	errorSmall: register('error-small', 0xebfb),
+	arrowCircleDown: register('arrow-circle-down', 0xebfc),
+	arrowCircleLeft: register('arrow-circle-left', 0xebfd),
+	arrowCircleRight: register('arrow-circle-right', 0xebfe),
+	arrowCircleUp: register('arrow-circle-up', 0xebff),
+	heartFilled: register('heart-filled', 0xec04),
+	map: register('map', 0xec05),
+	mapFilled: register('map-filled', 0xec06),
+	circleSmall: register('circle-small', 0xec07),
+	bellSlash: register('bell-slash', 0xec08),
+	bellSlashDot: register('bell-slash-dot', 0xec09),
+	commentUnresolved: register('comment-unresolved', 0xec0a),
+	gitPullRequestGoToChanges: register('git-pull-request-go-to-changes', 0xec0b),
+	gitPullRequestNewChanges: register('git-pull-request-new-changes', 0xec0c),
+	searchFuzzy: register('search-fuzzy', 0xec0d),
+	commentDraft: register('comment-draft', 0xec0e),
+	send: register('send', 0xec0f),
+	sparkle: register('sparkle', 0xec10),
+	insert: register('insert', 0xec11),
+	mic: register('mic', 0xec12),
+	thumbsDownFilled: register('thumbsdown-filled', 0xec13),
+	thumbsUpFilled: register('thumbsup-filled', 0xec14),
+	coffee: register('coffee', 0xec15),
+	snake: register('snake', 0xec16),
+	game: register('game', 0xec17),
+	vr: register('vr', 0xec18),
+	chip: register('chip', 0xec19),
+	piano: register('piano', 0xec1a),
+	music: register('music', 0xec1b),
+	micFilled: register('mic-filled', 0xec1c),
+	gitFetch: register('git-fetch', 0xec1d),
+	copilot: register('copilot', 0xec1e),
+	lightbulbSparkle: register('lightbulb-sparkle', 0xec1f),
+	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
+	robot: register('robot', 0xec20),
+	sparkleFilled: register('sparkle-filled', 0xec21),
+	diffSingle: register('diff-single', 0xec22),
+	diffMultiple: register('diff-multiple', 0xec23),
 
-	export const dropDownButton = new Codicon('drop-down-button', Codicon.chevronDown.definition);
-}
+	// derived icons, that could become separate icons
+
+	dialogError: register('dialog-error', 'error'),
+	dialogWarning: register('dialog-warning', 'warning'),
+	dialogInfo: register('dialog-info', 'info'),
+	dialogClose: register('dialog-close', 'close'),
+
+	treeItemExpanded: register('tree-item-expanded', 'chevron-down'), // collapsed is done with rotation
+
+	treeFilterOnTypeOn: register('tree-filter-on-type-on', 'list-filter'),
+	treeFilterOnTypeOff: register('tree-filter-on-type-off', 'list-selection'),
+	treeFilterClear: register('tree-filter-clear', 'close'),
+
+	treeItemLoading: register('tree-item-loading', 'loading'),
+
+	menuSelection: register('menu-selection', 'check'),
+	menuSubmenu: register('menu-submenu', 'chevron-right'),
+
+	menuBarMore: register('menubar-more', 'more'),
+
+	scrollbarButtonLeft: register('scrollbar-button-left', 'triangle-left'),
+	scrollbarButtonRight: register('scrollbar-button-right', 'triangle-right'),
+
+	scrollbarButtonUp: register('scrollbar-button-up', 'triangle-up'),
+	scrollbarButtonDown: register('scrollbar-button-down', 'triangle-down'),
+
+	toolBarMore: register('toolbar-more', 'more'),
+
+	quickInputBack: register('quick-input-back', 'arrow-left')
+
+} as const;
 

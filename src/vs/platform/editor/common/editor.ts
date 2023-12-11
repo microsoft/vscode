@@ -3,15 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
 
-export interface IEditorModel {
-
-	/**
-	 * Emitted when the model is about to be disposed.
-	 */
-	readonly onWillDispose: Event<void>;
+export interface IResolvableEditorModel extends IDisposable {
 
 	/**
 	 * Resolves the model.
@@ -22,19 +17,16 @@ export interface IEditorModel {
 	 * Find out if the editor model was resolved or not.
 	 */
 	isResolved(): boolean;
-
-	/**
-	 * Find out if this model has been disposed.
-	 */
-	isDisposed(): boolean;
-
-	/**
-	 * Dispose associated resources
-	 */
-	dispose(): void;
 }
 
-export interface IBaseResourceEditorInput {
+export function isResolvedEditorModel(model: IDisposable | undefined | null): model is IResolvableEditorModel {
+	const candidate = model as IResolvableEditorModel | undefined | null;
+
+	return typeof candidate?.resolve === 'function'
+		&& typeof candidate?.isResolved === 'function';
+}
+
+export interface IBaseUntypedEditorInput {
 
 	/**
 	 * Optional options to use when opening the input.
@@ -50,15 +42,9 @@ export interface IBaseResourceEditorInput {
 	 * Description to show for the input.
 	 */
 	readonly description?: string;
+}
 
-	/**
-	 * Hint to indicate that this input should be treated as a file
-	 * that opens in an editor capable of showing file content.
-	 *
-	 * Without this hint, the editor service will make a guess by
-	 * looking at the scheme of the resource(s).
-	 */
-	readonly forceFile?: boolean;
+export interface IBaseResourceEditorInput extends IBaseUntypedEditorInput {
 
 	/**
 	 * Hint to indicate that this input should be treated as a
@@ -66,6 +52,10 @@ export interface IBaseResourceEditorInput {
 	 *
 	 * Without this hint, the editor service will make a guess by
 	 * looking at the scheme of the resource(s).
+	 *
+	 * Use `forceUntitled: true` when you pass in a `resource` that
+	 * does not use the `untitled` scheme. The `resource` will then
+	 * be used as associated path when saving the untitled file.
 	 */
 	readonly forceUntitled?: boolean;
 }
@@ -90,10 +80,10 @@ export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 	encoding?: string;
 
 	/**
-	 * The identifier of the language mode of the text input
+	 * The identifier of the language id of the text input
 	 * if known to use when displaying the contents.
 	 */
-	mode?: string;
+	languageId?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -114,19 +104,24 @@ export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTex
 
 /**
  * This identifier allows to uniquely identify an editor with a
- * resource and type identifier.
+ * resource, type and editor identifier.
  */
 export interface IResourceEditorInputIdentifier {
-
-	/**
-	 * The resource URI of the editor.
-	 */
-	readonly resource: URI;
 
 	/**
 	 * The type of the editor.
 	 */
 	readonly typeId: string;
+
+	/**
+	 * The identifier of the editor if provided.
+	 */
+	readonly editorId: string | undefined;
+
+	/**
+	 * The resource URI of the editor.
+	 */
+	readonly resource: URI;
 }
 
 export enum EditorActivation {
@@ -135,7 +130,7 @@ export enum EditorActivation {
 	 * Activate the editor after it opened. This will automatically restore
 	 * the editor if it is minimized.
 	 */
-	ACTIVATE,
+	ACTIVATE = 1,
 
 	/**
 	 * Only restore the editor if it is minimized but do not activate it.
@@ -156,20 +151,20 @@ export enum EditorActivation {
 	PRESERVE
 }
 
-export enum EditorOverride {
+export enum EditorResolution {
 
 	/**
-	 * Displays a picker and allows the user to decide which editor to use
+	 * Displays a picker and allows the user to decide which editor to use.
 	 */
-	PICK = 1,
+	PICK,
 
 	/**
-	 * Disables overrides
+	 * Only exclusive editors are considered.
 	 */
-	DISABLED
+	EXCLUSIVE_ONLY
 }
 
-export enum EditorOpenContext {
+export enum EditorOpenSource {
 
 	/**
 	 * Default: the editor is opening via a programmatic call
@@ -257,27 +252,42 @@ export interface IEditorOptions {
 	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
+
+	/**
+	 * In case of an error opening the editor, will not present this error to the user (e.g. by showing
+	 * a generic placeholder in the editor area). So it is up to the caller to provide error information
+	 * in that case.
+	 *
+	 * By default, an error when opening an editor will result in a placeholder editor that shows the error.
+	 * In certain cases a modal dialog may be presented to ask the user for further action.
+	 */
 	ignoreError?: boolean;
 
 	/**
 	 * Allows to override the editor that should be used to display the input:
 	 * - `undefined`: let the editor decide for itself
 	 * - `string`: specific override by id
-	 * - `EditorOverride`: specific override handling
+	 * - `EditorResolution`: specific override handling
 	 */
-	override?: string | EditorOverride;
+	override?: string | EditorResolution;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
 	 *
-	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * If configured to be `EditorOpenSource.USER`, this hint can be
 	 * used in various places to control the experience. For example,
 	 * if the editor to open fails with an error, a notification could
 	 * inform about this in a modal dialog. If the editor opened through
 	 * some background task, the notification would show in the background,
 	 * not as a modal dialog.
 	 */
-	context?: EditorOpenContext;
+	source?: EditorOpenSource;
+
+	/**
+	 * An optional property to signal that certain view state should be
+	 * applied when opening the editor.
+	 */
+	viewState?: object;
 }
 
 export interface ITextEditorSelection {
@@ -310,6 +320,31 @@ export const enum TextEditorSelectionRevealType {
 	NearTopIfOutsideViewport = 3,
 }
 
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse
+	 * but through text editor APIs.
+	 */
+	PROGRAMMATIC = 'api',
+
+	/**
+	 * Navigation source indicates a selection change that
+	 * was caused via some command or UI component such as
+	 * an outline tree.
+	 */
+	NAVIGATION = 'code.navigation',
+
+	/**
+	 * Jump source indicates a selection change that
+	 * was caused from within the text editor to another
+	 * location in the same or different text editor such
+	 * as "Go to definition".
+	 */
+	JUMP = 'code.jump'
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
@@ -318,13 +353,13 @@ export interface ITextEditorOptions extends IEditorOptions {
 	selection?: ITextEditorSelection;
 
 	/**
-	 * Text editor view state.
-	 */
-	viewState?: object;
-
-	/**
 	 * Option to control the text editor selection reveal type.
 	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
 	selectionRevealType?: TextEditorSelectionRevealType;
+
+	/**
+	 * Source of the call that caused the selection.
+	 */
+	selectionSource?: TextEditorSelectionSource | string;
 }

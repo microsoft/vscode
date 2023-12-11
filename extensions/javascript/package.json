@@ -9,10 +9,16 @@
     "vscode": "0.10.x"
   },
   "contributes": {
+    "configurationDefaults": {
+      "[javascript]": {
+        "editor.maxTokenizationLineLength": 2500
+      }
+    },
     "languages": [
       {
         "id": "javascriptreact",
         "aliases": [
+          "JavaScript JSX",
           "JavaScript React",
           "jsx"
         ],
@@ -62,6 +68,9 @@
           "meta.embedded.expression.js": "javascriptreact"
         },
         "tokenTypes": {
+          "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -79,6 +88,9 @@
           "meta.embedded.expression.js": "javascript"
         },
         "tokenTypes": {
+          "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",

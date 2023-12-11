@@ -19,7 +19,8 @@
           ".vb",
           ".brs",
           ".vbs",
-          ".bas"
+          ".bas",
+          ".vba"
         ],
         "aliases": [
           "Visual Basic",

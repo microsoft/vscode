@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection, Uri, env } from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, assertNoRpc } from '../utils';
+import { commands, env, Position, Range, Selection, SnippetString, TextDocument, TextEditor, TextEditorCursorStyle, TextEditorLineNumbersStyle, Uri, window, workspace } from 'vscode';
+import { assertNoRpc, closeAllEditors, createRandomFile, deleteFile } from '../utils';
 
 suite('vscode API - editors', () => {
 

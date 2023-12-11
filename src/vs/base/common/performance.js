@@ -40,7 +40,9 @@
 	 */
 	function _define() {
 
-		if (typeof performance === 'object' && typeof performance.mark === 'function') {
+		// Identify browser environment when following property is not present
+		// https://nodejs.org/dist/latest-v16.x/docs/api/perf_hooks.html#performancenodetiming
+		if (typeof performance === 'object' && typeof performance.mark === 'function' && !performance.nodeTiming) {
 			// in a browser context, reuse performance-util
 
 			if (typeof performance.timeOrigin !== 'number' && !performance.timing) {
@@ -76,7 +78,7 @@
 		} else if (typeof process === 'object') {
 			// node.js: use the normal polyfill but add the timeOrigin
 			// from the node perf_hooks API as very first mark
-			const timeOrigin = Math.round((require.nodeRequire || require)('perf_hooks').performance.timeOrigin);
+			const timeOrigin = performance?.timeOrigin ?? Math.round((require.__$__nodeRequire || require)('perf_hooks').performance.timeOrigin);
 			return _definePolyfillMarks(timeOrigin);
 
 		} else {

@@ -8,20 +8,17 @@
 	display: block;
 	padding: 0;
 	box-sizing:	border-box;
+	border-radius: 2px;
 
 	/* Customizable */
 	font-size: inherit;
-}
-
-.monaco-inputbox.idle {
-	border: 1px solid transparent;
 }
 
 .monaco-inputbox > .ibwrapper > .input,
 .monaco-inputbox > .ibwrapper > .mirror {
 
 	/* Customizable */
-	padding: 4px;
+	padding: 4px 6px;
 }
 
 .monaco-inputbox > .ibwrapper {
@@ -49,7 +46,6 @@
 
 .monaco-inputbox > .ibwrapper > textarea.input {
 	display: block;
-	-ms-overflow-style: none; /* IE 10+: hide scrollbars */
 	scrollbar-width: none; /* Firefox: hide scrollbars */
 	outline: none;
 }

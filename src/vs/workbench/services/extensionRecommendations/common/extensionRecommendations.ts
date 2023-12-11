@@ -7,13 +7,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 
-export type DynamicRecommendation = 'dynamic';
-export type ConfigRecommendation = 'config';
-export type ExecutableRecommendation = 'executable';
-export type CachedRecommendation = 'cached';
-export type ApplicationRecommendation = 'application';
-export type ExperimentalRecommendation = 'experimental';
-
 export const enum ExtensionRecommendationReason {
 	Workspace,
 	File,
@@ -24,7 +17,7 @@ export const enum ExtensionRecommendationReason {
 	Application,
 }
 
-export interface IExtensionRecommendationReson {
+export interface IExtensionRecommendationReason {
 	reasonId: ExtensionRecommendationReason;
 	reasonText: string;
 }
@@ -35,21 +28,22 @@ export interface IExtensionRecommendationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeRecommendations: Event<void>;
-	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
+	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReason>;
 
 	getImportantRecommendations(): Promise<string[]>;
 	getOtherRecommendations(): Promise<string[]>;
 	getFileBasedRecommendations(): string[];
-	getExeBasedRecommendations(exe?: string): Promise<{ important: string[], others: string[] }>;
-	getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }>;
+	getExeBasedRecommendations(exe?: string): Promise<{ important: string[]; others: string[] }>;
+	getConfigBasedRecommendations(): Promise<{ important: string[]; others: string[] }>;
 	getWorkspaceRecommendations(): Promise<string[]>;
 	getKeymapRecommendations(): string[];
 	getLanguageRecommendations(): string[];
+	getRemoteRecommendations(): string[];
 }
 
 export type IgnoredRecommendationChangeNotification = {
-	extensionId: string,
-	isRecommended: boolean
+	extensionId: string;
+	isRecommended: boolean;
 };
 
 export const IExtensionIgnoredRecommendationsService = createDecorator<IExtensionIgnoredRecommendationsService>('IExtensionIgnoredRecommendationsService');

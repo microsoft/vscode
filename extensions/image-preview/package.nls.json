@@ -1,7 +1,0 @@
-{
-	"displayName": "Image Preview",
-	"description": "Provides VS Code's built-in image preview",
-	"customEditors.displayName": "Image Preview",
-	"command.zoomIn": "Zoom in",
-	"command.zoomOut": "Zoom out"
-}

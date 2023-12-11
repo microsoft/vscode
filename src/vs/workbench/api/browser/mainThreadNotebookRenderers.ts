@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ExtHostContext, ExtHostNotebookRenderersShape, IExtHostContext, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, ExtHostNotebookRenderersShape, MainContext, MainThreadNotebookRenderersShape } from 'vs/workbench/api/common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebookRenderers)
@@ -23,7 +23,7 @@ export class MainThreadNotebookRenderers extends Disposable implements MainThrea
 		}));
 	}
 
-	$postMessage(editorId: string, rendererId: string, message: unknown): void {
-		this.messaging.fireDidReceiveMessage(editorId, rendererId, message);
+	$postMessage(editorId: string | undefined, rendererId: string, message: unknown): Promise<boolean> {
+		return this.messaging.receiveMessage(editorId, rendererId, message);
 	}
 }

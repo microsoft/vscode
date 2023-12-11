@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
-import { allCharCodes } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
+import { allCharCodes, Constants } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
 import { prebakedMiniMaps } from 'vs/editor/browser/viewParts/minimap/minimapPreBaked';
-import { Constants } from './minimapCharSheet';
 import { toUint8 } from 'vs/base/common/uint';
 
 /**
@@ -80,7 +79,7 @@ export class MinimapCharRendererFactory {
 			throw new Error('Unexpected source in MinimapCharRenderer');
 		}
 
-		let charData = MinimapCharRendererFactory._downsample(source, scale);
+		const charData = MinimapCharRendererFactory._downsample(source, scale);
 		return new MinimapCharRenderer(charData, scale);
 	}
 

@@ -49,12 +49,12 @@ const passthrough = (value: any, resolve: (value?: any) => void) => resolve(valu
  */
 export function promiseFromEvent<T, U>(
 	event: Event<T>,
-	adapter: PromiseAdapter<T, U> = passthrough): { promise: Promise<U>, cancel: EventEmitter<void> } {
+	adapter: PromiseAdapter<T, U> = passthrough): { promise: Promise<U>; cancel: EventEmitter<void> } {
 	let subscription: Disposable;
-	let cancel = new EventEmitter<void>();
+	const cancel = new EventEmitter<void>();
 	return {
 		promise: new Promise<U>((resolve, reject) => {
-			cancel.event(_ => reject());
+			cancel.event(_ => reject('Cancelled'));
 			subscription = event((value: T) => {
 				try {
 					Promise.resolve(adapter(value, resolve, reject))
@@ -97,4 +97,22 @@ export function arrayEquals<T>(one: ReadonlyArray<T> | undefined, other: Readonl
 	}
 
 	return true;
+}
+
+
+export class StopWatch {
+
+	private _startTime: number = Date.now();
+	private _stopTime: number = -1;
+
+	public stop(): void {
+		this._stopTime = Date.now();
+	}
+
+	public elapsed(): number {
+		if (this._stopTime !== -1) {
+			return this._stopTime - this._startTime;
+		}
+		return Date.now() - this._startTime;
+	}
 }

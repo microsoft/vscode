@@ -3,26 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Event } from 'vs/base/common/event';
-import { IExtensionIdentifier, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, allSettings } from 'vs/platform/configuration/common/configurationRegistry';
-import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import { joinPath, isEqualOrParent, IExtUri } from 'vs/base/common/resources';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { distinct } from 'vs/base/common/arrays';
-import { isArray, isString, isObject } from 'vs/base/common/types';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { Event } from 'vs/base/common/event';
+import { FormattingOptions } from 'vs/base/common/jsonFormatter';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IExtUri } from 'vs/base/common/resources';
+import { isObject, isString } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
-
-export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
+import { localize } from 'vs/nls';
+import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { EXTENSION_IDENTIFIER_PATTERN, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -34,8 +35,18 @@ export function getDefaultIgnoredSettings(): string[] {
 	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
 	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
 	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
+	return distinct([...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
 }
+
+export const USER_DATA_SYNC_CONFIGURATION_SCOPE = 'settingsSync';
+
+export interface IUserDataSyncConfiguration {
+	keybindingsPerPlatform?: boolean;
+	ignoredExtensions?: string[];
+	ignoredSettings?: string[];
+}
+
+export const CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM = 'settingsSync.keybindingsPerPlatform';
 
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
@@ -46,7 +57,7 @@ export function registerConfiguration(): IDisposable {
 		title: localize('settings sync', "Settings Sync"),
 		type: 'object',
 		properties: {
-			'settingsSync.keybindingsPerPlatform': {
+			[CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM]: {
 				type: 'boolean',
 				description: localize('settingsSync.keybindingsPerPlatform', "Synchronize keybindings for each platform."),
 				default: true,
@@ -83,9 +94,9 @@ export function registerConfiguration(): IDisposable {
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const registerIgnoredSettingsSchema = () => {
 		const disallowedIgnoredSettings = getDisallowedIgnoredSettings();
-		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
-		const settings = Object.keys(allSettings.properties).filter(setting => defaultIgnoredSettings.indexOf(setting) === -1);
-		const ignoredSettings = defaultIgnoredSettings.filter(setting => disallowedIgnoredSettings.indexOf(setting) === -1);
+		const defaultIgnoredSettings = getDefaultIgnoredSettings();
+		const settings = Object.keys(allSettings.properties).filter(setting => !defaultIgnoredSettings.includes(setting));
+		const ignoredSettings = defaultIgnoredSettings.filter(setting => !disallowedIgnoredSettings.includes(setting));
 		const ignoredSettingsSchema: IJSONSchema = {
 			items: {
 				type: 'string',
@@ -104,7 +115,7 @@ export interface IUserData {
 	content: string | null;
 }
 
-export type IAuthenticationProvider = { id: string, scopes: string[] };
+export type IAuthenticationProvider = { id: string; scopes: string[] };
 
 export interface IUserDataSyncStore {
 	readonly url: URI;
@@ -120,25 +131,55 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 	return thing
 		&& isObject(thing)
 		&& isString(thing.id)
-		&& isArray(thing.scopes);
+		&& Array.isArray(thing.scopes);
 }
 
 export const enum SyncResource {
 	Settings = 'settings',
 	Keybindings = 'keybindings',
 	Snippets = 'snippets',
+	Tasks = 'tasks',
 	Extensions = 'extensions',
-	GlobalState = 'globalState'
+	GlobalState = 'globalState',
+	Profiles = 'profiles',
+	WorkspaceState = 'workspaceState',
 }
-export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
+export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Tasks, SyncResource.Extensions, SyncResource.GlobalState, SyncResource.Profiles];
 
-export function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
-	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
+export function getPathSegments(collection: string | undefined, ...paths: string[]): string[] {
+	return collection ? [collection, ...paths] : paths;
+}
+
+export function getLastSyncResourceUri(collection: string | undefined, syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
+	return extUri.joinPath(environmentService.userDataSyncHome, ...getPathSegments(collection, syncResource, `lastSync${syncResource}.json`));
+}
+
+export type IUserDataResourceManifest = Record<ServerResource, string>;
+
+export interface IUserDataCollectionManifest {
+	[collectionId: string]: {
+		readonly latest?: IUserDataResourceManifest;
+	};
 }
 
 export interface IUserDataManifest {
-	latest?: Record<ServerResource, string>
-	session: string;
+	readonly latest?: IUserDataResourceManifest;
+	readonly session: string;
+	readonly ref: string;
+	readonly collections?: IUserDataCollectionManifest;
+}
+
+export interface IUserDataActivityData {
+	resources?: {
+		[resourceId: string]: { created: number; content: string }[];
+	};
+	collections?: {
+		[collectionId: string]: {
+			resources?: {
+				[resourceId: string]: { created: number; content: string }[];
+			} | undefined;
+		};
+	};
 }
 
 export interface IResourceRefHandle {
@@ -146,7 +187,7 @@ export interface IResourceRefHandle {
 	created: number;
 }
 
-export type ServerResource = SyncResource | 'machines';
+export type ServerResource = SyncResource | 'machines' | 'editSessions' | 'workspaceState';
 export type UserDataSyncStoreType = 'insiders' | 'stable';
 
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
@@ -158,36 +199,38 @@ export interface IUserDataSyncStoreManagementService {
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 }
 
-export interface IUserDataSyncStoreClient {
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService {
+	readonly _serviceBrand: undefined;
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
-	readonly onTokenFailed: Event<void>;
+	readonly onTokenFailed: Event<UserDataSyncErrorCode>;
 	readonly onTokenSucceed: Event<void>;
 	setAuthToken(token: string, type: string): void;
 
-	// Sync requests
-	manifest(headers?: IHeaders): Promise<IUserDataManifest | null>;
-	read(resource: ServerResource, oldValue: IUserData | null, headers?: IHeaders): Promise<IUserData>;
-	write(resource: ServerResource, content: string, ref: string | null, headers?: IHeaders): Promise<string>;
+	manifest(oldValue: IUserDataManifest | null, headers?: IHeaders): Promise<IUserDataManifest | null>;
+	readResource(resource: ServerResource, oldValue: IUserData | null, collection?: string, headers?: IHeaders): Promise<IUserData>;
+	writeResource(resource: ServerResource, content: string, ref: string | null, collection?: string, headers?: IHeaders): Promise<string>;
+	deleteResource(resource: ServerResource, ref: string | null, collection?: string): Promise<void>;
+	getAllResourceRefs(resource: ServerResource, collection?: string): Promise<IResourceRefHandle[]>;
+	resolveResourceContent(resource: ServerResource, ref: string, collection?: string, headers?: IHeaders): Promise<string | null>;
+
+	getAllCollections(headers?: IHeaders): Promise<string[]>;
+	createCollection(headers?: IHeaders): Promise<string>;
+	deleteCollection(collection?: string, headers?: IHeaders): Promise<void>;
+
+	getActivityData(): Promise<VSBufferReadableStream>;
+
 	clear(): Promise<void>;
-	delete(resource: ServerResource): Promise<void>;
-
-	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
 }
 
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService extends IUserDataSyncStoreClient {
+export const IUserDataSyncLocalStoreService = createDecorator<IUserDataSyncLocalStoreService>('IUserDataSyncLocalStoreService');
+export interface IUserDataSyncLocalStoreService {
 	readonly _serviceBrand: undefined;
-}
-
-export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
-export interface IUserDataSyncBackupStoreService {
-	readonly _serviceBrand: undefined;
-	backup(resource: SyncResource, content: string): Promise<void>;
-	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: SyncResource, ref?: string): Promise<string | null>;
+	writeResource(resource: ServerResource, content: string, cTime: Date, collection?: string, root?: URI): Promise<void>;
+	getAllResourceRefs(resource: ServerResource, collection?: string, root?: URI): Promise<IResourceRefHandle[]>;
+	resolveResourceContent(resource: ServerResource, ref: string, collection?: string, root?: URI): Promise<string | null>;
 }
 
 //#endregion
@@ -207,9 +250,12 @@ export function createSyncHeaders(executionId: string): IHeaders {
 
 // #region User Data Sync Error
 
-export enum UserDataSyncErrorCode {
+export const enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Forbidden = 'Forbidden', /* 403 */
+	NotFound = 'NotFound', /* 404 */
+	MethodNotFound = 'MethodNotFound', /* 405 */
 	Conflict = 'Conflict', /* 409 */
 	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
@@ -223,18 +269,23 @@ export enum UserDataSyncErrorCode {
 	RequestFailed = 'RequestFailed',
 	RequestCanceled = 'RequestCanceled',
 	RequestTimeout = 'RequestTimeout',
+	RequestProtocolNotSupported = 'RequestProtocolNotSupported',
+	RequestPathNotEscaped = 'RequestPathNotEscaped',
+	RequestHeadersNotObject = 'RequestHeadersNotObject',
+	NoCollection = 'NoCollection',
 	NoRef = 'NoRef',
+	EmptyResponse = 'EmptyResponse',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
 	ServiceChanged = 'ServiceChanged',
 	DefaultServiceChanged = 'DefaultServiceChanged',
+	LocalTooManyProfiles = 'LocalTooManyProfiles',
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
 	IncompatibleLocalContent = 'IncompatibleLocalContent',
 	IncompatibleRemoteContent = 'IncompatibleRemoteContent',
-	UnresolvedConflicts = 'UnresolvedConflicts',
 
 	Unknown = 'Unknown',
 }
@@ -254,7 +305,7 @@ export class UserDataSyncError extends Error {
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, operationId: string | undefined) {
+	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, readonly serverCode: number | undefined, operationId: string | undefined) {
 		super(message, code, undefined, operationId);
 	}
 }
@@ -286,16 +337,37 @@ export namespace UserDataSyncError {
 
 // #region User Data Synchroniser
 
-export interface ISyncExtension {
+export interface ISyncUserDataProfile {
+	readonly id: string;
+	readonly collection: string;
+	readonly name: string;
+	readonly shortName?: string;
+	readonly icon?: string;
+	readonly useDefaultFlags?: UseDefaultProfileFlags;
+}
+
+export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
+
+export interface ILocalSyncExtension {
 	identifier: IExtensionIdentifier;
-	version?: string;
+	pinned: boolean;
+	version: string;
+	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
-export interface ISyncExtensionWithVersion extends ISyncExtension {
+export interface IRemoteSyncExtension {
+	identifier: IExtensionIdentifier;
 	version: string;
+	pinned?: boolean;
+	preRelease?: boolean;
+	disabled?: boolean;
+	installed?: boolean;
+	isApplicationScoped?: boolean;
+	state?: IStringDictionary<any>;
 }
 
 export interface IStorageValue {
@@ -305,6 +377,17 @@ export interface IStorageValue {
 
 export interface IGlobalState {
 	storage: IStringDictionary<IStorageValue>;
+}
+
+export interface IWorkspaceState {
+	folders: IWorkspaceStateFolder[];
+	storage: IStringDictionary<string>;
+	version: number;
+}
+
+export interface IWorkspaceStateFolder {
+	resourceUri: string;
+	workspaceFolderIdentity: string;
 }
 
 export const enum SyncStatus {
@@ -344,6 +427,7 @@ export const enum MergeState {
 }
 
 export interface IResourcePreview {
+	readonly baseResource: URI;
 	readonly remoteResource: URI;
 	readonly localResource: URI;
 	readonly previewResource: URI;
@@ -353,12 +437,25 @@ export interface IResourcePreview {
 	readonly mergeState: MergeState;
 }
 
-export interface ISyncResourcePreview {
+export interface IUserDataSyncResource {
+	readonly syncResource: SyncResource;
+	readonly profile: IUserDataProfile;
+}
+
+export interface IUserDataSyncResourceConflicts extends IUserDataSyncResource {
+	readonly conflicts: IResourcePreview[];
+}
+
+export interface IUserDataSyncResourcePreview extends IUserDataSyncResource {
 	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly resourcePreviews: IResourcePreview[];
 }
 
-export interface IUserDataInitializer {
+export interface IUserDataSyncResourceError extends IUserDataSyncResource {
+	readonly error: UserDataSyncError;
+}
+
+export interface IUserDataSyncResourceInitializer {
 	initialize(userData: IUserData): Promise<void>;
 }
 
@@ -368,30 +465,26 @@ export interface IUserDataSynchroniser {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 
-	readonly conflicts: IResourcePreview[];
-	readonly onDidChangeConflicts: Event<IResourcePreview[]>;
+	readonly conflicts: IUserDataSyncResourceConflicts;
+	readonly onDidChangeConflicts: Event<IUserDataSyncResourceConflicts>;
 
 	readonly onDidChangeLocal: Event<void>;
 
-	sync(manifest: IUserDataManifest | null, headers: IHeaders): Promise<void>;
-	replace(uri: URI): Promise<boolean>;
+	sync(manifest: IUserDataResourceManifest | null, headers: IHeaders): Promise<void>;
 	stop(): Promise<void>;
 
-	preview(manifest: IUserDataManifest | null, headers: IHeaders): Promise<ISyncResourcePreview | null>;
-	accept(resource: URI, content?: string | null): Promise<ISyncResourcePreview | null>;
-	merge(resource: URI): Promise<ISyncResourcePreview | null>;
-	discard(resource: URI): Promise<ISyncResourcePreview | null>;
-	apply(force: boolean, headers: IHeaders): Promise<ISyncResourcePreview | null>;
+	preview(manifest: IUserDataResourceManifest | null, userDataSyncConfiguration: IUserDataSyncConfiguration, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
+	accept(resource: URI, content?: string | null): Promise<IUserDataSyncResourcePreview | null>;
+	merge(resource: URI): Promise<IUserDataSyncResourcePreview | null>;
+	discard(resource: URI): Promise<IUserDataSyncResourcePreview | null>;
+	apply(force: boolean, headers: IHeaders): Promise<IUserDataSyncResourcePreview | null>;
 
 	hasPreviouslySynced(): Promise<boolean>;
 	hasLocalData(): Promise<boolean>;
 	resetLocal(): Promise<void>;
 
 	resolveContent(resource: URI): Promise<string | null>;
-	getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getLocalSyncResourceHandles(): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	replace(content: string): Promise<boolean>;
 }
 
 //#endregion
@@ -404,10 +497,14 @@ export function getEnablementKey(resource: SyncResource) { return `sync.enable.$
 // #endregion
 
 // #region User Data Sync Services
-
-export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
-export interface IUserDataSyncResourceEnablementService {
+export const IUserDataSyncEnablementService = createDecorator<IUserDataSyncEnablementService>('IUserDataSyncEnablementService');
+export interface IUserDataSyncEnablementService {
 	_serviceBrand: any;
+
+	readonly onDidChangeEnablement: Event<boolean>;
+	isEnabled(): boolean;
+	canToggleEnablement(): boolean;
+	setEnablement(enabled: boolean): void;
 
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
 	isResourceEnabled(resource: SyncResource): boolean;
@@ -416,25 +513,16 @@ export interface IUserDataSyncResourceEnablementService {
 	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
 }
 
-export interface ISyncTask {
+export interface IUserDataSyncTask {
 	readonly manifest: IUserDataManifest | null;
 	run(): Promise<void>;
 	stop(): Promise<void>;
 }
 
-export interface IManualSyncTask extends IDisposable {
+export interface IUserDataManualSyncTask {
 	readonly id: string;
-	readonly status: SyncStatus;
-	readonly manifest: IUserDataManifest | null;
-	readonly onSynchronizeResources: Event<[SyncResource, URI[]][]>;
-	preview(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]>;
-	merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
-	discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]>;
-	discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	apply(): Promise<[SyncResource, ISyncResourcePreview][]>;
-	pull(): Promise<void>;
-	push(): Promise<void>;
+	merge(): Promise<void>;
+	apply(): Promise<void>;
 	stop(): Promise<void>;
 }
 
@@ -445,11 +533,11 @@ export interface IUserDataSyncService {
 	readonly status: SyncStatus;
 	readonly onDidChangeStatus: Event<SyncStatus>;
 
-	readonly conflicts: [SyncResource, IResourcePreview[]][];
-	readonly onDidChangeConflicts: Event<[SyncResource, IResourcePreview[]][]>;
+	readonly conflicts: IUserDataSyncResourceConflicts[];
+	readonly onDidChangeConflicts: Event<IUserDataSyncResourceConflicts[]>;
 
 	readonly onDidChangeLocal: Event<SyncResource>;
-	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]>;
+	readonly onSyncErrors: Event<IUserDataSyncResourceError[]>;
 
 	readonly lastSyncTime: number | undefined;
 	readonly onDidChangeLastSyncTime: Event<number>;
@@ -457,31 +545,36 @@ export interface IUserDataSyncService {
 	readonly onDidResetRemote: Event<void>;
 	readonly onDidResetLocal: Event<void>;
 
-	createSyncTask(disableCache?: boolean): Promise<ISyncTask>;
-	createManualSyncTask(): Promise<IManualSyncTask>;
+	createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask>;
+	createManualSyncTask(): Promise<IUserDataManualSyncTask>;
+	resolveContent(resource: URI): Promise<string | null>;
+	accept(syncResource: IUserDataSyncResource, resource: URI, content: string | null | undefined, apply: boolean | { force: boolean }): Promise<void>;
 
-	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetRemote(): Promise<void>;
+	cleanUpRemoteData(): Promise<void>;
 	resetLocal(): Promise<void>;
-
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
-	resolveContent(resource: URI): Promise<string | null>;
-	accept(resource: SyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
 
-	getLocalSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
-	getRemoteSyncResourceHandles(resource: SyncResource): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
-	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	replace(syncResourceHandle: ISyncResourceHandle): Promise<void>;
+
+	saveRemoteActivityData(location: URI): Promise<void>;
+	extractActivityData(activityDataResource: URI, location: URI): Promise<void>;
 }
 
-export const IUserDataAutoSyncEnablementService = createDecorator<IUserDataAutoSyncEnablementService>('IUserDataAutoSyncEnablementService');
-export interface IUserDataAutoSyncEnablementService {
+export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
+export interface IUserDataSyncResourceProviderService {
 	_serviceBrand: any;
-	readonly onDidChangeEnablement: Event<boolean>;
-	isEnabled(): boolean;
-	canToggleEnablement(): boolean;
+	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
+	getLocalSyncedProfiles(location?: URI): Promise<ISyncUserDataProfile[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile, location?: URI): Promise<ISyncResourceHandle[]>;
+	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
+	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	getLocalSyncedMachines(location?: URI): Promise<IUserDataSyncMachine[]>;
+	resolveContent(resource: URI): Promise<string | null>;
+	resolveUserDataSyncResource(syncResourceHandle: ISyncResourceHandle): IUserDataSyncResource | undefined;
 }
 
 export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService>('IUserDataAutoSyncService');
@@ -512,12 +605,6 @@ export interface IConflictSetting {
 
 //#endregion
 
+export const USER_DATA_SYNC_LOG_ID = 'userDataSync';
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
 export const PREVIEW_DIR_NAME = 'preview';
-export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
-	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
-		return undefined;
-	}
-	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
-	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
-}

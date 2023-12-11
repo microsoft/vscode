@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isWindows } from 'vs/base/common/platform';
-import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { URI } from 'vs/base/common/uri';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
+import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Debug - Link Detector', () => {
 
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
 	 */
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});

@@ -10,14 +10,16 @@ import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
 import { URI } from 'vs/base/common/uri';
 import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { Range } from 'vs/editor/common/core/range';
 import { ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('BulkEditPreview', function () {
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instaService: IInstantiationService;
 
@@ -53,6 +55,7 @@ suite('BulkEditPreview', function () {
 		];
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 		assert.strictEqual(ops.fileOperations.length, 1);
 		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
 	});
@@ -66,6 +69,7 @@ suite('BulkEditPreview', function () {
 
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 		assert.strictEqual(ops.categories.length, 2);
 		assert.strictEqual(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
 		assert.strictEqual(ops.categories[1].metadata.label, 'uri2');
@@ -79,6 +83,7 @@ suite('BulkEditPreview', function () {
 		];
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 		assert.strictEqual(ops.categories.length, 1);
 		assert.strictEqual(ops.categories[0].metadata.label, 'uri1'); // unconfirmed!
 		assert.strictEqual(ops.categories[0].metadata.label, 'uri1');
@@ -93,6 +98,7 @@ suite('BulkEditPreview', function () {
 
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 
 		assert.strictEqual(ops.checked.isChecked(edits[0]), true);
 		assert.strictEqual(ops.checked.isChecked(edits[1]), true);
@@ -119,6 +125,7 @@ suite('BulkEditPreview', function () {
 		];
 
 		const ops = await instaService.invokeFunction(BulkFileOperations.create, edits);
+		store.add(ops);
 
 		assert.strictEqual(ops.checked.isChecked(edits[0]), false);
 		assert.strictEqual(ops.checked.isChecked(edits[1]), false);

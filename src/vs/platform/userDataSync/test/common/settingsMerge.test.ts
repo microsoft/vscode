@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { merge, updateIgnoredSettings, addSetting } from 'vs/platform/userDataSync/common/settingsMerge';
+import { addSetting, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import type { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 const formattingOptions = { eol: '\n', insertSpaces: false, tabSize: 4 };
@@ -758,6 +758,26 @@ suite('SettingsMerge - Compute Remote Content', () => {
 		});
 		const actual = updateIgnoredSettings(localContent, remoteContent, [], formattingOptions);
 		assert.strictEqual(actual, localContent);
+	});
+
+	test('when target content is empty', async () => {
+		const remoteContent = stringify({
+			'a': 3,
+		});
+		const actual = updateIgnoredSettings('', remoteContent, ['a'], formattingOptions);
+		assert.strictEqual(actual, '');
+	});
+
+	test('when source content is empty', async () => {
+		const localContent = stringify({
+			'a': 3,
+			'b': 3,
+		});
+		const expected = stringify({
+			'b': 3,
+		});
+		const actual = updateIgnoredSettings(localContent, '', ['a'], formattingOptions);
+		assert.strictEqual(actual, expected);
 	});
 
 	test('ignored settings are not updated from remote content', async () => {

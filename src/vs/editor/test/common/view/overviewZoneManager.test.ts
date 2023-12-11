@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/viewModel/overviewZoneManager';
 
 suite('Editor View - OverviewZoneManager', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('pixel ratio 1, dom height 600', () => {
 		const LINE_COUNT = 50;
 		const LINE_HEIGHT = 20;
-		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
+		const manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
 		manager.setDOMWidth(30);
 		manager.setDOMHeight(600);
 		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
@@ -19,10 +22,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(1);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+			new OverviewRulerZone(1, 1, 0, '1'),
+			new OverviewRulerZone(10, 10, 0, '2'),
+			new OverviewRulerZone(30, 31, 0, '3'),
+			new OverviewRulerZone(50, 50, 0, '4'),
 		]);
 
 		// one line = 12, but cap is at 6
@@ -37,7 +40,7 @@ suite('Editor View - OverviewZoneManager', () => {
 	test('pixel ratio 1, dom height 300', () => {
 		const LINE_COUNT = 50;
 		const LINE_HEIGHT = 20;
-		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
+		const manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
 		manager.setDOMWidth(30);
 		manager.setDOMHeight(300);
 		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
@@ -45,10 +48,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(1);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+			new OverviewRulerZone(1, 1, 0, '1'),
+			new OverviewRulerZone(10, 10, 0, '2'),
+			new OverviewRulerZone(30, 31, 0, '3'),
+			new OverviewRulerZone(50, 50, 0, '4'),
 		]);
 
 		// one line = 6, cap is at 6
@@ -63,7 +66,7 @@ suite('Editor View - OverviewZoneManager', () => {
 	test('pixel ratio 2, dom height 300', () => {
 		const LINE_COUNT = 50;
 		const LINE_HEIGHT = 20;
-		let manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
+		const manager = new OverviewZoneManager((lineNumber) => LINE_HEIGHT * lineNumber);
 		manager.setDOMWidth(30);
 		manager.setDOMHeight(300);
 		manager.setOuterHeight(LINE_COUNT * LINE_HEIGHT);
@@ -71,10 +74,10 @@ suite('Editor View - OverviewZoneManager', () => {
 		manager.setPixelRatio(2);
 
 		manager.setZones([
-			new OverviewRulerZone(1, 1, '1'),
-			new OverviewRulerZone(10, 10, '2'),
-			new OverviewRulerZone(30, 31, '3'),
-			new OverviewRulerZone(50, 50, '4'),
+			new OverviewRulerZone(1, 1, 0, '1'),
+			new OverviewRulerZone(10, 10, 0, '2'),
+			new OverviewRulerZone(30, 31, 0, '3'),
+			new OverviewRulerZone(50, 50, 0, '4'),
 		]);
 
 		// one line = 6, cap is at 12

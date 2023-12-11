@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMirrorModel, IWorkerContext } from 'vs/editor/common/services/editorSimpleWorker';
-import { ILink } from 'vs/editor/common/modes';
+import { ILink } from 'vs/editor/common/languages';
 import { URI } from 'vs/base/common/uri';
 import * as extpath from 'vs/base/common/extpath';
 import * as resources from 'vs/base/common/resources';
@@ -179,6 +179,7 @@ export class OutputLinkComputer {
 	}
 }
 
+// Export this function because this will be called by the web worker for computing links
 export function create(ctx: IWorkerContext, createData: ICreateData): OutputLinkComputer {
 	return new OutputLinkComputer(ctx, createData);
 }

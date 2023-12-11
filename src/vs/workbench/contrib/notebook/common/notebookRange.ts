@@ -56,12 +56,8 @@ export function cellRangesToIndexes(ranges: ICellRange[]) {
 
 	return indexes;
 }
-/**
- * todo@rebornix notebookBrowser.reduceCellRanges
- * @returns
- */
 
-export function reduceRanges(ranges: ICellRange[]) {
+export function reduceCellRanges(ranges: ICellRange[]): ICellRange[] {
 	const sorted = ranges.sort((a, b) => a.start - b.start);
 	const first = sorted[0];
 
@@ -79,6 +75,23 @@ export function reduceRanges(ranges: ICellRange[]) {
 		return prev;
 	}, [first] as ICellRange[]);
 }
+
+export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {
+	a = reduceCellRanges(a);
+	b = reduceCellRanges(b);
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		if (a[i].start !== b[i].start || a[i].end !== b[i].end) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 /**
  * todo@rebornix test and sort
  * @param range

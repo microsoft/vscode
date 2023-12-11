@@ -82,24 +82,6 @@ suite('Types', () => {
 		assert(types.isEmptyObject({}));
 	});
 
-	test('isArray', () => {
-		assert(!types.isArray(undefined));
-		assert(!types.isArray(null));
-		assert(!types.isArray('foo'));
-		assert(!types.isArray(5));
-		assert(!types.isArray(true));
-		assert(!types.isArray({}));
-		assert(!types.isArray(/test/));
-		assert(!types.isArray(new RegExp('')));
-		assert(!types.isArray(new Date()));
-		assert(!types.isArray(assert));
-		assert(!types.isArray(function foo() { /**/ }));
-		assert(!types.isArray({ foo: 'bar' }));
-
-		assert(types.isArray([]));
-		assert(types.isArray([1, 2, '3']));
-	});
-
 	test('isString', () => {
 		assert(!types.isString(undefined));
 		assert(!types.isString(null));

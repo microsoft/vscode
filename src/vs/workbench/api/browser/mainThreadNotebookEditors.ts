@@ -4,22 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
-import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { ILogService } from 'vs/platform/log/common/log';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { editorGroupToViewColumn } from 'vs/workbench/common/editor';
 import { equals } from 'vs/base/common/objects';
-import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostNotebookEditorsShape, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 
 class MainThreadNotebook {
 
@@ -44,17 +40,12 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	constructor(
 		extHostContext: IExtHostContext,
-		notebooksAndEditors: MainThreadNotebooksAndEditors,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@ILogService private readonly _logService: ILogService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookEditors);
-
-		notebooksAndEditors.onDidAddEditors(this._handleEditorsAdded, this, this._disposables);
-		notebooksAndEditors.onDidRemoveEditors(this._handleEditorsRemoved, this, this._disposables);
 
 		this._editorService.onDidActiveEditorChange(() => this._updateEditorViewColumns(), this, this._disposables);
 		this._editorGroupService.onDidRemoveGroup(() => this._updateEditorViewColumns(), this, this._disposables);
@@ -66,7 +57,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		dispose(this._mainThreadEditors.values());
 	}
 
-	private _handleEditorsAdded(editors: readonly INotebookEditor[]): void {
+	handleEditorsAdded(editors: readonly INotebookEditor[]): void {
 
 		for (const editor of editors) {
 
@@ -84,7 +75,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		}
 	}
 
-	private _handleEditorsRemoved(editorIds: readonly string[]): void {
+	handleEditorsRemoved(editorIds: readonly string[]): void {
 		for (const id of editorIds) {
 			this._mainThreadEditors.get(id)?.dispose();
 			this._mainThreadEditors.delete(id);
@@ -93,33 +84,16 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	private _updateEditorViewColumns(): void {
 		const result: INotebookEditorViewColumnInfo = Object.create(null);
-		for (let editorPane of this._editorService.visibleEditorPanes) {
+		for (const editorPane of this._editorService.visibleEditorPanes) {
 			const candidate = getNotebookEditorFromEditorPane(editorPane);
 			if (candidate && this._mainThreadEditors.has(candidate.getId())) {
-				result[candidate.getId()] = editorGroupToViewColumn(this._editorGroupService, editorPane.group);
+				result[candidate.getId()] = editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		if (!equals(result, this._currentViewColumnInfo)) {
 			this._currentViewColumnInfo = result;
 			this._proxy.$acceptEditorViewColumns(result);
 		}
-	}
-
-	async $tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean> {
-		const wrapper = this._mainThreadEditors.get(editorId);
-		if (!wrapper) {
-			return false;
-		}
-		const { editor } = wrapper;
-		if (!editor.textModel) {
-			this._logService.warn('Notebook editor has NO model', editorId);
-			return false;
-		}
-		if (editor.textModel.versionId !== modelVersionId) {
-			return false;
-		}
-		//todo@jrieken use proper selection logic!
-		return editor.textModel.applyEdits(cellEdits.map(NotebookDto.fromCellEditOperationDto), true, undefined, () => undefined, undefined);
 	}
 
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
@@ -131,17 +105,16 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
-			override: EditorOverride.DISABLED
+			override: viewType
 		};
 
-		const input = NotebookEditorInput.create(this._instantiationService, URI.revive(resource), viewType);
-		const editorPane = await this._editorService.openEditor(input, editorOptions, options.position);
+		const editorPane = await this._editorService.openEditor({ resource: URI.revive(resource), options: editorOptions }, columnToEditorGroup(this._editorGroupService, this._configurationService, options.position));
 		const notebookEditor = getNotebookEditorFromEditorPane(editorPane);
 
 		if (notebookEditor) {
 			return notebookEditor.getId();
 		} else {
-			throw new Error(`Notebook Editor creation failure for documenet ${resource}`);
+			throw new Error(`Notebook Editor creation failure for document ${JSON.stringify(resource)}`);
 		}
 	}
 
@@ -154,11 +127,12 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		if (!notebookEditor.hasModel()) {
 			return;
 		}
-		const viewModel = notebookEditor.viewModel;
-		const cell = viewModel.cellAt(range.start);
-		if (!cell) {
+
+		if (range.start >= notebookEditor.getLength()) {
 			return;
 		}
+
+		const cell = notebookEditor.cellAt(range.start);
 
 		switch (revealType) {
 			case NotebookEditorRevealType.Default:
@@ -172,27 +146,16 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		}
 	}
 
-	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void {
-		this._notebookEditorService.registerEditorDecorationType(key, options);
-	}
-
-	$removeNotebookEditorDecorationType(key: string): void {
-		this._notebookEditorService.removeEditorDecorationType(key);
-	}
-
-	$trySetDecorations(id: string, range: ICellRange, key: string): void {
-		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (editor) {
-			const notebookEditor = editor as INotebookEditor;
-			notebookEditor.setEditorDecorations(key, range);
-		}
-	}
-
 	$trySetSelections(id: string, ranges: ICellRange[]): void {
 		const editor = this._notebookEditorService.getNotebookEditor(id);
-		if (editor) {
-			// @rebornix how to set an editor selection?
-			// editor.setSelections(ranges)
+		if (!editor) {
+			return;
+		}
+
+		editor.setSelections(ranges);
+
+		if (ranges.length) {
+			editor.setFocus({ start: ranges[0].start, end: ranges[0].start + 1 });
 		}
 	}
 }

@@ -23,5 +23,7 @@ export * from './settings';
 export * from './statusbar';
 export * from './terminal';
 export * from './viewlet';
+export * from './localization';
 export * from './workbench';
-export * from './driver';
+export * from './task';
+export { getDevElectronPath, getBuildElectronPath, getBuildVersion } from './electron';

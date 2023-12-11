@@ -9,17 +9,18 @@ import { URI } from 'vs/base/common/uri';
 import { join, basename } from 'vs/base/common/path';
 import { UTF16le, UTF8_with_bom, UTF16be, UTF8, UTF16le_BOM, UTF16be_BOM, UTF8_BOM } from 'vs/workbench/services/textfile/common/encoding';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { ITextSnapshot, DefaultEndOfLine } from 'vs/editor/common/model';
 import { isWindows } from 'vs/base/common/platform';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface Params {
 	setup(): Promise<{
-		service: ITextFileService,
-		testDir: string
-	}>
-	teardown(): Promise<void>
+		service: ITextFileService;
+		testDir: string;
+	}>;
+	teardown(): Promise<void>;
 
 	exists(fsPath: string): Promise<boolean>;
 	stat(fsPath: string): Promise<{ size: number }>;
@@ -40,6 +41,7 @@ export default function createSuite(params: Params) {
 	let service: ITextFileService;
 	let testDir = '';
 	const { exists, stat, readFile, detectEncodingByBOM } = params;
+	const disposables = new DisposableStore();
 
 	setup(async () => {
 		const result = await params.setup();
@@ -49,6 +51,7 @@ export default function createSuite(params: Params) {
 
 	teardown(async () => {
 		await params.teardown();
+		disposables.clear();
 	});
 
 	test('create - no encoding - content empty', async () => {
@@ -164,10 +167,17 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(res.byteLength, 'Hello World'.length + UTF8_BOM.length);
 	});
 
+	function createTextModelSnapshot(text: string, preserveBOM?: boolean): ITextSnapshot {
+		const textModel = disposables.add(createTextModel(text));
+		const snapshot = textModel.createSnapshot(preserveBOM);
+
+		return snapshot;
+	}
+
 	test('create - UTF 8 BOM - empty content - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create([{ resource, value: createTextModel('').createSnapshot() }]);
+		await service.create([{ resource, value: createTextModelSnapshot('') }]);
 
 		assert.strictEqual(await exists(resource.fsPath), true);
 
@@ -181,7 +191,7 @@ export default function createSuite(params: Params) {
 	test('create - UTF 8 BOM - content provided - snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small_new.utf8bom'));
 
-		await service.create([{ resource, value: createTextModel('Hello World').createSnapshot() }]);
+		await service.create([{ resource, value: createTextModelSnapshot('Hello World') }]);
 
 		assert.strictEqual(await exists(resource.fsPath), true);
 
@@ -197,7 +207,7 @@ export default function createSuite(params: Params) {
 	});
 
 	test('write - use encoding (UTF 16 BE) - small content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'small.txt')), UTF16be, createTextModelSnapshot('Hello\nWorld'), 'Hello\nWorld');
 	});
 
 	test('write - use encoding (UTF 16 BE) - large content as string', async () => {
@@ -205,7 +215,7 @@ export default function createSuite(params: Params) {
 	});
 
 	test('write - use encoding (UTF 16 BE) - large content as snapshot', async () => {
-		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'lorem.txt')), UTF16be, createTextModelSnapshot('Hello\nWorld'), 'Hello\nWorld');
 	});
 
 	async function testEncoding(resource: URI, encoding: string, content: string | ITextSnapshot, expectedContent: string) {
@@ -217,7 +227,8 @@ export default function createSuite(params: Params) {
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.encoding, encoding);
 
-		assert.strictEqual(snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false)), expectedContent);
+		const textBuffer = disposables.add(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer);
+		assert.strictEqual(snapshotToString(textBuffer.createSnapshot(false)), expectedContent);
 	}
 
 	test('write - use encoding (cp1252)', async () => {
@@ -245,18 +256,21 @@ export default function createSuite(params: Params) {
 
 	async function testEncodingKeepsData(resource: URI, encoding: string, expected: string) {
 		let resolved = await service.readStream(resource, { encoding });
-		const content = snapshotToString(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer = disposables.add(resolved.value.create(isWindows ? DefaultEndOfLine.CRLF : DefaultEndOfLine.LF).textBuffer);
+		const content = snapshotToString(textBuffer.createSnapshot(false));
 		assert.strictEqual(content, expected);
 
 		await service.write(resource, content, { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		const textBuffer2 = disposables.add(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer);
+		assert.strictEqual(snapshotToString(textBuffer2.createSnapshot(false)), content);
 
-		await service.write(resource, createTextModel(content).createSnapshot(), { encoding });
+		await service.write(resource, createTextModelSnapshot(content), { encoding });
 
 		resolved = await service.readStream(resource, { encoding });
-		assert.strictEqual(snapshotToString(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer.createSnapshot(false)), content);
+		const textBuffer3 = disposables.add(resolved.value.create(DefaultEndOfLine.CRLF).textBuffer);
+		assert.strictEqual(snapshotToString(textBuffer3.createSnapshot(false)), content);
 	}
 
 	test('write - no encoding - content as string', async () => {
@@ -275,7 +289,7 @@ export default function createSuite(params: Params) {
 
 		const content = (await readFile(resource.fsPath)).toString();
 
-		await service.write(resource, createTextModel(content).createSnapshot());
+		await service.write(resource, createTextModelSnapshot(content));
 
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.value.getFirstLineText(999999), content);
@@ -296,7 +310,7 @@ export default function createSuite(params: Params) {
 		const resolved = await service.readStream(resource);
 		assert.strictEqual(resolved.encoding, UTF16le);
 
-		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, createTextModel('Hello\nWorld').createSnapshot(), 'Hello\nWorld');
+		await testEncoding(URI.file(join(testDir, 'some_utf16le.css')), UTF16le, createTextModelSnapshot('Hello\nWorld'), 'Hello\nWorld');
 	});
 
 	test('write - UTF8 variations - content as string', async () => {
@@ -333,7 +347,7 @@ export default function createSuite(params: Params) {
 		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, null);
 
-		const model = createTextModel((await readFile(resource.fsPath)).toString() + 'updates');
+		const model = disposables.add(createTextModel((await readFile(resource.fsPath)).toString() + 'updates'));
 		await service.write(resource, model.createSnapshot(), { encoding: UTF8_with_bom });
 
 		detectedEncoding = await detectEncodingByBOM(resource.fsPath);
@@ -371,16 +385,16 @@ export default function createSuite(params: Params) {
 
 		await service.write(resource, '', { encoding: UTF8_with_bom });
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 	});
 
 	test('write - ensure BOM in empty file - content as snapshot', async () => {
 		const resource = URI.file(join(testDir, 'small.txt'));
 
-		await service.write(resource, createTextModel('').createSnapshot(), { encoding: UTF8_with_bom });
+		await service.write(resource, createTextModelSnapshot(''), { encoding: UTF8_with_bom });
 
-		let detectedEncoding = await detectEncodingByBOM(resource.fsPath);
+		const detectedEncoding = await detectEncodingByBOM(resource.fsPath);
 		assert.strictEqual(detectedEncoding, UTF8_with_bom);
 	});
 
@@ -403,9 +417,10 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.size, (await stat(resource.fsPath)).size);
 
 		const content = (await readFile(resource.fsPath)).toString();
+		const textBuffer = disposables.add(result.value.create(DefaultEndOfLine.LF).textBuffer);
 		assert.strictEqual(
-			snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false)),
-			snapshotToString(createTextModel(content).createSnapshot(false)));
+			snapshotToString(textBuffer.createSnapshot(false)),
+			snapshotToString(createTextModelSnapshot(content, false)));
 	}
 
 	test('read - small text', async () => {
@@ -532,7 +547,8 @@ export default function createSuite(params: Params) {
 		const result = await service.readStream(resource, { encoding });
 		assert.strictEqual(result.encoding, encoding);
 
-		let contents = snapshotToString(result.value.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer = disposables.add(result.value.create(DefaultEndOfLine.LF).textBuffer);
+		let contents = snapshotToString(textBuffer.createSnapshot(false));
 
 		assert.strictEqual(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);
@@ -548,7 +564,8 @@ export default function createSuite(params: Params) {
 
 		const factory = await createTextBufferFactoryFromStream(await service.getDecodedStream(resource, bufferToStream(rawFileVSBuffer), { encoding }));
 
-		contents = snapshotToString(factory.create(DefaultEndOfLine.LF).textBuffer.createSnapshot(false));
+		const textBuffer2 = disposables.add(factory.create(DefaultEndOfLine.LF).textBuffer);
+		contents = snapshotToString(textBuffer2.createSnapshot(false));
 
 		assert.strictEqual(contents.indexOf(needle), 0);
 		assert.ok(contents.indexOf(needle, 10) > 0);

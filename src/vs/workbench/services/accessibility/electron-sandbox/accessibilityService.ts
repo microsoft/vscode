@@ -9,19 +9,22 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 interface AccessibilityMetrics {
 	enabled: boolean;
 }
 type AccessibilityMetricsClassification = {
-	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	owner: 'isidorn';
+	comment: 'Helps gain an understanding of when accessibility features are being used';
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether or not accessibility features are enabled' };
 };
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
@@ -33,11 +36,12 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ILayoutService _layoutService: ILayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		super(contextKeyService, configurationService);
-		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		super(contextKeyService, _layoutService, configurationService);
+		this.setAccessibilitySupport(environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
@@ -63,7 +67,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 	}
 }
 
-registerSingleton(IAccessibilityService, NativeAccessibilityService, true);
+registerSingleton(IAccessibilityService, NativeAccessibilityService, InstantiationType.Delayed);
 
 // On linux we do not automatically detect that a screen reader is detected, thus we have to implicitly notify the renderer to enable accessibility when user configures it in settings
 class LinuxAccessibilityContribution implements IWorkbenchContribution {

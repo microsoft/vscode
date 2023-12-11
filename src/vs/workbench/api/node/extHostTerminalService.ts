@@ -7,13 +7,15 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal, ITerminalInternalOptions } from 'vs/workbench/api/common/extHostTerminalService';
 import type * as vscode from 'vscode';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	constructor(
+		@IExtHostCommands extHostCommands: IExtHostCommands,
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
-		super(true, extHostRpc);
+		super(true, extHostCommands, extHostRpc);
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
@@ -23,7 +25,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		this._terminals.push(terminal);
-		terminal.create(options, internalOptions);
+		terminal.create(options, this._serializeParentTerminal(options, internalOptions));
 		return terminal.value;
 	}
 }

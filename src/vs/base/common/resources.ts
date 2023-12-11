@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as extpath from 'vs/base/common/extpath';
-import * as paths from 'vs/base/common/path';
-import { URI, uriToFsPath } from 'vs/base/common/uri';
-import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
-import { Schemas } from 'vs/base/common/network';
-import { isWindows, isLinux } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
+import * as extpath from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
+import * as paths from 'vs/base/common/path';
+import { isLinux, isWindows } from 'vs/base/common/platform';
+import { compare as strCompare, equalsIgnoreCase } from 'vs/base/common/strings';
+import { URI, uriToFsPath } from 'vs/base/common/uri';
 
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
@@ -90,7 +90,7 @@ export interface IExtUri {
 	 * @param pathFragment The path fragment to add to the URI path.
 	 * @returns The resulting URI.
 	 */
-	joinPath(resource: URI, ...pathFragment: string[]): URI
+	joinPath(resource: URI, ...pathFragment: string[]): URI;
 	/**
 	 * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
 	 *
@@ -240,7 +240,8 @@ export class ExtUri implements IExtUri {
 			const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
 			return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 		}
-		let fromPath = from.path || '/', toPath = to.path || '/';
+		let fromPath = from.path || '/';
+		const toPath = to.path || '/';
 		if (this._ignorePathCasing(from)) {
 			// make casing of fromPath match toPath
 			let i = 0;
@@ -276,8 +277,8 @@ export class ExtUri implements IExtUri {
 		return !!resource.path && resource.path[0] === '/';
 	}
 
-	isEqualAuthority(a1: string, a2: string) {
-		return a1 === a2 || equalsIgnoreCase(a1, a2);
+	isEqualAuthority(a1: string | undefined, a2: string | undefined) {
+		return a1 === a2 || (a1 !== undefined && a2 !== undefined && equalsIgnoreCase(a1, a2));
 	}
 
 	hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {

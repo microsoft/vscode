@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray } from 'vs/base/common/types';
+import { range } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
-import { range } from 'vs/base/common/arrays';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -65,7 +64,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 	get length(): number { return this.pager.total; }
 
 	constructor(arg: IPager<T> | T[]) {
-		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
+		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
@@ -119,7 +118,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 				});
 		}
 
-		cancellationToken.onCancellationRequested(() => {
+		const listener = cancellationToken.onCancellationRequested(() => {
 			if (!page.cts) {
 				return;
 			}
@@ -133,7 +132,8 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 		page.promiseIndexes.add(index);
 
-		return page.promise.then(() => page.elements[indexInPage]);
+		return page.promise.then(() => page.elements[indexInPage])
+			.finally(() => listener.dispose());
 	}
 }
 

@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPtyHostProcessReplayEvent, ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
-const MAX_RECORDER_DATA_SIZE = 1024 * 1024; // 1MB
+const enum Constants {
+	MaxRecorderDataSize = 1024 * 1024 // 1MB
+}
 
 interface RecorderEntry {
 	cols: number;
@@ -26,7 +29,7 @@ export class TerminalRecorder {
 		this._entries = [{ cols, rows, data: [] }];
 	}
 
-	recordResize(cols: number, rows: number): void {
+	handleResize(cols: number, rows: number): void {
 		if (this._entries.length > 0) {
 			const lastEntry = this._entries[this._entries.length - 1];
 			if (lastEntry.data.length === 0) {
@@ -52,14 +55,14 @@ export class TerminalRecorder {
 		this._entries.push({ cols, rows, data: [] });
 	}
 
-	recordData(data: string): void {
+	handleData(data: string): void {
 		const lastEntry = this._entries[this._entries.length - 1];
 		lastEntry.data.push(data);
 
 		this._totalDataLength += data.length;
-		while (this._totalDataLength > MAX_RECORDER_DATA_SIZE) {
+		while (this._totalDataLength > Constants.MaxRecorderDataSize) {
 			const firstEntry = this._entries[0];
-			const remainingToDelete = this._totalDataLength - MAX_RECORDER_DATA_SIZE;
+			const remainingToDelete = this._totalDataLength - Constants.MaxRecorderDataSize;
 			if (remainingToDelete >= firstEntry.data[0].length) {
 				// the first data piece must be deleted
 				this._totalDataLength -= firstEntry.data[0].length;
@@ -76,7 +79,7 @@ export class TerminalRecorder {
 		}
 	}
 
-	generateReplayEvent(): IPtyHostProcessReplayEvent {
+	generateReplayEventSync(): IPtyHostProcessReplayEvent {
 		// normalize entries to one element per data array
 		this._entries.forEach((entry) => {
 			if (entry.data.length > 0) {
@@ -84,7 +87,16 @@ export class TerminalRecorder {
 			}
 		});
 		return {
-			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' }))
+			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' })),
+			// No command restoration is needed when relaunching terminals
+			commands: {
+				isWindowsPty: false,
+				commands: []
+			}
 		};
+	}
+
+	async generateReplayEvent(): Promise<IPtyHostProcessReplayEvent> {
+		return this.generateReplayEventSync();
 	}
 }

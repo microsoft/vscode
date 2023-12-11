@@ -5,8 +5,6 @@
 
 import * as vscode from 'vscode';
 
-declare const URL: typeof import('url').URL;
-
 /**
  * Tries to convert an url into a vscode uri and returns undefined if this is not possible.
  * `url` can be absolute or relative.

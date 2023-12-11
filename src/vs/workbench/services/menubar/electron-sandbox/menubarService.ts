@@ -6,4 +6,4 @@
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 
-registerMainProcessRemoteService(IMenubarService, 'menubar', { supportsDelayedInstantiation: true });
+registerMainProcessRemoteService(IMenubarService, 'menubar');

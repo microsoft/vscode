@@ -44,7 +44,7 @@ export function editorMatchesToTextSearchResults(matches: FindMatch[], model: IT
 	});
 }
 
-export function addContextToEditorMatches(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
+export function getTextSearchMatchWithModelContext(matches: ITextSearchMatch[], model: ITextModel, query: ITextQuery): ITextSearchResult[] {
 	const results: ITextSearchResult[] = [];
 
 	let prevLine = -1;
@@ -55,7 +55,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 			for (let b = beforeContextStartLine; b < matchStartLine; b++) {
 				results.push(<ITextSearchContext>{
 					text: model.getLineContent(b + 1),
-					lineNumber: b
+					lineNumber: b + 1
 				});
 			}
 		}
@@ -69,7 +69,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 			for (let a = matchEndLine + 1; a <= afterContextToLine; a++) {
 				results.push(<ITextSearchContext>{
 					text: model.getLineContent(a + 1),
-					lineNumber: a
+					lineNumber: a + 1
 				});
 			}
 		}
@@ -80,7 +80,7 @@ export function addContextToEditorMatches(matches: ITextSearchMatch[], model: IT
 	return results;
 }
 
-function getMatchStartEnd(match: ITextSearchMatch): { start: number, end: number } {
+function getMatchStartEnd(match: ITextSearchMatch): { start: number; end: number } {
 	const matchRanges = match.ranges;
 	const matchStartLine = Array.isArray(matchRanges) ? matchRanges[0].startLineNumber : matchRanges.startLineNumber;
 	const matchEndLine = Array.isArray(matchRanges) ? matchRanges[matchRanges.length - 1].endLineNumber : matchRanges.endLineNumber;

@@ -24,12 +24,13 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
 		const remove = this.participants.push(participant);
+
 		return toDisposable(() => remove());
 	}
 
 	async participate(files: SourceTargetPair[], operation: FileOperation, undoInfo: IFileOperationUndoRedoInfo | undefined, token: CancellationToken): Promise<void> {
 		const timeout = this.configurationService.getValue<number>('files.participants.timeout');
-		if (timeout <= 0) {
+		if (typeof timeout !== 'number' || timeout <= 0) {
 			return; // disabled
 		}
 
@@ -45,5 +46,7 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 
 	override dispose(): void {
 		this.participants.clear();
+
+		super.dispose();
 	}
 }

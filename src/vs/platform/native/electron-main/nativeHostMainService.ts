@@ -4,74 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
+import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
-import { localize } from 'vs/nls';
-import { realpath } from 'vs/base/node/extpath';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme, screen, Display } from 'electron';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, IColorScheme, IPartsSplash } from 'vs/platform/windows/common/windows';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isLinux, isLinuxSnap } from 'vs/base/common/platform';
-import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { AddFirstParameterToFunctions } from 'vs/base/common/types';
-import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
-import { URI } from 'vs/base/common/uri';
-import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 'os';
-import { virtualMachineHint } from 'vs/base/node/id';
-import { ILogService } from 'vs/platform/log/common/log';
-import { dirname, join, resolve } from 'vs/base/common/path';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
+import { Schemas } from 'vs/base/common/network';
+import { dirname, join, resolve } from 'vs/base/common/path';
+import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { AddFirstParameterToFunctions } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { realpath } from 'vs/base/node/extpath';
+import { virtualMachineHint } from 'vs/base/node/id';
+import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
+import { findFreePort } from 'vs/base/node/ports';
+import { localize } from 'vs/nls';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ICommonNativeHostService, INativeOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { getFocusedOrLastActiveWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
+import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
-
-interface ChunkedPassword {
-	content: string;
-	hasNextChunk: boolean;
-}
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// Color Scheme changes
-		nativeTheme.on('updated', () => {
-			this._onDidChangeColorScheme.fire({
-				highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors,
-				dark: nativeTheme.shouldUseDarkColors
-			});
-		});
 	}
 
 
@@ -84,23 +76,42 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Events
 
-	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
 
-	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidTriggerWindowSystemContextMenu = Event.any(
+		Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId)),
+		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+	);
 
-	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidFocusWindow = Event.any(
+	readonly onDidMaximizeWindow = Event.any(
+		Event.filter(Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id), windowId => !!this.windowsMainService.getWindowById(windowId)),
+		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id), windowId => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+	);
+	readonly onDidUnmaximizeWindow = Event.any(
+		Event.filter(Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id), windowId => !!this.windowsMainService.getWindowById(windowId)),
+		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id), windowId => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+	);
+
+	readonly onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidFocusMainWindow = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
 	);
 
+	readonly onDidBlurMainOrAuxiliaryWindow = Event.any(
+		this.onDidBlurMainWindow,
+		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window), window => isAuxiliaryWindow(window.webContents)), window => window.id)
+	);
+	readonly onDidFocusMainOrAuxiliaryWindow = Event.any(
+		this.onDidFocusMainWindow,
+		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window), window => isAuxiliaryWindow(window.webContents)), window => window.id)
+	);
+
 	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
 
-	private readonly _onDidChangeColorScheme = this._register(new Emitter<IColorScheme>());
-	readonly onDidChangeColorScheme = this._onDidChangeColorScheme.event;
+	readonly onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
-	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string, service: string }>());
+	private readonly _onDidChangePassword = this._register(new Emitter<{ account: string; service: string }>());
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	readonly onDidChangeDisplay = Event.debounce(Event.any(
@@ -119,16 +130,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Window
 
-	async getWindows(): Promise<IOpenedWindow[]> {
-		const windows = this.windowsMainService.getWindows();
-
-		return windows.map(window => ({
+	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
+	async getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
+		const mainWindows = this.windowsMainService.getWindows().map(window => ({
 			id: window.id,
-			workspace: window.openedWorkspace,
+			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
 		}));
+
+		const auxiliaryWindows = [];
+		if (options.includeAuxiliaryWindows) {
+			auxiliaryWindows.push(...this.auxiliaryWindowsMainService.getWindows().map(window => ({
+				id: window.id,
+				parentId: window.parentId,
+				title: window.win?.getTitle() ?? '',
+				filename: window.getRepresentedFilename()
+			})));
+		}
+
+		return [...mainWindows, ...auxiliaryWindows];
 	}
 
 	async getWindowCount(windowId: number | undefined): Promise<number> {
@@ -136,7 +159,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async getActiveWindowId(windowId: number | undefined): Promise<number | undefined> {
-		const activeWindow = BrowserWindow.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
+		const activeWindow = this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 		if (activeWindow) {
 			return activeWindow.id;
 		}
@@ -156,7 +179,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
-			this.windowsMainService.open({
+			await this.windowsMainService.open({
 				context: OpenContext.API,
 				contextWindowId: windowId,
 				urisToOpen: toOpen,
@@ -165,79 +188,92 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				forceReuseWindow: options.forceReuseWindow,
 				preferNewWindow: options.preferNewWindow,
 				diffMode: options.diffMode,
+				mergeMode: options.mergeMode,
 				addMode: options.addMode,
 				gotoLineMode: options.gotoLineMode,
 				noRecentEntry: options.noRecentEntry,
 				waitMarkerFileURI: options.waitMarkerFileURI,
-				remoteAuthority: options.remoteAuthority || undefined
+				remoteAuthority: options.remoteAuthority || undefined,
+				forceProfile: options.forceProfile,
+				forceTempProfile: options.forceTempProfile,
 			});
 		}
 	}
 
 	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow({
+		await this.windowsMainService.openEmptyWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId
 		}, options);
 	}
 
-	async toggleFullScreen(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.toggleFullScreen();
-		}
+	async toggleFullScreen(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.toggleFullScreen();
 	}
 
-	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.handleTitleDoubleClick();
-		}
+	async handleTitleDoubleClick(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.handleTitleDoubleClick();
 	}
 
-	async isMaximized(windowId: number | undefined): Promise<boolean> {
-		const window = this.windowById(windowId);
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+		const point = screen.getCursorScreenPoint();
+		const display = screen.getDisplayNearestPoint(point);
+
+		return { point, display: display.bounds };
+	}
+
+	async isMaximized(windowId: number | undefined, options?: INativeOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.isMaximized() ?? false;
+	}
+
+	async maximizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.maximize();
+	}
+
+	async unmaximizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.unmaximize();
+	}
+
+	async minimizeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.minimize();
+	}
+
+	async moveWindowTop(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.win?.moveTop();
+	}
+
+	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
-			return window.win.isMaximized();
-		}
+			if (window.win.isFullScreen()) {
+				const fullscreenLeftFuture = Event.toPromise(Event.once(Event.fromNodeEventEmitter(window.win, 'leave-full-screen')));
+				window.win.setFullScreen(false);
+				await fullscreenLeftFuture;
+			}
 
-		return false;
-	}
-
-	async maximizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.maximize();
+			window.win.setBounds(position);
 		}
 	}
 
-	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.unmaximize();
-		}
+	async updateWindowControls(windowId: number | undefined, options: INativeOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.updateWindowControls(options);
 	}
 
-	async minimizeWindow(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.minimize();
-		}
-	}
-
-	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean; }): Promise<void> {
-		if (options && typeof options.windowId === 'number') {
-			windowId = options.windowId;
-		}
-
-		const window = this.windowById(windowId);
-		if (window) {
-			window.focus({ force: options?.force ?? false });
-		}
+	async focusWindow(windowId: number | undefined, options?: INativeOptions & { force?: boolean }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.focus({ force: options?.force ?? false });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			const [windowWidth, windowHeight] = window.win.getSize();
 			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
@@ -293,8 +329,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			const { response } = await this.showMessageBox(windowId, {
 				type: 'info',
 				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
-				buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
-				cancelId: 1
+				buttons: [
+					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+					localize('cancel', "Cancel")
+				]
 			});
 
 			if (response === 0 /* OK */) {
@@ -315,12 +353,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			await Promises.unlink(source);
 		} catch (error) {
 			switch (error.code) {
-				case 'EACCES':
+				case 'EACCES': {
 					const { response } = await this.showMessageBox(windowId, {
 						type: 'info',
 						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
-						buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
-						cancelId: 1
+						buttons: [
+							localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+							localize('cancel', "Cancel")
+						]
 					});
 
 					if (response === 0 /* OK */) {
@@ -332,6 +372,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						}
 					}
 					break;
+				}
 				case 'ENOENT':
 					break; // ignore file not found
 				default:
@@ -340,7 +381,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	private async getShellCommandLink(): Promise<{ readonly source: string, readonly target: string }> {
+	private async getShellCommandLink(): Promise<{ readonly source: string; readonly target: string }> {
 		const target = resolve(this.environmentMainService.appRoot, 'bin', 'code');
 		const source = `/usr/local/bin/${this.productService.applicationName}`;
 
@@ -353,81 +394,64 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return { source, target };
 	}
 
+	//#endregion
+
 	//#region Dialog
 
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		return this.dialogMainService.showMessageBox(options, this.toBrowserWindow(windowId));
+		const window = this.getTargetWindow(windowId);
+
+		return this.dialogMainService.showMessageBox(options, window?.win ?? undefined);
 	}
 
 	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		return this.dialogMainService.showSaveDialog(options, this.toBrowserWindow(windowId));
+		const window = this.getTargetWindow(windowId);
+
+		return this.dialogMainService.showSaveDialog(options, window?.win ?? undefined);
 	}
 
 	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		return this.dialogMainService.showOpenDialog(options, this.toBrowserWindow(windowId));
-	}
+		const window = this.getTargetWindow(windowId);
 
-	private toBrowserWindow(windowId: number | undefined): BrowserWindow | undefined {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			return window.win;
-		}
-
-		return undefined;
+		return this.dialogMainService.showOpenDialog(options, window?.win ?? undefined);
 	}
 
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFileFolder(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFileFolder', options.telemetryExtraData);
-			this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(await Promise.all(paths.map(async path => (await SymlinkSupport.existsDirectory(path)) ? { folderUri: URI.file(path) } : { fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFolder(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFolder', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ folderUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickFileAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickFile(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openFile', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ fileUri: URI.file(path) })), options, windowId);
 		}
 	}
 
 	async pickWorkspaceAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
 		const paths = await this.dialogMainService.pickWorkspace(options);
 		if (paths) {
-			this.sendPickerTelemetry(paths, options.telemetryEventName || 'openWorkspace', options.telemetryExtraData);
-			this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
+			await this.doOpenPicked(paths.map(path => ({ workspaceUri: URI.file(path) })), options, windowId);
 		}
 	}
 
-	private doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): void {
-		this.windowsMainService.open({
+	private async doOpenPicked(openable: IWindowOpenable[], options: INativeOpenDialogOptions, windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.open({
 			context: OpenContext.DIALOG,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
 			urisToOpen: openable,
 			forceNewWindow: options.forceNewWindow,
 			/* remoteAuthority will be determined based on openable */
-		});
-	}
-
-	private sendPickerTelemetry(paths: string[], telemetryEventName: string, telemetryExtraData?: ITelemetryData) {
-		const numberOfPaths = paths ? paths.length : 0;
-
-		// Telemetry
-		// __GDPR__TODO__ Dynamic event names and dynamic properties. Can not be registered statically.
-		this.telemetryService.publicLog(telemetryEventName, {
-			...telemetryExtraData,
-			outcome: numberOfPaths ? 'success' : 'canceled',
-			numberOfPaths
 		});
 	}
 
@@ -440,43 +464,22 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		shell.showItemInFolder(path);
 	}
 
-	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.setRepresentedFilename(path);
-		}
+	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.setRepresentedFilename(path);
 	}
 
-	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.setDocumentEdited(edited);
-		}
+	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.setDocumentEdited(edited);
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
-		if (isLinuxSnap) {
-			this.safeSnapOpenExternal(url);
-		} else {
-			shell.openExternal(url);
-		}
+		this.environmentMainService.unsetSnapExportedVariables();
+		shell.openExternal(url);
+		this.environmentMainService.restoreSnapExportedVariables();
 
 		return true;
-	}
-
-	private safeSnapOpenExternal(url: string): void {
-
-		// Remove some environment variables before opening to avoid issues...
-		const gdkPixbufModuleFile = process.env['GDK_PIXBUF_MODULE_FILE'];
-		const gdkPixbufModuleDir = process.env['GDK_PIXBUF_MODULEDIR'];
-		delete process.env['GDK_PIXBUF_MODULE_FILE'];
-		delete process.env['GDK_PIXBUF_MODULEDIR'];
-
-		shell.openExternal(url);
-
-		// ...but restore them after
-		process.env['GDK_PIXBUF_MODULE_FILE'] = gdkPixbufModuleFile;
-		process.env['GDK_PIXBUF_MODULEDIR'] = gdkPixbufModuleDir;
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
@@ -488,14 +491,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = process.getuid() === 0;
+			isAdmin = process.getuid?.() === 0;
 		}
 
 		return isAdmin;
 	}
 
 	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { unlock?: boolean }): Promise<void> {
-		const sudoPrompt = await import('sudo-prompt');
+		const sudoPrompt = await import('@vscode/sudo-prompt');
 
 		return new Promise<void>((resolve, reject) => {
 			const sudoCommand: string[] = [`"${this.cliPath}"`];
@@ -526,6 +529,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 		});
+	}
+
+	async isRunningUnderARM64Translation(): Promise<boolean> {
+		if (isLinux || isWindows) {
+			return false;
+		}
+
+		return app.runningUnderARM64Translation;
 	}
 
 	@memoize
@@ -579,6 +590,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return virtualMachineHint.value();
 	}
 
+	async getOSColorScheme(): Promise<IColorScheme> {
+		return this.themeMainService.getColorScheme();
+	}
+
+
+	// WSL
+	async hasWSLFeatureInstalled(): Promise<boolean> {
+		return isWindows && hasWSLFeatureInstalled();
+	}
+
+
 	//#endregion
 
 
@@ -609,12 +631,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return clipboard.writeFindText(text);
 	}
 
-	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
-		return clipboard.writeBuffer(format, Buffer.from(buffer), type);
+	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.writeBuffer(format, Buffer.from(buffer.buffer), type);
 	}
 
-	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
-		return clipboard.readBuffer(format);
+	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<VSBuffer> {
+		return VSBuffer.wrap(clipboard.readBuffer(format));
 	}
 
 	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
@@ -627,7 +649,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region macOS Touchbar
 
 	async newWindowTab(): Promise<void> {
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentMainService.args, forceNewTabbedWindow: true, forceEmpty: true, remoteAuthority: this.environmentMainService.args.remote || undefined });
+		await this.windowsMainService.open({
+			context: OpenContext.API,
+			cli: this.environmentMainService.args,
+			forceNewTabbedWindow: true,
+			forceEmpty: true,
+			remoteAuthority: this.environmentMainService.args.remote || undefined
+		});
 	}
 
 	async showPreviousWindowTab(): Promise<void> {
@@ -651,10 +679,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.updateTouchBar(items);
-		}
+		const window = this.codeWindowById(windowId);
+		window?.updateTouchBar(items);
 	}
 
 	//#endregion
@@ -663,32 +689,41 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Lifecycle
 
 	async notifyReady(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.setReady();
-		}
+		const window = this.codeWindowById(windowId);
+		window?.setReady();
 	}
 
-	async relaunch(windowId: number | undefined, options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+	async relaunch(windowId: number | undefined, options?: IRelaunchOptions): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options?.disableExtensions } : undefined);
+
+			// Special case: support `transient` workspaces by preventing
+			// the reload and rather go back to an empty window. Transient
+			// workspaces should never restore, even when the user wants
+			// to reload.
+			// For: https://github.com/microsoft/vscode/issues/119695
+			if (isWorkspaceIdentifier(window.openedWorkspace)) {
+				const configPath = window.openedWorkspace.configPath;
+				if (configPath.scheme === Schemas.file) {
+					const workspace = await this.workspacesManagementMainService.resolveLocalWorkspace(configPath);
+					if (workspace?.transient) {
+						return this.openWindow(window.id, { forceReuseWindow: true });
+					}
+				}
+			}
+
+			// Proceed normally to reload the window
+			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options.disableExtensions } : undefined);
 		}
 	}
 
-	async closeWindow(windowId: number | undefined): Promise<void> {
-		this.closeWindowById(windowId, windowId);
-	}
-
-	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
-		const window = this.windowById(targetWindowId);
-		if (window?.win) {
-			return window.win.close();
-		}
+	async closeWindow(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.win?.close();
 	}
 
 	async quit(windowId: number | undefined): Promise<void> {
@@ -716,13 +751,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		const window = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
-		if (session) {
-			return session.resolveProxy(url);
-		} else {
-			return undefined;
-		}
+
+		return session?.resolveProxy(url);
+	}
+
+	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		return proxyAgent.loadSystemCertificates({ log: this.logService });
+	}
+
+	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
+		return findFreePort(startPort, giveUpAfter, timeout, stride);
 	}
 
 	//#endregion
@@ -731,33 +772,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			window.win.webContents.openDevTools(options);
-		}
+		const window = this.getTargetWindow(windowId);
+
+		window?.win?.webContents.openDevTools(options);
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win) {
-			const contents = window.win.webContents;
-			contents.toggleDevTools();
-		}
-	}
+		const window = this.getTargetWindow(windowId);
 
-	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
-			window.win.webContents.sendInputEvent(event);
-		}
-	}
-
-	async toggleSharedProcessWindow(): Promise<void> {
-		return this.sharedProcess.toggle();
+		window?.win?.webContents.toggleDevTools();
 	}
 
 	//#endregion
 
+	// #region Performance
+
+	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
+		const window = this.codeWindowById(windowId);
+		if (!window || !window.win) {
+			throw new Error();
+		}
+
+		const profiler = new WindowProfiler(window.win, session, this.logService);
+		const result = await profiler.inspect(duration);
+		return result;
+	}
+
+	// #endregion
 
 	//#region Registry (windows)
 
@@ -766,7 +807,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return undefined;
 		}
 
-		const Registry = await import('vscode-windows-registry');
+		const Registry = await import('@vscode/windows-registry');
 		try {
 			return Registry.GetStringRegKey(hive, path, name);
 		} catch {
@@ -776,127 +817,32 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
-
-	//#region Credentials
-
-	private static readonly MAX_PASSWORD_LENGTH = 2500;
-	private static readonly PASSWORD_CHUNK_SIZE = NativeHostMainService.MAX_PASSWORD_LENGTH - 100;
-
-	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
-		const keytar = await this.withKeytar();
-
-		const password = await keytar.getPassword(service, account);
-		if (password) {
-			try {
-				let { content, hasNextChunk }: ChunkedPassword = JSON.parse(password);
-				if (!content || !hasNextChunk) {
-					return password;
-				}
-
-				let index = 1;
-				while (hasNextChunk) {
-					const nextChunk = await keytar.getPassword(service, `${account}-${index}`);
-					const result: ChunkedPassword = JSON.parse(nextChunk!);
-					content += result.content;
-					hasNextChunk = result.hasNextChunk;
-				}
-
-				return content;
-			} catch {
-				return password;
-			}
-		}
-
-		return password;
+	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
 	}
 
-	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
-		const keytar = await this.withKeytar();
-		const MAX_SET_ATTEMPTS = 3;
-
-		// Sometimes Keytar has a problem talking to the keychain on the OS. To be more resilient, we retry a few times.
-		const setPasswordWithRetry = async (service: string, account: string, password: string) => {
-			let attempts = 0;
-			let error: any;
-			while (attempts < MAX_SET_ATTEMPTS) {
-				try {
-					await keytar.setPassword(service, account, password);
-					return;
-				} catch (e) {
-					error = e;
-					this.logService.warn('Error attempting to set a password: ', e);
-					attempts++;
-					await new Promise(resolve => setTimeout(resolve, 200));
-				}
-			}
-
-			// throw last error
-			throw error;
-		};
-
-		if (isWindows && password.length > NativeHostMainService.MAX_PASSWORD_LENGTH) {
-			let index = 0;
-			let chunk = 0;
-			let hasNextChunk = true;
-			while (hasNextChunk) {
-				const passwordChunk = password.substring(index, index + NativeHostMainService.PASSWORD_CHUNK_SIZE);
-				index += NativeHostMainService.PASSWORD_CHUNK_SIZE;
-				hasNextChunk = password.length - index > 0;
-
-				const content: ChunkedPassword = {
-					content: passwordChunk,
-					hasNextChunk: hasNextChunk
-				};
-
-				await setPasswordWithRetry(service, chunk ? `${account}-${chunk}` : account, JSON.stringify(content));
-				chunk++;
-			}
-
-		} else {
-			await setPasswordWithRetry(service, account, password);
-		}
-
-		this._onDidChangePassword.fire({ service, account });
-	}
-
-	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
-		const keytar = await this.withKeytar();
-
-		const didDelete = await keytar.deletePassword(service, account);
-		if (didDelete) {
-			this._onDidChangePassword.fire({ service, account });
-		}
-
-		return didDelete;
-	}
-
-	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
-		const keytar = await this.withKeytar();
-
-		return keytar.findPassword(service);
-	}
-
-	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
-		const keytar = await this.withKeytar();
-
-		return keytar.findCredentials(service);
-	}
-
-	private async withKeytar(): Promise<typeof import('keytar')> {
-		if (this.environmentMainService.disableKeytar) {
-			throw new Error('keytar has been disabled via --disable-keytar option');
-		}
-
-		return await import('keytar');
-	}
-
-	//#endregion
-
-	private windowById(windowId: number | undefined): ICodeWindow | undefined {
+	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
 		}
 
 		return this.windowsMainService.getWindowById(windowId);
+	}
+
+	private auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
+		if (typeof windowId !== 'number') {
+			return undefined;
+		}
+
+		return this.auxiliaryWindowsMainService.getWindowById(windowId);
+	}
+
+	private getTargetWindow(fallbackWindowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
+		let window = this.instantiationService.invokeFunction(getFocusedOrLastActiveWindow);
+		if (!window) {
+			window = this.windowById(fallbackWindowId);
+		}
+
+		return window;
 	}
 }

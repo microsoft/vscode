@@ -3,7 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const testUrlMatchesGlob = (url: string, globUrl: string): boolean => {
+import { URI } from 'vs/base/common/uri';
+
+// TODO: rewrite this to use URIs directly and validate each part individually
+// instead of relying on memoization of the stringified URI.
+export const testUrlMatchesGlob = (uri: URI, globUrl: string): boolean => {
+	let url = uri.with({ query: null, fragment: null }).toString(true);
 	const normalize = (url: string) => url.replace(/\/+$/, '');
 	globUrl = normalize(globUrl);
 	url = normalize(url);

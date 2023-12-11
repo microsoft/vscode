@@ -41,6 +41,9 @@
           ".ino",
           ".inl",
           ".ipp",
+          ".ixx",
+          ".tpp",
+          ".txx",
           ".hpp.in",
           ".h.in"
         ],

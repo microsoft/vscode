@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference, EndOfLineSequence, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
 import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
-export function testApplyEditsWithSyncedModels(original: string[], edits: IIdentifiedSingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
-	let originalStr = original.join('\n');
-	let expectedStr = expected.join('\n');
+export function testApplyEditsWithSyncedModels(original: string[], edits: ISingleEditOperation[], expected: string[], inputEditsAreInvalid: boolean = false): void {
+	const originalStr = original.join('\n');
+	const expectedStr = expected.join('\n');
 
 	assertSyncedModels(originalStr, (model, assertMirrorModels) => {
 		// Apply edits & collect inverse edits
-		let inverseEdits = model.applyEdits(edits, true);
+		const inverseEdits = model.applyEdits(edits, true);
 
 		// Assert edits produced expected result
 		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
@@ -25,19 +26,17 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		assertMirrorModels();
 
 		// Apply the inverse edits
-		let inverseInverseEdits = model.applyEdits(inverseEdits, true);
+		const inverseInverseEdits = model.applyEdits(inverseEdits, true);
 
 		// Assert the inverse edits brought back model to original state
 		assert.deepStrictEqual(model.getValue(EndOfLinePreference.LF), originalStr);
 
 		if (!inputEditsAreInvalid) {
-			const simplifyEdit = (edit: IIdentifiedSingleEditOperation) => {
+			const simplifyEdit = (edit: ISingleEditOperation) => {
 				return {
-					identifier: edit.identifier,
 					range: edit.range,
 					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers || false,
-					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
+					forceMoveMarkers: edit.forceMoveMarkers || false
 				};
 			};
 			// Assert the inverse of the inverse edits are the original edits
@@ -54,20 +53,20 @@ const enum AssertDocumentLineMappingDirection {
 }
 
 function assertOneDirectionLineMapping(model: TextModel, direction: AssertDocumentLineMappingDirection, msg: string): void {
-	let allText = model.getValue();
+	const allText = model.getValue();
 
 	let line = 1, column = 1, previousIsCarriageReturn = false;
 	for (let offset = 0; offset <= allText.length; offset++) {
 		// The position coordinate system cannot express the position between \r and \n
-		let position: Position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
+		const position: Position = new Position(line, column + (previousIsCarriageReturn ? -1 : 0));
 
 		if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
-			let actualPosition = model.getPositionAt(offset);
+			const actualPosition = model.getPositionAt(offset);
 			assert.strictEqual(actualPosition.toString(), position.toString(), msg + ' - getPositionAt mismatch for offset ' + offset);
 		} else {
 			// The position coordinate system cannot express the position between \r and \n
-			let expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
-			let actualOffset = model.getOffsetAt(position);
+			const expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
+			const actualOffset = model.getOffsetAt(position);
 			assert.strictEqual(actualOffset, expectedOffset, msg + ' - getOffsetAt mismatch for position ' + position.toString());
 		}
 
@@ -89,7 +88,7 @@ function assertLineMapping(model: TextModel, msg: string): void {
 
 
 export function assertSyncedModels(text: string, callback: (model: TextModel, assertMirrorModels: () => void) => void, setup: ((model: TextModel) => void) | null = null): void {
-	let model = createTextModel(text, TextModel.DEFAULT_CREATION_OPTIONS, null);
+	const model = createTextModel(text);
 	model.setEOL(EndOfLineSequence.LF);
 	assertLineMapping(model, 'model');
 
@@ -98,11 +97,11 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 		assertLineMapping(model, 'model');
 	}
 
-	let mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
+	const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 	let mirrorModel2PrevVersionId = model.getVersionId();
 
-	model.onDidChangeContent((e: IModelContentChangedEvent) => {
-		let versionId = e.versionId;
+	const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
+		const versionId = e.versionId;
 		if (versionId < mirrorModel2PrevVersionId) {
 			console.warn('Model version id did not advance between edits (2)');
 		}
@@ -110,7 +109,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 		mirrorModel2.onEvents(e);
 	});
 
-	let assertMirrorModels = () => {
+	const assertMirrorModels = () => {
 		assertLineMapping(model, 'model');
 		assert.strictEqual(mirrorModel2.getText(), model.getValue(), 'mirror model 2 text OK');
 		assert.strictEqual(mirrorModel2.version, model.getVersionId(), 'mirror model 2 version OK');
@@ -118,6 +117,7 @@ export function assertSyncedModels(text: string, callback: (model: TextModel, as
 
 	callback(model, assertMirrorModels);
 
+	disposable.dispose();
 	model.dispose();
 	mirrorModel2.dispose();
 }

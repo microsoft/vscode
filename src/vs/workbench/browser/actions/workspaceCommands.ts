@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -15,18 +15,20 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { hasWorkspaceFileExtension, IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ILocalizedString } from 'vs/platform/actions/common/actions';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
+
+export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
@@ -61,31 +63,53 @@ CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
 	handler: async (accessor) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const dialogsService = accessor.get(IFileDialogService);
-		const pathService = accessor.get(IPathService);
-		const folders = await dialogsService.showOpenDialog({
-			openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
-			title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
-			canSelectFolders: true,
-			canSelectMany: true,
-			defaultUri: await dialogsService.defaultFolderPath(),
-			availableFileSystems: [pathService.defaultUriScheme]
-		});
 
+		const folders = await selectWorkspaceFolders(accessor);
 		if (!folders || !folders.length) {
 			return;
 		}
 
-		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
+		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })));
 	}
 });
+
+CommandsRegistry.registerCommand({
+	id: SET_ROOT_FOLDER_COMMAND_ID,
+	handler: async (accessor) => {
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const folders = await selectWorkspaceFolders(accessor);
+		if (!folders || !folders.length) {
+			return;
+		}
+
+		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: folder })));
+	}
+});
+
+async function selectWorkspaceFolders(accessor: ServicesAccessor): Promise<URI[] | undefined> {
+	const dialogsService = accessor.get(IFileDialogService);
+	const pathService = accessor.get(IPathService);
+
+	const folders = await dialogsService.showOpenDialog({
+		openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
+		title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
+		canSelectFolders: true,
+		canSelectMany: true,
+		defaultUri: await dialogsService.defaultFolderPath(),
+		availableFileSystems: [pathService.defaultUriScheme]
+	});
+
+	return folders;
+}
 
 CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);
 	const labelService = accessor.get(ILabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
 	const modelService = accessor.get(IModelService);
-	const modeService = accessor.get(IModeService);
+	const languageService = accessor.get(ILanguageService);
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
@@ -93,11 +117,14 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 	}
 
 	const folderPicks: IQuickPickItem[] = folders.map(folder => {
+		const label = folder.name;
+		const description = labelService.getUriLabel(dirname(folder.uri), { relative: true });
+
 		return {
-			label: folder.name,
-			description: labelService.getUriLabel(dirname(folder.uri), { relative: true }),
+			label,
+			description: description !== label ? description : undefined, // https://github.com/microsoft/vscode/issues/183418
 			folder,
-			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
+			iconClasses: getIconClasses(modelService, languageService, folder.uri, FileKind.ROOT_FOLDER)
 		};
 	});
 
@@ -117,7 +144,6 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async functio
 
 	const token: CancellationToken = (args ? args[1] : undefined) || CancellationToken.None;
 	const pick = await quickInputService.pick(folderPicks, options, token);
-
 	if (pick) {
 		return folders[folderPicks.indexOf(pick)];
 	}
@@ -132,41 +158,49 @@ interface IOpenFolderAPICommandOptions {
 	forceReuseWindow?: boolean;
 	noRecentEntry?: boolean;
 	forceLocalWindow?: boolean;
+	forceProfile?: string;
+	forceTempProfile?: boolean;
 }
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.openFolder',
-	handler: (accessor: ServicesAccessor, uri?: URI, arg?: boolean | IOpenFolderAPICommandOptions) => {
+	handler: (accessor: ServicesAccessor, uriComponents?: UriComponents, arg?: boolean | IOpenFolderAPICommandOptions) => {
 		const commandService = accessor.get(ICommandService);
+
 		// Be compatible to previous args by converting to options
 		if (typeof arg === 'boolean') {
 			arg = { forceNewWindow: arg };
 		}
 
 		// Without URI, ask to pick a folder or workspace to open
-		if (!uri) {
+		if (!uriComponents) {
 			const options: IPickAndOpenOptions = {
 				forceNewWindow: arg?.forceNewWindow
 			};
+
 			if (arg?.forceLocalWindow) {
 				options.remoteAuthority = null;
 				options.availableFileSystems = ['file'];
 			}
+
 			return commandService.executeCommand('_files.pickFolderAndOpen', options);
 		}
 
-		uri = URI.revive(uri);
+		const uri = URI.from(uriComponents, true);
 
 		const options: IOpenWindowOptions = {
 			forceNewWindow: arg?.forceNewWindow,
 			forceReuseWindow: arg?.forceReuseWindow,
 			noRecentEntry: arg?.noRecentEntry,
-			remoteAuthority: arg?.forceLocalWindow ? null : undefined
+			remoteAuthority: arg?.forceLocalWindow ? null : undefined,
+			forceProfile: arg?.forceProfile,
+			forceTempProfile: arg?.forceTempProfile,
 		};
+
 		const uriToOpen: IWindowOpenable = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
 		return commandService.executeCommand('_files.windowOpen', [uriToOpen], options);
 	},
-	description: {
+	metadata: {
 		description: 'Open a folder or workspace in the current window or new window depending on the newWindow argument. Note that opening in the same window will shutdown the current extension host process and start a new one on the given folder/workspace unless the newWindow parameter is set to true.',
 		args: [
 			{
@@ -198,14 +232,16 @@ interface INewWindowAPICommandOptions {
 CommandsRegistry.registerCommand({
 	id: 'vscode.newWindow',
 	handler: (accessor: ServicesAccessor, options?: INewWindowAPICommandOptions) => {
+		const commandService = accessor.get(ICommandService);
+
 		const commandOptions: IOpenEmptyWindowOptions = {
 			forceReuseWindow: options && options.reuseWindow,
 			remoteAuthority: options && options.remoteAuthority
 		};
-		const commandService = accessor.get(ICommandService);
+
 		return commandService.executeCommand('_files.newWindow', commandOptions);
 	},
-	description: {
+	metadata: {
 		description: 'Opens an new window depending on the newWindow argument.',
 		args: [
 			{
@@ -225,19 +261,20 @@ CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function
 	return workspacesService.removeRecentlyOpened([uri]);
 });
 
-
 CommandsRegistry.registerCommand({
 	id: 'vscode.removeFromRecentlyOpened',
 	handler: (accessor: ServicesAccessor, path: string | URI): Promise<any> => {
+		const workspacesService = accessor.get(IWorkspacesService);
+
 		if (typeof path === 'string') {
 			path = path.match(/^[^:/?#]+:\/\//) ? URI.parse(path) : URI.file(path);
 		} else {
 			path = URI.revive(path); // called from extension host
 		}
-		const workspacesService = accessor.get(IWorkspacesService);
+
 		return workspacesService.removeRecentlyOpened([path]);
 	},
-	description: {
+	metadata: {
 		description: 'Removes an entry with the given path from the recently opened list.',
 		args: [
 			{ name: 'path', description: 'URI or URI string to remove from recently opened.', constraint: (value: any) => typeof value === 'string' || value instanceof URI }
@@ -254,10 +291,11 @@ interface RecentEntry {
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
 	const workspacesService = accessor.get(IWorkspacesService);
-	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
 	const label = recentEntry.label;
 	const remoteAuthority = recentEntry.remoteAuthority;
+
+	let recent: IRecent | undefined = undefined;
 	if (recentEntry.type === 'workspace') {
 		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
 		recent = { workspace, label, remoteAuthority };
@@ -266,10 +304,12 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	} else {
 		recent = { fileUri: uri, label, remoteAuthority };
 	}
+
 	return workspacesService.addRecentlyOpened([recent]);
 });
 
 CommandsRegistry.registerCommand('_workbench.getRecentlyOpened', async function (accessor: ServicesAccessor) {
 	const workspacesService = accessor.get(IWorkspacesService);
+
 	return workspacesService.getRecentlyOpened();
 });

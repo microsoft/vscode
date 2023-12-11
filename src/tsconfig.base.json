@@ -8,7 +8,7 @@
 		"noUnusedLocals": true,
 		"allowUnreachableCode": false,
 		"strict": true,
-		"strictOptionalProperties": false,
+		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
@@ -17,11 +17,10 @@
 				"./vs/*"
 			]
 		},
+		"target": "es2022",
+		"useDefineForClassFields": false,
 		"lib": [
-			"ES2015",
-			"ES2016.Array.Include",
-			"ES2017.String",
-			"ES2018.Promise",
+			"ES2022",
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"

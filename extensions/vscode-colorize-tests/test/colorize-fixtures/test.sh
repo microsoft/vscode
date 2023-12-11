@@ -10,6 +10,11 @@ fi
 DEVELOPER=$(xcode-select -print-path)
 LIPO=$(xcrun -sdk iphoneos -find lipo)
 
+cat <<-EOF > /path/file
+	# A heredoc with a variable $DEVELOPER
+	some more file
+EOF
+
 function code() {
 	cd $ROOT
 

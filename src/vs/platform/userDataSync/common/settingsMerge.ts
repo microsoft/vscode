@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
-import { parse, JSONVisitor, visit } from 'vs/base/common/json';
-import { setProperty, withFormatting, applyEdits } from 'vs/base/common/jsonEdit';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
-import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { distinct } from 'vs/base/common/arrays';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { JSONVisitor, parse, visit } from 'vs/base/common/json';
+import { applyEdits, setProperty, withFormatting } from 'vs/base/common/jsonEdit';
+import { Edit, FormattingOptions, getEOL } from 'vs/base/common/jsonFormatter';
+import * as objects from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import * as contentUtil from 'vs/platform/userDataSync/common/content';
+import { getDisallowedIgnoredSettings, IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -37,7 +37,7 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 			}
 		}
 	}
-	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
+	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => !removed.includes(setting)));
 }
 
 function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): ReadonlyArray<string> {
@@ -57,11 +57,24 @@ function getIgnoredSettingsFromContent(settingsContent: string): string[] {
 	return parsed ? parsed['settingsSync.ignoredSettings'] || parsed['sync.ignoredSettings'] || [] : [];
 }
 
+export function removeComments(content: string, formattingOptions: FormattingOptions): string {
+	const source = parse(content) || {};
+	let result = '{}';
+	for (const key of Object.keys(source)) {
+		const edits = setProperty(result, [key], source[key], formattingOptions);
+		result = applyEdits(result, edits);
+	}
+	return result;
+}
+
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
 		const sourceTree = parseSettings(sourceContent);
-		const source = parse(sourceContent);
+		const source = parse(sourceContent) || {};
 		const target = parse(targetContent);
+		if (!target) {
+			return targetContent;
+		}
 		const settingsToAdd: INode[] = [];
 		for (const key of ignoredSettings) {
 			const sourceValue = source[key];
@@ -88,7 +101,7 @@ export function updateIgnoredSettings(targetContent: string, sourceContent: stri
 	return targetContent;
 }
 
-export function merge(originalLocalContent: string, originalRemoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string, value: any | undefined }[], formattingOptions: FormattingOptions): IMergeResult {
+export function merge(originalLocalContent: string, originalRemoteContent: string, baseContent: string | null, ignoredSettings: string[], resolvedConflicts: { key: string; value: any | undefined }[], formattingOptions: FormattingOptions): IMergeResult {
 
 	const localContentWithoutIgnoredSettings = updateIgnoredSettings(originalLocalContent, originalRemoteContent, ignoredSettings, formattingOptions);
 	const localForwarded = baseContent !== localContentWithoutIgnoredSettings;
@@ -237,7 +250,7 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 	return { localContent: hasLocalChanged ? localContent : null, remoteContent: hasRemoteChanged ? remoteContent : null, conflictsSettings: [...conflicts.values()], hasConflicts };
 }
 
-export function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
+function areSame(localContent: string, remoteContent: string, ignoredSettings: string[]): boolean {
 	if (localContent === remoteContent) {
 		return true;
 	}
@@ -282,11 +295,11 @@ export function isEmpty(content: string): boolean {
 	return true;
 }
 
-function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
+function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>; removed: Set<string>; updated: Set<string> } {
 	const fromKeys = from ? Object.keys(from).filter(key => !ignored.has(key)) : [];
 	const toKeys = Object.keys(to).filter(key => !ignored.has(key));
-	const added = toKeys.filter(key => fromKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
-	const removed = fromKeys.filter(key => toKeys.indexOf(key) === -1).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const added = toKeys.filter(key => !fromKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
+	const removed = fromKeys.filter(key => !toKeys.includes(key)).reduce((r, key) => { r.add(key); return r; }, new Set<string>());
 	const updated: Set<string> = new Set<string>();
 
 	if (from) {
@@ -314,7 +327,7 @@ export function addSetting(key: string, sourceContent: string, targetContent: st
 }
 
 interface InsertLocation {
-	index: number,
+	index: number;
 	insertAfter: boolean;
 }
 

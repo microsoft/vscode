@@ -4,81 +4,66 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { timeout } from 'vs/base/common/async';
-import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
-import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
-import { makeTestWorkspaceFolder, TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
+import { Emitter } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ListProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/listProjection';
+import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
+import { TestTestItem } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
-	let harness: TestTreeTestHarness;
-	const folder1 = makeTestWorkspaceFolder('f1');
-	const folder2 = makeTestWorkspaceFolder('f2');
-	setup(() => {
-		harness = new TestTreeTestHarness([folder1, folder2], l => new HierarchicalByNameProjection(l, {
-			onResultsChanged: () => undefined,
-			onTestChanged: () => undefined,
-			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
-		} as any));
-	});
+	let harness: TestTreeTestHarness<ListProjection>;
+	let onTestChanged: Emitter<TestResultItemChange>;
+	let resultsService: any;
 
 	teardown(() => {
 		harness.dispose();
 	});
 
-	test('renders initial tree', async () => {
-		await timeout(1000);
-		harness.c.addRoot(testStubs.nested(), 'a');
-		harness.flush(folder1);
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		onTestChanged = new Emitter();
+		resultsService = {
+			onResultsChanged: () => undefined,
+			onTestChanged: onTestChanged.event,
+			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
+		};
+
+		harness = new TestTreeTestHarness(l => new ListProjection({}, l, resultsService as any));
+	});
+
+	test('renders initial tree', () => {
+		harness.flush();
 		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'aa' }, { e: 'ab' }, { e: 'b' }
 		]);
 	});
 
-	test('updates render if a second folder is added', async () => {
-		harness.c.addRoot(testStubs.nested('id1-'), 'a');
-		harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested('id2-'), 'a');
-		harness.flush(folder2);
-		assert.deepStrictEqual(harness.flush(folder1), [
-			{ e: 'f1', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
-			{ e: 'f2', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
-		]);
-	});
-
-	test('updates render if second folder is removed', async () => {
-		harness.c.addRoot(testStubs.nested('id1-'), 'a');
-		harness.flush(folder1);
-		harness.c.addRoot(testStubs.nested('id2-'), 'a');
-		harness.flush(folder2);
-		harness.onFolderChange.fire({ added: [], changed: [], removed: [folder1] });
-		assert.deepStrictEqual(harness.flush(folder1), [
-			{ e: 'aa' }, { e: 'ab' }, { e: 'b' },
-		]);
-	});
-
 	test('updates render if second test provider appears', async () => {
-		await timeout(100);
-		harness.c.addRoot(testStubs.nested(), 'a');
-		harness.flush(folder1);
-		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), 'b');
-		harness.flush(folder1);
-		await timeout(10);
-		harness.flush(folder1);
-		await timeout(10);
-		assert.deepStrictEqual(harness.tree.getRendered(), [
+		harness.flush();
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', expand: TestItemExpandState.Expanded, item: new TestTestItem(new TestId(['ctrl2']), 'root2').toTestItem() },
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrl2', 'id-c']), 'c', undefined).toTestItem() },
+		});
+
+		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'root', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
 			{ e: 'root2', children: [{ e: 'c' }] },
 		]);
 	});
 
 	test('updates nodes if they add children', async () => {
-		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
-		harness.flush(folder1);
+		harness.flush();
 
-		tests.children.get('id-a')!.addChild(testStubs.test('ac'));
+		harness.c.root.children.get('id-a')!.children.add(new TestTestItem(new TestId(['ctrlId', 'id-a', 'id-ac']), 'ac'));
 
-		assert.deepStrictEqual(harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },
 			{ e: 'ab' },
 			{ e: 'ac' },
@@ -87,47 +72,23 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	});
 
 	test('updates nodes if they remove children', async () => {
-		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
-		harness.flush(folder1);
+		harness.flush();
+		harness.c.root.children.get('id-a')!.children.delete('id-ab');
 
-		tests.children.get('id-a')!.children.get('id-ab')!.dispose();
-
-		assert.deepStrictEqual(harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },
 			{ e: 'b' }
 		]);
 	});
 
 	test('swaps when node is no longer leaf', async () => {
-		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
-		harness.flush(folder1);
+		harness.flush();
+		harness.c.root.children.get('id-b')!.children.add(new TestTestItem(new TestId(['ctrlId', 'id-b', 'id-ba']), 'ba'));
 
-		tests.children.get('id-b')!.addChild(testStubs.test('ba'));
-
-		assert.deepStrictEqual(harness.flush(folder1), [
+		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'aa' },
 			{ e: 'ab' },
 			{ e: 'ba' },
-		]);
-	});
-
-	test('swaps when node is no longer runnable', async () => {
-		const tests = testStubs.nested();
-		harness.c.addRoot(tests, 'a');
-		harness.flush(folder1);
-
-		const child = testStubs.test('ba');
-		tests.children.get('id-b')!.addChild(child);
-		harness.flush(folder1);
-
-		child.runnable = false;
-
-		assert.deepStrictEqual(harness.flush(folder1), [
-			{ e: 'aa' },
-			{ e: 'ab' },
-			{ e: 'b' },
 		]);
 	});
 });

@@ -11,7 +11,7 @@ export interface IRemoteConsoleLog {
 	arguments: string;
 }
 
-interface IStackArgument {
+export interface IStackArgument {
 	__$stack: string;
 }
 
@@ -27,7 +27,7 @@ export function isRemoteConsoleLog(obj: any): obj is IRemoteConsoleLog {
 	return entry && typeof entry.type === 'string' && typeof entry.severity === 'string';
 }
 
-export function parse(entry: IRemoteConsoleLog): { args: any[], stack?: string } {
+export function parse(entry: IRemoteConsoleLog): { args: any[]; stack?: string } {
 	const args: any[] = [];
 	let stack: string | undefined;
 
@@ -125,7 +125,7 @@ export function log(entry: IRemoteConsoleLog, label: string): void {
 		consoleArgs = [`%c[${label}]%`, color('blue'), ...args];
 	}
 
-	// Stack: add to args unless already aded
+	// Stack: add to args unless already added
 	if (topFrame && !isOneStringArg) {
 		consoleArgs.push(topFrame);
 	}

@@ -53,8 +53,8 @@ define([], [${wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
  * Returns a stream containing the patched JavaScript and source maps.
  */
 function nls() {
-    const input = event_stream_1.through();
-    const output = input.pipe(event_stream_1.through(function (f) {
+    const input = (0, event_stream_1.through)();
+    const output = input.pipe((0, event_stream_1.through)(function (f) {
         if (!f.sourceMap) {
             return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
         }
@@ -72,7 +72,7 @@ function nls() {
         }
         _nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
     }));
-    return event_stream_1.duplex(input, output);
+    return (0, event_stream_1.duplex)(input, output);
 }
 exports.nls = nls;
 function isImportNode(ts, node) {
@@ -95,17 +95,30 @@ var _nls;
         return { line: position.line - 1, character: position.column };
     }
     class SingleFileServiceHost {
+        options;
+        filename;
+        file;
+        lib;
         constructor(ts, options, filename, contents) {
             this.options = options;
             this.filename = filename;
-            this.getCompilationSettings = () => this.options;
-            this.getScriptFileNames = () => [this.filename];
-            this.getScriptVersion = () => '1';
-            this.getScriptSnapshot = (name) => name === this.filename ? this.file : this.lib;
-            this.getCurrentDirectory = () => '';
-            this.getDefaultLibFileName = () => 'lib.d.ts';
             this.file = ts.ScriptSnapshot.fromString(contents);
             this.lib = ts.ScriptSnapshot.fromString('');
+        }
+        getCompilationSettings = () => this.options;
+        getScriptFileNames = () => [this.filename];
+        getScriptVersion = () => '1';
+        getScriptSnapshot = (name) => name === this.filename ? this.file : this.lib;
+        getCurrentDirectory = () => '';
+        getDefaultLibFileName = () => 'lib.d.ts';
+        readFile(path, _encoding) {
+            if (path === this.filename) {
+                return this.file.getText(0, this.file.getLength());
+            }
+            return undefined;
+        }
+        fileExists(path) {
+            return path === this.filename;
         }
     }
     function isCallExpressionWithinTextSpanCollectStep(ts, textSpan, node) {
@@ -114,7 +127,7 @@ var _nls;
         }
         return node.kind === ts.SyntaxKind.CallExpression ? CollectStepResult.YesAndRecurse : CollectStepResult.NoAndRecurse;
     }
-    function analyze(ts, contents, options = {}) {
+    function analyze(ts, contents, functionName, options = {}) {
         const filename = 'file.ts';
         const serviceHost = new SingleFileServiceHost(ts, Object.assign(clone(options), { noResolve: true }), filename, contents);
         const service = ts.createLanguageService(serviceHost);
@@ -156,7 +169,7 @@ var _nls;
             .filter(n => !!n)
             .map(n => n)
             // only `localize` calls
-            .filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression.name.getText() === 'localize');
+            .filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && n.expression.name.getText() === functionName);
         // `localize` named imports
         const allLocalizeImportDeclarations = importDeclarations
             .filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports))
@@ -164,13 +177,13 @@ var _nls;
             .flatten();
         // `localize` read-only references
         const localizeReferences = allLocalizeImportDeclarations
-            .filter(d => d.name.getText() === 'localize')
+            .filter(d => d.name.getText() === functionName)
             .map(n => service.getReferencesAtPosition(filename, n.pos + 1))
             .flatten()
             .filter(r => !r.isWriteAccess);
         // custom named `localize` read-only references
         const namedLocalizeReferences = allLocalizeImportDeclarations
-            .filter(d => d.propertyName && d.propertyName.getText() === 'localize')
+            .filter(d => d.propertyName && d.propertyName.getText() === functionName)
             .map(n => service.getReferencesAtPosition(filename, n.name.pos + 1))
             .flatten()
             .filter(r => !r.isWriteAccess);
@@ -199,6 +212,8 @@ var _nls;
         };
     }
     class TextModel {
+        lines;
+        lineEndings;
         constructor(contents) {
             const regex = /\r\n|\r|\n/g;
             let index = 0;
@@ -294,17 +309,18 @@ var _nls;
         return JSON.parse(smg.toString());
     }
     function patch(ts, moduleId, typescript, javascript, sourcemap) {
-        const { localizeCalls, nlsExpressions } = analyze(ts, typescript);
+        const { localizeCalls, nlsExpressions } = analyze(ts, typescript, 'localize');
+        const { localizeCalls: localize2Calls, nlsExpressions: nls2Expressions } = analyze(ts, typescript, 'localize2');
         if (localizeCalls.length === 0) {
             return { javascript, sourcemap };
         }
-        const nlsKeys = template(localizeCalls.map(lc => lc.key));
-        const nls = template(localizeCalls.map(lc => lc.value));
+        const nlsKeys = template(localizeCalls.map(lc => lc.key).concat(localize2Calls.map(lc => lc.key)));
+        const nls = template(localizeCalls.map(lc => lc.value).concat(localize2Calls.map(lc => lc.value)));
         const smc = new sm.SourceMapConsumer(sourcemap);
         const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
         let i = 0;
         // build patches
-        const patches = lazy(localizeCalls)
+        const localizePatches = lazy(localizeCalls)
             .map(lc => ([
             { range: lc.keySpan, content: '' + (i++) },
             { range: lc.valueSpan, content: 'null' }
@@ -314,12 +330,21 @@ var _nls;
             const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
             const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
             return { span: { start, end }, content: c.content };
-        })
-            .toArray();
+        });
+        const localize2Patches = lazy(localize2Calls)
+            .map(lc => ([
+            { range: lc.keySpan, content: '' + (i++) }
+        ])).flatten()
+            .map(c => {
+            const start = lcFrom(smc.generatedPositionFor(positionFrom(c.range.start)));
+            const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
+            return { span: { start, end }, content: c.content };
+        });
+        const patches = localizePatches.concat(localize2Patches).toArray();
         javascript = patchJavascript(patches, javascript, moduleId);
         // since imports are not within the sourcemap information,
         // we must do this MacGyver style
-        if (nlsExpressions.length) {
+        if (nlsExpressions.length || nls2Expressions.length) {
             javascript = javascript.replace(/^define\(.*$/m, line => {
                 return line.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
             });
@@ -346,3 +371,4 @@ var _nls;
     }
     _nls.patchFiles = patchFiles;
 })(_nls || (_nls = {}));
+//# sourceMappingURL=nls.js.map

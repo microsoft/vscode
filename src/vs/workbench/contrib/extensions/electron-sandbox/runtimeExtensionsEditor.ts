@@ -19,12 +19,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/electron-sandbox/reportExtensionIssueAction';
+import { ReportExtensionIssueAction } from 'vs/workbench/contrib/extensions/common/reportExtensionIssueAction';
 import { AbstractRuntimeExtensionsEditor, IRuntimeExtension } from 'vs/workbench/contrib/extensions/browser/abstractRuntimeExtensionsEditor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { IV8Profile, Utils } from 'vs/platform/profiling/common/profiling';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -71,9 +73,10 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 		@IStorageService storageService: IStorageService,
 		@ILabelService labelService: ILabelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IClipboardService clipboardService: IClipboardService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
-		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService);
+		super(telemetryService, themeService, contextKeyService, extensionsWorkbenchService, extensionService, notificationService, contextMenuService, instantiationService, storageService, labelService, environmentService, clipboardService);
 		this._profileInfo = this._extensionHostProfileService.lastProfile;
 		this._extensionsHostRecorded = CONTEXT_EXTENSION_HOST_PROFILE_RECORDED.bindTo(contextKeyService);
 		this._profileSessionState = CONTEXT_PROFILE_SESSION_STATE.bindTo(contextKeyService);
@@ -106,12 +109,7 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 
 	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
 		if (element.marketplaceInfo) {
-			return this._instantiationService.createInstance(ReportExtensionIssueAction, {
-				description: element.description,
-				marketplaceInfo: element.marketplaceInfo,
-				status: element.status,
-				unresponsiveProfile: element.unresponsiveProfile
-			});
+			return this._instantiationService.createInstance(ReportExtensionIssueAction, element.description);
 		}
 		return null;
 	}
@@ -188,9 +186,9 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._nativeHostService.showSaveDialog({
-			title: 'Save Extension Host Profile',
-			buttonLabel: 'Save',
+		const picked = await this._nativeHostService.showSaveDialog({
+			title: nls.localize('saveprofile.dialogTitle', "Save Extension Host Profile"),
+			buttonLabel: nls.localize('saveprofile.saveButton', "Save"),
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
 			filters: [{
 				name: 'CPU Profiles',
@@ -208,13 +206,11 @@ export class SaveExtensionHostProfileAction extends Action {
 		let savePath = picked.filePath;
 
 		if (this._environmentService.isBuilt) {
-			const profiler = await import('v8-inspect-profiler');
 			// when running from a not-development-build we remove
 			// absolute filenames because we don't want to reveal anything
 			// about users. We also append the `.txt` suffix to make it
 			// easier to attach these files to GH issues
-			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite as any }, 'piiRemoved');
-			dataToWrite = tmp.profile;
+			dataToWrite = Utils.rewriteAbsolutePaths(dataToWrite as IV8Profile, 'piiRemoved');
 
 			savePath = savePath + '.txt';
 		}

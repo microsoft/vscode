@@ -9,6 +9,14 @@ import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITextModel } from 'vs/editor/common/model';
+import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { coalesce } from 'vs/base/common/arrays';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -70,19 +78,19 @@ export function isDebuggerMainContribution(dbg: IDebuggerContribution) {
 	return dbg.type && (dbg.label || dbg.program || dbg.runtime);
 }
 
-export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number, end: number } {
+export function getExactExpressionStartAndEnd(lineContent: string, looseStart: number, looseEnd: number): { start: number; end: number } {
 	let matchingExpression: string | undefined = undefined;
 	let startOffset = 0;
 
 	// Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
 	// Match any character except a set of characters which often break interesting sub-expressions
-	let expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
+	const expression: RegExp = /([^()\[\]{}<>\s+\-/%~#^;=|,`!]|\->)+/g;
 	let result: RegExpExecArray | null = null;
 
 	// First find the full expression under the cursor
 	while (result = expression.exec(lineContent)) {
-		let start = result.index + 1;
-		let end = start + result[0].length;
+		const start = result.index + 1;
+		const end = start + result[0].length;
 
 		if (start <= looseStart && end >= looseEnd) {
 			matchingExpression = result[0];
@@ -94,10 +102,10 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	// If there are non-word characters after the cursor, we want to truncate the expression then.
 	// For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
 	if (matchingExpression) {
-		let subExpression: RegExp = /\w+/g;
+		const subExpression: RegExp = /\w+/g;
 		let subExpressionResult: RegExpExecArray | null = null;
 		while (subExpressionResult = subExpression.exec(matchingExpression)) {
-			let subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
+			const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
 			if (subEnd >= looseEnd) {
 				break;
 			}
@@ -111,6 +119,44 @@ export function getExactExpressionStartAndEnd(lineContent: string, looseStart: n
 	return matchingExpression ?
 		{ start: startOffset, end: startOffset + matchingExpression.length - 1 } :
 		{ start: 0, end: 0 };
+}
+
+export async function getEvaluatableExpressionAtPosition(languageFeaturesService: ILanguageFeaturesService, model: ITextModel, position: Position, token?: CancellationToken): Promise<{ range: IRange; matchingExpression: string } | null> {
+	if (languageFeaturesService.evaluatableExpressionProvider.has(model)) {
+		const supports = languageFeaturesService.evaluatableExpressionProvider.ordered(model);
+
+		const results = coalesce(await Promise.all(supports.map(async support => {
+			try {
+				return await support.provideEvaluatableExpression(model, position, token ?? CancellationToken.None);
+			} catch (err) {
+				return undefined;
+			}
+		})));
+
+		if (results.length > 0) {
+			let matchingExpression = results[0].expression;
+			const range = results[0].range;
+
+			if (!matchingExpression) {
+				const lineContent = model.getLineContent(position.lineNumber);
+				matchingExpression = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+			}
+
+			return { range, matchingExpression };
+		}
+	} else { // old one-size-fits-all strategy
+		const lineContent = model.getLineContent(position.lineNumber);
+		const { start, end } = getExactExpressionStartAndEnd(lineContent, position.column, position.column);
+
+		// use regex to extract the sub-expression #9821
+		const matchingExpression = lineContent.substring(start - 1, end);
+		return {
+			matchingExpression,
+			range: new Range(position.lineNumber, start, position.lineNumber, start + matchingExpression.length)
+		};
+	}
+
+	return null;
 }
 
 // RFC 2396, Appendix A: https://www.ietf.org/rfc/rfc2396.txt
@@ -196,7 +242,7 @@ export function convertToVSCPaths(message: DebugProtocol.ProtocolMessage, toUri:
 function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: boolean, source: PathContainer | undefined) => void): void {
 
 	switch (msg.type) {
-		case 'event':
+		case 'event': {
 			const event = <DebugProtocol.Event>msg;
 			switch (event.event) {
 				case 'output':
@@ -212,7 +258,8 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					break;
 			}
 			break;
-		case 'request':
+		}
+		case 'request': {
 			const request = <DebugProtocol.Request>msg;
 			switch (request.command) {
 				case 'setBreakpoints':
@@ -234,7 +281,8 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					break;
 			}
 			break;
-		case 'response':
+		}
+		case 'response': {
 			const response = <DebugProtocol.Response>msg;
 			if (response.success && response.body) {
 				switch (response.command) {
@@ -253,11 +301,18 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					case 'setBreakpoints':
 						(<DebugProtocol.SetBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
 						break;
+					case 'disassemble':
+						{
+							const di = <DebugProtocol.DisassembleResponse>response;
+							di.body?.instructions.forEach(di => fixSourcePath(false, di.location));
+						}
+						break;
 					default:
 						break;
 				}
 			}
 			break;
+		}
 	}
 }
 
@@ -303,3 +358,21 @@ function compareOrders(first: number | undefined, second: number | undefined): n
 
 	return first - second;
 }
+
+export async function saveAllBeforeDebugStart(configurationService: IConfigurationService, editorService: IEditorService): Promise<void> {
+	const saveBeforeStartConfig: string = configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: editorService.activeTextEditorLanguageId });
+	if (saveBeforeStartConfig !== 'none') {
+		await editorService.saveAll();
+		if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
+			const activeEditor = editorService.activeEditorPane;
+			if (activeEditor && activeEditor.input.resource?.scheme === Schemas.untitled) {
+				// Make sure to save the active editor in case it is in untitled file it wont be saved as part of saveAll #111850
+				await editorService.save({ editor: activeEditor.input, groupId: activeEditor.group.id });
+			}
+		}
+	}
+	await configurationService.reloadConfiguration();
+}
+
+export const sourcesEqual = (a: DebugProtocol.Source | undefined, b: DebugProtocol.Source | undefined): boolean =>
+	!a || !b ? a === b : a.name === b.name && a.path === b.path && a.sourceReference === b.sourceReference;

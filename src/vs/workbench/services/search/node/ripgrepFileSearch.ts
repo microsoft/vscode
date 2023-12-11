@@ -12,9 +12,9 @@ import { isMacintosh as isMac } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { IFileQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
 import { anchorGlob } from 'vs/workbench/services/search/node/ripgrepSearchUtils';
-import { rgPath } from 'vscode-ripgrep';
+import { rgPath } from '@vscode/ripgrep';
 
-// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+// If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
@@ -30,7 +30,7 @@ export function spawnRipgrepCmd(config: IFileQuery, folderQuery: IFolderQuery, i
 }
 
 function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern?: glob.IExpression, excludePattern?: glob.IExpression) {
-	const args = ['--files', '--hidden', '--case-sensitive'];
+	const args = ['--files', '--hidden', '--case-sensitive', '--no-require-git'];
 
 	// includePattern can't have siblingClauses
 	foldersToIncludeGlobs([folderQuery], includePattern, false).forEach(globArg => {
@@ -58,7 +58,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	if (folderQuery.disregardIgnoreFiles !== false) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
-	} else {
+	} else if (folderQuery.disregardParentIgnoreFiles !== false) {
 		args.push('--no-ignore-parent');
 	}
 
@@ -82,12 +82,12 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	};
 }
 
-export interface IRgGlobResult {
+interface IRgGlobResult {
 	globArgs: string[];
 	siblingClauses: glob.IExpression;
 }
 
-export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude?: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
+function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExclude?: glob.IExpression, excludesToSkip?: Set<string>, absoluteGlobs = true): IRgGlobResult {
 	const globArgs: string[] = [];
 	let siblingClauses: glob.IExpression = {};
 	folderQueries.forEach(folderQuery => {
@@ -102,7 +102,7 @@ export function foldersToRgExcludeGlobs(folderQueries: IFolderQuery[], globalExc
 	return { globArgs, siblingClauses };
 }
 
-export function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclude?: glob.IExpression, absoluteGlobs = true): string[] {
+function foldersToIncludeGlobs(folderQueries: IFolderQuery[], globalInclude?: glob.IExpression, absoluteGlobs = true): string[] {
 	const globArgs: string[] = [];
 	folderQueries.forEach(folderQuery => {
 		const totalIncludePattern = Object.assign({}, globalInclude || {}, folderQuery.includePattern || {});

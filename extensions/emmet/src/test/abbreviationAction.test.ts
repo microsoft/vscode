@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, workspace, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget } from 'vscode';
+import { Selection, workspace, CancellationTokenSource, CompletionTriggerKind, ConfigurationTarget, CompletionContext } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -41,9 +41,12 @@ const htmlContents = `
 </body>
 `;
 
+const invokeCompletionContext: CompletionContext = {
+	triggerKind: CompletionTriggerKind.Invoke,
+	triggerCharacter: undefined,
+};
+
 suite('Tests for Expand Abbreviations (HTML)', () => {
-	const oldValueForExcludeLanguages = workspace.getConfiguration('emmet').inspect('excludeLanguages');
-	const oldValueForInlcudeLanguages = workspace.getConfiguration('emmet').inspect('includeLanguages');
 	teardown(closeAllEditors);
 
 	test('Expand snippets (HTML)', () => {
@@ -67,7 +70,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor('img', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 3, 0, 3);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
 				return Promise.resolve();
@@ -167,7 +170,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(2, 4, 2, 4);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -186,7 +189,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(9, 8, 9, 8);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -207,7 +210,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(fileContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(0, 6, 0, 6);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
@@ -233,7 +236,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(13, 16, 13, 19);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
@@ -282,7 +285,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor('<div style="m10" class="hello"></div>', 'html', async (editor, _doc) => {
 			editor.selection = new Selection(0, 15, 0, 15);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
@@ -321,7 +324,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(21, 12, 21, 12);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding span.hello`);
 				return Promise.resolve();
@@ -352,13 +355,14 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _doc) => {
 			editor.selection = new Selection(24, 12, 24, 12);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 			return Promise.resolve();
 		});
 	});
 
 	test('Expand html when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
 		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 10, 24, 10);
@@ -369,17 +373,18 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			await expandPromise;
 			assert.strictEqual(editor.document.getText(), htmlContents.replace('span.bye', '<span class="bye"></span>'));
 		});
-		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+		await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
 	});
 
 	test('Expand html in completion list when inside script tag with javascript type if js is mapped to html (HTML)', async () => {
 		const abbreviation = 'span.bye';
 		const expandedText = '<span class="bye"></span>';
+		const oldConfig = workspace.getConfiguration('emmet').inspect('includeLanguages')?.globalValue;
 		await workspace.getConfiguration('emmet').update('includeLanguages', { 'javascript': 'html' }, ConfigurationTarget.Global);
 		await withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 			editor.selection = new Selection(24, 10, 24, 10);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise) {
 				assert.strictEqual(1, 2, `Problem with expanding span.bye`);
 				return Promise.resolve();
@@ -394,7 +399,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 			assert.strictEqual(((<string>emmetCompletionItem.documentation) || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			return Promise.resolve();
 		});
-		return workspace.getConfiguration('emmet').update('includeLanguages', oldValueForInlcudeLanguages || {}, ConfigurationTarget.Global);
+		await workspace.getConfiguration('emmet').update('includeLanguages', oldConfig, ConfigurationTarget.Global);
 	});
 
 	// test('No expanding when html is excluded in the settings', () => {
@@ -406,9 +411,10 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	// });
 
 	test('No expanding when html is excluded in the settings in completion list', async () => {
+		const oldConfig = workspace.getConfiguration('emmet').inspect('excludeLanguages')?.globalValue;
 		await workspace.getConfiguration('emmet').update('excludeLanguages', ['html'], ConfigurationTarget.Global);
 		await testHtmlCompletionProvider(new Selection(9, 6, 9, 6), '', '', true);
-		return workspace.getConfiguration('emmet').update('excludeLanguages', oldValueForExcludeLanguages ? oldValueForExcludeLanguages.globalValue : undefined, ConfigurationTarget.Global);
+		await workspace.getConfiguration('emmet').update('excludeLanguages', oldConfig, ConfigurationTarget.Global);
 	});
 
 	// test('No expanding when php (mapped syntax) is excluded in the settings', () => {
@@ -519,7 +525,7 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 	return withRandomFileEditor(htmlContents, 'html', async (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 		if (!completionPromise) {
 			if (!shouldFail) {
 				assert.strictEqual(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
@@ -545,7 +551,7 @@ function testNoCompletion(syntax: string, fileContents: string, selection: Selec
 	return withRandomFileEditor(fileContents, syntax, (editor, _doc) => {
 		editor.selection = selection;
 		const cancelSrc = new CancellationTokenSource();
-		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+		const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 		assert.strictEqual(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
 		return Promise.resolve();
 	});

@@ -4,76 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSyncStoreManagementService, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { ConfigurationSyncStore } from 'vs/base/common/product';
-import { isWeb } from 'vs/base/common/platform';
-import { RequestsSession, UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IRequestService } from 'vs/platform/request/common/request';
-import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { newWriteableBufferStream } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import product from 'vs/platform/product/common/product';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { URI } from 'vs/base/common/uri';
-
-suite('UserDataSyncStoreManagementService', () => {
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
-
-	test('test sync store is read from settings', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer()));
-		await client.setUp();
-
-		client.instantiationService.stub(IProductService, {
-			_serviceBrand: undefined, ...product, ...{
-				'configurationSync.store': undefined
-			}
-		});
-
-		const configuredStore: ConfigurationSyncStore = {
-			url: 'http://configureHost:3000',
-			stableUrl: 'http://configureHost:3000',
-			insidersUrl: 'http://configureHost:3000',
-			canSwitch: false,
-			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
-		};
-		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(JSON.stringify({
-			'configurationSync.store': configuredStore
-		})));
-		await client.instantiationService.get(IConfigurationService).reloadConfiguration();
-
-		const expected: IUserDataSyncStore = {
-			url: URI.parse('http://configureHost:3000'),
-			type: 'stable',
-			defaultUrl: URI.parse('http://configureHost:3000'),
-			stableUrl: URI.parse('http://configureHost:3000'),
-			insidersUrl: URI.parse('http://configureHost:3000'),
-			canSwitch: false,
-			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
-		};
-
-		const testObject: IUserDataSyncStoreManagementService = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreManagementService));
-
-		assert.strictEqual(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
-		assert.strictEqual(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
-		assert.deepStrictEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
-	});
-
-});
+import { isWeb } from 'vs/base/common/platform';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { RequestsSession, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('UserDataSyncStoreService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test read manifest for the first time', async () => {
 		// Setup the client
@@ -83,12 +30,11 @@ suite('UserDataSyncStoreService', () => {
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 		const productService = client.instantiationService.get(IProductService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Client-Name'], `${productService.applicationName}${isWeb ? '-web' : ''}`);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Client-Version'], productService.version);
-		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Id'], undefined);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'], undefined);
 	});
@@ -100,11 +46,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -118,12 +64,12 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -137,13 +83,13 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -157,14 +103,14 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
-		await testObject.manifest();
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
+		await testObject.manifest(null);
 
 		target.reset();
-		await testObject.write(SyncResource.Settings, 'some content', null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -178,14 +124,14 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
-		await testObject.manifest();
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
+		await testObject.manifest(null);
 
 		target.reset();
-		await testObject.read(SyncResource.Settings, null);
+		await testObject.readResource(SyncResource.Settings, null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.strictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], machineSessionId);
@@ -199,15 +145,15 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
-		await testObject.manifest();
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
+		await testObject.manifest(null);
 		await testObject.clear();
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
@@ -222,11 +168,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 		await target.clear();
@@ -235,10 +181,10 @@ suite('UserDataSyncStoreService', () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(target));
 		await client2.setUp();
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
-		await testObject2.write(SyncResource.Settings, 'some content', null);
+		await testObject2.writeResource(SyncResource.Settings, 'some content', null);
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
@@ -254,11 +200,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 		await target.clear();
@@ -267,11 +213,11 @@ suite('UserDataSyncStoreService', () => {
 		const client2 = disposableStore.add(new UserDataSyncClient(target));
 		await client2.setUp();
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
-		await testObject2.write(SyncResource.Settings, 'some content', null);
+		await testObject2.writeResource(SyncResource.Settings, 'some content', null);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
@@ -287,11 +233,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 
@@ -302,7 +248,7 @@ suite('UserDataSyncStoreService', () => {
 		await testObject2.clear();
 
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
@@ -318,11 +264,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 
 		// client 2
@@ -331,9 +277,9 @@ suite('UserDataSyncStoreService', () => {
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
 		await testObject2.clear();
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
@@ -348,11 +294,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 		const machineSessionId = target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'];
 		const userSessionId = target.requestsWithAllHeaders[0].headers!['X-User-Session-Id'];
 
@@ -362,11 +308,11 @@ suite('UserDataSyncStoreService', () => {
 		const testObject2 = client2.instantiationService.get(IUserDataSyncStoreService);
 		await testObject2.clear();
 
-		await testObject.manifest();
-		await testObject.write(SyncResource.Settings, 'some content', null);
-		await testObject.manifest();
+		await testObject.manifest(null);
+		await testObject.writeResource(SyncResource.Settings, 'some content', null);
+		await testObject.manifest(null);
 		target.reset();
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		assert.strictEqual(target.requestsWithAllHeaders.length, 1);
 		assert.notStrictEqual(target.requestsWithAllHeaders[0].headers!['X-Machine-Session-Id'], undefined);
@@ -381,11 +327,11 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 
 		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
 		try {
-			await testObject.manifest();
+			await testObject.manifest(null);
 			assert.fail('should fail');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncStoreError);
@@ -396,19 +342,22 @@ suite('UserDataSyncStoreService', () => {
 	});
 
 	test('test donotMakeRequestsUntil is reset after retry time is finished', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+			await client.setUp();
+			const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		try {
-			await testObject.manifest();
-		} catch (e) { }
+			await testObject.manifest(null);
+			try {
+				await testObject.manifest(null);
+				assert.fail('should fail');
+			} catch (e) { }
 
-		const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
-		await timeout(300);
-		await promise;
-		assert.ok(!testObject.donotMakeRequestsUntil);
+			const promise = Event.toPromise(testObject.onDidChangeDonotMakeRequestsUntil);
+			await timeout(300);
+			await promise;
+			assert.ok(!testObject.donotMakeRequestsUntil);
+		});
 	});
 
 	test('test donotMakeRequestsUntil is retrieved', async () => {
@@ -416,9 +365,9 @@ suite('UserDataSyncStoreService', () => {
 		await client.setUp();
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
+		await testObject.manifest(null);
 		try {
-			await testObject.manifest();
+			await testObject.manifest(null);
 		} catch (e) { }
 
 		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
@@ -426,18 +375,21 @@ suite('UserDataSyncStoreService', () => {
 	});
 
 	test('test donotMakeRequestsUntil is checked and reset after retreived', async () => {
-		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
-		await client.setUp();
-		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
+			await client.setUp();
+			const testObject = client.instantiationService.get(IUserDataSyncStoreService);
 
-		await testObject.manifest();
-		try {
-			await testObject.manifest();
-		} catch (e) { }
+			await testObject.manifest(null);
+			try {
+				await testObject.manifest(null);
+				assert.fail('should fail');
+			} catch (e) { }
 
-		await timeout(300);
-		const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
-		assert.ok(!target.donotMakeRequestsUntil);
+			await timeout(300);
+			const target = disposableStore.add(client.instantiationService.createInstance(UserDataSyncStoreService));
+			assert.ok(!target.donotMakeRequestsUntil);
+		});
 	});
 
 	test('test read resource request handles 304', async () => {
@@ -448,8 +400,8 @@ suite('UserDataSyncStoreService', () => {
 		await client.sync();
 
 		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
-		const expected = await testObject.read(SyncResource.Settings, null);
-		const actual = await testObject.read(SyncResource.Settings, expected);
+		const expected = await testObject.readResource(SyncResource.Settings, null);
+		const actual = await testObject.readResource(SyncResource.Settings, expected);
 
 		assert.strictEqual(actual, expected);
 	});
@@ -461,8 +413,12 @@ suite('UserDataSyncRequestsSession', () => {
 	const requestService: IRequestService = {
 		_serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
-		async resolveProxy() { return undefined; }
+		async resolveProxy() { return undefined; },
+		async loadCertificates() { return []; }
 	};
+
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
@@ -478,17 +434,17 @@ suite('UserDataSyncRequestsSession', () => {
 		assert.fail('Should fail with limit exceeded');
 	});
 
-	test('requests are handled after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
+	test('requests are handled after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);
-		await timeout(600);
+		await timeout(125);
 		await testObject.request('url', {}, CancellationToken.None);
-	});
+	}));
 
-	test('too many requests are thrown after session is expired', async () => {
-		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());
+	test('too many requests are thrown after session is expired', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const testObject = new RequestsSession(1, 100, requestService, new NullLogService());
 		await testObject.request('url', {}, CancellationToken.None);
-		await timeout(600);
+		await timeout(125);
 		await testObject.request('url', {}, CancellationToken.None);
 
 		try {
@@ -499,6 +455,6 @@ suite('UserDataSyncRequestsSession', () => {
 			return;
 		}
 		assert.fail('Should fail with limit exceeded');
-	});
+	}));
 
 });

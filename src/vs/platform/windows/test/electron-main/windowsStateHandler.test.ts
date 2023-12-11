@@ -6,10 +6,11 @@
 import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { restoreWindowsState, getWindowsStateStoreData, IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/window/electron-main/window';
+import { getWindowsStateStoreData, IWindowsState, IWindowState, restoreWindowsState } from 'vs/platform/windows/electron-main/windowsStateHandler';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 suite('Windows State Storing', () => {
 
@@ -198,4 +199,6 @@ suite('Windows State Storing', () => {
 		};
 		assertEqualWindowsState(expected, windowsState, 'v1_32_empty_window');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

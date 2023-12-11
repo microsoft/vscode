@@ -11,9 +11,14 @@ import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resource
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 suite('ResourceEditorInput', () => {
 
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 
 	class TestResourceEditorInput extends AbstractResourceEditorInput {
@@ -23,20 +28,26 @@ suite('ResourceEditorInput', () => {
 		constructor(
 			resource: URI,
 			@ILabelService labelService: ILabelService,
-			@IFileService fileService: IFileService
+			@IFileService fileService: IFileService,
+			@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+			@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 		) {
-			super(resource, resource, labelService, fileService);
+			super(resource, resource, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 		}
 	}
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		instantiationService = workbenchInstantiationService(undefined, disposables);
+	});
+
+	teardown(() => {
+		disposables.clear();
 	});
 
 	test('basics', async () => {
 		const resource = URI.from({ scheme: 'testResource', path: 'thePath/of/the/resource.txt' });
 
-		const input = instantiationService.createInstance(TestResourceEditorInput, resource);
+		const input = disposables.add(instantiationService.createInstance(TestResourceEditorInput, resource));
 
 		assert.ok(input.getName().length > 0);
 
@@ -49,7 +60,9 @@ suite('ResourceEditorInput', () => {
 		assert.ok(input.getTitle(Verbosity.LONG).length > 0);
 
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.isReadonly(), false);
 		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Untitled), true);
-		assert.strictEqual(input.isOrphaned(), false);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -4,22 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	let m = createTextModel(
+	const m = createTextModel(
 		text.join('\n'),
+		undefined,
 		{
 			tabSize: defaultTabSize,
 			insertSpaces: defaultInsertSpaces,
 			detectIndentation: true
 		}
 	);
-	let r = m.getOptions();
+	const r = m.getOptions();
 	m.dispose();
 
 	assert.strictEqual(r.insertSpaces, expectedInsertSpaces, msg);
@@ -67,6 +73,8 @@ function assertGuess(expectedInsertSpaces: boolean | undefined, expectedTabSize:
 
 suite('TextModelData.fromString', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	interface ITextBufferData {
 		EOL: string;
 		lines: string[];
@@ -75,14 +83,15 @@ suite('TextModelData.fromString', () => {
 	}
 
 	function testTextModelDataFromString(text: string, expected: ITextBufferData): void {
-		const textBuffer = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL).textBuffer;
-		let actual: ITextBufferData = {
+		const { textBuffer, disposable } = createTextBuffer(text, TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL);
+		const actual: ITextBufferData = {
 			EOL: textBuffer.getEOL(),
 			lines: textBuffer.getLinesContent(),
 			containsRTL: textBuffer.mightContainRTL(),
 			isBasicASCII: !textBuffer.mightContainNonBasicASCII()
 		};
 		assert.deepStrictEqual(actual, expected);
+		disposable.dispose();
 	}
 
 	test('one line text', () => {
@@ -161,6 +170,22 @@ suite('TextModelData.fromString', () => {
 
 suite('Editor Model - TextModel', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('TextModel does not use events internally', () => {
+		// Make sure that all model parts receive text model events explicitly
+		// to avoid that by any chance an outside listener receives events before
+		// the parts and thus are able to access the text model in an inconsistent state.
+		//
+		// We simply check that there are no listeners attached to text model
+		// after instantiation
+		const disposables = new DisposableStore();
+		const instantiationService: IInstantiationService = createModelServices(disposables);
+		const textModel = disposables.add(instantiationService.createInstance(TextModel, '', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null));
+		assert.strictEqual(textModel._hasListeners(), false);
+		disposables.dispose();
+	});
+
 	test('getValueLengthInRange', () => {
 
 		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
@@ -175,6 +200,7 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\r\nMy Second Line\r\n'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\r\nMy Second Line\r\nMy Third Line'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		m.dispose();
 
 		m = createTextModel('My First Line\nMy Second Line\nMy Third Line');
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
@@ -188,6 +214,28 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1)), 'y First Line\nMy Second Line\n'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 2, 3, 1000)), 'y First Line\nMy Second Line\nMy Third Line'.length);
 		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000)), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
+	});
+
+	test('getValueLengthInRange different EOL', () => {
+
+		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		m.dispose();
+
+		m = createTextModel('My First Line\nMy Second Line\nMy Third Line');
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.TextDefined), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.LF), 'My First Line\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 2, 1), EndOfLinePreference.CRLF), 'My First Line\r\n'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.TextDefined), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.LF), 'My First Line\nMy Second Line\nMy Third Line'.length);
+		assert.strictEqual(m.getValueLengthInRange(new Range(1, 1, 1000, 1000), EndOfLinePreference.CRLF), 'My First Line\r\nMy Second Line\r\nMy Third Line'.length);
+		m.dispose();
 	});
 
 	test('guess indentation 1', () => {
@@ -662,7 +710,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('validatePosition', () => {
 
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -687,11 +735,13 @@ suite('Editor Model - TextModel', () => {
 
 		assert.deepStrictEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(2, 9));
 		assert.deepStrictEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(2, 9));
+
+		m.dispose();
 	});
 
 	test('validatePosition around high-low surrogate pairs 1', () => {
 
-		let m = createTextModel('a📚b');
+		const m = createTextModel('a📚b');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 0)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(0, 1)), new Position(1, 1));
@@ -714,11 +764,13 @@ suite('Editor Model - TextModel', () => {
 
 		assert.deepStrictEqual(m.validatePosition(new Position(Number.MAX_VALUE, Number.MAX_VALUE)), new Position(1, 5));
 		assert.deepStrictEqual(m.validatePosition(new Position(123.23, 47.5)), new Position(1, 5));
+
+		m.dispose();
 	});
 
 	test('validatePosition around high-low surrogate pairs 2', () => {
 
-		let m = createTextModel('a📚📚b');
+		const m = createTextModel('a📚📚b');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 1)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 2)), new Position(1, 2));
@@ -728,11 +780,13 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 6)), new Position(1, 6));
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 7)), new Position(1, 7));
 
+		m.dispose();
+
 	});
 
 	test('validatePosition handle NaN.', () => {
 
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(NaN, 1)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(1, NaN)), new Position(1, 1));
@@ -740,10 +794,12 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validatePosition(new Position(NaN, NaN)), new Position(1, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(2, NaN)), new Position(2, 1));
 		assert.deepStrictEqual(m.validatePosition(new Position(NaN, 3)), new Position(1, 3));
+
+		m.dispose();
 	});
 
 	test('issue #71480: validatePosition handle floats', () => {
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validatePosition(new Position(0.2, 1)), new Position(1, 1), 'a');
 		assert.deepStrictEqual(m.validatePosition(new Position(1.2, 1)), new Position(1, 1), 'b');
@@ -753,18 +809,22 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validatePosition(new Position(2, 0.8)), new Position(2, 1), 'f');
 		assert.deepStrictEqual(m.validatePosition(new Position(1, 1.2)), new Position(1, 1), 'g');
 		assert.deepStrictEqual(m.validatePosition(new Position(2, 1.5)), new Position(2, 1), 'h');
+
+		m.dispose();
 	});
 
 	test('issue #71480: validateRange handle floats', () => {
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 
 		assert.deepStrictEqual(m.validateRange(new Range(0.2, 1.5, 0.8, 2.5)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(1.2, 1.7, 1.8, 2.2)), new Range(1, 1, 1, 2));
+
+		m.dispose();
 	});
 
 	test('validateRange around high-low surrogate pairs 1', () => {
 
-		let m = createTextModel('a📚b');
+		const m = createTextModel('a📚b');
 
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -788,11 +848,13 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validateRange(new Range(1, 4, 1, 5)), new Range(1, 4, 1, 5));
 
 		assert.deepStrictEqual(m.validateRange(new Range(1, 5, 1, 5)), new Range(1, 5, 1, 5));
+
+		m.dispose();
 	});
 
 	test('validateRange around high-low surrogate pairs 2', () => {
 
-		let m = createTextModel('a📚📚b');
+		const m = createTextModel('a📚📚b');
 
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 1)), new Range(1, 1, 1, 1));
 		assert.deepStrictEqual(m.validateRange(new Range(0, 0, 0, 7)), new Range(1, 1, 1, 1));
@@ -831,11 +893,13 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.validateRange(new Range(1, 6, 1, 7)), new Range(1, 6, 1, 7));
 
 		assert.deepStrictEqual(m.validateRange(new Range(1, 7, 1, 7)), new Range(1, 7, 1, 7));
+
+		m.dispose();
 	});
 
 	test('modifyPosition', () => {
 
-		let m = createTextModel('line one\nline two');
+		const m = createTextModel('line one\nline two');
 		assert.deepStrictEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));
@@ -861,10 +925,13 @@ suite('Editor Model - TextModel', () => {
 		assert.deepStrictEqual(m.modifyPosition(new Position(1, 2), -100), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(2, 2), -100), new Position(1, 1));
 		assert.deepStrictEqual(m.modifyPosition(new Position(2, 9), -18), new Position(1, 1));
+
+		m.dispose();
 	});
 
 	test('normalizeIndentation 1', () => {
-		let model = createTextModel('',
+		const model = createTextModel('',
+			undefined,
 			{
 				insertSpaces: false
 			}
@@ -876,10 +943,11 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation('  '), '  ');
 		assert.strictEqual(model.normalizeIndentation(' '), ' ');
 		assert.strictEqual(model.normalizeIndentation(''), '');
-		assert.strictEqual(model.normalizeIndentation(' \t   '), '\t\t');
-		assert.strictEqual(model.normalizeIndentation(' \t  '), '\t   ');
-		assert.strictEqual(model.normalizeIndentation(' \t '), '\t  ');
-		assert.strictEqual(model.normalizeIndentation(' \t'), '\t ');
+		assert.strictEqual(model.normalizeIndentation(' \t    '), '\t\t');
+		assert.strictEqual(model.normalizeIndentation(' \t   '), '\t   ');
+		assert.strictEqual(model.normalizeIndentation(' \t  '), '\t  ');
+		assert.strictEqual(model.normalizeIndentation(' \t '), '\t ');
+		assert.strictEqual(model.normalizeIndentation(' \t'), '\t');
 
 		assert.strictEqual(model.normalizeIndentation('\ta'), '\ta');
 		assert.strictEqual(model.normalizeIndentation('    a'), '\ta');
@@ -887,16 +955,17 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
 		assert.strictEqual(model.normalizeIndentation(' a'), ' a');
 		assert.strictEqual(model.normalizeIndentation('a'), 'a');
-		assert.strictEqual(model.normalizeIndentation(' \t   a'), '\t\ta');
-		assert.strictEqual(model.normalizeIndentation(' \t  a'), '\t   a');
-		assert.strictEqual(model.normalizeIndentation(' \t a'), '\t  a');
-		assert.strictEqual(model.normalizeIndentation(' \ta'), '\t a');
+		assert.strictEqual(model.normalizeIndentation(' \t    a'), '\t\ta');
+		assert.strictEqual(model.normalizeIndentation(' \t   a'), '\t   a');
+		assert.strictEqual(model.normalizeIndentation(' \t  a'), '\t  a');
+		assert.strictEqual(model.normalizeIndentation(' \t a'), '\t a');
+		assert.strictEqual(model.normalizeIndentation(' \ta'), '\ta');
 
 		model.dispose();
 	});
 
 	test('normalizeIndentation 2', () => {
-		let model = createTextModel('');
+		const model = createTextModel('');
 
 		assert.strictEqual(model.normalizeIndentation('\ta'), '    a');
 		assert.strictEqual(model.normalizeIndentation('    a'), '    a');
@@ -904,16 +973,17 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.normalizeIndentation('  a'), '  a');
 		assert.strictEqual(model.normalizeIndentation(' a'), ' a');
 		assert.strictEqual(model.normalizeIndentation('a'), 'a');
-		assert.strictEqual(model.normalizeIndentation(' \t   a'), '        a');
-		assert.strictEqual(model.normalizeIndentation(' \t  a'), '       a');
-		assert.strictEqual(model.normalizeIndentation(' \t a'), '      a');
-		assert.strictEqual(model.normalizeIndentation(' \ta'), '     a');
+		assert.strictEqual(model.normalizeIndentation(' \t    a'), '        a');
+		assert.strictEqual(model.normalizeIndentation(' \t   a'), '       a');
+		assert.strictEqual(model.normalizeIndentation(' \t  a'), '      a');
+		assert.strictEqual(model.normalizeIndentation(' \t a'), '     a');
+		assert.strictEqual(model.normalizeIndentation(' \ta'), '    a');
 
 		model.dispose();
 	});
 
 	test('getLineFirstNonWhitespaceColumn', () => {
-		let model = createTextModel([
+		const model = createTextModel([
 			'asd',
 			' asd',
 			'\tasd',
@@ -940,10 +1010,12 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(10), 4, '10');
 		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(11), 0, '11');
 		assert.strictEqual(model.getLineFirstNonWhitespaceColumn(12), 0, '12');
+
+		model.dispose();
 	});
 
 	test('getLineLastNonWhitespaceColumn', () => {
-		let model = createTextModel([
+		const model = createTextModel([
 			'asd',
 			'asd ',
 			'asd\t',
@@ -970,86 +1042,114 @@ suite('Editor Model - TextModel', () => {
 		assert.strictEqual(model.getLineLastNonWhitespaceColumn(10), 4, '10');
 		assert.strictEqual(model.getLineLastNonWhitespaceColumn(11), 0, '11');
 		assert.strictEqual(model.getLineLastNonWhitespaceColumn(12), 0, '12');
+
+		model.dispose();
 	});
 
 	test('#50471. getValueInRange with invalid range', () => {
-		let m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
+		const m = createTextModel('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.strictEqual(m.getValueInRange(new Range(1, NaN, 1, 3)), 'My');
 		assert.strictEqual(m.getValueInRange(new Range(NaN, NaN, NaN, NaN)), '');
+		m.dispose();
+	});
+
+	test('issue #168836: updating tabSize should also update indentSize when indentSize is set to "tabSize"', () => {
+		const m = createTextModel('some text', null, {
+			tabSize: 2,
+			indentSize: 'tabSize'
+		});
+		assert.strictEqual(m.getOptions().tabSize, 2);
+		assert.strictEqual(m.getOptions().indentSize, 2);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.updateOptions({
+			tabSize: 4
+		});
+		assert.strictEqual(m.getOptions().tabSize, 4);
+		assert.strictEqual(m.getOptions().indentSize, 4);
+		assert.strictEqual(m.getOptions().originalIndentSize, 'tabSize');
+		m.dispose();
 	});
 });
 
 suite('TextModel.mightContainRTL', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('nope', () => {
-		let model = createTextModel('hello world!');
+		const model = createTextModel('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
+		model.dispose();
 	});
 
 	test('yes', () => {
-		let model = createTextModel('Hello,\nזוהי עובדה מבוססת שדעתו');
+		const model = createTextModel('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.strictEqual(model.mightContainRTL(), true);
+		model.dispose();
 	});
 
 	test('setValue resets 1', () => {
-		let model = createTextModel('hello world!');
+		const model = createTextModel('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
 		model.setValue('Hello,\nזוהי עובדה מבוססת שדעתו');
 		assert.strictEqual(model.mightContainRTL(), true);
+		model.dispose();
 	});
 
 	test('setValue resets 2', () => {
-		let model = createTextModel('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
+		const model = createTextModel('Hello,\nهناك حقيقة مثبتة منذ زمن طويل');
 		assert.strictEqual(model.mightContainRTL(), true);
 		model.setValue('hello world!');
 		assert.strictEqual(model.mightContainRTL(), false);
+		model.dispose();
 	});
 
 });
 
 suite('TextModel.createSnapshot', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('empty file', () => {
-		let model = createTextModel('');
-		let snapshot = model.createSnapshot();
+		const model = createTextModel('');
+		const snapshot = model.createSnapshot();
 		assert.strictEqual(snapshot.read(), null);
 		model.dispose();
 	});
 
 	test('file with BOM', () => {
-		let model = createTextModel(UTF8_BOM_CHARACTER + 'Hello');
+		const model = createTextModel(UTF8_BOM_CHARACTER + 'Hello');
 		assert.strictEqual(model.getLineContent(1), 'Hello');
-		let snapshot = model.createSnapshot(true);
+		const snapshot = model.createSnapshot(true);
 		assert.strictEqual(snapshot.read(), UTF8_BOM_CHARACTER + 'Hello');
 		assert.strictEqual(snapshot.read(), null);
 		model.dispose();
 	});
 
 	test('regular file', () => {
-		let model = createTextModel('My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
-		let snapshot = model.createSnapshot();
+		const model = createTextModel('My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
+		const snapshot = model.createSnapshot();
 		assert.strictEqual(snapshot.read(), 'My First Line\n\t\tMy Second Line\n    Third Line\n\n1');
 		assert.strictEqual(snapshot.read(), null);
 		model.dispose();
 	});
 
 	test('large file', () => {
-		let lines: string[] = [];
+		const lines: string[] = [];
 		for (let i = 0; i < 1000; i++) {
 			lines[i] = 'Just some text that is a bit long such that it can consume some memory';
 		}
 		const text = lines.join('\n');
 
-		let model = createTextModel(text);
-		let snapshot = model.createSnapshot();
+		const model = createTextModel(text);
+		const snapshot = model.createSnapshot();
 		let actual = '';
 
 		// 70999 length => at most 2 read calls are necessary
-		let tmp1 = snapshot.read();
+		const tmp1 = snapshot.read();
 		assert.ok(tmp1);
 		actual += tmp1;
 
-		let tmp2 = snapshot.read();
+		const tmp2 = snapshot.read();
 		if (tmp2 === null) {
 			// all good
 		} else {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 
 export interface IObservableValue<T> {
@@ -16,8 +17,8 @@ export const staticObservableValue = <T>(value: T): IObservableValue<T> => ({
 	value,
 });
 
-export class MutableObservableValue<T> implements IObservableValue<T> {
-	private readonly changeEmitter = new Emitter<T>();
+export class MutableObservableValue<T> extends Disposable implements IObservableValue<T> {
+	private readonly changeEmitter = this._register(new Emitter<T>());
 
 	public readonly onDidChange = this.changeEmitter.event;
 
@@ -34,9 +35,12 @@ export class MutableObservableValue<T> implements IObservableValue<T> {
 
 	public static stored<T>(stored: StoredValue<T>, defaultValue: T) {
 		const o = new MutableObservableValue(stored.get(defaultValue));
-		o.onDidChange(value => stored.store(value));
+		o._register(stored);
+		o._register(o.onDidChange(value => stored.store(value)));
 		return o;
 	}
 
-	constructor(private _value: T) { }
+	constructor(private _value: T) {
+		super();
+	}
 }

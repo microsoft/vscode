@@ -3,23 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, ConfigurationTarget, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
-import { DefaultConfigurationModel, Configuration, ConfigurationModel, ConfigurationChangeEvent, UserSettings } from 'vs/platform/configuration/common/configurationModels';
-import { Event, Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget, IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
+import { DefaultConfiguration, IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IPolicyService, NullPolicyService } from 'vs/platform/policy/common/policy';
 
 export class ConfigurationService extends Disposable implements IConfigurationService, IDisposable {
 
 	declare readonly _serviceBrand: undefined;
 
 	private configuration: Configuration;
-	private userConfiguration: UserSettings;
+	private readonly defaultConfiguration: DefaultConfiguration;
+	private readonly policyConfiguration: IPolicyConfiguration;
+	private readonly userConfiguration: UserSettings;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
 
 	private readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
@@ -27,20 +30,25 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 
 	constructor(
 		private readonly settingsResource: URI,
-		fileService: IFileService
+		fileService: IFileService,
+		policyService: IPolicyService,
+		logService: ILogService,
 	) {
 		super();
-		this.userConfiguration = this._register(new UserSettings(this.settingsResource, undefined, extUriBiasedIgnorePathCase, fileService));
-		this.configuration = new Configuration(new DefaultConfigurationModel(), new ConfigurationModel());
+		this.defaultConfiguration = this._register(new DefaultConfiguration());
+		this.policyConfiguration = policyService instanceof NullPolicyService ? new NullPolicyConfiguration() : this._register(new PolicyConfiguration(this.defaultConfiguration, policyService, logService));
+		this.userConfiguration = this._register(new UserSettings(this.settingsResource, {}, extUriBiasedIgnorePathCase, fileService));
+		this.configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, new ConfigurationModel(), new ConfigurationModel());
 
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.reloadConfiguration(), 50));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDidDefaultConfigurationChange(configurationProperties)));
+		this._register(this.defaultConfiguration.onDidChangeConfiguration(({ defaults, properties }) => this.onDidDefaultConfigurationChange(defaults, properties)));
+		this._register(this.policyConfiguration.onDidChangeConfiguration(model => this.onDidPolicyConfigurationChange(model)));
 		this._register(this.userConfiguration.onDidChange(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
-		const userConfiguration = await this.userConfiguration.loadConfiguration();
-		this.configuration = new Configuration(new DefaultConfigurationModel(), userConfiguration);
+		const [defaultModel, policyModel, userModel] = await Promise.all([this.defaultConfiguration.initialize(), this.policyConfiguration.initialize(), this.userConfiguration.loadConfiguration()]);
+		this.configuration = new Configuration(defaultModel, policyModel, new ConfigurationModel(), userModel);
 	}
 
 	getConfigurationData(): IConfigurationData {
@@ -89,9 +97,15 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		this.trigger(change, previous, ConfigurationTarget.USER);
 	}
 
-	private onDidDefaultConfigurationChange(keys: string[]): void {
+	private onDidDefaultConfigurationChange(defaultConfigurationModel: ConfigurationModel, properties: string[]): void {
 		const previous = this.configuration.toData();
-		const change = this.configuration.compareAndUpdateDefaultConfiguration(new DefaultConfigurationModel(), keys);
+		const change = this.configuration.compareAndUpdateDefaultConfiguration(defaultConfigurationModel, properties);
+		this.trigger(change, previous, ConfigurationTarget.DEFAULT);
+	}
+
+	private onDidPolicyConfigurationChange(policyConfiguration: ConfigurationModel): void {
+		const previous = this.configuration.toData();
+		const change = this.configuration.compareAndUpdatePolicyConfiguration(policyConfiguration);
 		this.trigger(change, previous, ConfigurationTarget.DEFAULT);
 	}
 

@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
 import { Disposable } from './dispose';
 
-const localize = nls.loadMessageBundle();
 
 export interface ShowOptions {
 	readonly preserveFocus?: boolean;
@@ -17,30 +15,59 @@ export interface ShowOptions {
 export class SimpleBrowserView extends Disposable {
 
 	public static readonly viewType = 'simpleBrowser.view';
-	private static readonly title = localize('view.title', "Simple Browser");
+	private static readonly title = vscode.l10n.t("Simple Browser");
+
+	private static getWebviewLocalResourceRoots(extensionUri: vscode.Uri): readonly vscode.Uri[] {
+		return [
+			vscode.Uri.joinPath(extensionUri, 'media')
+		];
+	}
+
+	private static getWebviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
+		return {
+			enableScripts: true,
+			enableForms: true,
+			localResourceRoots: SimpleBrowserView.getWebviewLocalResourceRoots(extensionUri),
+		};
+	}
 
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
 	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
 	public readonly onDispose = this._onDidDispose.event;
 
-	constructor(
-		private readonly extensionUri: vscode.Uri,
+	public static create(
+		extensionUri: vscode.Uri,
 		url: string,
 		showOptions?: ShowOptions
-	) {
-		super();
-
-		this._webviewPanel = this._register(vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
+	): SimpleBrowserView {
+		const webview = vscode.window.createWebviewPanel(SimpleBrowserView.viewType, SimpleBrowserView.title, {
 			viewColumn: showOptions?.viewColumn ?? vscode.ViewColumn.Active,
 			preserveFocus: showOptions?.preserveFocus
 		}, {
-			enableScripts: true,
 			retainContextWhenHidden: true,
-			localResourceRoots: [
-				vscode.Uri.joinPath(extensionUri, 'media')
-			]
-		}));
+			...SimpleBrowserView.getWebviewOptions(extensionUri)
+		});
+		return new SimpleBrowserView(extensionUri, url, webview);
+	}
+
+	public static restore(
+		extensionUri: vscode.Uri,
+		url: string,
+		webviewPanel: vscode.WebviewPanel,
+	): SimpleBrowserView {
+		return new SimpleBrowserView(extensionUri, url, webviewPanel);
+	}
+
+	private constructor(
+		private readonly extensionUri: vscode.Uri,
+		url: string,
+		webviewPanel: vscode.WebviewPanel,
+	) {
+		super();
+
+		this._webviewPanel = this._register(webviewPanel);
+		this._webviewPanel.webview.options = SimpleBrowserView.getWebviewOptions(extensionUri);
 
 		this._register(this._webviewPanel.webview.onDidReceiveMessage(e => {
 			switch (e.type) {
@@ -85,7 +112,7 @@ export class SimpleBrowserView extends Disposable {
 	private getHtml(url: string) {
 		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
 
-		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+		const nonce = getNonce();
 
 		const mainJs = this.extensionResourceUrl('media', 'index.js');
 		const mainCss = this.extensionResourceUrl('media', 'main.css');
@@ -98,7 +125,7 @@ export class SimpleBrowserView extends Disposable {
 
 				<meta http-equiv="Content-Security-Policy" content="
 					default-src 'none';
-					font-src ${this._webviewPanel.webview.cspSource};
+					font-src data:;
 					style-src ${this._webviewPanel.webview.cspSource};
 					script-src 'nonce-${nonce}';
 					frame-src *;
@@ -116,15 +143,15 @@ export class SimpleBrowserView extends Disposable {
 				<header class="header">
 					<nav class="controls">
 						<button
-							title="${localize('control.back.title', "Back")}"
+							title="${vscode.l10n.t("Back")}"
 							class="back-button icon"><i class="codicon codicon-arrow-left"></i></button>
 
 						<button
-							title="${localize('control.forward.title', "Forward")}"
+							title="${vscode.l10n.t("Forward")}"
 							class="forward-button icon"><i class="codicon codicon-arrow-right"></i></button>
 
 						<button
-							title="${localize('control.reload.title', "Reload")}"
+							title="${vscode.l10n.t("Reload")}"
 							class="reload-button icon"><i class="codicon codicon-refresh"></i></button>
 					</nav>
 
@@ -132,13 +159,13 @@ export class SimpleBrowserView extends Disposable {
 
 					<nav class="controls">
 						<button
-							title="${localize('control.openExternal.title', "Open in browser")}"
+							title="${vscode.l10n.t("Open in browser")}"
 							class="open-external-button icon"><i class="codicon codicon-link-external"></i></button>
 					</nav>
 				</header>
 				<div class="content">
-					<div class="iframe-focused-alert">${localize('view.iframe-focused', "Focus Lock")}</div>
-					<iframe sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+					<div class="iframe-focused-alert">${vscode.l10n.t("Focus Lock")}</div>
+					<iframe sandbox="allow-scripts allow-forms allow-same-origin allow-downloads"></iframe>
 				</div>
 
 				<script src="${mainJs}" nonce="${nonce}"></script>
@@ -153,4 +180,13 @@ export class SimpleBrowserView extends Disposable {
 
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
+}
+
+function getNonce() {
+	let text = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 64; i++) {
+		text += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return text;
 }

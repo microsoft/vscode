@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
+import { URI } from 'vs/base/common/uri';
 
 suite('Marshalling', () => {
 
 	test('RegExp', () => {
-		let value = /foo/img;
-		let raw = stringify(value);
-		let clone = <RegExp>parse(raw);
+		const value = /foo/img;
+		const raw = stringify(value);
+		const clone = <RegExp>parse(raw);
 
 		assert.strictEqual(value.source, clone.source);
 		assert.strictEqual(value.global, clone.global);

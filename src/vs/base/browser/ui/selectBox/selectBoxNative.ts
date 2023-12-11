@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
+import { EventType, Gesture } from 'vs/base/browser/touch';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
-import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-import { Gesture, EventType } from 'vs/base/browser/touch';
 
 export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
@@ -33,6 +33,10 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 		if (typeof this.selectBoxOptions.ariaLabel === 'string') {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
+		}
+
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
 		}
 
 		this._onDidSelect = this._register(new Emitter<ISelectData>());
@@ -164,13 +168,9 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 		// Style native select
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : '';
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : '';
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
+			this.selectElement.style.backgroundColor = this.styles.selectBackground ?? '';
+			this.selectElement.style.color = this.styles.selectForeground ?? '';
+			this.selectElement.style.borderColor = this.styles.selectBorder ?? '';
 		}
 
 	}

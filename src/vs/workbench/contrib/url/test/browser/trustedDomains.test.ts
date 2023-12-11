@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 import { URI } from 'vs/base/common/uri';
 import { extractGitHubRemotesFromGitConfig } from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function linkAllowedByRules(link: string, rules: string[]) {
 	assert.ok(isURLDomainTrusted(URI.parse(link), rules), `Link\n${link}\n should be allowed by rules\n${JSON.stringify(rules)}`);
@@ -17,6 +18,7 @@ function linkNotAllowedByRules(link: string, rules: string[]) {
 }
 
 suite('GitHub remote extraction', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('All known formats', () => {
 		assert.deepStrictEqual(
 			extractGitHubRemotesFromGitConfig(
@@ -39,6 +41,7 @@ suite('GitHub remote extraction', () => {
 });
 
 suite('Link protection domain matching', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('simple', () => {
 		linkNotAllowedByRules('https://x.org', []);
 
@@ -128,5 +131,10 @@ suite('Link protection domain matching', () => {
 		// https://github.com/microsoft/vscode/issues/99294
 		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
 		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/microsoft']);
+	});
+
+	test('ignore query & fragment - https://github.com/microsoft/vscode/issues/156839', () => {
+		linkAllowedByRules('https://github.com/login/oauth/authorize?foo=4', ['https://github.com/login/oauth/authorize']);
+		linkAllowedByRules('https://github.com/login/oauth/authorize#foo', ['https://github.com/login/oauth/authorize']);
 	});
 });

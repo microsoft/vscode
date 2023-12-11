@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, fork, ForkOptions } from 'child_process';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Delayer, createCancelablePromise } from 'vs/base/common/async';
-import { deepClone } from 'vs/base/common/objects';
-import { Emitter, Event } from 'vs/base/common/event';
-import { createQueuedSender } from 'vs/base/node/processes';
-import { IChannel, ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
-import { isRemoteConsoleLog, log } from 'vs/base/common/console';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import * as errors from 'vs/base/common/errors';
+import { createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { isMacintosh } from 'vs/base/common/platform';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { isRemoteConsoleLog, log } from 'vs/base/common/console';
+import * as errors from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { deepClone } from 'vs/base/common/objects';
+import { createQueuedSender } from 'vs/base/node/processes';
+import { removeDangerousEnvVariables } from 'vs/base/common/processes';
+import { ChannelClient as IPCClient, ChannelServer as IPCServer, IChannel, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -26,9 +26,7 @@ export class Server<TContext extends string> extends IPCServer<TContext> {
 		super({
 			send: r => {
 				try {
-					if (process.send) {
-						process.send((<Buffer>r.buffer).toString('base64'));
-					}
+					process.send?.((<Buffer>r.buffer).toString('base64'));
 				} catch (e) { /* not much to do */ }
 			},
 			onMessage: Event.fromNodeEventEmitter(process, 'message', msg => VSBuffer.wrap(Buffer.from(msg, 'base64')))
@@ -71,7 +69,7 @@ export interface IIPCOptions {
 	debugBrk?: number;
 
 	/**
-	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent proces are inherited,
+	 * If set, starts the fork with empty execArgv. If not set, execArgv from the parent process are inherited,
 	 * except --inspect= and --inspect-brk= which are filtered as they would result in a port conflict.
 	 */
 	freshExecArgv?: boolean;
@@ -91,7 +89,7 @@ export class Client implements IChannelClient, IDisposable {
 	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
-	private readonly _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	private readonly _onDidProcessExit = new Emitter<{ code: number; signal: string }>();
 	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	constructor(private modulePath: string, private options: IIPCOptions) {
@@ -153,14 +151,14 @@ export class Client implements IChannelClient, IDisposable {
 
 		let listener: IDisposable;
 		const emitter = new Emitter<any>({
-			onFirstListenerAdd: () => {
+			onWillAddFirstListener: () => {
 				const channel = this.getCachedChannel(channelName);
 				const event: Event<T> = channel.listen(name, arg);
 
 				listener = event(emitter.fire, emitter);
 				this.activeRequests.add(listener);
 			},
-			onLastListenerRemove: () => {
+			onDidRemoveLastListener: () => {
 				this.activeRequests.delete(listener);
 				listener.dispose();
 
@@ -197,16 +195,12 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			if (forkOpts.execArgv === undefined) {
-				// if not set, the forked process inherits the execArgv of the parent process
-				// --inspect and --inspect-brk can not be inherited as the port would conflict
-				forkOpts.execArgv = process.execArgv.filter(a => !/^--inspect(-brk)?=/.test(a)); // remove
+				forkOpts.execArgv = process.execArgv			// if not set, the forked process inherits the execArgv of the parent process
+					.filter(a => !/^--inspect(-brk)?=/.test(a)) // --inspect and --inspect-brk can not be inherited as the port would conflict
+					.filter(a => !a.startsWith('--vscode-')); 	// --vscode-* arguments are unsupported by node.js and thus need to remove
 			}
 
-			if (isMacintosh && forkOpts.env) {
-				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-				// See https://github.com/microsoft/vscode/issues/105848
-				delete forkOpts.env['DYLD_LIBRARY_PATH'];
-			}
+			removeDangerousEnvVariables(forkOpts.env);
 
 			this.child = fork(this.modulePath, args, forkOpts);
 
@@ -247,9 +241,7 @@ export class Client implements IChannelClient, IDisposable {
 					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
 				}
 
-				if (this.disposeDelayer) {
-					this.disposeDelayer.cancel();
-				}
+				this.disposeDelayer?.cancel();
 				this.disposeClient();
 				this._onDidProcessExit.fire({ code, signal });
 			});
@@ -282,10 +274,8 @@ export class Client implements IChannelClient, IDisposable {
 
 	dispose() {
 		this._onDidProcessExit.dispose();
-		if (this.disposeDelayer) {
-			this.disposeDelayer.cancel();
-			this.disposeDelayer = undefined;
-		}
+		this.disposeDelayer?.cancel();
+		this.disposeDelayer = undefined;
 		this.disposeClient();
 		this.activeRequests.clear();
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from './viewlet';
-import { IElement } from '../src/driver';
+import { IElement } from './driver';
 import { findElement, findElements, Code } from './code';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { isFunction } from 'vs/base/common/types';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 suite('Platform / Registry', () => {
 
@@ -26,7 +26,7 @@ suite('Platform / Registry', () => {
 
 	test('registry - knows, as', function () {
 
-		let ext = {};
+		const ext = {};
 
 		Registry.add('knows,as', ext);
 

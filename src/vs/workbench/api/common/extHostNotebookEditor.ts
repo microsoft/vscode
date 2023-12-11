@@ -3,74 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICellEditOperationDto, MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
+import { illegalArgument } from 'vs/base/common/errors';
+import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
-import { illegalArgument } from 'vs/base/common/errors';
-
-interface INotebookEditData {
-	documentVersionId: number;
-	cellEdits: ICellEditOperationDto[];
-}
-
-class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
-
-	private readonly _documentVersionId: number;
-
-	private _finalized: boolean = false;
-	private _collectedEdits: ICellEditOperationDto[] = [];
-
-	constructor(documentVersionId: number) {
-		this._documentVersionId = documentVersionId;
-	}
-
-	finalize(): INotebookEditData {
-		this._finalized = true;
-		return {
-			documentVersionId: this._documentVersionId,
-			cellEdits: this._collectedEdits
-		};
-	}
-
-	private _throwIfFinalized() {
-		if (this._finalized) {
-			throw new Error('Edit is only valid while callback runs');
-		}
-	}
-
-	replaceMetadata(value: { [key: string]: any }): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.DocumentMetadata,
-			metadata: value
-		});
-	}
-
-	replaceCellMetadata(index: number, metadata: Record<string, any>): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.PartialMetadata,
-			index,
-			metadata
-		});
-	}
-
-	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
-		this._throwIfFinalized();
-		if (from === to && cells.length === 0) {
-			return;
-		}
-		this._collectedEdits.push({
-			editType: CellEditType.Replace,
-			index: from,
-			count: to - from,
-			cells: cells.map(extHostConverter.NotebookCellData.from)
-		});
-	}
-}
 
 export class ExtHostNotebookEditor {
 
@@ -81,7 +19,6 @@ export class ExtHostNotebookEditor {
 	private _viewColumn?: vscode.ViewColumn;
 
 	private _visible: boolean = false;
-	private readonly _hasDecorationsForKey = new Set<string>();
 
 	private _editor?: vscode.NotebookEditor;
 
@@ -102,8 +39,14 @@ export class ExtHostNotebookEditor {
 		if (!this._editor) {
 			const that = this;
 			this._editor = {
-				get document() {
+				get notebook() {
 					return that.notebookData.apiNotebook;
+				},
+				get selection() {
+					return that._selections[0];
+				},
+				set selection(selection: vscode.NotebookRange) {
+					this.selections = [selection];
 				},
 				get selections() {
 					return that._selections;
@@ -128,14 +71,6 @@ export class ExtHostNotebookEditor {
 				get viewColumn() {
 					return that._viewColumn;
 				},
-				edit(callback) {
-					const edit = new NotebookEditorCellEditBuilder(this.document.version);
-					callback(edit);
-					return that._applyEdit(edit.finalize());
-				},
-				setDecorations(decorationType, range) {
-					return that.setDecorations(decorationType, range);
-				}
 			};
 
 			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);
@@ -165,59 +100,5 @@ export class ExtHostNotebookEditor {
 
 	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
 		this._viewColumn = value;
-	}
-
-	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
-
-		// return when there is nothing to do
-		if (editData.cellEdits.length === 0) {
-			return Promise.resolve(true);
-		}
-
-		const compressedEdits: ICellEditOperationDto[] = [];
-		let compressedEditsIndex = -1;
-
-		for (let i = 0; i < editData.cellEdits.length; i++) {
-			if (compressedEditsIndex < 0) {
-				compressedEdits.push(editData.cellEdits[i]);
-				compressedEditsIndex++;
-				continue;
-			}
-
-			const prevIndex = compressedEditsIndex;
-			const prev = compressedEdits[prevIndex];
-
-			const edit = editData.cellEdits[i];
-			if (prev.editType === CellEditType.Replace && edit.editType === CellEditType.Replace) {
-				if (prev.index === edit.index) {
-					prev.cells.push(...(editData.cellEdits[i] as any).cells);
-					prev.count += (editData.cellEdits[i] as any).count;
-					continue;
-				}
-			}
-
-			compressedEdits.push(editData.cellEdits[i]);
-			compressedEditsIndex++;
-		}
-
-		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, compressedEdits);
-	}
-
-	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookRange): void {
-		if (range.isEmpty && !this._hasDecorationsForKey.has(decorationType.key)) {
-			// avoid no-op call to the renderer
-			return;
-		}
-		if (range.isEmpty) {
-			this._hasDecorationsForKey.delete(decorationType.key);
-		} else {
-			this._hasDecorationsForKey.add(decorationType.key);
-		}
-
-		return this._proxy.$trySetDecorations(
-			this.id,
-			extHostConverter.NotebookRange.from(range),
-			decorationType.key
-		);
 	}
 }

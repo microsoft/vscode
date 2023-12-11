@@ -48,14 +48,14 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
 	private readonly _documents = new ResourceMap<Reference<ExtHostDocumentData>>();
 
-	private readonly _onDidAddDocuments = new Emitter<ExtHostDocumentData[]>();
-	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
+	private readonly _onDidAddDocuments = new Emitter<readonly ExtHostDocumentData[]>();
+	private readonly _onDidRemoveDocuments = new Emitter<readonly ExtHostDocumentData[]>();
+	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
 
-	readonly onDidAddDocuments: Event<ExtHostDocumentData[]> = this._onDidAddDocuments.event;
-	readonly onDidRemoveDocuments: Event<ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
-	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	readonly onDidAddDocuments: Event<readonly ExtHostDocumentData[]> = this._onDidAddDocuments.event;
+	readonly onDidRemoveDocuments: Event<readonly ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
+	readonly onDidChangeVisibleTextEditors: Event<readonly vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
@@ -92,7 +92,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				// double check -> only notebook cell documents should be
 				// referenced/opened more than once...
 				if (ref) {
-					if (resource.scheme !== Schemas.vscodeNotebookCell) {
+					if (resource.scheme !== Schemas.vscodeNotebookCell && resource.scheme !== Schemas.vscodeInteractiveInput) {
 						throw new Error(`document '${resource} already exists!'`);
 					}
 				}
@@ -103,7 +103,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 						data.lines,
 						data.EOL,
 						data.versionId,
-						data.modeId,
+						data.languageId,
 						data.isDirty,
 						data.notebook
 					));

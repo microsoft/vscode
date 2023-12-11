@@ -13,9 +13,8 @@ ln -s /usr/share/@@NAME@@/bin/@@NAME@@ /usr/bin/@@NAME@@
 update-alternatives --install /usr/bin/editor editor /usr/bin/@@NAME@@ 0
 
 # Install the desktop entry
-if hash desktop-file-install 2>/dev/null; then
-	desktop-file-install /usr/share/applications/@@NAME@@.desktop
-	desktop-file-install /usr/share/applications/@@NAME@@-url-handler.desktop
+if hash update-desktop-database 2>/dev/null; then
+	update-desktop-database
 fi
 
 # Update mimetype database to pickup workspace mimetype

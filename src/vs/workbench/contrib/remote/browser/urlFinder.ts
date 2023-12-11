@@ -26,20 +26,20 @@ export class UrlFinder extends Disposable {
 
 	private static readonly excludeTerminals = ['Dev Containers'];
 
-	private _onDidMatchLocalUrl: Emitter<{ host: string, port: number }> = new Emitter();
+	private _onDidMatchLocalUrl: Emitter<{ host: string; port: number }> = new Emitter();
 	public readonly onDidMatchLocalUrl = this._onDidMatchLocalUrl.event;
 	private listeners: Map<ITerminalInstance | string, IDisposable> = new Map();
 
 	constructor(terminalService: ITerminalService, debugService: IDebugService) {
 		super();
 		// Terminal
-		terminalService.terminalInstances.forEach(instance => {
+		terminalService.instances.forEach(instance => {
 			this.registerTerminalInstance(instance);
 		});
-		this._register(terminalService.onInstanceCreated(instance => {
+		this._register(terminalService.onDidCreateInstance(instance => {
 			this.registerTerminalInstance(instance);
 		}));
-		this._register(terminalService.onInstanceDisposed(instance => {
+		this._register(terminalService.onDidDisposeInstance(instance => {
 			this.listeners.get(instance)?.dispose();
 			this.listeners.delete(instance);
 		}));
@@ -52,7 +52,7 @@ export class UrlFinder extends Disposable {
 				}));
 			}
 		}));
-		this._register(debugService.onDidEndSession(session => {
+		this._register(debugService.onDidEndSession(({ session }) => {
 			if (this.listeners.has(session.getId())) {
 				this.listeners.get(session.getId())?.dispose();
 				this.listeners.delete(session.getId());
@@ -68,7 +68,7 @@ export class UrlFinder extends Disposable {
 		}
 	}
 
-	private replPositions: Map<string, { position: number, tail: IReplElement }> = new Map();
+	private replPositions: Map<string, { position: number; tail: IReplElement }> = new Map();
 	private processNewReplElements(session: IDebugSession) {
 		const oldReplPosition = this.replPositions.get(session.getId());
 		const replElements = session.getReplElements();

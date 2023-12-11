@@ -98,3 +98,4 @@ module.exports = function (pattern, options) {
     }))
         .pipe(rebase);
 };
+//# sourceMappingURL=watch-win32.js.map

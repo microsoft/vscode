@@ -7,27 +7,27 @@ import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
 import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
-	readonly extension: ExtensionIdentifier,
+	readonly extension?: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
-	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
-	readonly priority: ContributedEditorPriority;
+	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string }[];
+	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 	readonly exclusive: boolean;
 }
 
 export class NotebookProviderInfo {
 
-	readonly extension: ExtensionIdentifier;
+	readonly extension?: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
-	readonly priority: ContributedEditorPriority;
+	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 	readonly exclusive: boolean;
 
@@ -54,7 +54,8 @@ export class NotebookProviderInfo {
 		this._options = {
 			transientCellMetadata: {},
 			transientDocumentMetadata: {},
-			transientOutputs: false
+			transientOutputs: false,
+			cellContentMetadata: {}
 		};
 	}
 
@@ -90,8 +91,8 @@ export class NotebookProviderInfo {
 			return false;
 		}
 
-		let filenamePattern = selector.include;
-		let excludeFilenamePattern = selector.exclude;
+		const filenamePattern = selector.include;
+		const excludeFilenamePattern = selector.exclude;
 
 		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
 			if (excludeFilenamePattern) {
@@ -106,7 +107,7 @@ export class NotebookProviderInfo {
 	}
 
 	static possibleFileEnding(selectors: NotebookSelector[]): string | undefined {
-		for (let selector of selectors) {
+		for (const selector of selectors) {
 			const ending = NotebookProviderInfo._possibleFileEnding(selector);
 			if (ending) {
 				return ending;

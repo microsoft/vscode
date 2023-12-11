@@ -6,26 +6,33 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellEditState, CellFindMatch, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkupCellLayoutChangeEvent, MarkupCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { dirname } from 'vs/base/common/resources';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
 
 	readonly cellKind = CellKind.Markup;
 
-	private _html: HTMLElement | null = null;
-	private _layoutInfo: MarkdownCellLayoutInfo;
+	private _layoutInfo: MarkupCellLayoutInfo;
+
+	private _renderedHtml?: string;
+
+	public get renderedHtml(): string | undefined { return this._renderedHtml; }
+	public set renderedHtml(value: string | undefined) {
+		if (this._renderedHtml !== value) {
+			this._renderedHtml = value;
+			this._onDidChangeState.fire({ contentChanged: true });
+		}
+	}
 
 	get layoutInfo() {
 		return this._layoutInfo;
@@ -34,32 +41,34 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	private _previewHeight = 0;
 
 	set renderedMarkdownHeight(newHeight: number) {
-		if (this.getEditState() === CellEditState.Preview) {
-			this._previewHeight = newHeight;
-			const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		this._previewHeight = newHeight;
+		this._updateTotalHeight(this._computeTotalHeight());
+	}
 
-			this._updateTotalHeight(this._previewHeight + bottomToolbarGap);
-		}
+	private _chatHeight = 0;
+
+	set chatHeight(newHeight: number) {
+		this._chatHeight = newHeight;
+		this._updateTotalHeight(this._computeTotalHeight());
+	}
+
+	get chatHeight() {
+		return this._chatHeight;
 	}
 
 	private _editorHeight = 0;
+	private _statusBarHeight = 0;
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
-		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
-
-		this._updateTotalHeight(this._editorHeight
-			+ layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
-			+ layoutConfiguration.markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
-			+ bottomToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-			+ this.viewContext.notebookOptions.computeStatusBarHeight());
+		this._statusBarHeight = this.viewContext.notebookOptions.computeStatusBarHeight();
+		this._updateTotalHeight(this._computeTotalHeight());
 	}
 
 	get editorHeight() {
 		throw new Error('MarkdownCellViewModel.editorHeight is write only');
 	}
 
-	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
+	protected readonly _onDidChangeLayout = this._register(new Emitter<MarkupCellLayoutChangeEvent>());
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	get foldingState() {
@@ -94,15 +103,6 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._onDidChangeState.fire({ cellIsHoveredChanged: true });
 	}
 
-	public get contentHash(): number {
-		return this.model.getHashValue();
-	}
-
-	private readonly _onDidHideInput = new Emitter<void>();
-	readonly onDidHideInput = this._onDidHideInput.event;
-
-	private readonly _mdRenderer: MarkdownRenderer;
-
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -111,15 +111,15 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		readonly viewContext: ViewContext,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IUndoRedoService undoRedoService: IUndoRedoService,
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService);
-
-		this._mdRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(model.uri) }));
+		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService, undoRedoService, codeEditorService);
 
 		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
 		this._layoutInfo = {
+			chatHeight: 0,
 			editorHeight: 0,
 			previewHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
@@ -127,35 +127,50 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
 			bottomToolbarOffset: bottomToolbarGap,
-			totalHeight: 0
+			totalHeight: 100,
+			layoutState: CellLayoutState.Uninitialized,
+			foldHintHeight: 0,
+			statusBarHeight: 0
 		};
 
 		this._register(this.onDidChangeState(e => {
-			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
-		}));
+			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this.model)]);
 
-		this._register(model.onDidChangeMetadata(e => {
-			if (this.metadata.inputCollapsed) {
-				this._onDidHideInput.fire();
+			if (e.foldingStateChanged) {
+				this._updateTotalHeight(this._computeTotalHeight(), CellLayoutContext.Fold);
 			}
 		}));
+	}
 
-		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
-				const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
-				const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+	private _computeTotalHeight(): number {
+		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
+		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+		const foldHintHeight = this._computeFoldHintHeight();
 
-				if (this.getEditState() === CellEditState.Editing) {
-					this._updateTotalHeight(this._editorHeight
-						+ layoutConfiguration.markdownCellTopMargin
-						+ layoutConfiguration.markdownCellBottomMargin
-						+ bottomToolbarGap
-						+ this.viewContext.notebookOptions.computeStatusBarHeight());
-				} else {
-					this._updateTotalHeight(this._previewHeight + bottomToolbarGap);
-				}
-			}
-		}));
+		if (this.getEditState() === CellEditState.Editing) {
+			return this._editorHeight
+				+ layoutConfiguration.markdownCellTopMargin
+				+ layoutConfiguration.markdownCellBottomMargin
+				+ bottomToolbarGap
+				+ this._statusBarHeight;
+		} else {
+			// @rebornix
+			// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
+			// When it's 0, the list view will never try to render it anymore even if we scroll the cell into view.
+			// Thus we make sure it's greater than 0
+			return Math.max(1, this._previewHeight + bottomToolbarGap + foldHintHeight);
+		}
+	}
+
+	private _computeFoldHintHeight(): number {
+		return (this.getEditState() === CellEditState.Editing || this.foldingState !== CellFoldingState.Collapsed) ?
+			0 : this.viewContext.notebookOptions.getLayoutConfiguration().markdownFoldHintHeight;
+	}
+
+	updateOptions(e: NotebookOptionsChangeEvent) {
+		if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+			this._updateTotalHeight(this._computeTotalHeight());
+		}
 	}
 
 	/**
@@ -170,32 +185,39 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		// throw new Error('Method not implemented.');
 	}
 
-	triggerfoldingStateChange() {
+	triggerFoldingStateChange() {
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
-	private _updateTotalHeight(newHeight: number) {
+	private _updateTotalHeight(newHeight: number, context?: CellLayoutContext) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: newHeight });
+			this.layoutChange({ totalHeight: newHeight, context });
 		}
 	}
 
-	layoutChange(state: MarkdownCellLayoutChangeEvent) {
+	layoutChange(state: MarkupCellLayoutChangeEvent) {
 		// recompute
-		if (!this.metadata.inputCollapsed) {
+		const foldHintHeight = this._computeFoldHintHeight();
+		if (!this.isInputCollapsed) {
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;
-			const totalHeight = state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight;
+			const totalHeight = state.totalHeight === undefined
+				? (this._layoutInfo.layoutState === CellLayoutState.Uninitialized ? 100 : this._layoutInfo.totalHeight)
+				: state.totalHeight;
 			const previewHeight = this._previewHeight;
 
 			this._layoutInfo = {
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				previewHeight,
+				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
+				statusBarHeight: this._statusBarHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight
+				totalHeight,
+				layoutState: CellLayoutState.Measured,
+				foldHintHeight
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined
@@ -208,10 +230,14 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			this._layoutInfo = {
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
+				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
+				statusBarHeight: this._statusBarHeight,
 				previewHeight: this._previewHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight
+				totalHeight,
+				layoutState: CellLayoutState.Measured,
+				foldHintHeight: 0
 			};
 		}
 
@@ -221,68 +247,42 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	override restoreEditorViewState(editorViewStates: editorCommon.ICodeEditorViewState | null, totalHeight?: number) {
 		super.restoreEditorViewState(editorViewStates);
 		// we might already warmup the viewport so the cell has a total height computed
-		if (totalHeight !== undefined && this._layoutInfo.totalHeight === 0) {
+		if (totalHeight !== undefined && this.layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
 				previewHeight: this._layoutInfo.previewHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				totalHeight: totalHeight,
-				editorHeight: this._editorHeight
+				chatHeight: this._chatHeight,
+				editorHeight: this._editorHeight,
+				statusBarHeight: this._statusBarHeight,
+				layoutState: CellLayoutState.FromCache,
+				foldHintHeight: this._layoutInfo.foldHintHeight
 			};
 			this.layoutChange({});
 		}
 	}
 
-	hasDynamicHeight() {
-		return false;
+	getDynamicHeight() {
+		return null;
 	}
 
 	getHeight(lineHeight: number) {
-		if (this._layoutInfo.totalHeight === 0) {
+		if (this._layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			return 100;
 		} else {
 			return this._layoutInfo.totalHeight;
 		}
 	}
 
-	clearHTML() {
-		this._html = null;
-	}
-
-	getHTML(): HTMLElement | null {
-		if (this.cellKind === CellKind.Markup) {
-			if (this._html) {
-				return this._html;
-			}
-			const renderer = this.getMarkdownRenderer();
-			const text = this.getText();
-
-			if (text.length === 0) {
-				const el = document.createElement('p');
-				el.className = 'emptyMarkdownPlaceholder';
-				el.innerText = nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.");
-				this._html = el;
-			} else {
-				this._html = renderer.render({ value: this.getText(), isTrusted: true }, undefined, { gfm: true }).element;
-			}
-
-			return this._html;
-		}
-		return null;
-	}
-
 	protected onDidChangeTextModelContent(): void {
-		this._html = null;
 		this._onDidChangeState.fire({ contentChanged: true });
 	}
 
 	onDeselect() {
 	}
 
-	getMarkdownRenderer() {
-		return this._mdRenderer;
-	}
 
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
@@ -296,7 +296,12 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 
 		return {
 			cell: this,
-			matches
+			contentMatches: matches
 		};
+	}
+
+	override dispose() {
+		super.dispose();
+		(this.foldingDelegate as any) = null;
 	}
 }

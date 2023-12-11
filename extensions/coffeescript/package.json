@@ -45,7 +45,12 @@
         "language": "coffeescript",
         "path": "./snippets/coffeescript.code-snippets"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[coffeescript]": {
+        "diffEditor.ignoreTrimWhitespace": false
+      }
+    }
   },
   "repository": {
     "type": "git",

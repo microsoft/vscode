@@ -3,39 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, IDataBreakpointInfoResponse, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, VARIABLES_VIEW_ID, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope, ErrorScope, StackFrame, Expression } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IAction } from 'vs/base/common/actions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService, IContextKey, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
-import { dispose } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withUndefinedAsNull } from 'vs/base/common/types';
-import { IMenuService, IMenu, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { localize } from 'vs/nls';
-import { Codicon } from 'vs/base/common/codicons';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
+import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, CONTEXT_VARIABLES_FOCUSED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { ErrorScope, Expression, getUriForDebugMemory, Scope, StackFrame, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -44,7 +49,8 @@ let variableInternalContext: Variable | undefined;
 let dataBreakpointInfoResponse: IDataBreakpointInfoResponse | undefined;
 
 interface IVariablesContext {
-	container: DebugProtocol.Variable | DebugProtocol.Scope;
+	sessionId: string | undefined;
+	container: DebugProtocol.Variable | DebugProtocol.Scope | DebugProtocol.EvaluateArguments;
 	variable: DebugProtocol.Variable;
 }
 
@@ -55,12 +61,6 @@ export class VariablesView extends ViewPane {
 	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
 	private autoExpandedScopes = new Set<string>();
-	private menu: IMenu;
-	private debugProtocolVariableMenuContext: IContextKey<string>;
-	private breakWhenValueChangesSupported: IContextKey<boolean>;
-	private breakWhenValueIsAccessedSupported: IContextKey<boolean>;
-	private breakWhenValueIsReadSupported: IContextKey<boolean>;
-	private variableEvaluateName: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -74,17 +74,9 @@ export class VariablesView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-
-		this.menu = menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
-		this._register(this.menu);
-		this.debugProtocolVariableMenuContext = CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.bindTo(contextKeyService);
-		this.breakWhenValueChangesSupported = CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.bindTo(contextKeyService);
-		this.breakWhenValueIsAccessedSupported = CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.bindTo(contextKeyService);
-		this.breakWhenValueIsReadSupported = CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.bindTo(contextKeyService);
-		this.variableEvaluateName = CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.bindTo(contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.updateTreeScheduler = new RunOnceScheduler(async () => {
@@ -103,35 +95,38 @@ export class VariablesView extends ViewPane {
 			const viewState = this.savedViewState.get(stackFrame.getId());
 			await this.tree.setInput(stackFrame, viewState);
 
-			// Automatically expand the first scope if it is not expensive and if all scopes are collapsed
+			// Automatically expand the first non-expensive scope
 			const scopes = await stackFrame.getScopes();
 			const toExpand = scopes.find(s => !s.expensive);
-			if (toExpand && (scopes.every(s => this.tree.isCollapsed(s)) || !this.autoExpandedScopes.has(toExpand.getId()))) {
+
+			// A race condition could be present causing the scopes here to be different from the scopes that the tree just retrieved.
+			// If that happened, don't try to reveal anything, it will be straightened out on the next update
+			if (toExpand && this.tree.hasNode(toExpand)) {
 				this.autoExpandedScopes.add(toExpand.getId());
 				await this.tree.expand(toExpand);
 			}
 		}, 400);
 	}
 
-	override renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
-
+		const linkeDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
+			[this.instantiationService.createInstance(VariablesRenderer, linkeDetector), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
-			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
 			overrideStyles: {
 				listBackground: this.getBackgroundColor()
 			}
 		});
 
-		this.tree.setInput(withUndefinedAsNull(this.debugService.getViewModel().focusedStackFrame));
+		this.tree.setInput(this.debugService.getViewModel().focusedStackFrame ?? null);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
@@ -154,6 +149,7 @@ export class VariablesView extends ViewPane {
 			forgetScopes = true;
 			this.tree.updateChildren();
 		}));
+		this._register(this.tree);
 		this._register(this.tree.onMouseDblClick(e => this.onMouseDblClick(e)));
 		this._register(this.tree.onContextMenu(async e => await this.onContextMenu(e)));
 
@@ -164,16 +160,23 @@ export class VariablesView extends ViewPane {
 		}));
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
-			if (e instanceof Variable) {
+			const variable = e?.expression;
+			if (variable instanceof Variable && !e?.settingWatch) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });
 				}
 
-				this.tree.rerender(e);
+				this.tree.rerender(variable);
 			} else if (!e && horizontalScrolling !== undefined) {
 				this.tree.updateOptions({ horizontalScrolling: horizontalScrolling });
 				horizontalScrolling = undefined;
+			}
+		}));
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 		this._register(this.debugService.onDidEndSession(() => {
@@ -182,12 +185,13 @@ export class VariablesView extends ViewPane {
 		}));
 	}
 
-	override layoutBody(width: number, height: number): void {
+	protected override layoutBody(width: number, height: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 	}
 
@@ -197,65 +201,102 @@ export class VariablesView extends ViewPane {
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable) {
-			this.debugService.getViewModel().setSelectedExpression(e.element);
+		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly') && !e.element.presentationHint?.lazy) {
+			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
 
 	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
 		const variable = e.element;
-		if (variable instanceof Variable && !!variable.value) {
-			this.debugProtocolVariableMenuContext.set(variable.variableMenuContext || '');
-			variableInternalContext = variable;
-			const session = this.debugService.getViewModel().focusedSession;
-			this.variableEvaluateName.set(!!variable.evaluateName);
-			this.breakWhenValueChangesSupported.reset();
-			this.breakWhenValueIsAccessedSupported.reset();
-			this.breakWhenValueIsReadSupported.reset();
-			if (session && session.capabilities.supportsDataBreakpoints) {
-				dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
-				const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
-				if (!dataBreakpointAccessTypes) {
-					// Assumes default behaviour: Supports breakWhenValueChanges
-					this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
-				} else {
-					dataBreakpointAccessTypes.forEach(accessType => {
-						switch (accessType) {
-							case 'read':
-								this.breakWhenValueIsReadSupported.set(!!dataBreakpointId);
-								break;
-							case 'write':
-								this.breakWhenValueChangesSupported.set(!!dataBreakpointId);
-								break;
-							case 'readWrite':
-								this.breakWhenValueIsAccessedSupported.set(!!dataBreakpointId);
-								break;
-						}
-					});
-				}
-			}
+		if (!(variable instanceof Variable) || !variable.value) {
+			return;
+		}
 
-			const context: IVariablesContext = {
-				container: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
-				variable: variable.toDebugProtocolObject()
-			};
-			const actions: IAction[] = [];
-			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions);
+		const toDispose = new DisposableStore();
+
+		try {
+			const contextKeyService = await getContextForVariableMenuWithDataAccess(this.contextKeyService, variable);
+			const menu = toDispose.add(this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService));
+
+			const context: IVariablesContext = getVariablesContext(variable);
+			const secondary: IAction[] = [];
+			createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
-				getActions: () => actions,
-				onHide: () => dispose(actionsDisposable)
+				getActions: () => secondary
 			});
+		} finally {
+			toDispose.dispose();
 		}
 	}
+}
+
+const getVariablesContext = (variable: Variable): IVariablesContext => ({
+	sessionId: variable.getSession()?.getId(),
+	container: variable.parent instanceof Expression
+		? { expression: variable.parent.name }
+		: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
+	variable: variable.toDebugProtocolObject()
+});
+
+/**
+ * Gets a context key overlay that has context for the given variable, including data access info.
+ */
+async function getContextForVariableMenuWithDataAccess(parentContext: IContextKeyService, variable: Variable) {
+	const session = variable.getSession();
+	if (!session || !session.capabilities.supportsDataBreakpoints) {
+		return getContextForVariableMenu(parentContext, variable);
+	}
+
+	const contextKeys: [string, unknown][] = [];
+	dataBreakpointInfoResponse = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
+	const dataBreakpointId = dataBreakpointInfoResponse?.dataId;
+	const dataBreakpointAccessTypes = dataBreakpointInfoResponse?.accessTypes;
+
+	if (!dataBreakpointAccessTypes) {
+		contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.key, !!dataBreakpointId]);
+	} else {
+		for (const accessType of dataBreakpointAccessTypes) {
+			switch (accessType) {
+				case 'read':
+					contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED.key, !!dataBreakpointId]);
+					break;
+				case 'write':
+					contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED.key, !!dataBreakpointId]);
+					break;
+				case 'readWrite':
+					contextKeys.push([CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED.key, !!dataBreakpointId]);
+					break;
+			}
+		}
+	}
+
+	return getContextForVariableMenu(parentContext, variable, contextKeys);
+}
+
+/**
+ * Gets a context key overlay that has context for the given variable.
+ */
+function getContextForVariableMenu(parentContext: IContextKeyService, variable: Variable, additionalContext: [string, unknown][] = []) {
+	const session = variable.getSession();
+	const contextKeys: [string, unknown][] = [
+		[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, variable.variableMenuContext || ''],
+		[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!variable.evaluateName],
+		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && variable.memoryReference !== undefined],
+		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly') || variable.presentationHint?.lazy],
+		...additionalContext,
+	];
+
+	variableInternalContext = variable;
+
+	return parentContext.createOverlay(contextKeys);
 }
 
 function isStackFrame(obj: any): obj is IStackFrame {
 	return obj instanceof StackFrame;
 }
 
-export class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
+class VariablesDataSource implements IAsyncDataSource<IStackFrame | null, IExpression | IScope> {
 
 	hasChildren(element: IStackFrame | null | IExpression | IScope): boolean {
 		if (!element) {
@@ -311,7 +352,7 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 
 	renderTemplate(container: HTMLElement): IScopeTemplateData {
 		const name = dom.append(container, $('.scope'));
-		const label = new HighlightedLabel(name, false);
+		const label = new HighlightedLabel(name);
 
 		return { name, label };
 	}
@@ -356,12 +397,26 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 
 	static readonly ID = 'variable';
 
+	constructor(
+		private readonly linkDetector: LinkDetector,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IDebugService debugService: IDebugService,
+		@IContextViewService contextViewService: IContextViewService,
+	) {
+		super(debugService, contextViewService);
+	}
+
 	get templateId(): string {
 		return VariablesRenderer.ID;
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights);
+		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+	}
+
+	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		super.renderExpressionElement(node.element, node, data);
 	}
 
 	protected getInputBoxOptions(expression: IExpression): IInputBoxOptions {
@@ -374,8 +429,9 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 			},
 			onFinish: (value: string, success: boolean) => {
 				variable.errorMessage = undefined;
-				if (success && variable.value !== value) {
-					variable.setVariable(value)
+				const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+				if (success && variable.value !== value && focusedStackFrame) {
+					variable.setVariable(value, focusedStackFrame)
 						// Need to force watch expressions and variables to update since a variable change can have an effect on both
 						.then(() => {
 							// Do not refresh scopes due to a node limitation #15520
@@ -385,6 +441,20 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 				}
 			}
 		};
+	}
+
+	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
+		const variable = expression as Variable;
+		const contextKeyService = getContextForVariableMenu(this.contextKeyService, variable);
+		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
+
+		const primary: IAction[] = [];
+		const context = getVariablesContext(variable);
+		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
+
+		actionBar.clear();
+		actionBar.context = context;
+		actionBar.push(primary, { icon: true, label: false });
 	}
 }
 
@@ -411,14 +481,14 @@ CommandsRegistry.registerCommand({
 	id: SET_VARIABLE_ID,
 	handler: (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
-		debugService.getViewModel().setSelectedExpression(variableInternalContext);
+		debugService.getViewModel().setSelectedExpression(variableInternalContext, false);
 	}
 });
 
 export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
 	id: COPY_VALUE_ID,
-	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | unknown, ctx?: (Variable | Expression)[]) => {
+	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext, ctx?: (Variable | Expression)[]) => {
 		const debugService = accessor.get(IDebugService);
 		const clipboardService = accessor.get(IClipboardService);
 		let elementContext = '';
@@ -452,6 +522,115 @@ CommandsRegistry.registerCommand({
 		}
 	}
 });
+
+export const VIEW_MEMORY_ID = 'workbench.debug.viewlet.action.viewMemory';
+
+const HEX_EDITOR_EXTENSION_ID = 'ms-vscode.hexeditor';
+const HEX_EDITOR_EDITOR_ID = 'hexEditor.hexedit';
+
+CommandsRegistry.registerCommand({
+	id: VIEW_MEMORY_ID,
+	handler: async (accessor: ServicesAccessor, arg: IVariablesContext | IExpression, ctx?: (Variable | Expression)[]) => {
+		const debugService = accessor.get(IDebugService);
+		let sessionId: string;
+		let memoryReference: string;
+		if ('sessionId' in arg) { // IVariablesContext
+			if (!arg.sessionId || !arg.variable.memoryReference) {
+				return;
+			}
+			sessionId = arg.sessionId;
+			memoryReference = arg.variable.memoryReference;
+		} else { // IExpression
+			if (!arg.memoryReference) {
+				return;
+			}
+			const focused = debugService.getViewModel().focusedSession;
+			if (!focused) {
+				return;
+			}
+
+			sessionId = focused.getId();
+			memoryReference = arg.memoryReference;
+		}
+
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(IEditorService);
+		const notifications = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
+		const extensionService = accessor.get(IExtensionService);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
+		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
+			/* __GDPR__
+				"debug/didViewMemory" : {
+					"owner": "connor4312",
+					"debugType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			telemetryService.publicLog('debug/didViewMemory', {
+				debugType: debugService.getModel().getSession(sessionId)?.configuration.type,
+			});
+
+			await editorService.openEditor({
+				resource: getUriForDebugMemory(sessionId, memoryReference),
+				options: {
+					revealIfOpened: true,
+					override: HEX_EDITOR_EDITOR_ID,
+				},
+			}, SIDE_GROUP);
+		}
+	}
+});
+
+function tryInstallHexEditor(notifications: INotificationService, progressService: IProgressService, extensionService: IExtensionService, commandService: ICommandService) {
+	return new Promise<boolean>(resolve => {
+		let installing = false;
+
+		const handle = notifications.prompt(
+			Severity.Info,
+			localize("viewMemory.prompt", "Inspecting binary data requires the Hex Editor extension. Would you like to install it now?"), [
+			{
+				label: localize("cancel", "Cancel"),
+				run: () => resolve(false),
+			},
+			{
+				label: localize("install", "Install"),
+				run: async () => {
+					installing = true;
+					try {
+						await progressService.withProgress(
+							{
+								location: ProgressLocation.Notification,
+								title: localize("viewMemory.install.progress", "Installing the Hex Editor..."),
+							},
+							async () => {
+								await commandService.executeCommand('workbench.extensions.installExtension', HEX_EDITOR_EXTENSION_ID);
+								// it seems like the extension is not registered immediately on install --
+								// wait for it to appear before returning.
+								while (!(await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID))) {
+									await timeout(30);
+								}
+							},
+						);
+						resolve(true);
+					} catch (e) {
+						notifications.error(e as Error);
+						resolve(false);
+					}
+				}
+			},
+		],
+			{ sticky: true },
+		);
+
+		handle.onDidClose(e => {
+			if (!installing) {
+				resolve(false);
+			}
+		});
+	});
+}
 
 export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
 CommandsRegistry.registerCommand({
@@ -515,7 +694,7 @@ registerAction2(class extends ViewAction<VariablesView> {
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', VARIABLES_VIEW_ID)
+				when: ContextKeyExpr.equals('view', VARIABLES_VIEW_ID)
 			}
 		});
 	}

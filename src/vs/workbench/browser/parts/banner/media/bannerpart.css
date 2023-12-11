@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.banner {
+	background-color: var(--vscode-banner-background);
+	color: var(--vscode-banner-foreground);
 	box-sizing: border-box;
 	cursor: default;
 	width: 100%;
@@ -15,8 +17,23 @@
 
 .monaco-workbench .part.banner .icon-container {
 	display: flex;
+	flex-shrink: 0;
 	align-items: center;
 	padding: 0 6px 0 10px;
+}
+
+.monaco-workbench .part.banner .icon-container .codicon {
+	color: var(--vscode-banner-iconForeground);
+}
+
+.monaco-workbench .part.banner .icon-container.custom-icon {
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: 16px;
+	background-image: url('../../../../browser/media/code-icon.svg');
+	width: 16px;
+	padding: 0;
+	margin: 0 6px 0 10px;
 }
 
 .monaco-workbench .part.banner .message-container {
@@ -24,6 +41,10 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	overflow: hidden;
+}
+
+.monaco-workbench .part.banner .message-container a {
+	color: var(--vscode-banner-foreground);
 }
 
 .monaco-workbench .part.banner .message-container p {
@@ -38,15 +59,22 @@
 }
 
 .monaco-workbench .part.banner .message-actions-container a {
+	color: var(--vscode-banner-foreground);
 	padding: 3px;
 	margin-left: 12px;
 	text-decoration: underline;
+	cursor: pointer;
 }
 
-.monaco-workbench .part.banner .message-actions-container a:hover {
-	text-decoration: none;
+.monaco-workbench .part.banner .message-container a {
+	text-decoration: underline;
+	cursor: pointer;
 }
 
 .monaco-workbench .part.banner .action-container {
 	padding: 0 10px 0 6px;
+}
+
+.monaco-workbench .part.banner .action-container .codicon {
+	color: var(--vscode-banner-foreground);
 }

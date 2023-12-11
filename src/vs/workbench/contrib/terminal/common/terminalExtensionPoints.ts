@@ -4,17 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ITerminalContributions, terminalContributionsDescriptor, ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
-import { flatten } from 'vs/base/common/arrays';
+import { terminalContributionsDescriptor } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionTerminalProfile, ITerminalContributions, ITerminalProfileContribution } from 'vs/platform/terminal/common/terminal';
+import { URI } from 'vs/base/common/uri';
 
 // terminal extension point
-export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
+const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
 
 export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;
 
-	readonly terminalProfiles: ReadonlyArray<ITerminalProfileContribution & { extensionIdentifier: string }>;
+	readonly terminalProfiles: ReadonlyArray<IExtensionTerminalProfile>;
 }
 
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
@@ -22,23 +23,28 @@ export const ITerminalContributionService = createDecorator<ITerminalContributio
 export class TerminalContributionService implements ITerminalContributionService {
 	declare _serviceBrand: undefined;
 
-	private _terminalProfiles: ReadonlyArray<ITerminalProfileContribution & { extensionIdentifier: string }> = [];
+	private _terminalProfiles: ReadonlyArray<IExtensionTerminalProfile> = [];
 	get terminalProfiles() { return this._terminalProfiles; }
 
 	constructor() {
 		terminalsExtPoint.setHandler(contributions => {
-			this._terminalProfiles = flatten(contributions.map(c => {
-				return c.value?.profiles?.map(e => {
-					// Only support $(id) for now, without that it should point to a path to be
-					// consistent with other icon APIs
-					if (e.icon && e.icon.startsWith('$(') && e.icon.endsWith(')')) {
-						e.icon = e.icon.substr(2, e.icon.length - 3);
-					} else {
-						e.icon = undefined;
-					}
+			this._terminalProfiles = contributions.map(c => {
+				return c.value?.profiles?.filter(p => hasValidTerminalIcon(p)).map(e => {
 					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
-			}));
+			}).flat();
 		});
 	}
+}
+
+function hasValidTerminalIcon(profile: ITerminalProfileContribution): boolean {
+	return !profile.icon ||
+		(
+			typeof profile.icon === 'string' ||
+			URI.isUri(profile.icon) ||
+			(
+				'light' in profile.icon && 'dark' in profile.icon &&
+				URI.isUri(profile.icon.light) && URI.isUri(profile.icon.dark)
+			)
+		);
 }

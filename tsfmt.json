@@ -10,6 +10,7 @@
 	"insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": false,
 	"insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": false,
 	"insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": false,
+	"insertSpaceAfterOpeningAndBeforeClosingEmptyBraces": true,
 	"insertSpaceBeforeFunctionParenthesis": false,
 	"placeOpenBraceOnNewLineForFunctions": false,
 	"placeOpenBraceOnNewLineForControlBlocks": false

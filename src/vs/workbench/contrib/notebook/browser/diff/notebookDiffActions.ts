@@ -5,21 +5,24 @@
 
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
-import { Action2, ICommandActionTitle, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ActiveEditorContext, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
-import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
-import { NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
-import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { openAsTextIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
+import { DiffElementViewModelBase, SideBySideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
+import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditor';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/common/notebookDiffEditorInput';
+import { nextChangeIcon, openAsTextIcon, previousChangeIcon, renderOutputIcon, revertIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { CellEditType, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -40,7 +43,6 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const activeEditor = editorService.activeEditorPane;
 		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
@@ -48,14 +50,14 @@ registerAction2(class extends Action2 {
 
 			await editorService.openEditor(
 				{
-					originalInput: { resource: diffEditorInput.originalResource },
-					modifiedInput: { resource: diffEditorInput.resource },
-					label: diffEditorInput.textDiffName,
+					original: { resource: diffEditorInput.original.resource },
+					modified: { resource: diffEditorInput.resource },
+					label: diffEditorInput.getName(),
 					options: {
 						preserveFocus: false,
-						override: EditorOverride.DISABLED
+						override: DEFAULT_EDITOR_ASSOCIATION.id
 					}
-				}, viewColumnToEditorGroup(editorGroupService, undefined));
+				});
 		}
 	}
 });
@@ -76,7 +78,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -131,7 +133,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -156,19 +158,26 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
+			return;
+		}
+
+		if (!(context.cell instanceof SideBySideDiffElementViewModel)) {
 			return;
 		}
 
 		const original = context.cell.original;
 		const modified = context.cell.modified;
 
-		if (!original || !modified) {
+		const modifiedCellIndex = context.cell.mainDocumentTextModel.cells.indexOf(modified.textModel);
+		if (modifiedCellIndex === -1) {
 			return;
 		}
 
-		modified.textModel.spliceNotebookCellOutputs({ start: 0, deleteCount: modified.outputs.length, newOutputs: original.outputs });
+		context.cell.mainDocumentTextModel.applyEdits([{
+			editType: CellEditType.Output, index: modifiedCellIndex, outputs: original.outputs
+		}], true, undefined, () => undefined, undefined, true);
 	}
 });
 
@@ -183,14 +192,14 @@ registerAction2(class extends Action2 {
 				f1: false,
 				menu: {
 					id: MenuId.NotebookDiffCellInputTitle,
-					when: NOTEBOOK_DIFF_CELL_PROPERTY
+					when: NOTEBOOK_DIFF_CELL_INPUT
 				},
-				precondition: NOTEBOOK_DIFF_CELL_PROPERTY
+				precondition: NOTEBOOK_DIFF_CELL_INPUT
 
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -205,7 +214,7 @@ registerAction2(class extends Action2 {
 		const bulkEditService = accessor.get(IBulkEditService);
 		return bulkEditService.apply([
 			new ResourceTextEdit(modified.uri, { range: modified.textModel.getFullModelRange(), text: original.textModel.getValue() }),
-		], { quotableLabel: 'Split Notebook Cell' });
+		], { quotableLabel: 'Revert Notebook Cell Content Change' });
 	}
 });
 
@@ -213,7 +222,7 @@ class ToggleRenderAction extends Action2 {
 	constructor(id: string, title: string | ICommandActionTitle, precondition: ContextKeyExpression | undefined, toggled: ContextKeyExpression | undefined, order: number, private readonly toggleOutputs?: boolean, private readonly toggleMetadata?: boolean) {
 		super({
 			id: id,
-			title: title,
+			title,
 			precondition: precondition,
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -229,12 +238,12 @@ class ToggleRenderAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 
 		if (this.toggleOutputs !== undefined) {
-			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreOutputs');
+			const oldValue = configurationService.getValue('notebook.diff.ignoreOutputs');
 			configurationService.updateValue('notebook.diff.ignoreOutputs', !oldValue);
 		}
 
 		if (this.toggleMetadata !== undefined) {
-			const oldValue = configurationService.getValue<boolean>('notebook.diff.ignoreMetadata');
+			const oldValue = configurationService.getValue('notebook.diff.ignoreMetadata');
 			configurationService.updateValue('notebook.diff.ignoreMetadata', !oldValue);
 		}
 	}
@@ -265,6 +274,72 @@ registerAction2(class extends ToggleRenderAction {
 		);
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.action.previous',
+				title: localize('notebook.diff.action.previous.title', "Show Previous Change"),
+				icon: previousChangeIcon,
+				f1: false,
+				keybinding: {
+					primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F3,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				},
+				menu: {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor) {
+		const editorService: IEditorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_DIFF_EDITOR_ID) {
+			return;
+		}
+
+		const editor = editorService.activeEditorPane.getControl() as INotebookTextDiffEditor | undefined;
+		editor?.previousChange();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.action.next',
+				title: localize('notebook.diff.action.next.title', "Show Next Change"),
+				icon: nextChangeIcon,
+				f1: false,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.F3,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				},
+				menu: {
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID)
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor) {
+		const editorService: IEditorService = accessor.get(IEditorService);
+		if (editorService.activeEditorPane?.getId() !== NOTEBOOK_DIFF_EDITOR_ID) {
+			return;
+		}
+
+		const editor = editorService.activeEditorPane.getControl() as INotebookTextDiffEditor | undefined;
+		editor?.nextChange();
+	}
+});
+
+
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'notebook',

@@ -50,3 +50,8 @@ type-detect@^4.0.0, type-detect@^4.0.5:
   version "4.0.8"
   resolved "https://registry.yarnpkg.com/type-detect/-/type-detect-4.0.8.tgz#7646fb5f18871cfbb7749e69bd39a6388eb7450c"
   integrity sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==
+
+warnings-to-errors-webpack-plugin@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/warnings-to-errors-webpack-plugin/-/warnings-to-errors-webpack-plugin-2.3.0.tgz#5f9a58aaec458feafabe0f7a2b88a492db263a30"
+  integrity sha512-fzOyw+Ctr2MqJ+4UXKobDiOLzMMSBAdvGMWvZ4NRgTBCofAL2mmdfr6/Of3Bqz9Sq6R6xT5dLs6nnLLCtmppeQ==

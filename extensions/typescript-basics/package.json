@@ -10,7 +10,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ./build/update-grammars.js"
+    "update-grammar": "node ./build/update-grammars.mjs"
   },
   "contributes": {
     "languages": [
@@ -22,13 +22,16 @@
           "typescript"
         ],
         "extensions": [
-          ".ts"
+          ".ts",
+          ".cts",
+          ".mts"
         ],
         "configuration": "./language-configuration.json"
       },
       {
         "id": "typescriptreact",
         "aliases": [
+          "TypeScript JSX",
           "TypeScript React",
           "tsx"
         ],
@@ -49,6 +52,12 @@
           "tsconfig-*.json",
           "jsconfig-*.json"
         ]
+      },
+      {
+        "id": "json",
+        "extensions": [
+          ".tsbuildinfo"
+        ]
       }
     ],
     "grammars": [
@@ -56,7 +65,18 @@
         "language": "typescript",
         "scopeName": "source.ts",
         "path": "./syntaxes/TypeScript.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "keyword.operator.relational",
+          "storage.type.function.arrow",
+          "keyword.operator.bitwise.shift",
+          "meta.brace.angle",
+          "punctuation.definition.tag",
+          "keyword.operator.assignment.compound.bitwise.ts"
+        ],
         "tokenTypes": {
+          "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -67,6 +87,13 @@
         "language": "typescriptreact",
         "scopeName": "source.tsx",
         "path": "./syntaxes/TypeScriptReact.tmLanguage.json",
+        "unbalancedBracketScopes": [
+          "keyword.operator.relational",
+          "storage.type.function.arrow",
+          "keyword.operator.bitwise.shift",
+          "punctuation.definition.tag",
+          "keyword.operator.assignment.compound.bitwise.ts"
+        ],
         "embeddedLanguages": {
           "meta.tag.tsx": "jsx-tags",
           "meta.tag.without-attributes.tsx": "jsx-tags",
@@ -74,6 +101,9 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
+          "meta.template.expression": "other",
+          "meta.template.expression string": "string",
+          "meta.template.expression comment": "comment",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",

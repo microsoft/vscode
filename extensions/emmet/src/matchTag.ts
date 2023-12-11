@@ -20,7 +20,7 @@ export function matchTag() {
 		return;
 	}
 
-	let updatedSelections: vscode.Selection[] = [];
+	const updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
 		const updatedSelection = getUpdatedSelections(document, rootNode, selection.start);
 		if (updatedSelection) {

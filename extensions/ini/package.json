@@ -3,6 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
+  "private": true,
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -27,17 +28,19 @@
       {
         "id": "properties",
         "extensions": [
+          ".conf",
           ".properties",
           ".cfg",
-          ".conf",
           ".directory",
           ".gitattributes",
           ".gitconfig",
           ".gitmodules",
-          ".editorconfig"
+          ".editorconfig",
+          ".repo"
         ],
         "filenames": [
-          "gitconfig"
+          "gitconfig",
+          ".env"
         ],
         "filenamePatterns": [
           "**/.config/git/config",

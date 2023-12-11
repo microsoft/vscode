@@ -4,42 +4,44 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService, ConfigurationTarget, ConfigurationTargetToString } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService, ITelemetryInfo, ITelemetryData, ICustomEndpointTelemetryService, ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { safeStringify } from 'vs/base/common/objects';
+import { cloneAndChange, safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
-import { Promises } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
+import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
+import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = new class implements ITelemetryService {
+/**
+ * A special class used to denoting a telemetry value which should not be clean.
+ * This is because that value is "Trusted" not to contain identifiable information such as paths.
+ * NOTE: This is used as an API type as well, and should not be changed.
+ */
+export class TelemetryTrustedValue<T> {
+	// This is merely used as an identifier as the instance will be lost during serialization over the exthost
+	public readonly isTrustedTelemetryValue = true;
+	constructor(public readonly value: T) { }
+}
+
+export class NullTelemetryServiceShape implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
+	readonly telemetryLevel = TelemetryLevel.NONE;
+	readonly sessionId = 'someValue.sessionId';
+	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
+	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
-
-	publicLog(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLog(eventName, data as ITelemetryData);
-	}
-	publicLogError(eventName: string, data?: ITelemetryData) {
-		return Promise.resolve(undefined);
-	}
-	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
-		return this.publicLogError(eventName, data as ITelemetryData);
-	}
-
+	publicLog() { }
+	publicLog2() { }
+	publicLogError() { }
+	publicLogError2() { }
 	setExperimentProperty() { }
-	setEnabled() { }
-	isOptedIn = true;
-	getTelemetryInfo(): Promise<ITelemetryInfo> {
-		return Promise.resolve({
-			instanceId: 'someValue.instanceId',
-			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId',
-			firstSessionDate: 'someValue.firstSessionDate'
-		});
-	}
-};
+}
+
+export const NullTelemetryService = new NullTelemetryServiceShape();
 
 export class NullEndpointTelemetryService implements ICustomEndpointTelemetryService {
 	_serviceBrand: undefined;
@@ -53,16 +55,12 @@ export class NullEndpointTelemetryService implements ICustomEndpointTelemetrySer
 	}
 }
 
+export const telemetryLogId = 'telemetry';
+export const extensionTelemetryLogChannelId = 'extensionTelemetryLog';
+
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
 	flush(): Promise<any>;
-}
-
-export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return {
-		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promises.settled(appenders.map(a => a.flush()))
-	};
 }
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(null) };
@@ -84,11 +82,19 @@ export interface URIDescriptor {
 }
 
 export function configurationTelemetry(telemetryService: ITelemetryService, configurationService: IConfigurationService): IDisposable {
-	return configurationService.onDidChangeConfiguration(event => {
+	// Debounce the event by 1000 ms and merge all affected keys into one event
+	const debouncedConfigService = Event.debounce(configurationService.onDidChangeConfiguration, (last, cur) => {
+		const newAffectedKeys: ReadonlySet<string> = last ? new Set([...last.affectedKeys, ...cur.affectedKeys]) : cur.affectedKeys;
+		return { ...cur, affectedKeys: newAffectedKeys };
+	}, 1000, true);
+
+	return debouncedConfigService(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				owner: 'lramos15, sbatten';
+				comment: 'Event which fires when user updates settings';
+				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
+				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration keys were updated' };
 			};
 			type UpdateConfigurationEvent = {
 				configurationSource: string;
@@ -96,10 +102,85 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 			};
 			telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
 				configurationSource: ConfigurationTargetToString(event.source),
-				configurationKeys: flattenKeys(event.sourceConfig)
+				configurationKeys: Array.from(event.affectedKeys)
 			});
 		}
 	});
+}
+
+/**
+ * Determines whether or not we support logging telemetry.
+ * This checks if the product is capable of collecting telemetry but not whether or not it can send it
+ * For checking the user setting and what telemetry you can send please check `getTelemetryLevel`.
+ * This returns true if `--disable-telemetry` wasn't used, the product.json allows for telemetry, and we're not testing an extension
+ * If false telemetry is disabled throughout the product
+ * @param productService
+ * @param environmentService
+ * @returns false - telemetry is completely disabled, true - telemetry is logged locally, but may not be sent
+ */
+export function supportsTelemetry(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If it's OSS and telemetry isn't disabled via the CLI we will allow it for logging only purposes
+	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
+		return true;
+	}
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
+}
+
+/**
+ * Checks to see if we're in logging only mode to debug telemetry.
+ * This is if telemetry is enabled and we're in OSS, but no telemetry key is provided so it's not being sent just logged.
+ * @param productService
+ * @param environmentService
+ * @returns True if telemetry is actually disabled and we're only logging for debug purposes
+ */
+export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If we're testing an extension, log telemetry for debug purposes
+	if (environmentService.extensionTestsLocationURI) {
+		return true;
+	}
+	// Logging only mode is only for OSS
+	if (environmentService.isBuilt) {
+		return false;
+	}
+
+	if (environmentService.disableTelemetry) {
+		return false;
+	}
+
+	if (productService.enableTelemetry && productService.aiConfig?.ariaKey) {
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * Determines how telemetry is handled based on the user's configuration.
+ *
+ * @param configurationService
+ * @returns OFF, ERROR, ON
+ */
+export function getTelemetryLevel(configurationService: IConfigurationService): TelemetryLevel {
+	const newConfig = configurationService.getValue<TelemetryConfiguration>(TELEMETRY_SETTING_ID);
+	const crashReporterConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_CRASH_REPORTER_SETTING_ID);
+	const oldConfig = configurationService.getValue<boolean | undefined>(TELEMETRY_OLD_SETTING_ID);
+
+	// If `telemetry.enableCrashReporter` is false or `telemetry.enableTelemetry' is false, disable telemetry
+	if (oldConfig === false || crashReporterConfig === false) {
+		return TelemetryLevel.NONE;
+	}
+
+	// Maps new telemetry setting to a telemetry level
+	switch (newConfig ?? TelemetryConfiguration.ON) {
+		case TelemetryConfiguration.ON:
+			return TelemetryLevel.USAGE;
+		case TelemetryConfiguration.ERROR:
+			return TelemetryLevel.ERROR;
+		case TelemetryConfiguration.CRASH:
+			return TelemetryLevel.CRASH;
+		case TelemetryConfiguration.OFF:
+			return TelemetryLevel.NONE;
+	}
 }
 
 export interface Properties {
@@ -110,12 +191,12 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
 
-	const properties: Properties = Object.create(null);
-	const measurements: Measurements = Object.create(null);
+	const properties: Properties = {};
+	const measurements: Measurements = {};
 
-	const flat = Object.create(null);
+	const flat: Record<string, any> = {};
 	flatten(data, flat);
 
 	for (let prop in flat) {
@@ -130,8 +211,12 @@ export function validateTelemetryData(data?: any): { properties: Properties, mea
 			measurements[prop] = value ? 1 : 0;
 
 		} else if (typeof value === 'string') {
-			//enforce property value to be less than 1024 char, take the first 1024 char
-			properties[prop] = value.substring(0, 1023);
+			if (value.length > 8192) {
+				console.warn(`Telemetry property: ${prop} has been trimmed to 8192, the original length is ${value.length}`);
+			}
+			//enforce property value to be less than 8192 char, take the first 8192 char
+			// https://docs.microsoft.com/en-us/azure/azure-monitor/app/api-custom-events-metrics#limits
+			properties[prop] = value.substring(0, 8191);
 
 		} else if (typeof value !== 'undefined' && value !== null) {
 			properties[prop] = value;
@@ -144,20 +229,14 @@ export function validateTelemetryData(data?: any): { properties: Properties, mea
 	};
 }
 
+const telemetryAllowedAuthorities = new Set(['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunnel', 'codespaces', 'amlext']);
+
 export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
-
-	let ret = 'other';
-	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
-	allowedAuthorities.forEach((res: string) => {
-		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
-			ret = res;
-		}
-	});
-
-	return ret;
+	const remoteName = getRemoteName(remoteAuthority);
+	return telemetryAllowedAuthorities.has(remoteName) ? remoteName : 'other';
 }
 
 function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
@@ -165,7 +244,7 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 		return;
 	}
 
-	for (let item of Object.getOwnPropertyNames(obj)) {
+	for (const item of Object.getOwnPropertyNames(obj)) {
 		const value = obj[item];
 		const index = prefix ? prefix + item : item;
 
@@ -188,20 +267,148 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 	}
 }
 
-function flattenKeys(value: Object | undefined): string[] {
-	if (!value) {
-		return [];
-	}
-	const result: string[] = [];
-	flatKeys(result, '', value);
-	return result;
+/**
+ * Whether or not this is an internal user
+ * @param productService The product service
+ * @param configService The config servivce
+ * @returns true if internal, false otherwise
+ */
+export function isInternalTelemetry(productService: IProductService, configService: IConfigurationService) {
+	const msftInternalDomains = productService.msftInternalDomains || [];
+	const internalTesting = configService.getValue<boolean>('telemetry.internalTesting');
+	return verifyMicrosoftInternalDomain(msftInternalDomains) || internalTesting;
 }
 
-function flatKeys(result: string[], prefix: string, value: { [key: string]: any } | undefined): void {
-	if (value && typeof value === 'object' && !Array.isArray(value)) {
-		Object.keys(value)
-			.forEach(key => flatKeys(result, prefix ? `${prefix}.${key}` : key, value[key]));
-	} else {
-		result.push(prefix);
-	}
+interface IPathEnvironment {
+	appRoot: string;
+	extensionsPath: string;
+	userDataPath: string;
+	userHome: URI;
+	tmpDir: URI;
 }
+
+export function getPiiPathsFromEnvironment(paths: IPathEnvironment): string[] {
+	return [paths.appRoot, paths.extensionsPath, paths.userHome.fsPath, paths.tmpDir.fsPath, paths.userDataPath];
+}
+
+//#region Telemetry Cleaning
+
+/**
+ * Cleans a given stack of possible paths
+ * @param stack The stack to sanitize
+ * @param cleanupPatterns Cleanup patterns to remove from the stack
+ * @returns The cleaned stack
+ */
+function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
+
+	// Fast check to see if it is a file path to avoid doing unnecessary heavy regex work
+	if (!stack || (!stack.includes('/') && !stack.includes('\\'))) {
+		return stack;
+	}
+
+	let updatedStack = stack;
+
+	const cleanUpIndexes: [number, number][] = [];
+	for (const regexp of cleanupPatterns) {
+		while (true) {
+			const result = regexp.exec(stack);
+			if (!result) {
+				break;
+			}
+			cleanUpIndexes.push([result.index, regexp.lastIndex]);
+		}
+	}
+
+	const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+	const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+	let lastIndex = 0;
+	updatedStack = '';
+
+	while (true) {
+		const result = fileRegex.exec(stack);
+		if (!result) {
+			break;
+		}
+
+		// Check to see if the any cleanupIndexes partially overlap with this match
+		const overlappingRange = cleanUpIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
+
+		// anoynimize user file paths that do not need to be retained or cleaned up.
+		if (!nodeModulesRegex.test(result[0]) && !overlappingRange) {
+			updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+			lastIndex = fileRegex.lastIndex;
+		}
+	}
+	if (lastIndex < stack.length) {
+		updatedStack += stack.substr(lastIndex);
+	}
+
+	return updatedStack;
+}
+
+/**
+ * Attempts to remove commonly leaked PII
+ * @param property The property which will be removed if it contains user data
+ * @returns The new value for the property
+ */
+function removePropertiesWithPossibleUserInfo(property: string): string {
+	// If for some reason it is undefined we skip it (this shouldn't be possible);
+	if (!property) {
+		return property;
+	}
+
+	const userDataRegexes = [
+		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
+		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+		{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
+		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
+		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
+	];
+
+	// Check for common user data in the telemetry events
+	for (const secretRegex of userDataRegexes) {
+		if (secretRegex.regex.test(property)) {
+			return `<REDACTED: ${secretRegex.label}>`;
+		}
+	}
+
+	return property;
+}
+
+
+/**
+ * Does a best possible effort to clean a data object from any possible PII.
+ * @param data The data object to clean
+ * @param paths Any additional patterns that should be removed from the data set
+ * @returns A new object with the PII removed
+ */
+export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]): Record<string, any> {
+	return cloneAndChange(data, value => {
+
+		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it
+		if (value instanceof TelemetryTrustedValue || Object.hasOwnProperty.call(value, 'isTrustedTelemetryValue')) {
+			return value.value;
+		}
+
+		// We only know how to clean strings
+		if (typeof value === 'string') {
+			let updatedProperty = value.replaceAll('%20', ' ');
+
+			// First we anonymize any possible file paths
+			updatedProperty = anonymizeFilePaths(updatedProperty, cleanUpPatterns);
+
+			// Then we do a simple regex replace with the defined patterns
+			for (const regexp of cleanUpPatterns) {
+				updatedProperty = updatedProperty.replace(regexp, '');
+			}
+
+			// Lastly, remove commonly leaked PII
+			updatedProperty = removePropertiesWithPossibleUserInfo(updatedProperty);
+
+			return updatedProperty;
+		}
+		return undefined;
+	});
+}
+
+//#endregion

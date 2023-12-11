@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Url, parse as parseUrl } from 'url';
+import { parse as parseUrl, Url } from 'url';
 import { isBoolean } from 'vs/base/common/types';
 
 export type Agent = any;
@@ -39,12 +39,12 @@ export async function getProxyAgent(rawRequestURL: string, env: typeof process.e
 
 	const opts = {
 		host: proxyEndpoint.hostname || '',
-		port: proxyEndpoint.port || (proxyEndpoint.protocol === 'https' ? '443' : '80'),
+		port: (proxyEndpoint.port ? +proxyEndpoint.port : 0) || (proxyEndpoint.protocol === 'https' ? 443 : 80),
 		auth: proxyEndpoint.auth,
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true,
 	};
 
 	return requestURL.protocol === 'http:'
-		? new (await import('http-proxy-agent'))(opts as any as Url)
-		: new (await import('https-proxy-agent'))(opts);
+		? new (await import('http-proxy-agent')).HttpProxyAgent(proxyURL, opts)
+		: new (await import('https-proxy-agent')).HttpsProxyAgent(proxyURL, opts);
 }

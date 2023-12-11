@@ -1,0 +1,150 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.action-widget {
+	font-size: 13px;
+	border-radius: 0;
+	min-width: 160px;
+	max-width: 80vw;
+	z-index: 40;
+	display: block;
+	width: 100%;
+	border: 1px solid var(--vscode-editorWidget-border) !important;
+	border-radius: 2px;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+}
+
+.context-view-block {
+	position: fixed;
+	cursor: initial;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	z-index: -1;
+}
+
+.context-view-pointerBlock {
+	position: fixed;
+	cursor: initial;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+}
+
+.action-widget .monaco-list {
+	user-select: none;
+	-webkit-user-select: none;
+	border: none !important;
+	border-width: 0 !important;
+}
+
+.action-widget .monaco-list:focus:before {
+	outline: 0 !important;
+}
+
+.action-widget .monaco-list .monaco-scrollable-element {
+	overflow: visible;
+}
+
+/** Styles for each row in the list element **/
+.action-widget .monaco-list .monaco-list-row {
+	padding: 0 10px;
+	white-space: nowrap;
+	cursor: pointer;
+	touch-action: none;
+	width: 100%;
+}
+
+.action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
+	background-color: var(--vscode-quickInputList-focusBackground) !important;
+	color: var(--vscode-quickInputList-focusForeground);
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
+}
+
+.action-widget .monaco-list-row.group-header {
+	color: var(--vscode-descriptionForeground) !important;
+	font-weight: 600;
+}
+
+.action-widget .monaco-list .group-header,
+.action-widget .monaco-list .option-disabled,
+.action-widget .monaco-list .option-disabled:before,
+.action-widget .monaco-list .option-disabled .focused,
+.action-widget .monaco-list .option-disabled .focused:before {
+	cursor: default !important;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	user-select: none;
+	background-color: transparent !important;
+	outline: 0 solid !important;
+}
+
+.action-widget .monaco-list-row.action {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
+
+.action-widget .monaco-list-row.action.option-disabled,
+.action-widget .monaco-list:focus .monaco-list-row.focused.action.option-disabled,
+.action-widget .monaco-list-row.action.option-disabled .codicon,
+.action-widget .monaco-list:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused).option-disabled {
+	color: var(--vscode-disabledForeground);
+}
+
+
+.action-widget .monaco-list-row.action:not(.option-disabled) .codicon {
+	color: inherit;
+}
+
+.action-widget .monaco-list-row.action .title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Action bar */
+
+.action-widget .action-widget-action-bar {
+	background-color: var(--vscode-editorHoverWidget-statusBarBackground);
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.action-widget .action-widget-action-bar::before {
+	display: block;
+	content: "";
+	width: 100%;
+}
+
+.action-widget .action-widget-action-bar .actions-container {
+	padding: 0 8px;
+}
+
+.action-widget-action-bar .action-label {
+	color: var(--vscode-textLink-activeForeground);
+	font-size: 12px;
+	line-height: 22px;
+	padding: 0;
+	pointer-events: all;
+}
+
+.action-widget-action-bar .action-item {
+	margin-right: 16px;
+	pointer-events: none;
+}
+
+.action-widget-action-bar .action-label:hover {
+	background-color: transparent !important;
+}
+
+.monaco-action-bar .actions-container.highlight-toggled .action-label.checked {
+	/* The important gives this rule precedence over the hover rule. */
+	background: var(--vscode-actionBar-toggledBackground) !important;
+}

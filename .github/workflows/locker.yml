@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           path: ./actions
@@ -23,6 +23,6 @@ jobs:
           daysSinceClose: 45
           appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           daysSinceUpdate: 3
-          ignoredLabel: "*out-of-scope"
+          ignoredLabel: "*out-of-scope,accessibility"
           ignoreLabelUntil: "author-verification-requested"
           labelUntil: "verified"

@@ -66,7 +66,6 @@
 	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
-	-ms-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
 }
@@ -105,7 +104,6 @@
 	cursor: pointer;
 	user-select: none;
 	-webkit-user-select: none;
-	-ms-user-select: none;
 }
 
 /** Dialog: Input */
@@ -118,11 +116,15 @@
 	flex: 1;
 }
 
+/** Dialog: File Path */
+.monaco-dialog-box code {
+	font-family: var(--monaco-monospace-font);
+}
+
 /** Dialog: Buttons Row */
 .monaco-dialog-box > .dialog-buttons-row {
 	display: flex;
 	align-items: center;
-	justify-content: flex-end;
 	padding-right: 1px;
 	overflow: hidden; /* buttons row should never overflow */
 }
@@ -136,16 +138,14 @@
 /** Dialog: Buttons */
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons {
 	display: flex;
+	width: 100%;
+	justify-content: flex-end;
 	overflow: hidden;
-}
-
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons.centered {
-	justify-content: center;
+	margin-left: 67px; /* for long buttons, force align with text */
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
 	width: fit-content;
-	width: -moz-fit-content;
 	padding: 5px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;

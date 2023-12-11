@@ -3,55 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
-import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IViewContainersRegistry, IViewsRegistry, IViewsService, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
+import { testingResultsIcon, testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
+import { TestingDecorationService, TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { CloseTestPeek, TestingOutputPeekController, TestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
-import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestResultsView, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { TestingProgressTrigger } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
-import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestIdPath, TestIdWithMaybeSrc, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
-import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
-import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
+import { testingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
+import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
+import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
+import { ITestProfileService, TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResultService, TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
-import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingContinuousRunService, TestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
+import { ITestingDecorationsService } from 'vs/workbench/contrib/testing/common/testingDecorations';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { allTestActions, runTestsByPath } from './testExplorerActions';
+import { allTestActions, discoverAndRunTests } from './testExplorerActions';
+import './testingConfigurationUi';
+import { ITestCoverageService, TestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
+import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
+import { ExplorerExtensions, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
+import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 
-registerSingleton(ITestService, TestService);
-registerSingleton(ITestResultStorage, TestResultStorage);
-registerSingleton(ITestResultService, TestResultService);
-registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
-registerSingleton(ITestingAutoRun, TestingAutoRun, true);
-registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
-registerSingleton(ITestingPeekOpener, TestingPeekOpener);
-registerSingleton(ITestingProgressUiService, TestingProgressUiService);
-registerSingleton(IWorkspaceTestCollectionService, WorkspaceTestCollectionService);
+registerSingleton(ITestService, TestService, InstantiationType.Delayed);
+registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
+registerSingleton(ITestProfileService, TestProfileService, InstantiationType.Delayed);
+registerSingleton(ITestCoverageService, TestCoverageService, InstantiationType.Delayed);
+registerSingleton(ITestingContinuousRunService, TestingContinuousRunService, InstantiationType.Delayed);
+registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
+registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
+registerSingleton(ITestingPeekOpener, TestingPeekOpener, InstantiationType.Delayed);
+registerSingleton(ITestingDecorationsService, TestingDecorationService, InstantiationType.Delayed);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	title: localize('test', "Testing"),
+	title: { value: localize('test', "Testing"), original: 'Testing' },
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
@@ -66,69 +76,79 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar);
 
+
+const testResultsViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+	id: Testing.ResultsPanelId,
+	title: localize2('testResultsPanelName', "Test Results"),
+	icon: testingResultsIcon,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Testing.ResultsPanelId, { mergeViewWithContainerWhenSingleView: true }]),
+	hideIfEmpty: true,
+	order: 3,
+}, ViewContainerLocation.Panel, { doNotRegisterOpenCommand: true });
+
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+
+
+viewsRegistry.registerViews([{
+	id: Testing.ResultsViewId,
+	name: localize2('testResultsPanelName', "Test Results"),
+	containerIcon: testingResultsIcon,
+	canToggleVisibility: false,
+	canMoveView: true,
+	when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+	ctorDescriptor: new SyncDescriptor(TestResultsView),
+}], testResultsViewContainer);
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 	content: localize('noTestProvidersRegistered', "No tests have been found in this workspace yet."),
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: localize(
-		{
-			key: 'searchMarketplaceForTestExtensions',
-			comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'],
-		},
-		"[Find Test Extensions](command:{0})",
-		'testing.searchForTestExtension'
-	),
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${TestCommandId.SearchForTestExtension})`,
 	order: 10
 });
 
 viewsRegistry.registerViews([{
 	id: Testing.ExplorerViewId,
-	name: localize('testExplorer', "Test Explorer"),
+	name: localize2('testExplorer', "Test Explorer"),
 	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
 	canToggleVisibility: true,
-	workspace: true,
 	canMoveView: true,
 	weight: 80,
 	order: -999,
 	containerIcon: testingViewIcon,
-	// temporary until release, at which point we can show the welcome view:
 	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
+}, {
+	id: Testing.CoverageViewId,
+	name: localize2('testCoverage', "Test Coverage"),
+	ctorDescriptor: new SyncDescriptor(TestCoverageView),
+	canToggleVisibility: true,
+	canMoveView: true,
+	weight: 80,
+	order: -998,
+	containerIcon: testingViewIcon,
+	when: TestingContextKeys.isTestCoverageOpen,
 }], viewContainer);
 
 allTestActions.forEach(registerAction2);
+registerAction2(OpenMessageInEditorAction);
+registerAction2(GoToPreviousMessageAction);
+registerAction2(GoToNextMessageAction);
 registerAction2(CloseTestPeek);
+registerAction2(ToggleTestingPeekHistory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingPeekOpener, LifecyclePhase.Eventually);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressUiService, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingProgressTrigger, LifecyclePhase.Eventually);
 
-registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController);
-registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations);
-
-CommandsRegistry.registerCommand({
-	id: 'vscode.runTests',
-	handler: async (accessor: ServicesAccessor, tests: TestIdWithMaybeSrc[]) => {
-		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: false, tests: tests.filter(t => !!t.testId) });
-	}
-});
+registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController, EditorContributionInstantiation.AfterFirstRender);
+registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations, EditorContributionInstantiation.AfterFirstRender);
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.debugTests',
-	handler: async (accessor: ServicesAccessor, tests: TestIdWithSrc[]) => {
-		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: true, tests: tests.filter(t => t.src && t.testId) });
-	}
-});
-
-CommandsRegistry.registerCommand({
-	id: 'vscode.revealTestInExplorer',
-	handler: async (accessor: ServicesAccessor, pathToTest: TestIdPath) => {
-		accessor.get(ITestExplorerFilterState).reveal.value = pathToTest;
-		accessor.get(IViewsService).openView(Testing.ExplorerViewId);
+	id: '_revealTestInExplorer',
+	handler: async (accessor: ServicesAccessor, testId: string | ITestItem, focus?: boolean) => {
+		accessor.get(ITestExplorerFilterState).reveal.value = typeof testId === 'string' ? testId : testId.extId;
+		accessor.get(IViewsService).openView(Testing.ExplorerViewId, focus);
 	}
 });
 
@@ -136,26 +156,90 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.peekTestError',
 	handler: async (accessor: ServicesAccessor, extId: string) => {
 		const lookup = accessor.get(ITestResultService).getStateById(extId);
-		if (lookup) {
-			accessor.get(ITestingPeekOpener).tryPeekFirstError(lookup[0], lookup[1]);
+		if (!lookup) {
+			return false;
 		}
+
+		const [result, ownState] = lookup;
+		const opener = accessor.get(ITestingPeekOpener);
+		if (opener.tryPeekFirstError(result, ownState)) { // fast path
+			return true;
+		}
+
+		for (const test of result.tests) {
+			if (TestId.compare(ownState.item.extId, test.item.extId) === TestPosition.IsChild && opener.tryPeekFirstError(result, test)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 });
 
 CommandsRegistry.registerCommand({
-	id: 'vscode.runTestsByPath',
-	handler: async (accessor: ServicesAccessor, debug: boolean, ...pathToTests: TestIdPath[]) => {
-		const testService = accessor.get(ITestService);
-		await runTestsByPath(
-			accessor.get(IWorkspaceTestCollectionService),
-			accessor.get(IProgressService),
-			pathToTests,
-			tests => testService.runTests({
-				debug: false,
-				tests: tests.map(t => ({ testId: t.item.extId, src: t.src })),
-			}),
+	id: 'vscode.revealTest',
+	handler: async (accessor: ServicesAccessor, extId: string) => {
+		const test = accessor.get(ITestService).collection.getNodeById(extId);
+		if (!test) {
+			return;
+		}
+		const commandService = accessor.get(ICommandService);
+		const fileService = accessor.get(IFileService);
+		const openerService = accessor.get(IOpenerService);
+
+		const { range, uri } = test.item;
+		if (!uri) {
+			return;
+		}
+
+		// If an editor has the file open, there are decorations. Try to adjust the
+		// revealed range to those decorations (#133441).
+		const position = accessor.get(ITestingDecorationsService).getDecoratedTestPosition(uri, extId) || range?.getStartPosition();
+
+		accessor.get(ITestExplorerFilterState).reveal.value = extId;
+		accessor.get(ITestingPeekOpener).closeAllPeeks();
+
+		let isFile = true;
+		try {
+			if (!(await fileService.stat(uri)).isFile) {
+				isFile = false;
+			}
+		} catch {
+			// ignored
+		}
+
+		if (!isFile) {
+			await commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
+			return;
+		}
+
+		await openerService.open(position
+			? uri.with({ fragment: `L${position.lineNumber}:${position.column}` })
+			: uri
 		);
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguation);
+CommandsRegistry.registerCommand({
+	id: 'vscode.runTestsById',
+	handler: async (accessor: ServicesAccessor, group: TestRunProfileBitset, ...testIds: string[]) => {
+		const testService = accessor.get(ITestService);
+		await discoverAndRunTests(
+			accessor.get(ITestService).collection,
+			accessor.get(IProgressService),
+			testIds,
+			tests => testService.runTests({ group, tests }),
+		);
+	}
+});
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguration);
+
+Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
+	create(insta, container) {
+		return insta.createInstance(
+			ExplorerTestCoverageBars,
+			{ compact: true, container }
+		);
+	},
+});

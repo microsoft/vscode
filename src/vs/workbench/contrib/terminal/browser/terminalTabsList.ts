@@ -8,22 +8,21 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalBackend, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
-import { MarkdownString } from 'vs/base/common/htmlContent';
-import { TerminalDecorationsProvider } from 'vs/workbench/contrib/terminal/browser/terminalDecorationsProvider';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,16 +32,24 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { Schemas } from 'vs/base/common/network';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { containsDragType } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { Emitter } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
+import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 const $ = DOM.$;
 
@@ -57,7 +64,7 @@ export const enum TerminalTabsListSizes {
 }
 
 export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
-	private _decorationsProvider: TerminalDecorationsProvider | undefined;
+	private _decorationsProvider: TabDecorationsProvider | undefined;
 	private _terminalTabsSingleSelectedContextKey: IContextKey<boolean>;
 	private _isSplitContextKey: IContextKey<boolean>;
 
@@ -66,13 +73,14 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@ITerminalService private _terminalService: ITerminalService,
-		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IDecorationsService decorationsService: IDecorationsService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super('TerminalTabsList', container,
 			{
@@ -88,47 +96,71 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
-				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
+				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
+				paddingBottom: TerminalTabsListSizes.TabHeight,
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				openOnSingleClick: true
 			},
 			contextKeyService,
 			listService,
-			themeService,
-			configurationService,
-			keybindingService,
+			_configurationService,
+			instantiationService,
 		);
-		this._terminalService.onInstancesChanged(() => this.refresh());
-		this._terminalService.onGroupsChanged(() => this.refresh());
-		this._terminalService.onInstanceTitleChanged(() => this.refresh());
-		this._terminalService.onInstanceIconChanged(() => this.refresh());
-		this._terminalService.onInstancePrimaryStatusChanged(() => this.refresh());
-		this._terminalService.onDidChangeConnectionState(() => this.refresh());
-		this._themeService.onDidColorThemeChange(() => this.refresh());
-		this._terminalService.onActiveInstanceChanged(e => {
-			if (e) {
-				const i = this._terminalService.terminalInstances.indexOf(e);
-				this.setSelection([i]);
-				this.reveal(i);
-			}
+
+		const instanceDisposables: IDisposable[] = [
+			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
+			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalGroupService.onDidShow(() => this.refresh()),
+			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
+			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
+			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
+			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
+			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
+			this._themeService.onDidColorThemeChange(() => this.refresh()),
+			this._terminalGroupService.onDidChangeActiveInstance(e => {
+				if (e) {
+					const i = this._terminalGroupService.instances.indexOf(e);
+					this.setSelection([i]);
+					this.reveal(i);
+				}
+				this.refresh();
+			})
+		];
+
+		// Dispose of instance listeners on shutdown to avoid extra work and so tabs don't disappear
+		// briefly
+		lifecycleService.onWillShutdown(e => {
+			dispose(instanceDisposables);
 		});
 
-		this.onMouseDblClick(async () => {
-			if (this.getFocus().length === 0) {
-				const instance = this._terminalService.createTerminal();
-				this._terminalService.setActiveInstance(instance);
+		this.onMouseDblClick(async e => {
+			const focus = this.getFocus();
+			if (focus.length === 0) {
+				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
+				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
+			}
+
+			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+				return;
+			}
+
+			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
+				e.element?.focus(true);
 			}
 		});
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
-		this.onMouseClick(e => {
-			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
+		this.onMouseClick(async e => {
+			if (this._terminalService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+				return;
+			}
+
 			if (e.browserEvent.altKey && e.element) {
-				this._terminalService.splitInstance(e.element);
-			} else if (focusMode === 'singleClick') {
+				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
+			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
 				}
@@ -148,8 +180,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
-		this._terminalTabsSingleSelectedContextKey = KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.bindTo(contextKeyService);
-		this._isSplitContextKey = IS_SPLIT_TERMINAL_CONTEXT_KEY.bindTo(contextKeyService);
+		this._terminalTabsSingleSelectedContextKey = TerminalContextKeys.tabsSingularSelection.bindTo(contextKeyService);
+		this._isSplitContextKey = TerminalContextKeys.splitTerminal.bindTo(contextKeyService);
 
 		this.onDidChangeSelection(e => this._updateContextKey());
 		this.onDidChangeFocus(() => this._updateContextKey());
@@ -159,29 +191,47 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (!instance) {
 				return;
 			}
-			if (e.editorOptions.pinned) {
-				return;
-			}
-			this._terminalService.setActiveInstance(instance);
+			this._terminalGroupService.setActiveInstance(instance);
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
 			}
 		});
 		if (!this._decorationsProvider) {
-			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
-			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
+			this._decorationsProvider = this.disposables.add(instantiationService.createInstance(TabDecorationsProvider));
+			this.disposables.add(decorationsService.registerDecorationsProvider(this._decorationsProvider));
 		}
 		this.refresh();
 	}
 
-	refresh(): void {
-		this.splice(0, this.length, this._terminalService.terminalInstances);
+	private _getFocusMode(): 'singleClick' | 'doubleClick' {
+		return this._configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
+	}
+
+	refresh(cancelEditing: boolean = true): void {
+		if (cancelEditing && this._terminalService.isEditable(undefined)) {
+			this.domFocus();
+		}
+
+		this.splice(0, this.length, this._terminalGroupService.instances.slice());
+	}
+
+	focusHover(): void {
+		const instance = this.getSelectedElements()[0];
+		if (!instance) {
+			return;
+		}
+
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this.getHTMLElement(),
+			trapFocus: true
+		}, true);
 	}
 
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
-		this._isSplitContextKey.set(instance.length > 0 && this._terminalService.instanceIsSplit(instance[0]));
+		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
 	}
 }
 
@@ -194,6 +244,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		private readonly _getSelection: () => ITerminalInstance[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -216,7 +267,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					return this._hoverService.showHover({
 						...options,
 						actions: context.hoverActions,
-						hideOnHover: true
+						persistence: {
+							hideOnHover: true
+						}
 					});
 				}
 			}
@@ -225,9 +278,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = new ActionBar(actionsContainer, {
+			actionRunner: new TerminalContextActionRunner(),
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action)
+					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
 		});
 
@@ -235,7 +289,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			element,
 			label,
 			actionBar,
-			context
+			context,
+			elementDisposables: new DisposableStore(),
 		};
 	}
 
@@ -250,12 +305,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
 		const hasText = !this.shouldHideText();
 
-		const group = this._terminalService.getGroupForInstance(instance);
+		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
 			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 		}
 
 		template.element.classList.toggle('has-text', hasText);
+		template.element.classList.toggle('is-active', this._terminalGroupService.activeInstance === instance);
 
 		let prefix: string = '';
 		if (group.terminalInstances.length > 1) {
@@ -269,16 +325,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		let title = instance.title;
-		const statuses = instance.statusList.statuses;
-		template.context.hoverActions = [];
-		for (const status of statuses) {
-			title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-			if (status.hoverActions) {
-				template.context.hoverActions.push(...status.hoverActions);
-			}
-		}
-		const iconId = getIconId(instance);
+		const hoverInfo = getInstanceHoverInfo(instance);
+		template.context.hoverActions = hoverInfo.actions;
+
+		const iconId = this._instantiationService.invokeFunction(getIconId, instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
 		if (!hasText) {
@@ -303,12 +353,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			template.actionBar.clear();
 		}
 
-		if (!template.elementDispoables) {
-			template.elementDispoables = new DisposableStore();
-		}
-
 		// Kill terminal on middle click
-		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+		template.elementDisposables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
 			e.stopImmediatePropagation();
 			if (e.button === 1/*middle*/) {
 				this._terminalService.safeDisposeTerminal(instance);
@@ -328,14 +374,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		template.label.setResource({
 			resource: instance.resource,
 			name: label,
-			description: hasText ? instance.shellLaunchConfig.description : undefined
+			description: hasText ? instance.description : undefined
 		}, {
 			fileDecorations: {
 				colors: true,
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(title, { supportThemeIcons: true }),
+				markdown: hoverInfo.content,
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses
@@ -343,14 +389,13 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const editableData = this._terminalService.getEditableData(instance);
 		template.label.element.classList.toggle('editable-tab', !!editableData);
 		if (editableData) {
-			this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData);
+			template.elementDisposables.add(this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData));
 			template.actionBar.clear();
 		}
 	}
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
 
-		const label = this._labels.create(container);
 		const value = instance.title || '';
 
 		const inputBox = new InputBox(container, this._contextViewService, {
@@ -368,15 +413,15 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					};
 				}
 			},
-			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
+			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel."),
+			inputBoxStyles: defaultInputBoxStyles
 		});
-		const styler = attachInputBoxStyler(inputBox, this._themeService);
 		inputBox.element.style.height = '22px';
 		inputBox.value = value;
 		inputBox.focus();
 		inputBox.select({ start: 0, end: value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			inputBox.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -417,9 +462,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
-			}),
-			label,
-			styler
+			})
 		];
 
 		return toDisposable(() => {
@@ -428,21 +471,26 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	disposeElement(instance: ITerminalInstance, index: number, templateData: ITerminalTabEntryTemplate): void {
-		templateData.elementDispoables?.dispose();
-		templateData.elementDispoables = undefined;
+		templateData.elementDisposables.clear();
+		templateData.actionBar.clear();
 	}
 
 	disposeTemplate(templateData: ITerminalTabEntryTemplate): void {
+		templateData.elementDisposables.dispose();
+		templateData.label.dispose();
+		templateData.actionBar.dispose();
 	}
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
+			new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+				this._runForSelectionOrInstance(instance, async e => {
+					this._terminalService.createTerminal({ location: { parentTerminal: e } });
+				});
 			}),
-			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
-				this._runForSelectionOrInstance(instance, e => e.dispose());
+			new Action(TerminalCommandId.KillActiveTab, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
+				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
 			})
 		];
 		// TODO: Cache these in a way that will use the correct instance
@@ -463,24 +511,26 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		} else {
 			callback(instance);
 		}
-		this._terminalService.focusTabs();
+		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
 	}
 }
 
 interface ITerminalTabEntryTemplate {
-	element: HTMLElement;
-	label: IResourceLabel;
-	actionBar: ActionBar;
+	readonly element: HTMLElement;
+	readonly label: IResourceLabel;
+	readonly actionBar: ActionBar;
 	context: {
 		hoverActions?: IHoverAction[];
 	};
-	elementDispoables?: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 
 class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
-	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
+	constructor(
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('terminal.tabs', "Terminal tabs");
@@ -488,7 +538,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
-		const tab = this._terminalService.getGroupForInstance(instance);
+		const tab = this._terminalGroupService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			ariaLabel = localize({
@@ -513,24 +563,35 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 	}
 }
 
-class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
+class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
+	private _primaryBackend: ITerminalBackend | undefined;
 
 	constructor(
-		@ITerminalService private _terminalService: ITerminalService,
-		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
-	) { }
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+	) {
+		super();
+		this._primaryBackend = this._terminalService.getPrimaryBackend();
+	}
 
 	getDragURI(instance: ITerminalInstance): string | null {
-		return URI.from({
-			scheme: Schemas.vscodeTerminal,
-			path: instance.instanceId.toString()
-		}).toString();
+		if (this._terminalService.getEditingTerminal()?.instanceId === instance.instanceId) {
+			return null;
+		}
+
+		return instance.resource.toString();
 	}
 
 	getDragLabel?(elements: ITerminalInstance[], originalEvent: DragEvent): string | undefined {
 		return elements.length === 1 ? elements[0].title : undefined;
+	}
+
+	onDragLeave() {
+		this._autoFocusInstance = undefined;
+		this._autoFocusDisposable.dispose();
+		this._autoFocusDisposable = Disposable.None;
 	}
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
@@ -544,13 +605,13 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		// Attach terminals type to event
 		const terminals: ITerminalInstance[] = dndData.filter(e => 'instanceId' in (e as any));
 		if (terminals.length > 0) {
-			originalEvent.dataTransfer.setData('terminals', JSON.stringify(terminals.map(e => e.instanceId)));
+			originalEvent.dataTransfer.setData(TerminalDataTransfers.Terminals, JSON.stringify(terminals.map(e => e.resource.toString())));
 		}
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES)) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, TerminalDataTransfers.Terminals, CodeDataTransfers.FILES)) {
 				return false;
 			}
 		}
@@ -561,15 +622,15 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusInstance = targetInstance;
 		}
 
-		if (!targetInstance) {
+		if (!targetInstance && !containsDragType(originalEvent, TerminalDataTransfers.Terminals)) {
 			return data instanceof ElementsDragAndDropData;
 		}
 
-		if (didChangeAutoFocusInstance) {
+		if (didChangeAutoFocusInstance && targetInstance) {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
-			}, 500);
+			}, 500, this._store);
 		}
 
 		return {
@@ -579,37 +640,69 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		};
 	}
 
-	drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+	async drop(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
-		if (!(data instanceof ElementsDragAndDropData)) {
-			this._handleExternalDrop(targetInstance, originalEvent);
+		let sourceInstances: ITerminalInstance[] | undefined;
+		const promises: Promise<IProcessDetails | undefined>[] = [];
+		const resources = getTerminalResourcesFromDragEvent(originalEvent);
+		if (resources) {
+			for (const uri of resources) {
+				const instance = this._terminalService.getInstanceFromResource(uri);
+				if (instance) {
+					sourceInstances = [instance];
+					this._terminalService.moveToTerminalView(instance);
+				} else if (this._primaryBackend) {
+					const terminalIdentifier = parseTerminalUri(uri);
+					if (terminalIdentifier.instanceId) {
+						promises.push(this._primaryBackend.requestDetachInstance(terminalIdentifier.workspaceId, terminalIdentifier.instanceId));
+					}
+				}
+			}
+		}
+
+		if (promises.length) {
+			let processes = await Promise.all(promises);
+			processes = processes.filter(p => p !== undefined);
+			let lastInstance: ITerminalInstance | undefined;
+			for (const attachPersistentProcess of processes) {
+				lastInstance = await this._terminalService.createTerminal({ config: { attachPersistentProcess } });
+			}
+			if (lastInstance) {
+				this._terminalService.setActiveInstance(lastInstance);
+			}
 			return;
 		}
 
-		const draggedElement = data.getData();
-		if (!draggedElement || !Array.isArray(draggedElement)) {
-			return;
-		}
-		let focused = false;
+		if (sourceInstances === undefined) {
+			if (!(data instanceof ElementsDragAndDropData)) {
+				this._handleExternalDrop(targetInstance, originalEvent);
+				return;
+			}
 
-		let sourceInstances: ITerminalInstance[] = [];
-		for (const e of draggedElement) {
-			if ('instanceId' in e) {
-				sourceInstances.push(e as ITerminalInstance);
+			const draggedElement = data.getData();
+			if (!draggedElement || !Array.isArray(draggedElement)) {
+				return;
+			}
+
+			sourceInstances = [];
+			for (const e of draggedElement) {
+				if ('instanceId' in e) {
+					sourceInstances.push(e as ITerminalInstance);
+				}
 			}
 		}
 
 		if (!targetInstance) {
-			for (const instance of sourceInstances) {
-				this._terminalService.unsplitInstance(instance);
-			}
+			this._terminalGroupService.moveGroupToEnd(sourceInstances[0]);
+			this._terminalService.setActiveInstance(sourceInstances[0]);
 			return;
 		}
 
+		let focused = false;
 		for (const instance of sourceInstances) {
-			this._terminalService.moveGroup(instance, targetInstance);
+			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {
 				this._terminalService.setActiveInstance(instance);
 				focused = true;
@@ -623,23 +716,65 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}
 
 		// Check if files were dragged from the tree explorer
-		let path: string | undefined;
-		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
-		if (resources) {
-			path = URI.parse(JSON.parse(resources)[0]).fsPath;
-		} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
-			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path).fsPath;
+		let resource: URI | undefined;
+		const rawResources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+		if (rawResources) {
+			resource = URI.parse(JSON.parse(rawResources)[0]);
 		}
 
-		if (!path) {
+		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.FILES);
+		if (!resource && rawCodeFiles) {
+			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
+		}
+
+		if (!resource && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+			// Check if the file was dragged from the filesystem
+			resource = URI.file(e.dataTransfer.files[0].path);
+		}
+
+		if (!resource) {
 			return;
 		}
 
 		this._terminalService.setActiveInstance(instance);
 
-		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
-		instance.sendText(preparedPath, false);
 		instance.focus();
+		await instance.sendPath(resource, false);
+	}
+}
+
+class TabDecorationsProvider extends Disposable implements IDecorationsProvider {
+	readonly label: string = localize('label', "Terminal");
+
+	private readonly _onDidChange = this._register(new Emitter<URI[]>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super();
+		this._register(this._terminalService.onAnyInstancePrimaryStatusChange(e => this._onDidChange.fire([e.resource])));
+	}
+
+	provideDecorations(resource: URI): IDecorationData | undefined {
+		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+
+		const instance = this._terminalService.getInstanceFromResource(resource);
+		if (!instance) {
+			return undefined;
+		}
+
+		const primaryStatus = instance?.statusList?.primary;
+		if (!primaryStatus?.icon) {
+			return undefined;
+		}
+
+		return {
+			color: getColorForSeverity(primaryStatus.severity),
+			letter: primaryStatus.icon,
+			tooltip: primaryStatus.tooltip
+		};
 	}
 }

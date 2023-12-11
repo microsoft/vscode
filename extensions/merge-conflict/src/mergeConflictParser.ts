@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import * as interfaces from './interfaces';
 import { DocumentMergeConflict } from './documentMergeConflict';
+import TelemetryReporter from '@vscode/extension-telemetry';
 
 const startHeaderMarker = '<<<<<<<';
 const commonAncestorsMarker = '|||||||';
@@ -20,7 +21,7 @@ interface IScanMergedConflict {
 
 export class MergeConflictParser {
 
-	static scanDocument(document: vscode.TextDocument): interfaces.IDocumentMergeConflict[] {
+	static scanDocument(document: vscode.TextDocument, telemetryReporter: TelemetryReporter): interfaces.IDocumentMergeConflict[] {
 
 		// Scan each line in the document, we already know there is at least a <<<<<<< and
 		// >>>>>> marker within the document, we need to group these into conflict ranges.
@@ -67,7 +68,7 @@ export class MergeConflictParser {
 
 				// Create a full descriptor from the lines that we matched. This can return
 				// null if the descriptor could not be completed.
-				let completeDescriptor = MergeConflictParser.scanItemTolMergeConflictDescriptor(document, currentConflict);
+				const completeDescriptor = MergeConflictParser.scanItemTolMergeConflictDescriptor(document, currentConflict);
 
 				if (completeDescriptor !== null) {
 					conflictDescriptors.push(completeDescriptor);
@@ -81,7 +82,7 @@ export class MergeConflictParser {
 
 		return conflictDescriptors
 			.filter(Boolean)
-			.map(descriptor => new DocumentMergeConflict(descriptor));
+			.map(descriptor => new DocumentMergeConflict(descriptor, telemetryReporter));
 	}
 
 	private static scanItemTolMergeConflictDescriptor(document: vscode.TextDocument, scanned: IScanMergedConflict): interfaces.IDocumentMergeConflictDescriptor | null {
@@ -90,7 +91,7 @@ export class MergeConflictParser {
 			return null;
 		}
 
-		let tokenAfterCurrentBlock: vscode.TextLine = scanned.commonAncestors[0] || scanned.splitter;
+		const tokenAfterCurrentBlock: vscode.TextLine = scanned.commonAncestors[0] || scanned.splitter;
 
 		// Assume that descriptor.current.header, descriptor.incoming.header and descriptor.splitter
 		// have valid ranges, fill in content and total ranges from these parts.
@@ -110,7 +111,7 @@ export class MergeConflictParser {
 				name: scanned.startHeader.text.substring(startHeaderMarker.length + 1)
 			},
 			commonAncestors: scanned.commonAncestors.map((currentTokenLine, index, commonAncestors) => {
-				let nextTokenLine = commonAncestors[index + 1] || scanned.splitter;
+				const nextTokenLine = commonAncestors[index + 1] || scanned.splitter;
 				return {
 					header: currentTokenLine.range,
 					decoratorContent: new vscode.Range(
@@ -146,7 +147,7 @@ export class MergeConflictParser {
 			return false;
 		}
 
-		let text = document.getText();
+		const text = document.getText();
 		return text.includes(startHeaderMarker) && text.includes(endFooterMarker);
 	}
 

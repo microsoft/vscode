@@ -3,18 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+
+export interface IDropdownWithPrimaryActionViewItemOptions {
+	actionRunner?: IActionRunner;
+	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+}
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _primaryAction: ActionViewItem;
@@ -31,15 +40,25 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		dropdownAction: IAction,
 		dropdownMenuActions: IAction[],
 		className: string,
-		private readonly _contextMenuProvider: IContextMenuProvider,
-		_keybindingService: IKeybindingService,
-		_notificationService: INotificationService
+		private readonly _contextMenuProvider: IContextMenuService,
+		private readonly _options: IDropdownWithPrimaryActionViewItemOptions | undefined,
+		@IKeybindingService _keybindingService: IKeybindingService,
+		@INotificationService _notificationService: INotificationService,
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IThemeService _themeService: IThemeService,
+		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, _keybindingService, _notificationService);
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
+		if (_options?.actionRunner) {
+			this._primaryAction.actionRunner = _options.actionRunner;
+		}
+
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
-			classNames: ['codicon', 'codicon-chevron-down']
+			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
+			actionRunner: this._options?.actionRunner,
+			keybindingProvider: this._options?.getKeyBinding
 		});
 	}
 
@@ -74,6 +93,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
+
+		this.updateEnabled();
 	}
 
 	override focus(fromRight?: boolean): void {
@@ -98,6 +119,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			this._primaryAction.element!.tabIndex = -1;
 			this._dropdown.setFocusable(false);
 		}
+	}
+
+	protected override updateEnabled(): void {
+		const disabled = !this.action.enabled;
+		this.element?.classList.toggle('disabled', disabled);
 	}
 
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {

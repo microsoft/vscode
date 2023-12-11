@@ -13,11 +13,12 @@ const path = require('path');
 module.exports = withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		extension: './src/browser/jsonServerMain.ts',
+		extension: './src/browser/jsonServerWorkerMain.ts',
 	},
 	output: {
 		filename: 'jsonServerMain.js',
 		path: path.join(__dirname, 'dist', 'browser'),
-		libraryTarget: 'var'
+		libraryTarget: 'var',
+		library: 'serverExportVar'
 	}
 });

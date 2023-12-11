@@ -7,7 +7,7 @@ import { RequestType, Connection } from 'vscode-languageserver';
 import { RuntimeEnvironment } from './cssServer';
 
 export namespace FsContentRequest {
-	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
+	export const type: RequestType<{ uri: string; encoding?: string }, string, any> = new RequestType('fs/content');
 }
 export namespace FsStatRequest {
 	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
@@ -65,7 +65,7 @@ export interface RequestService {
 
 export function getRequestService(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): RequestService {
 	const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
-	for (let protocol of handledSchemas) {
+	for (const protocol of handledSchemas) {
 		if (protocol === 'file') {
 			builtInHandlers[protocol] = runtime.file;
 		} else if (protocol === 'http' || protocol === 'https') {

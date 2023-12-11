@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import * as modes from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMainContext, MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from 'vs/workbench/api/common/extHost.protocol';
 import { Disposable } from 'vs/workbench/api/common/extHostTypes';
 import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-
-interface GetSessionsRequest {
-	scopes: string;
-	result: Promise<vscode.AuthenticationSession | undefined>;
-}
 
 interface ProviderWithMetadata {
 	label: string;
@@ -27,13 +21,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	private _providers: vscode.AuthenticationProviderInformation[] = [];
 
-	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
-	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
-
 	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
-	private _inFlightRequests = new Map<string, GetSessionsRequest[]>();
+	private _getSessionTaskSingler = new TaskSingler<vscode.AuthenticationSession | undefined>();
+	private _getSessionsTaskSingler = new TaskSingler<ReadonlyArray<vscode.AuthenticationSession>>();
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
@@ -44,47 +36,28 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return Promise.resolve();
 	}
 
-	get providers(): ReadonlyArray<vscode.AuthenticationProviderInformation> {
-		return Object.freeze(this._providers.slice());
-	}
-
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
 		const sortedScopes = [...scopes].sort().join(' ');
-		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.scopes === sortedScopes);
-
-		if (inFlightRequest) {
-			return inFlightRequest.result;
-		} else {
-			const session = this._getSession(requestingExtension, extensionId, providerId, scopes, options);
-			inFlightRequest = {
-				scopes: sortedScopes,
-				result: session
-			};
-
-			inFlightRequests.push(inFlightRequest);
-			this._inFlightRequests.set(extensionId, inFlightRequests);
-
-			try {
-				await session;
-			} finally {
-				const requestIndex = inFlightRequests.findIndex(request => request.scopes === sortedScopes);
-				if (requestIndex > -1) {
-					inFlightRequests.splice(requestIndex);
-					this._inFlightRequests.set(extensionId, inFlightRequests);
-				}
-			}
-
-			return session;
-		}
+		return await this._getSessionTaskSingler.getOrCreate(`${extensionId} ${providerId} ${sortedScopes}`, async () => {
+			await this._proxy.$ensureProvider(providerId);
+			const extensionName = requestingExtension.displayName || requestingExtension.name;
+			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+		});
 	}
 
-	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
-		await this._proxy.$ensureProvider(providerId);
-		const extensionName = requestingExtension.displayName || requestingExtension.name;
-		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
+	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		const sortedScopes = [...scopes].sort().join(' ');
+		return await this._getSessionsTaskSingler.getOrCreate(`${extensionId} ${sortedScopes}`, async () => {
+			await this._proxy.$ensureProvider(providerId);
+			const extensionName = requestingExtension.displayName || requestingExtension.name;
+			return this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
+		});
 	}
 
 	async removeSession(providerId: string, sessionId: string): Promise<void> {
@@ -133,10 +106,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$createSession(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
+	$createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderCreateSessionOptions): Promise<vscode.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.createSession(scopes));
+			return Promise.resolve(providerData.provider.createSession(scopes, options));
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
@@ -151,7 +124,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<modes.AuthenticationSession>> {
+	$getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
 			return Promise.resolve(providerData.provider.getSessions(scopes));
@@ -164,22 +137,19 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._onDidChangeSessions.fire({ provider: { id, label } });
 		return Promise.resolve();
 	}
+}
 
-	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]) {
-		added.forEach(provider => {
-			if (!this._providers.some(p => p.id === provider.id)) {
-				this._providers.push(provider);
-			}
-		});
+class TaskSingler<T> {
+	private _inFlightPromises = new Map<string, Promise<T>>();
+	getOrCreate(key: string, promiseFactory: () => Promise<T>) {
+		const inFlight = this._inFlightPromises.get(key);
+		if (inFlight) {
+			return inFlight;
+		}
 
-		removed.forEach(p => {
-			const index = this._providers.findIndex(provider => provider.id === p.id);
-			if (index > -1) {
-				this._providers.splice(index);
-			}
-		});
+		const promise = promiseFactory().finally(() => this._inFlightPromises.delete(key));
+		this._inFlightPromises.set(key, promise);
 
-		this._onDidChangeAuthenticationProviders.fire({ added, removed });
-		return Promise.resolve();
+		return promise;
 	}
 }

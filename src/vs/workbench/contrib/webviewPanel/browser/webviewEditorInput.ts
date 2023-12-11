@@ -5,10 +5,17 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { generateUuid } from 'vs/base/common/uuid';
+import { EditorInputCapabilities, GroupIdentifier, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
+
+export interface WebviewInputInitInfo {
+	readonly viewType: string;
+	readonly providedId: string | undefined;
+	readonly name: string;
+}
 
 export class WebviewInput extends EditorInput {
 
@@ -18,34 +25,45 @@ export class WebviewInput extends EditorInput {
 		return WebviewInput.typeId;
 	}
 
-	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	public override get editorId(): string {
+		return this.viewType;
 	}
+
+	public override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.AuxWindowUnsupported;
+	}
+
+	private readonly _resourceId = generateUuid();
 
 	private _name: string;
 	private _iconPath?: WebviewIcons;
 	private _group?: GroupIdentifier;
 
-	private _webview: WebviewOverlay;
+	private _webview: IOverlayWebview;
 
 	private _hasTransfered = false;
 
 	get resource() {
 		return URI.from({
 			scheme: Schemas.webviewPanel,
-			path: `webview-panel/webview-${this.id}`
+			path: `webview-panel/webview-${this._resourceId}`
 		});
 	}
 
+	public readonly viewType: string;
+	public readonly providedId: string | undefined;
+
 	constructor(
-		public readonly id: string,
-		public readonly viewType: string,
-		name: string,
-		webview: WebviewOverlay,
+		init: WebviewInputInitInfo,
+		webview: IOverlayWebview,
 		private readonly _iconManager: WebviewIconManager,
 	) {
 		super();
-		this._name = name;
+
+		this.viewType = init.viewType;
+		this.providedId = init.providedId;
+
+		this._name = init.name;
 		this._webview = webview;
 	}
 
@@ -72,10 +90,11 @@ export class WebviewInput extends EditorInput {
 
 	public setName(value: string): void {
 		this._name = value;
+		this.webview.setTitle(value);
 		this._onDidChangeLabel.fire();
 	}
 
-	public get webview(): WebviewOverlay {
+	public get webview(): IOverlayWebview {
 		return this._webview;
 	}
 
@@ -89,11 +108,11 @@ export class WebviewInput extends EditorInput {
 
 	public set iconPath(value: WebviewIcons | undefined) {
 		this._iconPath = value;
-		this._iconManager.setIcons(this.id, value);
+		this._iconManager.setIcons(this._resourceId, value);
 	}
 
-	public override matches(other: IEditorInput): boolean {
-		return other === this;
+	public override matches(other: EditorInput | IUntypedEditorInput): boolean {
+		return super.matches(other) || other === this;
 	}
 
 	public get group(): GroupIdentifier | undefined {

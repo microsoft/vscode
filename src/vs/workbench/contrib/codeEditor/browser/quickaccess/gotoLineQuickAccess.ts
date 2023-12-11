@@ -5,9 +5,9 @@
 
 import { localize } from 'vs/nls';
 import { IKeyMods, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccesExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,8 +16,9 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
+import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 
@@ -25,6 +26,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
@@ -42,7 +44,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange; keyMods: IKeyMods; forceSideBySide?: boolean; preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
 		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
@@ -54,7 +56,7 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 				preserveFocus: options.preserveFocus
 			};
 
-			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
+			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
 		}
 
 		// Otherwise let parent handle it
@@ -64,25 +66,20 @@ export class GotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProv
 	}
 }
 
-Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
-	ctor: GotoLineQuickAccessProvider,
-	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
-	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
-	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), needsEditor: true }]
-});
-
 class GotoLineAction extends Action2 {
+
+	static readonly ID = 'workbench.action.gotoLine';
 
 	constructor() {
 		super({
-			id: 'workbench.action.gotoLine',
+			id: GotoLineAction.ID,
 			title: { value: localize('gotoLine', "Go to Line/Column..."), original: 'Go to Line/Column...' },
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_G,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_G }
+				primary: KeyMod.CtrlCmd | KeyCode.KeyG,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyG }
 			}
 		});
 	}
@@ -93,3 +90,10 @@ class GotoLineAction extends Action2 {
 }
 
 registerAction2(GotoLineAction);
+
+Registry.as<IQuickAccessRegistry>(QuickaccesExtensions.Quickaccess).registerQuickAccessProvider({
+	ctor: GotoLineQuickAccessProvider,
+	prefix: AbstractGotoLineQuickAccessProvider.PREFIX,
+	placeholder: localize('gotoLineQuickAccessPlaceholder', "Type the line number and optional column to go to (e.g. 42:5 for line 42 and column 5)."),
+	helpEntries: [{ description: localize('gotoLineQuickAccess', "Go to Line/Column"), commandId: GotoLineAction.ID }]
+});

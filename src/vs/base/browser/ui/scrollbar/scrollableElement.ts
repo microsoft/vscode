@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scrollbars';
+import { getZoomFactor } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
+import { IMouseEvent, IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import { HorizontalScrollbar } from 'vs/base/browser/ui/scrollbar/horizontalScrollbar';
 import { ScrollableElementChangeOptions, ScrollableElementCreationOptions, ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
@@ -14,10 +14,10 @@ import { VerticalScrollbar } from 'vs/base/browser/ui/scrollbar/verticalScrollba
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { getZoomFactor } from 'vs/base/browser/browser';
+import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
+import 'vs/css!./media/scrollbars';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -84,6 +84,17 @@ export class MouseWheelClassifier {
 		} while (true);
 
 		return (score <= 0.5);
+	}
+
+	public acceptStandardWheelEvent(e: StandardWheelEvent): void {
+		const osZoomFactor = dom.getWindow(e.browserEvent).devicePixelRatio / getZoomFactor();
+		if (platform.isWindows || platform.isLinux) {
+			// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+			// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
+			this.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
+		} else {
+			this.accept(Date.now(), e.deltaX, e.deltaY);
+		}
 	}
 
 	public accept(timestamp: number, deltaX: number, deltaY: number): void {
@@ -175,6 +186,10 @@ export abstract class AbstractScrollableElement extends Widget {
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
 
+	public get options(): Readonly<ScrollableElementResolvedOptions> {
+		return this._options;
+	}
+
 	protected constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super();
 		element.style.overflow = 'hidden';
@@ -228,7 +243,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._setListeningToMouseWheel(this._options.handleMouseWheel);
 
 		this.onmouseover(this._listenOnDomNode, (e) => this._onMouseOver(e));
-		this.onnonbubblingmouseout(this._listenOnDomNode, (e) => this._onMouseOut(e));
+		this.onmouseleave(this._listenOnDomNode, (e) => this._onMouseLeave(e));
 
 		this._hideTimeout = this._register(new TimeoutTimer());
 		this._isDragging = false;
@@ -259,11 +274,11 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	/**
-	 * Delegate a mouse down event to the vertical scrollbar.
+	 * Delegate a pointer down event to the vertical scrollbar.
 	 * This is to help with clicking somewhere else and having the scrollbar react.
 	 */
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this._verticalScrollbar.delegateMouseDown(browserEvent);
+	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
+		this._verticalScrollbar.delegatePointerDown(browserEvent);
 	}
 
 	public getScrollDimensions(): IScrollDimensions {
@@ -288,8 +303,6 @@ export abstract class AbstractScrollableElement extends Widget {
 
 	/**
 	 * Update configuration options for the scrollbar.
-	 * Really this is Editor.IEditorScrollbarOptions, but base shouldn't
-	 * depend on Editor.
 	 */
 	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
 		if (typeof newOptions.handleMouseWheel !== 'undefined') {
@@ -305,9 +318,23 @@ export abstract class AbstractScrollableElement extends Widget {
 		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
 			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
 		}
-		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
-			this._horizontalScrollbar.updateScrollbarSize(newOptions.horizontalScrollbarSize);
+		if (typeof newOptions.horizontal !== 'undefined') {
+			this._options.horizontal = newOptions.horizontal;
 		}
+		if (typeof newOptions.vertical !== 'undefined') {
+			this._options.vertical = newOptions.vertical;
+		}
+		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
+			this._options.horizontalScrollbarSize = newOptions.horizontalScrollbarSize;
+		}
+		if (typeof newOptions.verticalScrollbarSize !== 'undefined') {
+			this._options.verticalScrollbarSize = newOptions.verticalScrollbarSize;
+		}
+		if (typeof newOptions.scrollByPage !== 'undefined') {
+			this._options.scrollByPage = newOptions.scrollByPage;
+		}
+		this._horizontalScrollbar.updateOptions(this._options);
+		this._verticalScrollbar.updateOptions(this._options);
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -318,7 +345,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = value;
 	}
 
-	public triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
 		this._onMouseWheel(new StandardWheelEvent(browserEvent));
 	}
 
@@ -346,17 +373,13 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	private _onMouseWheel(e: StandardWheelEvent): void {
+		if (e.browserEvent?.defaultPrevented) {
+			return;
+		}
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
-			const osZoomFactor = window.devicePixelRatio / getZoomFactor();
-			if (platform.isWindows || platform.isLinux) {
-				// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
-				// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
-				classifier.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
-			} else {
-				classifier.accept(Date.now(), e.deltaX, e.deltaY);
-			}
+			classifier.acceptStandardWheelEvent(e);
 		}
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
@@ -368,7 +391,13 @@ export abstract class AbstractScrollableElement extends Widget {
 			let deltaX = e.deltaX * this._options.mouseWheelScrollSensitivity;
 
 			if (this._options.scrollPredominantAxis) {
-				if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+				if (this._options.scrollYToX && deltaX + deltaY === 0) {
+					// when configured to map Y to X and we both see
+					// no dominant axis and X and Y are competing with
+					// identical values into opposite directions, we
+					// ignore the delta as we cannot make a decision then
+					deltaX = deltaY = 0;
+				} else if (Math.abs(deltaY) >= Math.abs(deltaX)) {
 					deltaX = 0;
 				} else {
 					deltaY = 0;
@@ -397,11 +426,15 @@ export abstract class AbstractScrollableElement extends Widget {
 
 			let desiredScrollPosition: INewScrollPosition = {};
 			if (deltaY) {
-				const desiredScrollTop = futureScrollPosition.scrollTop - SCROLL_WHEEL_SENSITIVITY * deltaY;
+				const deltaScrollTop = SCROLL_WHEEL_SENSITIVITY * deltaY;
+				// Here we convert values such as -0.3 to -1 or 0.3 to 1, otherwise low speed scrolling will never scroll
+				const desiredScrollTop = futureScrollPosition.scrollTop - (deltaScrollTop < 0 ? Math.floor(deltaScrollTop) : Math.ceil(deltaScrollTop));
 				this._verticalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollTop);
 			}
 			if (deltaX) {
-				const desiredScrollLeft = futureScrollPosition.scrollLeft - SCROLL_WHEEL_SENSITIVITY * deltaX;
+				const deltaScrollLeft = SCROLL_WHEEL_SENSITIVITY * deltaX;
+				// Here we convert values such as -0.3 to -1 or 0.3 to 1, otherwise low speed scrolling will never scroll
+				const desiredScrollLeft = futureScrollPosition.scrollLeft - (deltaScrollLeft < 0 ? Math.floor(deltaScrollLeft) : Math.ceil(deltaScrollLeft));
 				this._horizontalScrollbar.writeScrollPosition(desiredScrollPosition, desiredScrollLeft);
 			}
 
@@ -505,7 +538,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._hide();
 	}
 
-	private _onMouseOut(e: IMouseEvent): void {
+	private _onMouseLeave(e: IMouseEvent): void {
 		this._mouseIsOver = false;
 		this._hide();
 	}
@@ -540,7 +573,11 @@ export class ScrollableElement extends AbstractScrollableElement {
 	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
 		options = options || {};
 		options.mouseWheelSmoothScroll = false;
-		const scrollable = new Scrollable(0, (callback) => dom.scheduleAtNextAnimationFrame(callback));
+		const scrollable = new Scrollable({
+			forceIntegerValues: true,
+			smoothScrollDuration: 0,
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
+		});
 		super(element, options, scrollable);
 		this._register(scrollable);
 	}
@@ -574,22 +611,38 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 
 }
 
-export class DomScrollableElement extends ScrollableElement {
+export class DomScrollableElement extends AbstractScrollableElement {
 
 	private _element: HTMLElement;
 
 	constructor(element: HTMLElement, options: ScrollableElementCreationOptions) {
-		super(element, options);
+		options = options || {};
+		options.mouseWheelSmoothScroll = false;
+		const scrollable = new Scrollable({
+			forceIntegerValues: false, // See https://github.com/microsoft/vscode/issues/139877
+			smoothScrollDuration: 0,
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
+		});
+		super(element, options, scrollable);
+		this._register(scrollable);
 		this._element = element;
-		this.onScroll((e) => {
+		this._register(this.onScroll((e) => {
 			if (e.scrollTopChanged) {
 				this._element.scrollTop = e.scrollTop;
 			}
 			if (e.scrollLeftChanged) {
 				this._element.scrollLeft = e.scrollLeft;
 			}
-		});
+		}));
 		this.scanDomNode();
+	}
+
+	public setScrollPosition(update: INewScrollPosition): void {
+		this._scrollable.setScrollPositionNow(update);
+	}
+
+	public getScrollPosition(): IScrollPosition {
+		return this._scrollable.getCurrentScrollPosition();
 	}
 
 	public scanDomNode(): void {

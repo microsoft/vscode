@@ -1,0 +1,46 @@
+{
+	"original": {
+		"content": "import { assertIsDefined } from 'vs/base/common/types';\nimport { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';\nimport { MenuId, Action2, IAction2Options, IMenuServiceFooManager, ServiceManagerLocator } from 'vs/platform/actions/common/actions';\nimport { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';\nimport { parseLinkedText } from 'vs/base/common/linkedText';\nimport { IOpenerService } from 'vs/platform/opener/common/opener';\nISFM,SML,SFMKL\n\nconsole.log(MenuId, Action2, IAction2Options, IMenuServiceFooManager, ServiceManagerLocator);",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { assertIsDefined } from 'vs/base/common/types';\nimport { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';\nimport { MenuId, Action2, IAction2Options, ServiceManagerLocator } from 'vs/platform/actions/common/actions';\nimport { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';\nimport { parseLinkedText } from 'vs/base/common/linkedText';\nimport { IOpenerService } from 'vs/platform/opener/common/opener';\nSML\n\nconsole.log(MenuId, Action2, IAction2Options, ServiceManagerLocator);",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[3,4)",
+			"modifiedRange": "[3,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[3,44 -> 3,68]",
+					"modifiedRange": "[3,44 -> 3,44]"
+				}
+			]
+		},
+		{
+			"originalRange": "[7,8)",
+			"modifiedRange": "[7,8)",
+			"innerChanges": [
+				{
+					"originalRange": "[7,1 -> 7,6]",
+					"modifiedRange": "[7,1 -> 7,1]"
+				},
+				{
+					"originalRange": "[7,9 -> 7,15 EOL]",
+					"modifiedRange": "[7,4 -> 7,4 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[9,10)",
+			"modifiedRange": "[9,10)",
+			"innerChanges": [
+				{
+					"originalRange": "[9,47 -> 9,71]",
+					"modifiedRange": "[9,47 -> 9,47]"
+				}
+			]
+		}
+	]
+}

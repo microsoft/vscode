@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
 import * as assert from 'assert';
-import { commands, Uri } from 'vscode';
-import { join, normalize } from 'path';
 import * as fs from 'fs';
+import 'mocha';
+import { join, normalize } from 'path';
+import { commands, Uri } from 'vscode';
 
 function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixture: string, done: any) {
 	const testFixurePath = join(fixturesPath, fixture);
@@ -17,17 +17,17 @@ function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixtur
 			if (!fs.existsSync(resultsPath)) {
 				fs.mkdirSync(resultsPath);
 			}
-			let resultPath = join(resultsPath, fixture.replace('.', '_') + '.json');
+			const resultPath = join(resultsPath, fixture.replace('.', '_') + '.json');
 			if (fs.existsSync(resultPath)) {
-				let previousData = JSON.parse(fs.readFileSync(resultPath).toString());
+				const previousData = JSON.parse(fs.readFileSync(resultPath).toString());
 				try {
 					assert.deepStrictEqual(data, previousData);
 				} catch (e) {
 					fs.writeFileSync(resultPath, JSON.stringify(data, null, '\t'), { flag: 'w' });
 					if (Array.isArray(data) && Array.isArray(previousData) && data.length === previousData.length) {
 						for (let i = 0; i < data.length; i++) {
-							let d = data[i];
-							let p = previousData[i];
+							const d = data[i];
+							const p = previousData[i];
 							if (d.c !== p.c || hasThemeChange(d.r, p.r)) {
 								throw e;
 							}
@@ -48,8 +48,8 @@ function assertUnchangedTokens(fixturesPath: string, resultsPath: string, fixtur
 }
 
 function hasThemeChange(d: any, p: any): boolean {
-	let keys = Object.keys(d);
-	for (let key of keys) {
+	const keys = Object.keys(d);
+	for (const key of keys) {
 		if (d[key] !== p[key]) {
 			return true;
 		}

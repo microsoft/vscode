@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Emitter, Event } from 'vs/base/common/event';
+import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 
 export class UpdateChannel implements IServerChannel {
@@ -27,6 +27,7 @@ export class UpdateChannel implements IServerChannel {
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
+			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -68,7 +69,11 @@ export class UpdateChannelClient implements IUpdateService {
 		return this.channel.call('quitAndInstall');
 	}
 
-	isLatestVersion(): Promise<boolean> {
+	isLatestVersion(): Promise<boolean | undefined> {
 		return this.channel.call('isLatestVersion');
+	}
+
+	_applySpecificUpdate(packagePath: string): Promise<void> {
+		return this.channel.call('_applySpecificUpdate', packagePath);
 	}
 }

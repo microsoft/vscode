@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Database, Statement } from 'vscode-sqlite3';
-import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
+import type { Database, Statement } from '@vscode/sqlite3';
 
 interface IDatabaseConnection {
 	readonly db: Database;
@@ -144,6 +144,14 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
+	async optimize(): Promise<void> {
+		this.logger.trace(`[storage ${this.name}] vacuum()`);
+
+		const connection = await this.whenConnected;
+
+		return this.exec(connection, 'VACUUM');
+	}
+
 	async close(recovery?: () => Map<string, string>): Promise<void> {
 		this.logger.trace(`[storage ${this.name}] close()`);
 
@@ -274,7 +282,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			try {
 				await Promises.unlink(path);
 				try {
-					await Promises.rename(this.toBackupPath(path), path);
+					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
 				} catch (error) {
 					// ignore
 				}
@@ -299,11 +307,11 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
-			import('vscode-sqlite3').then(sqlite3 => {
+			import('@vscode/sqlite3').then(sqlite3 => {
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
+					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
 						if (error) {
-							return connection.db ? connection.db.close(() => reject(error)) : reject(error);
+							return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
 						}
 
 						// The following exec() statement serves two purposes:
@@ -360,7 +368,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		});
 	}
 
-	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string, value: string }[]> {
+	private all(connection: IDatabaseConnection, sql: string): Promise<{ key: string; value: string }[]> {
 		return new Promise((resolve, reject) => {
 			connection.db.all(sql, (error, rows) => {
 				if (error) {
@@ -420,7 +428,7 @@ class SQLiteStorageDatabaseLogger {
 	// to reduce lots of output, require an environment variable to enable tracing
 	// this helps when running with --verbose normally where the storage tracing
 	// might hide useful output to look at
-	static readonly VSCODE_TRACE_STORAGE = 'VSCODE_TRACE_STORAGE';
+	private static readonly VSCODE_TRACE_STORAGE = 'VSCODE_TRACE_STORAGE';
 
 	private readonly logTrace: ((msg: string) => void) | undefined;
 	private readonly logError: ((error: string | Error) => void) | undefined;
@@ -440,14 +448,10 @@ class SQLiteStorageDatabaseLogger {
 	}
 
 	trace(msg: string): void {
-		if (this.logTrace) {
-			this.logTrace(msg);
-		}
+		this.logTrace?.(msg);
 	}
 
 	error(error: string | Error): void {
-		if (this.logError) {
-			this.logError(error);
-		}
+		this.logError?.(error);
 	}
 }

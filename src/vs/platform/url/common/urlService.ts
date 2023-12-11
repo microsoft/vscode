@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
-import { URI, UriComponents } from 'vs/base/common/uri';
 import { first } from 'vs/base/common/async';
-import { toDisposable, IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IOpenURLOptions, IURLHandler, IURLService } from 'vs/platform/url/common/url';
 
 export abstract class AbstractURLService extends Disposable implements IURLService {
 

@@ -11,14 +11,11 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { withNullAsUndefined } from 'vs/base/common/types';
-import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
-import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ADD_CONFIGURATION_ID, DEBUG_QUICK_ACCESS_PREFIX } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { debugConfigure, debugRemoveConfig } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
-
-	static PREFIX = 'debug ';
 
 	constructor(
 		@IDebugService private readonly debugService: IDebugService,
@@ -26,7 +23,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
-		super(StartDebugQuickAccessProvider.PREFIX, {
+		super(DEBUG_QUICK_ACCESS_PREFIX, {
 			noResultsPick: {
 				label: localize('noDebugResults', "No matching launch configurations")
 			}
@@ -35,13 +32,17 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 
 	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
+		if (!this.debugService.getAdapterManager().hasEnabledDebuggers()) {
+			return [];
+		}
+
 		picks.push({ type: 'separator', label: 'launch.json' });
 
 		const configManager = this.debugService.getConfigurationManager();
 
 		// Entries: configs
 		let lastGroup: string | undefined;
-		for (let config of configManager.getAllConfigurations()) {
+		for (const config of configManager.getAllConfigurations()) {
 			const highlights = matchesFuzzy(filter, config.name, true);
 			if (highlights) {
 
@@ -61,14 +62,14 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 						tooltip: localize('customizeLaunchConfig', "Configure Launch Configuration")
 					}],
 					trigger: () => {
-						config.launch.openConfigFile(false);
+						config.launch.openConfigFile({ preserveFocus: false });
 
 						return TriggerAction.CLOSE_PICKER;
 					},
 					accept: async () => {
 						await configManager.selectConfiguration(config.launch, config.name);
 						try {
-							await this.debugService.startDebugging(config.launch);
+							await this.debugService.startDebugging(config.launch, undefined, { startedByUser: true });
 						} catch (error) {
 							this.notificationService.error(error);
 						}
@@ -94,12 +95,20 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				picks.push({
 					label: name,
 					highlights: { label: highlights },
+					buttons: [{
+						iconClass: ThemeIcon.asClassName(debugRemoveConfig),
+						tooltip: localize('removeLaunchConfig', "Remove Launch Configuration")
+					}],
+					trigger: () => {
+						configManager.removeRecentDynamicConfigurations(name, type);
+						return TriggerAction.CLOSE_PICKER;
+					},
 					accept: async () => {
 						await configManager.selectConfiguration(undefined, name, undefined, { type });
 						try {
 							const { launch, getConfig } = configManager.selectedConfiguration;
 							const config = await getConfig();
-							await this.debugService.startDebugging(launch, config);
+							await this.debugService.startDebugging(launch, config, { startedByUser: true });
 						} catch (error) {
 							this.notificationService.error(error);
 						}
@@ -117,7 +126,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 					if (pick) {
 						// Use the type of the provider, not of the config since config sometimes have subtypes (for example "node-terminal")
 						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
-						this.debugService.startDebugging(pick.launch, pick.config);
+						this.debugService.startDebugging(pick.launch, pick.config, { startedByUser: true });
 					}
 				}
 			});
@@ -141,7 +150,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			picks.push({
 				label,
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
-				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
+				highlights: { label: matchesFuzzy(filter, label, true) ?? undefined },
 				accept: () => this.commandService.executeCommand(ADD_CONFIGURATION_ID, launch.uri.toString())
 			});
 		}

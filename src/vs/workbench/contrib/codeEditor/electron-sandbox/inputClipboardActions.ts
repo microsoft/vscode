@@ -6,6 +6,7 @@
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as platform from 'vs/base/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 if (platform.isMacintosh) {
 
@@ -15,21 +16,21 @@ if (platform.isMacintosh) {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'execCut',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyX,
 		handler: bindExecuteCommand('cut'),
 		weight: 0,
 		when: undefined,
 	});
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'execCopy',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyC,
 		handler: bindExecuteCommand('copy'),
 		weight: 0,
 		when: undefined,
 	});
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'execPaste',
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+		primary: KeyMod.CtrlCmd | KeyCode.KeyV,
 		handler: bindExecuteCommand('paste'),
 		weight: 0,
 		when: undefined,
@@ -37,7 +38,7 @@ if (platform.isMacintosh) {
 
 	function bindExecuteCommand(command: 'cut' | 'copy' | 'paste') {
 		return () => {
-			document.execCommand(command);
+			getActiveWindow().document.execCommand(command);
 		};
 	}
 }

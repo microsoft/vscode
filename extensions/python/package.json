@@ -8,11 +8,6 @@
   "engines": {
     "vscode": "*"
   },
-  "extensionKind": [
-    "ui",
-    "workspace",
-    "web"
-  ],
   "contributes": {
     "languages": [
       {
@@ -25,14 +20,14 @@
           ".gyp",
           ".gypi",
           ".pyi",
-          ".ipy"
+          ".ipy",
+          ".pyt"
         ],
         "aliases": [
           "Python",
           "py"
         ],
         "filenames": [
-          "Snakefile",
           "SConstruct",
           "SConscript"
         ],
@@ -50,7 +45,12 @@
         "scopeName": "source.regexp.python",
         "path": "./syntaxes/MagicRegExp.tmLanguage.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[python]": {
+        "diffEditor.ignoreTrimWhitespace": false
+      }
+    }
   },
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"

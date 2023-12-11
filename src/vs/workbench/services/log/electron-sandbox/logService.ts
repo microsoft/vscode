@@ -3,34 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogService, ConsoleLogger, MultiplexLogService, ILogger, LogLevel } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogger } from 'vs/platform/log/common/log';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { LogLevelChannelClient, FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
+import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
+import { LogService } from 'vs/platform/log/common/logService';
 
 export class NativeLogService extends LogService {
 
-	constructor(name: string, logLevel: LogLevel, loggerService: LoggerChannelClient, loggerClient: LogLevelChannelClient, environmentService: INativeWorkbenchEnvironmentService) {
+	constructor(loggerService: LoggerChannelClient, environmentService: INativeWorkbenchEnvironmentService) {
 
 		const disposables = new DisposableStore();
 
-		// Extension development test CLI: forward everything to main side
-		const loggers: ILogger[] = [];
+		const fileLogger = disposables.add(loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") }));
+
+		let consoleLogger: ILogger;
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-			loggers.push(loggerService.createConsoleMainLogger());
+			// Extension development test CLI: forward everything to main side
+			consoleLogger = loggerService.createConsoleMainLogger();
+		} else {
+			// Normal mode: Log to console
+			consoleLogger = new ConsoleLogger(fileLogger.getLevel());
 		}
 
-		// Normal logger: spdylog and console
-		else {
-			loggers.push(
-				disposables.add(new ConsoleLogger(logLevel)),
-				disposables.add(loggerService.createLogger(environmentService.logFile, { name }))
-			);
-		}
-
-		const multiplexLogger = disposables.add(new MultiplexLogService(loggers));
-		const followerLogger = disposables.add(new FollowerLogService(loggerClient, multiplexLogger));
-		super(followerLogger);
+		super(fileLogger, [consoleLogger]);
 
 		this._register(disposables);
 	}

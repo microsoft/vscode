@@ -7,9 +7,9 @@ import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IOverlayWidget, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
-import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 
@@ -92,16 +92,19 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._domNode.appendChild(domNode);
 
 		this.setShouldRender();
+		this._updateMaxMinWidth();
 	}
 
 	public setWidgetPosition(widget: IOverlayWidget, preference: OverlayWidgetPositionPreference | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
 		if (widgetData.preference === preference) {
+			this._updateMaxMinWidth();
 			return false;
 		}
 
 		widgetData.preference = preference;
 		this.setShouldRender();
+		this._updateMaxMinWidth();
 
 		return true;
 	}
@@ -115,14 +118,29 @@ export class ViewOverlayWidgets extends ViewPart {
 
 			domNode.parentNode!.removeChild(domNode);
 			this.setShouldRender();
+			this._updateMaxMinWidth();
 		}
+	}
+
+	private _updateMaxMinWidth(): void {
+		let maxMinWidth = 0;
+		const keys = Object.keys(this._widgets);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			const widgetId = keys[i];
+			const widget = this._widgets[widgetId];
+			const widgetMinWidthInPx = widget.widget.getMinContentWidthInPx?.();
+			if (typeof widgetMinWidthInPx !== 'undefined') {
+				maxMinWidth = Math.max(maxMinWidth, widgetMinWidthInPx);
+			}
+		}
+		this._context.viewLayout.setOverlayWidgetsMinWidth(maxMinWidth);
 	}
 
 	private _renderWidget(widgetData: IWidgetData): void {
 		const domNode = widgetData.domNode;
 
 		if (widgetData.preference === null) {
-			domNode.unsetTop();
+			domNode.setTop('');
 			return;
 		}
 

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Cache } from 'vs/base/common/cache';
 import { timeout } from 'vs/base/common/async';
+import { Cache } from 'vs/base/common/cache';
 
 suite('Cache', () => {
 

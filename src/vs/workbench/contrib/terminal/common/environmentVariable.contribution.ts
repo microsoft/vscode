@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
-registerSingleton(IEnvironmentVariableService, EnvironmentVariableService, true);
+registerSingleton(IEnvironmentVariableService, EnvironmentVariableService, InstantiationType.Delayed);

@@ -3,30 +3,49 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, Uri } from 'vscode';
+import { Disposable, ExtensionContext, Uri, l10n } from 'vscode';
 import { LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor } from '../htmlClient';
+import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
 declare const Worker: {
 	new(stringUrl: string): any;
 };
 declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string; };
+	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
 };
 
+let client: AsyncDisposable | undefined;
+
 // this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+export async function activate(context: ExtensionContext) {
 	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/htmlServerMain.js');
 	try {
 		const worker = new Worker(serverMain.toString());
+		worker.postMessage({ i10lLocation: l10n.uri?.toString(false) ?? '' });
+
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
 			return new LanguageClient(id, name, clientOptions, worker);
 		};
 
-		startClient(context, newLanguageClient, { TextDecoder });
+		const timer = {
+			setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
+				const handle = setTimeout(callback, ms, ...args);
+				return { dispose: () => clearTimeout(handle) };
+			}
+		};
+
+		client = await startClient(context, newLanguageClient, { TextDecoder, timer });
 
 	} catch (e) {
 		console.log(e);
 	}
 }
+
+export async function deactivate(): Promise<void> {
+	if (client) {
+		await client.dispose();
+		client = undefined;
+	}
+}
+

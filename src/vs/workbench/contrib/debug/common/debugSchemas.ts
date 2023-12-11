@@ -5,7 +5,7 @@
 
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import * as nls from 'vs/nls';
-import { IDebuggerContribution, ICompound } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, ICompound, IBreakpointContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { inputsSchema } from 'vs/workbench/services/configurationResolver/common/configurationResolverSchema';
@@ -13,7 +13,7 @@ import { inputsSchema } from 'vs/workbench/services/configurationResolver/common
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDebuggerContribution[]>({
 	extensionPoint: 'debuggers',
-	defaultExtensionKind: 'workspace',
+	defaultExtensionKind: ['workspace'],
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.debuggers', 'Contributes debug adapters.'),
 		type: 'array',
@@ -67,6 +67,21 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					description: nls.localize('vscode.extension.contributes.debuggers.configurationAttributes', "JSON schema configurations for validating \'launch.json\'."),
 					type: 'object'
 				},
+				when: {
+					description: nls.localize('vscode.extension.contributes.debuggers.when', "Condition which must be true to enable this type of debugger. Consider using 'shellExecutionSupported', 'virtualWorkspace', 'resourceScheme' or an extension-defined context key as appropriate for this."),
+					type: 'string',
+					default: ''
+				},
+				hiddenWhen: {
+					description: nls.localize('vscode.extension.contributes.debuggers.hiddenWhen', "When this condition is true, this debugger type is hidden from the debugger list, but is still enabled."),
+					type: 'string',
+					default: ''
+				},
+				deprecated: {
+					description: nls.localize('vscode.extension.contributes.debuggers.deprecated', "Optional message to mark this debug type as being deprecated."),
+					type: 'string',
+					default: ''
+				},
 				windows: {
 					description: nls.localize('vscode.extension.contributes.debuggers.windows', "Windows specific settings."),
 					type: 'object',
@@ -96,18 +111,24 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 							type: 'string'
 						}
 					}
+				},
+				strings: {
+					description: nls.localize('vscode.extension.contributes.debuggers.strings', "UI strings contributed by this debug adapter."),
+					type: 'object',
+					properties: {
+						unverifiedBreakpoints: {
+							description: nls.localize('vscode.extension.contributes.debuggers.strings.unverifiedBreakpoints', "When there are unverified breakpoints in a language supported by this debug adapter, this message will appear on the breakpoint hover and in the breakpoints view. Markdown and command links are supported."),
+							type: 'string'
+						}
+					}
 				}
 			}
 		}
 	}
 });
 
-export interface IRawBreakpointContribution {
-	language: string;
-}
-
 // breakpoints extension point #9037
-export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawBreakpointContribution[]>({
+export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IBreakpointContribution[]>({
 	extensionPoint: 'breakpoints',
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.breakpoints', 'Contributes breakpoints.'),
@@ -122,6 +143,11 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 					description: nls.localize('vscode.extension.contributes.breakpoints.language', "Allow breakpoints for this language."),
 					type: 'string'
 				},
+				when: {
+					description: nls.localize('vscode.extension.contributes.breakpoints.when', "Condition which must be true to enable breakpoints in this language. Consider matching this to the debugger when clause as appropriate."),
+					type: 'string',
+					default: ''
+				}
 			}
 		}
 	}

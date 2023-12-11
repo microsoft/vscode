@@ -5,7 +5,7 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { Selection, CompletionList, CancellationTokenSource, Position, CompletionTriggerKind } from 'vscode';
+import { Selection, CompletionList, CancellationTokenSource, Position, CompletionTriggerKind, CompletionContext } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation } from '../abbreviationActions';
 import { DefaultCompletionItemProvider } from '../defaultCompletionProvider';
@@ -51,6 +51,10 @@ const scssContents = `
 }
 `;
 
+const invokeCompletionContext: CompletionContext = {
+	triggerKind: CompletionTriggerKind.Invoke,
+	triggerCharacter: undefined,
+};
 
 suite('Tests for Expand Abbreviations (CSS)', () => {
 	teardown(closeAllEditors);
@@ -80,7 +84,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}
@@ -103,7 +107,7 @@ nav#
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}
@@ -125,7 +129,7 @@ nav#
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}
@@ -142,7 +146,7 @@ nav#
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(0, 30), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(0, 30), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}
@@ -161,8 +165,8 @@ nav#
 
 		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, invokeCompletionContext);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, invokeCompletionContext);
 
 			if (!completionPromise1 || !completionPromise2) {
 				assert.strictEqual(1, 2, `Completion promise wasnt returned`);
@@ -179,7 +183,9 @@ nav#
 				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1, '#121212');
 				callBack(result2, '!important');
 				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
@@ -203,7 +209,7 @@ nav#
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(3, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(3, 10), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}
@@ -222,8 +228,8 @@ nav#
 
 		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(3, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 12), cancelSrc.token, invokeCompletionContext);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(3, 14), cancelSrc.token, invokeCompletionContext);
 
 			if (!completionPromise1 || !completionPromise2) {
 				assert.strictEqual(1, 2, `Completion promise wasnt returned`);
@@ -240,7 +246,9 @@ nav#
 				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1, '#121212');
 				callBack(result2, '!important');
 				editor.selections = [new Selection(3, 12, 3, 12), new Selection(3, 14, 3, 14)];
@@ -263,7 +271,7 @@ nav#
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}
@@ -281,8 +289,8 @@ nav#
 
 		return withRandomFileEditor(testContent, 'css', (editor, _) => {
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(2, 12), cancelSrc.token, invokeCompletionContext);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(2, 14), cancelSrc.token, invokeCompletionContext);
 
 			if (!completionPromise1 || !completionPromise2) {
 				assert.strictEqual(1, 2, `Completion promise wasnt returned`);
@@ -299,7 +307,9 @@ nav#
 				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1, '#121212');
 				callBack(result2, '!important');
 				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
@@ -322,7 +332,7 @@ nav#
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), testContent);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 2), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 2), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion of hex color at property name`);
 				}
@@ -339,8 +349,8 @@ nav#
 		return withRandomFileEditor(cssContents, 'css', (editor, _) => {
 			editor.selection = new Selection(3, 1, 3, 6);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 6), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 6), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 6), cancelSrc.token, invokeCompletionContext);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 6), cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise1 || !completionPromise2) {
 				assert.strictEqual(1, 2, `Problem with expanding pos:f`);
 				return Promise.resolve();
@@ -357,7 +367,9 @@ nav#
 				assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1);
 				callBack(result2);
 				return Promise.resolve();
@@ -385,10 +397,10 @@ nav#
 		return withRandomFileEditor(scssContents, 'scss', (editor, _) => {
 			editor.selection = new Selection(3, 4, 3, 4);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 4), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 5), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise3 = completionProvider.provideCompletionItems(editor.document, new Position(11, 4), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
-			const completionPromise4 = completionProvider.provideCompletionItems(editor.document, new Position(14, 5), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 4), cancelSrc.token, invokeCompletionContext);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 5), cancelSrc.token, invokeCompletionContext);
+			const completionPromise3 = completionProvider.provideCompletionItems(editor.document, new Position(11, 4), cancelSrc.token, invokeCompletionContext);
+			const completionPromise4 = completionProvider.provideCompletionItems(editor.document, new Position(14, 5), cancelSrc.token, invokeCompletionContext);
 			if (!completionPromise1) {
 				assert.strictEqual(1, 2, `Problem with expanding padding abbreviations at line 3 col 4`);
 			}
@@ -417,7 +429,11 @@ nav#
 				assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2, completionPromise3, completionPromise4]).then(([result1, result2, result3, result4]) => {
+			return Promise.all([completionPromise1, completionPromise2, completionPromise3, completionPromise4]).then(([result1, result2, result3, result4]) => {
+				assert.ok(result1);
+				assert.ok(result2);
+				assert.ok(result3);
+				assert.ok(result4);
 				callBack(result1, 'p10', 'padding: 10px;');
 				callBack(result2, 'p20', 'padding: 20px;');
 				callBack(result3, 'p30', 'padding: 30px;');
@@ -465,13 +481,13 @@ m10
 		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, _) => {
 			editor.selection = new Selection(1, 3, 1, 3); // outside rule
 			const cancelSrc = new CancellationTokenSource();
-			let completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			let completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (completionPromise) {
 				assert.strictEqual(1, 2, `m10 gets expanded in invalid location (outside rule)`);
 			}
 
 			editor.selection = new Selection(5, 15, 5, 15); // in the value part of property value
-			completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+			completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token, invokeCompletionContext);
 			if (completionPromise) {
 				return completionPromise.then((completionList: CompletionList | undefined) => {
 					if (completionList && completionList.items && completionList.items.length > 0) {
@@ -490,7 +506,7 @@ m10
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.strictEqual(editor.document.getText(), scssContents);
 				const cancelSrc = new CancellationTokenSource();
-				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token, invokeCompletionContext);
 				if (completionPromise) {
 					assert.strictEqual(1, 2, `Invalid completion at property value`);
 				}

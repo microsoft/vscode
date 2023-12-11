@@ -1,19 +1,20 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
+exports.buildWebNodePaths = exports.createExternalLoaderConfig = exports.acquireWebNodePaths = exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.ensureDir = exports.rreddir = exports.rimraf = exports.rewriteSourceMappingURL = exports.appendOwnPathSourceURL = exports.$if = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.debounce = exports.incremental = void 0;
 const es = require("event-stream");
-const debounce = require("debounce");
+const _debounce = require("debounce");
 const _filter = require("gulp-filter");
 const rename = require("gulp-rename");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
-const git = require("./git");
 const VinylFile = require("vinyl");
+const url_1 = require("url");
+const ternaryStream = require("ternary-stream");
 const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
@@ -36,7 +37,7 @@ function incremental(streamProvider, initial, supportsCancellation) {
     if (initial) {
         run(initial, false);
     }
-    const eventuallyRun = debounce(() => {
+    const eventuallyRun = _debounce(() => {
         const paths = Object.keys(buffer);
         if (paths.length === 0) {
             return;
@@ -54,6 +55,35 @@ function incremental(streamProvider, initial, supportsCancellation) {
     return es.duplex(input, output);
 }
 exports.incremental = incremental;
+function debounce(task, duration = 500) {
+    const input = es.through();
+    const output = es.through();
+    let state = 'idle';
+    const run = () => {
+        state = 'running';
+        task()
+            .pipe(es.through(undefined, () => {
+            const shouldRunAgain = state === 'stale';
+            state = 'idle';
+            if (shouldRunAgain) {
+                eventuallyRun();
+            }
+        }))
+            .pipe(output);
+    };
+    run();
+    const eventuallyRun = _debounce(() => run(), duration);
+    input.on('data', () => {
+        if (state === 'idle') {
+            eventuallyRun();
+        }
+        else {
+            state = 'stale';
+        }
+    });
+    return es.duplex(input, output);
+}
+exports.debounce = debounce;
 function fixWin32DirectoryPermissions() {
     if (!/win32/.test(process.platform)) {
         return es.through();
@@ -138,7 +168,7 @@ function loadSourcemaps() {
                 version: '3',
                 names: [],
                 mappings: '',
-                sources: [f.relative],
+                sources: [f.relative.replace(/\\/g, '/')],
                 sourcesContent: [contents]
             };
             cb(undefined, f);
@@ -167,6 +197,28 @@ function stripSourceMappingURL() {
     return es.duplex(input, output);
 }
 exports.stripSourceMappingURL = stripSourceMappingURL;
+/** Splits items in the stream based on the predicate, sending them to onTrue if true, or onFalse otherwise */
+function $if(test, onTrue, onFalse = es.through()) {
+    if (typeof test === 'boolean') {
+        return test ? onTrue : onFalse;
+    }
+    return ternaryStream(test, onTrue, onFalse);
+}
+exports.$if = $if;
+/** Operator that appends the js files' original path a sourceURL, so debug locations map */
+function appendOwnPathSourceURL() {
+    const input = es.through();
+    const output = input
+        .pipe(es.mapSync(f => {
+        if (!(f.contents instanceof Buffer)) {
+            throw new Error(`contents of ${f.path} are not a buffer`);
+        }
+        f.contents = Buffer.concat([f.contents, Buffer.from(`\n//# sourceURL=${(0, url_1.pathToFileURL)(f.path)}`)]);
+        return f;
+    }));
+    return es.duplex(input, output);
+}
+exports.appendOwnPathSourceURL = appendOwnPathSourceURL;
 function rewriteSourceMappingURL(sourceMappingURLBase) {
     const input = es.through();
     const output = input
@@ -211,7 +263,7 @@ function _rreaddir(dirPath, prepend, result) {
     }
 }
 function rreddir(dirPath) {
-    let result = [];
+    const result = [];
     _rreaddir(dirPath, '', result);
     return result;
 }
@@ -224,14 +276,6 @@ function ensureDir(dirPath) {
     fs.mkdirSync(dirPath);
 }
 exports.ensureDir = ensureDir;
-function getVersion(root) {
-    let version = process.env['BUILD_SOURCEVERSION'];
-    if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
-        version = git.getVersion(root);
-    }
-    return version;
-}
-exports.getVersion = getVersion;
 function rebase(count) {
     return rename(f => {
         const parts = f.dirname ? f.dirname.split(/[\/\\]/) : [];
@@ -270,7 +314,96 @@ function streamToPromise(stream) {
 exports.streamToPromise = streamToPromise;
 function getElectronVersion() {
     const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-    const target = /^target "(.*)"$/m.exec(yarnrc)[1];
-    return target;
+    const electronVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
+    const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
+    return { electronVersion, msBuildId };
 }
 exports.getElectronVersion = getElectronVersion;
+function acquireWebNodePaths() {
+    const root = path.join(__dirname, '..', '..');
+    const webPackageJSON = path.join(root, '/remote/web', 'package.json');
+    const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
+    const distroWebPackageJson = path.join(root, '.build/distro/npm/remote/web/package.json');
+    if (fs.existsSync(distroWebPackageJson)) {
+        const distroWebPackages = JSON.parse(fs.readFileSync(distroWebPackageJson, 'utf8')).dependencies;
+        Object.assign(webPackages, distroWebPackages);
+    }
+    const nodePaths = {};
+    for (const key of Object.keys(webPackages)) {
+        const packageJSON = path.join(root, 'node_modules', key, 'package.json');
+        const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
+        // Only cases where the browser is a string are handled
+        let entryPoint = typeof packageData.browser === 'string' ? packageData.browser : packageData.main;
+        // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
+        if (!entryPoint) {
+            // TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint
+            if (key !== 'jschardet') {
+                console.warn(`No entry point for ${key} assuming dist/${key}.min.js`);
+            }
+            entryPoint = `dist/${key}.min.js`;
+        }
+        // Remove any starting path information so it's all relative info
+        if (entryPoint.startsWith('./')) {
+            entryPoint = entryPoint.substring(2);
+        }
+        else if (entryPoint.startsWith('/')) {
+            entryPoint = entryPoint.substring(1);
+        }
+        // Search for a minified entrypoint as well
+        if (/(?<!\.min)\.js$/i.test(entryPoint)) {
+            const minEntryPoint = entryPoint.replace(/\.js$/i, '.min.js');
+            if (fs.existsSync(path.join(root, 'node_modules', key, minEntryPoint))) {
+                entryPoint = minEntryPoint;
+            }
+        }
+        nodePaths[key] = entryPoint;
+    }
+    // @TODO lramos15 can we make this dynamic like the rest of the node paths
+    // Add these paths as well for 1DS SDK dependencies.
+    // Not sure why given the 1DS entrypoint then requires these modules
+    // they are not fetched from the right location and instead are fetched from out/
+    nodePaths['@microsoft/dynamicproto-js'] = 'lib/dist/umd/dynamicproto-js.min.js';
+    nodePaths['@microsoft/applicationinsights-shims'] = 'dist/umd/applicationinsights-shims.min.js';
+    nodePaths['@microsoft/applicationinsights-core-js'] = 'browser/applicationinsights-core-js.min.js';
+    return nodePaths;
+}
+exports.acquireWebNodePaths = acquireWebNodePaths;
+function createExternalLoaderConfig(webEndpoint, commit, quality) {
+    if (!webEndpoint || !commit || !quality) {
+        return undefined;
+    }
+    webEndpoint = webEndpoint + `/${quality}/${commit}`;
+    const nodePaths = acquireWebNodePaths();
+    Object.keys(nodePaths).map(function (key, _) {
+        nodePaths[key] = `../node_modules/${key}/${nodePaths[key]}`;
+    });
+    const externalLoaderConfig = {
+        baseUrl: `${webEndpoint}/out`,
+        recordStats: true,
+        paths: nodePaths
+    };
+    return externalLoaderConfig;
+}
+exports.createExternalLoaderConfig = createExternalLoaderConfig;
+function buildWebNodePaths(outDir) {
+    const result = () => new Promise((resolve, _) => {
+        const root = path.join(__dirname, '..', '..');
+        const nodePaths = acquireWebNodePaths();
+        // Now we write the node paths to out/vs
+        const outDirectory = path.join(root, outDir, 'vs');
+        fs.mkdirSync(outDirectory, { recursive: true });
+        const headerWithGeneratedFileWarning = `/*---------------------------------------------------------------------------------------------
+	 *  Copyright (c) Microsoft Corporation. All rights reserved.
+	 *  Licensed under the MIT License. See License.txt in the project root for license information.
+	 *--------------------------------------------------------------------------------------------*/
+
+	// This file is generated by build/npm/postinstall.js. Do not edit.`;
+        const fileContents = `${headerWithGeneratedFileWarning}\nself.webPackagePaths = ${JSON.stringify(nodePaths, null, 2)};`;
+        fs.writeFileSync(path.join(outDirectory, 'webPackagePaths.js'), fileContents, 'utf8');
+        resolve();
+    });
+    result.taskName = 'build-web-node-paths';
+    return result;
+}
+exports.buildWebNodePaths = buildWebNodePaths;
+//# sourceMappingURL=util.js.map

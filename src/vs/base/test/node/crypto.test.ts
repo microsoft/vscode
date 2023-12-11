@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { checksum } from 'vs/base/node/crypto';
-import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
+import { checksum } from 'vs/base/node/crypto';
 import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 

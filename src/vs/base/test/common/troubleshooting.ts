@@ -10,13 +10,24 @@ class DisposableTracker implements IDisposableTracker {
 	trackDisposable(x: IDisposable): void {
 		this.allDisposables.push([x, new Error().stack!]);
 	}
-	markTracked(x: IDisposable): void {
+	setParent(child: IDisposable, parent: IDisposable): void {
+		for (let idx = 0; idx < this.allDisposables.length; idx++) {
+			if (this.allDisposables[idx][0] === child) {
+				this.allDisposables.splice(idx, 1);
+				return;
+			}
+		}
+	}
+	markAsDisposed(x: IDisposable): void {
 		for (let idx = 0; idx < this.allDisposables.length; idx++) {
 			if (this.allDisposables[idx][0] === x) {
 				this.allDisposables.splice(idx, 1);
 				return;
 			}
 		}
+	}
+	markAsSingleton(disposable: IDisposable): void {
+		// noop
 	}
 }
 
@@ -36,13 +47,9 @@ export function endTrackingDisposables(): void {
 }
 
 export function beginLoggingFS(withStacks: boolean = false): void {
-	if ((<any>self).beginLoggingFS) {
-		(<any>self).beginLoggingFS(withStacks);
-	}
+	(<any>self).beginLoggingFS?.(withStacks);
 }
 
 export function endLoggingFS(): void {
-	if ((<any>self).endLoggingFS) {
-		(<any>self).endLoggingFS();
-	}
+	(<any>self).endLoggingFS?.();
 }

@@ -3,41 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter } from 'vs/base/common/event';
-import { TestItemImpl } from 'vs/workbench/api/common/extHostTypes';
+import { ExtHostTestItemEvent, InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import * as vscode from 'vscode';
 
-export const enum ExtHostTestItemEventType {
-	NewChild,
-	Disposed,
-	Invalidated,
-	SetProp,
-}
-
-export type ExtHostTestItemEvent =
-	| [evt: ExtHostTestItemEventType.NewChild, item: TestItemImpl]
-	| [evt: ExtHostTestItemEventType.Disposed]
-	| [evt: ExtHostTestItemEventType.Invalidated]
-	| [evt: ExtHostTestItemEventType.SetProp, key: keyof vscode.TestItem<never>, value: any];
-
 export interface IExtHostTestItemApi {
-	children: Map<string, TestItemImpl>;
-	parent?: TestItemImpl;
-	bus: Emitter<ExtHostTestItemEvent>;
+	controllerId: string;
+	parent?: vscode.TestItem;
+	listener?: (evt: ExtHostTestItemEvent) => void;
 }
 
-const eventPrivateApis = new WeakMap<TestItemImpl, IExtHostTestItemApi>();
+const eventPrivateApis = new WeakMap<vscode.TestItem, IExtHostTestItemApi>();
+
+export const createPrivateApiFor = (impl: vscode.TestItem, controllerId: string) => {
+	const api: IExtHostTestItemApi = { controllerId };
+	eventPrivateApis.set(impl, api);
+	return api;
+};
 
 /**
  * Gets the private API for a test item implementation. This implementation
  * is a managed object, but we keep a weakmap to avoid exposing any of the
  * internals to extensions.
  */
-export const getPrivateApiFor = (impl: TestItemImpl) => {
-	let api = eventPrivateApis.get(impl);
+export const getPrivateApiFor = (impl: vscode.TestItem) => {
+	const api = eventPrivateApis.get(impl);
 	if (!api) {
-		api = { children: new Map(), bus: new Emitter() };
-		eventPrivateApis.set(impl, api);
+		throw new InvalidTestItemError(impl?.id || '<unknown>');
 	}
 
 	return api;

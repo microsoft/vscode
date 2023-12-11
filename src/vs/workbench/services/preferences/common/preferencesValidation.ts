@@ -6,13 +6,17 @@
 import * as nls from 'vs/nls';
 import { JSONSchemaType } from 'vs/base/common/jsonSchema';
 import { Color } from 'vs/base/common/color';
-import { isArray } from 'vs/base/common/types';
+import { isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
-type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+type Validator<T> = { enabled: boolean; isValid: (value: T) => boolean; message: string };
 
 function canBeType(propTypes: (string | undefined)[], ...types: JSONSchemaType[]): boolean {
 	return types.some(t => propTypes.includes(t));
+}
+
+function isNullOrEmpty(value: unknown): boolean {
+	return value === '' || isUndefinedOrNull(value);
 }
 
 export function createValidator(prop: IConfigurationPropertySchema): (value: any) => (string | null) {
@@ -22,22 +26,33 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 
 	const numericValidations = getNumericValidators(prop);
 	const stringValidations = getStringValidators(prop);
-	const stringArrayValidator = getArrayOfStringValidator(prop);
+	const arrayValidator = getArrayValidator(prop);
+	const objectValidator = getObjectValidator(prop);
 
 	return value => {
-		if (prop.type === 'string' && stringValidations.length === 0) { return null; }
-		if (isNullable && value === '') { return ''; }
+		if (isNullable && isNullOrEmpty(value)) { return ''; }
 
 		const errors: string[] = [];
-		if (stringArrayValidator) {
-			const err = stringArrayValidator(value);
+		if (arrayValidator) {
+			const err = arrayValidator(value);
 			if (err) {
 				errors.push(err);
 			}
 		}
 
+		if (objectValidator) {
+			const err = objectValidator(value);
+			if (err) {
+				errors.push(err);
+			}
+		}
+
+		if (prop.type === 'boolean' && value !== true && value !== false) {
+			errors.push(nls.localize('validations.booleanIncorrectType', 'Incorrect type. Expected "boolean".'));
+		}
+
 		if (isNumeric) {
-			if (value === '' || isNaN(+value)) {
+			if (isNullOrEmpty(value) || typeof value === 'boolean' || Array.isArray(value) || isNaN(+value)) {
 				errors.push(nls.localize('validations.expectedNumeric', "Value must be a number."));
 			} else {
 				errors.push(...numericValidations.filter(validator => !validator.isValid(+value)).map(validator => validator.message));
@@ -45,7 +60,13 @@ export function createValidator(prop: IConfigurationPropertySchema): (value: any
 		}
 
 		if (prop.type === 'string') {
-			errors.push(...stringValidations.filter(validator => !validator.isValid('' + value)).map(validator => validator.message));
+			if (prop.enum && !isStringArray(prop.enum)) {
+				errors.push(nls.localize('validations.stringIncorrectEnumOptions', 'The enum options should be strings, but there is a non-string option. Please file an issue with the extension author.'));
+			} else if (!isString(value)) {
+				errors.push(nls.localize('validations.stringIncorrectType', 'Incorrect type. Expected "string".'));
+			} else {
+				errors.push(...stringValidations.filter(validator => !validator.isValid(value)).map(validator => validator.message));
+			}
 		}
 
 		if (errors.length) {
@@ -95,18 +116,18 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	let patternRegex: RegExp | undefined;
 	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern);
+		patternRegex = new RegExp(prop.pattern, 'u');
 	}
 
 	return [
 		{
 			enabled: prop.maxLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
+			isValid: ((value: { length: number }) => value.length <= prop.maxLength!),
 			message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 		},
 		{
 			enabled: prop.minLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
+			isValid: ((value: { length: number }) => value.length >= prop.minLength!),
 			message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 		},
 		{
@@ -137,6 +158,14 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 			}),
 			message: nls.localize('validations.uriSchemeMissing', "URI with a scheme is expected.")
 		},
+		{
+			enabled: prop.enum !== undefined,
+			isValid: ((value: string) => {
+				return prop.enum!.includes(value);
+			}),
+			message: nls.localize('validations.invalidStringEnumValue', "Value is not accepted. Valid values: {0}.",
+				prop.enum ? prop.enum.map(key => `"${key}"`).join(', ') : '[]')
+		}
 	].filter(validation => validation.enabled);
 }
 
@@ -176,7 +205,6 @@ function getNumericValidators(prop: IConfigurationPropertySchema): Validator<num
 			isValid: ((value: number) => value > exclusiveMin!),
 			message: nls.localize('validations.exclusiveMin', "Value must be strictly greater than {0}.", exclusiveMin)
 		},
-
 		{
 			enabled: prop.maximum !== undefined && (exclusiveMax === undefined || exclusiveMax > prop.maximum),
 			isValid: ((value: number) => value <= prop.maximum!),
@@ -200,10 +228,10 @@ function getNumericValidators(prop: IConfigurationPropertySchema): Validator<num
 	].filter(validation => validation.enabled);
 }
 
-function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
-	if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type === 'string') {
+function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
+	if (prop.type === 'array' && prop.items && !Array.isArray(prop.items)) {
 		const propItems = prop.items;
-		if (propItems && !isArray(propItems) && propItems.type === 'string') {
+		if (propItems && !Array.isArray(propItems.type)) {
 			const withQuotes = (s: string) => `'` + s + `'`;
 			return value => {
 				if (!value) {
@@ -212,52 +240,72 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 
 				let message = '';
 
-				const stringArrayValue = value as string[];
+				if (!Array.isArray(value)) {
+					message += nls.localize('validations.arrayIncorrectType', 'Incorrect type. Expected an array.');
+					message += '\n';
+					return message;
+				}
 
+				const arrayValue = value as unknown[];
 				if (prop.uniqueItems) {
-					if (new Set(stringArrayValue).size < stringArrayValue.length) {
+					if (new Set(arrayValue).size < arrayValue.length) {
 						message += nls.localize('validations.stringArrayUniqueItems', 'Array has duplicate items');
 						message += '\n';
 					}
 				}
 
-				if (prop.minItems && stringArrayValue.length < prop.minItems) {
+				if (prop.minItems && arrayValue.length < prop.minItems) {
 					message += nls.localize('validations.stringArrayMinItem', 'Array must have at least {0} items', prop.minItems);
 					message += '\n';
 				}
 
-				if (prop.maxItems && stringArrayValue.length > prop.maxItems) {
+				if (prop.maxItems && arrayValue.length > prop.maxItems) {
 					message += nls.localize('validations.stringArrayMaxItem', 'Array must have at most {0} items', prop.maxItems);
 					message += '\n';
 				}
 
-				if (typeof propItems.pattern === 'string') {
-					const patternRegex = new RegExp(propItems.pattern);
-					stringArrayValue.forEach(v => {
-						if (!patternRegex.test(v)) {
-							message +=
-								propItems.patternErrorMessage ||
-								nls.localize(
-									'validations.stringArrayItemPattern',
-									'Value {0} must match regex {1}.',
-									withQuotes(v),
-									withQuotes(propItems.pattern!)
-								);
-						}
-					});
-				}
+				if (propItems.type === 'string') {
+					if (!isStringArray(arrayValue)) {
+						message += nls.localize('validations.stringArrayIncorrectType', 'Incorrect type. Expected a string array.');
+						message += '\n';
+						return message;
+					}
 
-				const propItemsEnum = propItems.enum;
-				if (propItemsEnum) {
-					stringArrayValue.forEach(v => {
-						if (propItemsEnum.indexOf(v) === -1) {
-							message += nls.localize(
-								'validations.stringArrayItemEnum',
-								'Value {0} is not one of {1}',
-								withQuotes(v),
-								'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
-							);
-							message += '\n';
+					if (typeof propItems.pattern === 'string') {
+						const patternRegex = new RegExp(propItems.pattern, 'u');
+						arrayValue.forEach(v => {
+							if (!patternRegex.test(v)) {
+								message +=
+									propItems.patternErrorMessage ||
+									nls.localize(
+										'validations.stringArrayItemPattern',
+										'Value {0} must match regex {1}.',
+										withQuotes(v),
+										withQuotes(propItems.pattern!)
+									);
+							}
+						});
+					}
+
+					const propItemsEnum = propItems.enum;
+					if (propItemsEnum) {
+						arrayValue.forEach(v => {
+							if (propItemsEnum.indexOf(v) === -1) {
+								message += nls.localize(
+									'validations.stringArrayItemEnum',
+									'Value {0} is not one of {1}',
+									withQuotes(v),
+									'[' + propItemsEnum.map(withQuotes).join(', ') + ']'
+								);
+								message += '\n';
+							}
+						});
+					}
+				} else if (propItems.type === 'integer' || propItems.type === 'number') {
+					arrayValue.forEach(v => {
+						const errorMessage = getErrorsForSchema(propItems, v);
+						if (errorMessage) {
+							message += `${v}: ${errorMessage}\n`;
 						}
 					});
 				}
@@ -268,4 +316,67 @@ function getArrayOfStringValidator(prop: IConfigurationPropertySchema): ((value:
 	}
 
 	return null;
+}
+
+function getObjectValidator(prop: IConfigurationPropertySchema): ((value: any) => (string | null)) | null {
+	if (prop.type === 'object') {
+		const { properties, patternProperties, additionalProperties } = prop;
+		return value => {
+			if (!value) {
+				return null;
+			}
+
+			const errors: string[] = [];
+
+			if (!isObject(value)) {
+				errors.push(nls.localize('validations.objectIncorrectType', 'Incorrect type. Expected an object.'));
+			} else {
+				Object.keys(value).forEach((key: string) => {
+					const data = value[key];
+					if (properties && key in properties) {
+						const errorMessage = getErrorsForSchema(properties[key], data);
+						if (errorMessage) {
+							errors.push(`${key}: ${errorMessage}\n`);
+						}
+						return;
+					}
+
+					if (patternProperties) {
+						for (const pattern in patternProperties) {
+							if (RegExp(pattern).test(key)) {
+								const errorMessage = getErrorsForSchema(patternProperties[pattern], data);
+								if (errorMessage) {
+									errors.push(`${key}: ${errorMessage}\n`);
+								}
+								return;
+							}
+						}
+					}
+
+					if (additionalProperties === false) {
+						errors.push(nls.localize('validations.objectPattern', 'Property {0} is not allowed.\n', key));
+					} else if (typeof additionalProperties === 'object') {
+						const errorMessage = getErrorsForSchema(additionalProperties, data);
+						if (errorMessage) {
+							errors.push(`${key}: ${errorMessage}\n`);
+						}
+					}
+				});
+			}
+
+			if (errors.length) {
+				return prop.errorMessage ? [prop.errorMessage, ...errors].join(' ') : errors.join(' ');
+			}
+
+			return '';
+		};
+	}
+
+	return null;
+}
+
+function getErrorsForSchema(propertySchema: IConfigurationPropertySchema, data: any): string | null {
+	const validator = createValidator(propertySchema);
+	const errorMessage = validator(data);
+	return errorMessage;
 }

@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -17,11 +18,12 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 		@IHostService hostService: IHostService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
-		if (workspaceTrustManagementService.workspaceTrustEnabled) {
+		if (workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
 			// The extension enablement participant will be registered only after the
 			// workspace trust state has been initialized. There is no need to execute
 			// the participant as part of the initialization process, as the workspace
@@ -31,15 +33,17 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 					async participate(trusted: boolean): Promise<void> {
 						if (trusted) {
 							// Untrusted -> Trusted
-							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+							await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
 						} else {
 							// Trusted -> Untrusted
 							if (environmentService.remoteAuthority) {
 								hostService.reload();
 							} else {
-								extensionService.stopExtensionHosts();
-								await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
-								extensionService.startExtensionHosts();
+								const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restarting extension host due to workspace trust change."));
+								await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
+								if (stopped) {
+									extensionService.startExtensionHosts();
+								}
 							}
 						}
 					}

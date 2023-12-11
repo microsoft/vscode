@@ -9,5 +9,14 @@
 export enum ColorScheme {
 	DARK = 'dark',
 	LIGHT = 'light',
-	HIGH_CONTRAST = 'hc'
+	HIGH_CONTRAST_DARK = 'hcDark',
+	HIGH_CONTRAST_LIGHT = 'hcLight'
+}
+
+export function isHighContrast(scheme: ColorScheme): boolean {
+	return scheme === ColorScheme.HIGH_CONTRAST_DARK || scheme === ColorScheme.HIGH_CONTRAST_LIGHT;
+}
+
+export function isDark(scheme: ColorScheme): boolean {
+	return scheme === ColorScheme.DARK || scheme === ColorScheme.HIGH_CONTRAST_DARK;
 }

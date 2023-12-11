@@ -9,7 +9,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface IUpdate {
 	version: string;
 	productVersion: string;
-	supportsFastUpdate?: boolean;
 	url?: string;
 	hash?: string;
 }
@@ -29,12 +28,13 @@ export interface IUpdate {
  *
  * Available: There is an update available for download (linux).
  * Ready: Code will be updated as soon as it restarts (win32, darwin).
- * Donwloaded: There is an update ready to be installed in the background (win32).
+ * Downloaded: There is an update ready to be installed in the background (win32).
  */
 
 export const enum StateType {
 	Uninitialized = 'uninitialized',
 	Idle = 'idle',
+	Disabled = 'disabled',
 	CheckingForUpdates = 'checking for updates',
 	AvailableForDownload = 'available for download',
 	Downloading = 'downloading',
@@ -49,19 +49,30 @@ export const enum UpdateType {
 	Snap
 }
 
-export type Uninitialized = { type: StateType.Uninitialized };
-export type Idle = { type: StateType.Idle, updateType: UpdateType, error?: string };
-export type CheckingForUpdates = { type: StateType.CheckingForUpdates, explicit: boolean };
-export type AvailableForDownload = { type: StateType.AvailableForDownload, update: IUpdate };
-export type Downloading = { type: StateType.Downloading, update: IUpdate };
-export type Downloaded = { type: StateType.Downloaded, update: IUpdate };
-export type Updating = { type: StateType.Updating, update: IUpdate };
-export type Ready = { type: StateType.Ready, update: IUpdate };
+export const enum DisablementReason {
+	NotBuilt,
+	DisabledByEnvironment,
+	ManuallyDisabled,
+	MissingConfiguration,
+	InvalidConfiguration,
+	RunningAsAdmin,
+}
 
-export type State = Uninitialized | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
+export type Uninitialized = { type: StateType.Uninitialized };
+export type Disabled = { type: StateType.Disabled; reason: DisablementReason };
+export type Idle = { type: StateType.Idle; updateType: UpdateType; error?: string };
+export type CheckingForUpdates = { type: StateType.CheckingForUpdates; explicit: boolean };
+export type AvailableForDownload = { type: StateType.AvailableForDownload; update: IUpdate };
+export type Downloading = { type: StateType.Downloading; update: IUpdate };
+export type Downloaded = { type: StateType.Downloaded; update: IUpdate };
+export type Updating = { type: StateType.Updating; update: IUpdate };
+export type Ready = { type: StateType.Ready; update: IUpdate };
+
+export type State = Uninitialized | Disabled | Idle | CheckingForUpdates | AvailableForDownload | Downloading | Downloaded | Updating | Ready;
 
 export const State = {
 	Uninitialized: { type: StateType.Uninitialized } as Uninitialized,
+	Disabled: (reason: DisablementReason) => ({ type: StateType.Disabled, reason }) as Disabled,
 	Idle: (updateType: UpdateType, error?: string) => ({ type: StateType.Idle, updateType, error }) as Idle,
 	CheckingForUpdates: (explicit: boolean) => ({ type: StateType.CheckingForUpdates, explicit } as CheckingForUpdates),
 	AvailableForDownload: (update: IUpdate) => ({ type: StateType.AvailableForDownload, update } as AvailableForDownload),
@@ -92,4 +103,5 @@ export interface IUpdateService {
 	quitAndInstall(): Promise<void>;
 
 	isLatestVersion(): Promise<boolean | undefined>;
+	_applySpecificUpdate(packagePath: string): Promise<void>;
 }
