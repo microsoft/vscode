@@ -10,6 +10,7 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IChatProgressRenderableResponseContent, IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference } from 'vs/workbench/contrib/chat/common/chatService';
@@ -29,7 +30,7 @@ export function convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest
 	return result;
 }
 
-export function walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
+export function walkTreeAndAnnotateReferenceLinks(element: HTMLElement, keybindingService: IKeybindingService): void {
 	element.querySelectorAll('a').forEach(a => {
 		const href = a.getAttribute('data-href');
 		if (href) {
@@ -39,9 +40,24 @@ export function walkTreeAndAnnotateReferenceLinks(element: HTMLElement): void {
 					a);
 			} else if (href.startsWith(contentRefUrl)) {
 				renderFileWidget(href, a);
+			} else if (href.startsWith('command:')) {
+				injectKeybindingHint(a, href, keybindingService);
 			}
 		}
 	});
+}
+
+function injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
+	const command = href.match(/command:([^\)]+)/)?.[1];
+	if (command) {
+		const kb = keybindingService.lookupKeybinding(command);
+		if (kb) {
+			const keybinding = kb.getLabel();
+			if (keybinding) {
+				a.textContent = `${a.textContent} (${keybinding})`;
+			}
+		}
+	}
 }
 
 function renderResourceWidget(name: string): HTMLElement {

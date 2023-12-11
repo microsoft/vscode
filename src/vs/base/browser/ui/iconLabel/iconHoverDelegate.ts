@@ -27,27 +27,34 @@ export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
 	 */
 	target: IHoverDelegateTarget | HTMLElement;
 	/**
-	 * Position of the hover. The default is to show above the target. This option will be ignored
-	 * if there is not enough room to layout the hover in the specified position, unless the
-	 * forcePosition option is set.
-	 */
-	hoverPosition?: HoverPosition;
-	/**
-	 * Whether to show the hover pointer
-	 */
-	showPointer?: boolean;
-	/**
-	 * Whether to skip the fade in animation, this should be used when hovering from one hover to
-	 * another in the same group so it looks like the hover is moving from one element to the other.
-	 */
-	skipFadeInAnimation?: boolean;
-	/**
 	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
 	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is
 	 * created as the next tab index after the element being hovered and/or to workaround the
 	 * element's container hiding on `focusout`.
 	 */
 	container?: HTMLElement;
+	/**
+	 * Options that defines where the hover is positioned.
+	 */
+	position?: {
+		/**
+		 * Position of the hover. The default is to show above the target. This option will be ignored
+		 * if there is not enough room to layout the hover in the specified position, unless the
+		 * forcePosition option is set.
+		 */
+		hoverPosition?: HoverPosition;
+	};
+	appearance?: {
+		/**
+		 * Whether to show the hover pointer
+		 */
+		showPointer?: boolean;
+		/**
+		 * Whether to skip the fade in animation, this should be used when hovering from one hover to
+		 * another in the same group so it looks like the hover is moving from one element to the other.
+		 */
+		skipFadeInAnimation?: boolean;
+	};
 }
 
 export interface IHoverDelegate {

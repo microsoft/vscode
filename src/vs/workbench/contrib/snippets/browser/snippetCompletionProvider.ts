@@ -85,12 +85,12 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
 		const sw = new StopWatch();
+		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
+
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
-
-		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
-		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
 
 		const suggestions: SnippetCompletion[] = [];
 		const columnOffset = position.column - 1;

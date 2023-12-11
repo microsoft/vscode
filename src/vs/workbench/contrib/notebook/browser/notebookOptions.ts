@@ -305,7 +305,7 @@ export class NotebookOptions extends Disposable {
 	}
 
 	private _computeOutputLineHeight(lineHeight: number, outputFontSize: number): number {
-		const minimumLineHeight = 8;
+		const minimumLineHeight = 9;
 
 		if (lineHeight === 0) {
 			// use editor line height

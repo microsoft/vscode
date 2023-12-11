@@ -258,6 +258,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.inputMaxLines': {
 			type: 'number',
 			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
+			minimum: 1,
+			maximum: 50,
 			default: 10
 		},
 		'scm.alwaysShowRepositories': {
@@ -284,6 +286,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.showActionButton': {
 			type: 'boolean',
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
+			default: true
+		},
+		'scm.showInputActionButton': {
+			type: 'boolean',
+			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
 			default: true
 		},
 		'scm.showIncomingChanges': {

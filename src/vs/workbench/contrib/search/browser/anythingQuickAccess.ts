@@ -207,7 +207,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			includeSymbols: searchConfig?.quickOpen.includeSymbols,
 			includeHistory: searchConfig?.quickOpen.includeHistory,
 			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
 			preserveInput: quickAccessConfig.preserveInput
 		};
 	}
@@ -943,7 +942,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean; openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -962,7 +961,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
-			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
+			isDirty = this.workingCopyService.isDirty(resource) && this.filesConfigurationService.getAutoSaveMode(resource) !== AutoSaveMode.AFTER_SHORT_DELAY;
 			extraClasses = [];
 		}
 

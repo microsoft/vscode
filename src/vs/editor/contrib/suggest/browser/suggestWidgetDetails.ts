@@ -206,6 +206,10 @@ export class SuggestDetailsWidget {
 		this._docs.textContent = '';
 	}
 
+	get isEmpty(): boolean {
+		return this.domNode.classList.contains('no-docs');
+	}
+
 	get size() {
 		return this._size;
 	}

@@ -649,16 +649,16 @@ export class ShowActiveFileInExplorer extends Action2 {
 	}
 }
 
-export class ShowOpenedFileInNewWindow extends Action2 {
+export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+	static readonly LABEL = nls.localize('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
 
 	constructor(
 	) {
 		super({
-			id: ShowOpenedFileInNewWindow.ID,
-			title: { value: ShowOpenedFileInNewWindow.LABEL, original: 'Open Active File in New Window' },
+			id: OpenActiveFileInEmptyWorkspace.ID,
+			title: { value: OpenActiveFileInEmptyWorkspace.LABEL, original: 'Open Active File in New Empty Workspace' },
 			f1: true,
 			category: Categories.File,
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
@@ -1123,6 +1123,12 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	}
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+
+	const editableItem = explorerService.getEditable();
+	// If it's an editable item, just do nothing
+	if (editableItem) {
+		return;
+	}
 
 	try {
 		// Check if target is ancestor of pasted folder

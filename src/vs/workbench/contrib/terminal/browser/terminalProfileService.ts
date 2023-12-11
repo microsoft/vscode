@@ -52,7 +52,9 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		return this._availableProfiles || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
-		return this._contributedProfiles || [];
+		const userConfiguredProfileNames = this._availableProfiles?.map(p => p.profileName) || [];
+		// Allow a user defined profile to override an extension contributed profile with the same name
+		return this._contributedProfiles?.filter(p => !userConfiguredProfileNames.includes(p.title)) || [];
 	}
 
 	constructor(

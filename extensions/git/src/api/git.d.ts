@@ -223,6 +223,8 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 
+	getDiff(): Promise<string[]>;
+
 	hashObject(data: string): Promise<string>;
 
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
@@ -310,12 +312,6 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
-export interface CommitMessageProvider {
-	readonly title: string;
-	readonly icon?: Uri | { light: Uri, dark: Uri } | ThemeIcon;
-	provideCommitMessage(repository: Repository, changes: string[], cancellationToken?: CancellationToken): Promise<string | undefined>;
-}
-
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -343,7 +339,6 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
-	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable;
 }
 
 export interface GitExtension {
