@@ -197,6 +197,9 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			dispose(disposables);
 		}
 		this._onDidChangeInstances.fire();
+		setTimeout(() => {
+			this._editorGroupsService.activeGroup.activeEditorPane?.focus();
+		}, 0);
 	}
 
 	getInstanceFromResource(resource?: URI): ITerminalInstance | undefined {
