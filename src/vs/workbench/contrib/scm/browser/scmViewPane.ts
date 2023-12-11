@@ -1424,7 +1424,6 @@ class RepositoryVisibilityActionController {
 	constructor(
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IConfigurationService configurationService: IConfigurationService,
 		@ISCMService scmService: ISCMService
 	) {
 		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
