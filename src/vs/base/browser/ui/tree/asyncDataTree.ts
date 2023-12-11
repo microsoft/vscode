@@ -532,7 +532,9 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
-		await this._updateChildren(element, recursive, rerender, undefined, options);
+		const firstRefreshableElement = this.getFirstExpandedParent(element);
+		const forceRecursive = firstRefreshableElement !== element;
+		await this._updateChildren(firstRefreshableElement, recursive || forceRecursive, rerender, undefined, options);
 	}
 
 	private async _updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, viewStateContext?: IAsyncDataTreeViewStateContext<TInput, T>, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
@@ -556,6 +558,21 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 				// parallel refresh calls, removing `node` altogether
 			}
 		}
+	}
+
+	getFirstExpandedParent(element: TInput | T): TInput | T {
+		if (element === this.root.element) {
+			return element;
+		}
+		const dataNode = this.getDataNode(element);
+		if (this.tree.isCollapsed(dataNode)) {
+			const parentElement = dataNode.parent?.element;
+			if (!parentElement) {
+				return element;
+			}
+			return this.getFirstExpandedParent(parentElement);
+		}
+		return element;
 	}
 
 	resort(element: TInput | T = this.root.element, recursive = true): void {
