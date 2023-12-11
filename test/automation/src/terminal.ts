@@ -20,7 +20,7 @@ export enum Selector {
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
 	EditorGroups = '.editor .split-view-view',
-	EditorTab = '.terminal-tab.product-icon',
+	EditorTab = '.terminal-tab',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal',
@@ -246,8 +246,8 @@ export class Terminal {
 				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(`terminal-icon-terminal_ansi${color}`));
 			}
 			if (icon) {
-				[icon, selector] = selector === Selector.EditorTab ? [`codicon-${icon}`, selector] : [icon, `${selector} .codicon`];
-				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!icon && !!singleTab.className.includes(icon));
+				selector = selector === Selector.EditorTab ? selector : `${selector} .codicon`;
+				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(icon));
 			}
 		}
 	}
