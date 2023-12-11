@@ -247,7 +247,7 @@ export class Terminal {
 			}
 			if (icon) {
 				[icon, selector] = selector === Selector.EditorTab ? [`.codicon-${icon}`, selector] : [icon, `${selector} .codicon`];
-				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!singleTab.className.includes(icon));
+				await this.code.waitForElement(`${selector}`, singleTab => !!singleTab && !!icon && !!singleTab.className.includes(icon));
 			}
 		}
 	}
