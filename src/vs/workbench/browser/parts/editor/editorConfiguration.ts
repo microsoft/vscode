@@ -21,7 +21,8 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 
 	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>([
 		'terminalEditor',
-		'mainThreadWebview-simpleBrowser.view'
+		'mainThreadWebview-simpleBrowser.view',
+		'mainThreadWebview-browserPreview'
 	]);
 
 	private static readonly AUTO_LOCK_EXTRA_EDITORS: RegisteredEditorInfo[] = [
@@ -42,6 +43,11 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 		{
 			id: 'mainThreadWebview-simpleBrowser.view',
 			label: localize('simpleBrowser', "Simple Browser"),
+			priority: RegisteredEditorPriority.builtin
+		},
+		{
+			id: 'mainThreadWebview-browserPreview',
+			label: localize('livePreview', "Live Preview"),
 			priority: RegisteredEditorPriority.builtin
 		}
 	];
