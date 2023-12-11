@@ -172,7 +172,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 
 			// Container
-			this.element.classList.add('editor-group-container');
+			this.element.classList.add(...coalesce(['editor-group-container', this.model.isLocked ? 'locked' : undefined]));
 
 			// Container listeners
 			this.registerContainerListeners();
@@ -547,6 +547,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidModelChange.fire(e);
 
 		// Handle within
+
+		if (e.kind === GroupModelChangeKind.GROUP_LOCKED) {
+			this.element.classList.toggle('locked', this.isLocked);
+		}
 
 		if (!e.editor) {
 			return;
