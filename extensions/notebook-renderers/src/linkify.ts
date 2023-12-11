@@ -28,7 +28,7 @@ type LinkPart = {
 
 export type LinkOptions = {
 	trustHtml?: boolean;
-	linkifyFilepaths: boolean;
+	linkifyFilePaths: boolean;
 };
 
 export class LinkDetector {
@@ -57,6 +57,7 @@ export class LinkDetector {
 	 * and added as a child of the returned <span>.
 	 */
 	linkify(text: string, options: LinkOptions, splitLines?: boolean): HTMLElement {
+		console.log('linkifyiiiiiing', JSON.stringify(options));
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -77,7 +78,7 @@ export class LinkDetector {
 		}
 
 		const container = document.createElement('span');
-		for (const part of this.detectLinks(text, !!options.trustHtml, options.linkifyFilepaths)) {
+		for (const part of this.detectLinks(text, !!options.trustHtml, options.linkifyFilePaths)) {
 			try {
 				let span: HTMLSpanElement | null = null;
 				switch (part.kind) {

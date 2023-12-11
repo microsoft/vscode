@@ -125,8 +125,8 @@ function appendScrollableOutput(element: HTMLElement, id: string, appended: stri
 }
 
 export function createOutputContent(id: string, outputText: string, options: OutputElementOptions): HTMLElement {
-	const { linesLimit, error, scrollable, trustHtml, linkifyFilepaths } = options;
-	const linkOptions: LinkOptions = { linkifyFilepaths, trustHtml };
+	const { linesLimit, error, scrollable, trustHtml, linkifyFilePaths } = options;
+	const linkOptions: LinkOptions = { linkifyFilePaths, trustHtml };
 	const buffer = outputText.split(/\r\n|\r|\n/g);
 	outputLengths[id] = outputLengths[id] = Math.min(buffer.length, softScrollableLineLimit);
 
@@ -147,7 +147,7 @@ export function createOutputContent(id: string, outputText: string, options: Out
 
 export function appendOutput(outputInfo: OutputWithAppend, existingContent: HTMLElement, options: OutputElementOptions) {
 	const appendedText = outputInfo.appendedText?.();
-	const linkOptions = { linkifyFilepaths: options.linkifyFilepaths, trustHtml: options.trustHtml };
+	const linkOptions = { linkifyFilePaths: options.linkifyFilePaths, trustHtml: options.trustHtml };
 	// appending output only supported for scrollable ouputs currently
 	if (appendedText && options.scrollable) {
 		if (appendScrollableOutput(existingContent, outputInfo.id, appendedText, linkOptions)) {

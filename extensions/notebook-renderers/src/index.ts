@@ -176,7 +176,7 @@ function renderError(
 		const stackTrace = formatStackTrace(err.stack);
 
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilepaths: ctx.settings.linkifyFilepaths };
+		const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 
 		const content = createOutputContent(outputInfo.id, stackTrace ?? '', outputOptions);
 		const contentParent = document.createElement('div');
@@ -281,7 +281,7 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error, linkifyFilepaths: ctx.settings.linkifyFilepaths };
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 
 	outputElement.classList.add('output-stream');
 
@@ -332,7 +332,7 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 
 	const text = outputInfo.text();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilepaths: ctx.settings.linkifyFilepaths };
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
@@ -352,10 +352,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const jsHooks = new Set<JavaScriptRenderingHook>();
 
 	const latestContext = ctx as (RendererContext<void> & { readonly settings: RenderOptions; readonly onDidChangeSettings: Event<RenderOptions> });
-
-	latestContext.onDidChangeSettings(e => {
-		console.log('settings changed', JSON.stringify(e));
-	});
 
 	const style = document.createElement('style');
 	style.textContent = `

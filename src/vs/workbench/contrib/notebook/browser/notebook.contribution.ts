@@ -922,7 +922,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			minimum: 1,
 		},
-		[NotebookSetting.LinkifyOutputFilepaths]: {
+		[NotebookSetting.LinkifyOutputFilePaths]: {
 			description: nls.localize('notebook.disableOutputFilePathLinks', "Control whether to disable filepath links in the output of notebook cells."),
 			type: 'boolean',
 			default: true,
