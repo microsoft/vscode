@@ -580,7 +580,6 @@ class ResourceLabelWidget extends IconLabel {
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
 				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
-
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
