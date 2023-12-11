@@ -116,47 +116,42 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
     }
 }
 async function getVSCodeSysroot(arch) {
-    return new Promise((resolve, reject) => {
-        let expectedName;
-        let triple;
-        switch (arch) {
-            case 'amd64':
-                expectedName = `x86_64-linux-gnu.tar.gz`;
-                triple = 'x86_64-linux-gnu';
-                break;
-            case 'arm64':
-                expectedName = `aarch64-linux-gnu.tar.gz`;
-                triple = 'aarch64-linux-gnu';
-                break;
-            case 'armhf':
-                expectedName = `arm-rpi-linux-gnueabihf.tar.gz`;
-                triple = 'arm-rpi-linux-gnueabihf';
-                break;
-        }
-        const checksumSha256 = getVSCodeSysrootChecksum(expectedName);
-        if (!checksumSha256) {
-            reject(new Error(`Could not find checksum for ${expectedName}`));
-            return;
-        }
-        const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
-        const stamp = path.join(sysroot, '.stamp');
-        const result = `${sysroot}/${triple}/${triple}/sysroot`;
-        if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedName) {
-            resolve(result);
-            return;
-        }
-        console.log(`Installing ${arch} root image: ${sysroot}`);
-        fs.rmSync(sysroot, { recursive: true, force: true });
-        fs.mkdirSync(sysroot);
-        fetchUrl({
-            checksumSha256,
-            assetName: expectedName,
-            dest: sysroot
-        }).then(_ => {
-            fs.writeFileSync(stamp, expectedName);
-            resolve(result);
-        }).catch(error => reject(error));
+    let expectedName;
+    let triple;
+    switch (arch) {
+        case 'amd64':
+            expectedName = `x86_64-linux-gnu.tar.gz`;
+            triple = 'x86_64-linux-gnu';
+            break;
+        case 'arm64':
+            expectedName = `aarch64-linux-gnu.tar.gz`;
+            triple = 'aarch64-linux-gnu';
+            break;
+        case 'armhf':
+            expectedName = `arm-rpi-linux-gnueabihf.tar.gz`;
+            triple = 'arm-rpi-linux-gnueabihf';
+            break;
+    }
+    const checksumSha256 = getVSCodeSysrootChecksum(expectedName);
+    if (!checksumSha256) {
+        throw new Error(`Could not find checksum for ${expectedName}`);
+    }
+    const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
+    const stamp = path.join(sysroot, '.stamp');
+    const result = `${sysroot}/${triple}/${triple}/sysroot`;
+    if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedName) {
+        return result;
+    }
+    console.log(`Installing ${arch} root image: ${sysroot}`);
+    fs.rmSync(sysroot, { recursive: true, force: true });
+    fs.mkdirSync(sysroot);
+    await fetchUrl({
+        checksumSha256,
+        assetName: expectedName,
+        dest: sysroot
     });
+    fs.writeFileSync(stamp, expectedName);
+    return result;
 }
 exports.getVSCodeSysroot = getVSCodeSysroot;
 async function getChromiumSysroot(arch) {
