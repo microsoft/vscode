@@ -71,7 +71,6 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 			if (classifier.isPhysicalMouseWheel()) {
 				if (hasMouseWheelZoomModifiers(browserEvent)) {
 					const delta = browserEvent.deltaY > 0 ? -1 : 1;
-					console.log('delta', delta);
 					this._configurationService.updateValue(TerminalSettingId.FontSize, this._getConfigFontSize() + delta);
 					// EditorZoom.setZoomLevel(zoomLevel + delta);
 					browserEvent.preventDefault();
@@ -93,9 +92,6 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 				gestureAccumulatedDelta += browserEvent.deltaY;
 
 				if (gestureHasZoomModifiers) {
-
-					console.log('set', gestureStartFontSize + gestureAccumulatedDelta / 5);
-
 					const deltaAbs = Math.ceil(Math.abs(gestureAccumulatedDelta / 5));
 					const deltaDirection = gestureAccumulatedDelta > 0 ? -1 : 1;
 					const delta = deltaAbs * deltaDirection;
