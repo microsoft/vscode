@@ -18,7 +18,6 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPic
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { Dimension } from 'vs/base/browser/dom';
 
