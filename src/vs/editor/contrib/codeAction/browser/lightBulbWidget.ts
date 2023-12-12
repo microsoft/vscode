@@ -235,12 +235,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (this.state.actions.allAIFixes) {
 			icon = Codicon.sparkleFilled;
 			if (this.state.actions.validActions.length === 1) {
-				if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
-					const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
-					this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
-				} else {
-					this.title = nls.localize('codeActionTriggerAiAction', "Trigger AI Action");
-				}
 				autoRun = true;
 			}
 		} else if (this.state.actions.hasAutoFix) {
