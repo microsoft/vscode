@@ -1812,6 +1812,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 	constructor(
 		container: HTMLElement,
+		input: ISCMInput,
 		menuId: MenuId,
 		options: IMenuWorkbenchToolBarOptions | undefined,
 		@IMenuService menuService: IMenuService,
@@ -1824,7 +1825,13 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	) {
 		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
 
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const contextKeyServiceWithOverlay = contextKeyService.createOverlay([
+			['scmProvider', input.repository.provider.contextValue],
+			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
+			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
+		]);
+
+		const menu = this._store.add(menuService.createMenu(menuId, contextKeyServiceWithOverlay, { emitEventsForSubmenuChanges: true }));
 
 		const cancelAction = new MenuItemAction({
 			id: SCMInputCommandId.CancelAction,
@@ -2095,7 +2102,7 @@ class SCMInputWidget {
 		const actionRunner = instantiationService2.createInstance(SCMInputWidgetActionRunner, input);
 		this.repositoryDisposables.add(actionRunner);
 
-		const toolbar: SCMInputWidgetToolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, MenuId.SCMInputBox, {
+		const toolbar: SCMInputWidgetToolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, input, MenuId.SCMInputBox, {
 			actionRunner,
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction && toolbar.dropdownActions.length > 1) {
