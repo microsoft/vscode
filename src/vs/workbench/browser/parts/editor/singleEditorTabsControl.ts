@@ -323,6 +323,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 						colors: Boolean(options.decorations?.colors),
 						badges: Boolean(options.decorations?.badges)
 					},
+					icon: editor.getIcon(),
+					hideIcon: options.showIcons === false,
 				}
 			);
 

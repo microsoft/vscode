@@ -244,32 +244,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
-		const updateAutoFixLightbulbTitle = () => {
-			if (this._preferredKbLabel) {
-				this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
-			}
-		};
-		const updateLightbulbTitle = () => {
-			if (this._quickFixKbLabel) {
-				this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
-			} else {
-				this.title = nls.localize('codeAction', "Show Code Actions");
-			}
-		};
 		let icon: ThemeIcon;
+		let autoRun = false;
 		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
 			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
 				icon = Codicon.sparkleFilled;
 				if (this.state.actions.validActions.length === 1) {
-					if (this.state.actions.validActions[0].action.command?.id === `inlineChat.start`) {
-						const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
-						this.title = keybinding ? nls.localize('codeActionStartInlineChatWithKb', 'Start Inline Chat ({0})', keybinding) : nls.localize('codeActionStartInlineChat', 'Start Inline Chat',);
-					} else {
-						this.title = nls.localize('codeActionTriggerAiAction', "Trigger AI Action");
-					}
-				} else {
-					updateLightbulbTitle();
+					autoRun = true;
 				}
 			} else if (this.state.actions.hasAutoFix) {
 				if (this.state.actions.hasAIFix) {
@@ -277,25 +259,36 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				} else {
 					icon = Codicon.lightbulbAutofix;
 				}
-				updateAutoFixLightbulbTitle();
 			} else if (this.state.actions.hasAIFix) {
 				icon = Codicon.lightbulbSparkle;
-				updateLightbulbTitle();
 			} else {
 				icon = Codicon.lightBulb;
-				updateLightbulbTitle();
 			}
 		} else {
 			if (this.state.actions.hasAutoFix) {
 				icon = Codicon.lightbulbAutofix;
-				updateAutoFixLightbulbTitle();
 			} else {
 				icon = Codicon.lightBulb;
-				updateLightbulbTitle();
 			}
 		}
+		this._updateLightbulbTitle(this.state.actions.hasAutoFix, autoRun);
 		this._iconClasses = ThemeIcon.asClassNameArray(icon);
 		this._domNode.classList.add(...this._iconClasses);
+	}
+
+	private _updateLightbulbTitle(autoFix: boolean, autoRun: boolean): void {
+		if (this.state.type !== LightBulbState.Type.Showing) {
+			return;
+		}
+		if (autoRun) {
+			this.title = nls.localize('codeActionAutoRun', "Run: {0}", this.state.actions.validActions[0].action.title);
+		} else if (autoFix && this._preferredKbLabel) {
+			this.title = nls.localize('preferredcodeActionWithKb', "Show Code Actions. Preferred Quick Fix Available ({0})", this._preferredKbLabel);
+		} else if (!autoFix && this._quickFixKbLabel) {
+			this.title = nls.localize('codeActionWithKb', "Show Code Actions ({0})", this._quickFixKbLabel);
+		} else if (!autoFix) {
+			this.title = nls.localize('codeAction', "Show Code Actions");
+		}
 	}
 
 	private set title(value: string) {
