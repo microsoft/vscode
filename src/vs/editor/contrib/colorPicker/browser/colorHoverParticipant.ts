@@ -225,28 +225,35 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 }
 
 function _updateEditorModel(editor: ICodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext) {
-	let newRange: Range;
-	const textEdits: ISingleEditOperation[] = [];
-	if (model.presentation.textEdit) {
-		textEdits.push(model.presentation.textEdit);
-		newRange = new Range(
-			model.presentation.textEdit.range.startLineNumber,
-			model.presentation.textEdit.range.startColumn,
-			model.presentation.textEdit.range.endLineNumber,
-			model.presentation.textEdit.range.endColumn
-		);
-		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
-	} else {
-		textEdits.push({ range, text: model.presentation.label, forceMoveMarkers: false });
-		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-	}
 
+	const edit = model.presentation.textEdit;
+	const textEdits = [edit ?? { range, text: model.presentation.label, forceMoveMarkers: false }];
 	if (model.presentation.additionalTextEdits) {
 		textEdits.push(...model.presentation.additionalTextEdits);
 	}
 	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
+
+	let newRange: Range;
+	if (edit) {
+		const separatedText = edit.text.split('\n');
+		const startLineNumber = edit.range.startLineNumber;
+		const startColumnNumber = edit.range.startColumn;
+		const endLineNumber = edit.range.endLineNumber + separatedText.length - 1;
+		const endColumnNumber = endLineNumber === startLineNumber ?
+			startColumnNumber + separatedText[separatedText.length - 1].length :
+			separatedText[separatedText.length - 1].length;
+		newRange = new Range(
+			startLineNumber,
+			startColumnNumber,
+			endLineNumber,
+			endColumnNumber
+		);
+		const trackedRange = editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+		newRange = editor.getModel()!._getTrackedRange(trackedRange) || newRange;
+	} else {
+		newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
+	}
 	return newRange;
 }
 
