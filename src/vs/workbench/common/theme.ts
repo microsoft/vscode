@@ -403,19 +403,19 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 
 // < --- Output Editor -->
 
-registerColor('outputEditor.background', {
-	dark: PANEL_BACKGROUND,
-	light: PANEL_BACKGROUND,
-	hcDark: PANEL_BACKGROUND,
-	hcLight: PANEL_BACKGROUND
+const OUTPUT_EDITOR_BACKGROUND = registerColor('outputEditor.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
 }, localize('outputEditorBackground', "Output editor background color."));
 
 
 registerColor('outputEditorStickyScroll.background', {
-	dark: PANEL_BACKGROUND,
-	light: PANEL_BACKGROUND,
-	hcDark: PANEL_BACKGROUND,
-	hcLight: PANEL_BACKGROUND
+	dark: OUTPUT_EDITOR_BACKGROUND,
+	light: OUTPUT_EDITOR_BACKGROUND,
+	hcDark: OUTPUT_EDITOR_BACKGROUND,
+	hcLight: OUTPUT_EDITOR_BACKGROUND
 }, localize('outputEditorStickyScrollBackground', "Output editor sticky scroll background color."));
 
 
