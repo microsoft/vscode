@@ -288,7 +288,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					break;
 				case GroupModelChangeKind.EDITOR_CLOSE:
 				case GroupModelChangeKind.EDITOR_OPEN:
-					groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
 				case GroupModelChangeKind.EDITOR_ACTIVE:
 				case GroupModelChangeKind.EDITOR_MOVE:
 					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
@@ -303,7 +302,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
-					groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
 					break;
 			}
 
@@ -319,11 +317,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Update context keys on startup
 		observeActiveEditor();
-		groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
-	}
-
-	private hasPinnedAndUnpinnedEditors(): boolean {
-		return this.model.stickyCount > 0 && this.model.stickyCount < this.model.count;
 	}
 
 	private registerContainerListeners(): void {
