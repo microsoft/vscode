@@ -133,7 +133,7 @@ async function isGitRepository(folder: WorkspaceFolder): Promise<boolean> {
 
 	try {
 		const dotGitStat = await new Promise<fs.Stats>((c, e) => fs.stat(dotGit, (err, stat) => err ? e(err) : c(stat)));
-		return dotGitStat.isDirectory();
+		return dotGitStat.isDirectory() || dotGitStat.isFile();
 	} catch (err) {
 		return false;
 	}
