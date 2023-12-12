@@ -5,6 +5,8 @@
 
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { localize } from 'vs/nls';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class DisassemblyViewInput extends EditorInput {
 
@@ -27,6 +29,10 @@ export class DisassemblyViewInput extends EditorInput {
 
 	override getName(): string {
 		return localize('disassemblyInputName', "Disassembly");
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.debug;
 	}
 
 	override matches(other: unknown): boolean {

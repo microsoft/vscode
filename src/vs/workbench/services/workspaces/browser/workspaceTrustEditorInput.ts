@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -31,5 +33,9 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 
 	override getName(): string {
 		return localize('workspaceTrustEditorInputName', "Workspace Trust");
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.shield;
 	}
 }

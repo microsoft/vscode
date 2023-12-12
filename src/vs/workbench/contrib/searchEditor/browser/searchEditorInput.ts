@@ -32,6 +32,8 @@ import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export type SearchConfiguration = {
 	query: string;
@@ -63,6 +65,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get editorId(): string | undefined {
 		return this.typeId;
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.search;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
