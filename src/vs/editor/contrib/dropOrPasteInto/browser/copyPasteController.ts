@@ -51,8 +51,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	public static readonly ID = 'editor.contrib.copyPasteActionController';
 
-	public static get(editor: ICodeEditor): CopyPasteController {
-		return editor.getContribution<CopyPasteController>(CopyPasteController.ID)!;
+	public static get(editor: ICodeEditor): CopyPasteController | null {
+		return editor.getContribution<CopyPasteController>(CopyPasteController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
