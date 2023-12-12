@@ -58,7 +58,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IDebugService private readonly _debugService: IDebugService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
@@ -154,7 +154,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				return;
 			}
 			InlineChatController.get(this._editor)?.run();
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'editor.action.runInlineChat', from: 'gutter' });
+			this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'editor.action.runInlineChat', from: 'gutter' });
 		}));
 		this._localToDispose.add({
 			dispose: () => {
@@ -220,7 +220,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				return;
 			}
 			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), showGutterIconMode === ShowGutterIcon.Always ? this._gutterDecorationOpaque : this._gutterDecorationTransparent);
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'editor.action.addGutterDecoration', from: 'editor' });
+			this._telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'editor.action.addGutterDecoration', from: 'editor' });
 		});
 	}
 
