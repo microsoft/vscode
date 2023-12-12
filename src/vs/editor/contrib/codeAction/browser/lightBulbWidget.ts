@@ -248,7 +248,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 		let icon: ThemeIcon;
 		let autoRun = false;
-		let aiFixes = false;
 		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
 			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
