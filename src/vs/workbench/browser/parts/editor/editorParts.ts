@@ -13,7 +13,7 @@ import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/e
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { AuxiliaryEditorPart } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 import { MultiWindowParts } from 'vs/workbench/browser/part';
 
@@ -94,24 +94,13 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
-		disposables.add(part.onDidRemoveGroup(group => this.handleOnDidRemoveGroup(group)));
+		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
-	}
-
-	private handleOnDidRemoveGroup(group: IEditorGroupView): void {
-
-		// Reset locked state when only one group is remaining
-		if (this.count === 1) {
-			firstOrDefault(this.mainPart.groups)?.lock(false);
-		}
-
-		// Events
-		this._onDidRemoveGroup.fire(group);
 	}
 
 	private doUpdateMostRecentActive(part: EditorPart, makeMostRecentlyActive?: boolean): void {
