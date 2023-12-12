@@ -5,10 +5,9 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Event } from 'vs/base/common/event';
-import { EventType, addDisposableListener } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -67,7 +66,8 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		let gestureHasZoomModifiers = false;
 		let gestureAccumulatedDelta = 0;
 
-		this._listener.value = addDisposableListener(raw.element!, EventType.MOUSE_WHEEL, (browserEvent: IMouseWheelEvent) => {
+		raw.attachCustomWheelEventHandler((e: WheelEvent) => {
+			const browserEvent = e as any as IMouseWheelEvent;
 			if (classifier.isPhysicalMouseWheel()) {
 				if (hasMouseWheelZoomModifiers(browserEvent)) {
 					const delta = browserEvent.deltaY > 0 ? -1 : 1;
@@ -76,6 +76,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 					// EditorZoom.setZoomLevel(zoomLevel + delta);
 					browserEvent.preventDefault();
 					browserEvent.stopPropagation();
+					return false;
 				}
 			} else {
 				// we consider mousewheel events that occur within 50ms of each other to be part of the same gesture
@@ -102,9 +103,12 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 					gestureAccumulatedDelta += browserEvent.deltaY;
 					browserEvent.preventDefault();
 					browserEvent.stopPropagation();
+					return false;
 				}
 			}
-		}, { passive: false });
+			return true;
+		});
+		this._listener.value = toDisposable(() => raw.attachCustomWheelEventHandler(() => true));
 	}
 }
 
