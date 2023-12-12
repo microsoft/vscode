@@ -160,6 +160,7 @@ export class ContextView extends Disposable {
 		this.useShadowDOM = domPosition === ContextViewDOMPosition.FIXED_SHADOW;
 
 		if (container === this.container && usedShadowDOM !== this.useShadowDOM) {
+			this.useShadowDOM = false;
 			return; // container is the same and now shadow DOM usage has changed
 		}
 
@@ -208,6 +209,7 @@ export class ContextView extends Disposable {
 				}, true));
 			});
 
+			this.useShadowDOM = false;
 			this.toDisposeOnSetContainer = toDisposeOnSetContainer;
 		}
 	}
