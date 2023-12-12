@@ -191,11 +191,18 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		return this._terminalInstance?.title || this.resource.fragment;
 	}
 
+	override getIcon(): ThemeIcon | undefined {
+		if (!this._terminalInstance || !ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
+			return undefined;
+		}
+		return this._terminalInstance.icon;
+	}
+
 	override getLabelExtraClasses(): string[] {
 		if (!this._terminalInstance) {
 			return [];
 		}
-		const extraClasses: string[] = ['terminal-tab'];
+		const extraClasses: string[] = ['terminal-tab', 'product-icon'];
 		const colorClass = getColorClass(this._terminalInstance);
 		if (colorClass) {
 			extraClasses.push(colorClass);
@@ -203,9 +210,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		const uriClasses = getUriClasses(this._terminalInstance, this._themeService.getColorTheme().type);
 		if (uriClasses) {
 			extraClasses.push(...uriClasses);
-		}
-		if (ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
-			extraClasses.push(`codicon-${this._terminalInstance.icon.id}`);
 		}
 		return extraClasses;
 	}

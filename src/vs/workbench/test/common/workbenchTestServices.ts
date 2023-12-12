@@ -29,6 +29,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { AutoSaveMode, IAutoSaveConfiguration, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
@@ -309,9 +310,9 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 
 	_serviceBrand: undefined;
 
-	readonly onAutoSaveConfigurationChange = Event.None;
-	readonly onReadonlyChange = Event.None;
-	readonly onFilesAssociationChange = Event.None;
+	readonly onDidChangeAutoSaveConfiguration = Event.None;
+	readonly onDidChangeReadonly = Event.None;
+	readonly onDidChangeFilesAssociation = Event.None;
 
 	readonly isHotExitEnabled = false;
 	readonly hotExitConfiguration = undefined;
@@ -460,4 +461,17 @@ export class TestWorkspaceTrustRequestService extends Disposable implements IWor
 	requestWorkspaceTrustOnStartup(): void {
 		throw new Error('Method not implemented.');
 	}
+}
+
+export class TestMarkerService implements IMarkerService {
+
+	_serviceBrand: undefined;
+
+	onMarkerChanged = Event.None;
+
+	getStatistics(): MarkerStatistics { throw new Error('Method not implemented.'); }
+	changeOne(owner: string, resource: URI, markers: IMarkerData[]): void { }
+	changeAll(owner: string, data: IResourceMarker[]): void { }
+	remove(owner: string, resources: URI[]): void { }
+	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
 }
