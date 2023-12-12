@@ -12,7 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 type ShowInput = {
-	ghostTexts: GhostTextData[];
+	ghostText: GhostTextData;
 	auto: boolean;
 };
 
@@ -30,16 +30,61 @@ export class ShowMultiGhostText extends EditorAction {
 		// console.log('Show Multi Ghost Text', JSON.stringify(input, null, 2));
 		// console.log('Editor cursor', JSON.stringify(editor.getPosition()));
 		const controller = MultiGhostTextController.get(editor);
-		controller?.showGhostText(input.ghostTexts, input.auto);
+		controller?.showGhostText(input.ghostText, input.auto);
 	}
 }
 
-export class AcceptAndNextGhostText extends EditorAction {
+export class AcceptGhostText extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.multiGhostText.acceptAndNext',
+			id: 'editor.action.multiGhostText.accept',
 			label: 'Accept Ghost Text',
 			alias: 'Accept Ghost Text',
+			precondition: EditorContextKeys.writable,
+			kbOpts: [
+				{
+					weight: KeybindingWeight.EditorContrib + 1,
+					primary: KeyCode.Tab,
+					kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.multiGhostTextVisibleContext, MultiGhostTextController.cursorAtGhostTextContext)
+				}]
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		console.log('Accept Ghost Text');
+		const controller = MultiGhostTextController.get(editor);
+		controller?.accept();
+	}
+}
+
+// export class AcceptGhostText extends EditorAction {
+// 	constructor() {
+// 		super({
+// 			id: 'editor.action.multiGhostText.accept',
+// 			label: 'Accept Ghost Text',
+// 			alias: 'Accept Ghost Text',
+// 			precondition: EditorContextKeys.writable,
+// 			kbOpts: [{
+// 				weight: KeybindingWeight.EditorContrib + 1,
+// 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus,
+// 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.multiGhostTextVisibleContext)
+// 			}],
+// 		});
+// 	}
+
+// 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+// 		console.log('Accept Ghost Text');
+// 		const controller = MultiGhostTextController.get(editor);
+// 		controller?.acceptAndNext(false);
+// 	}
+// }
+
+export class JumpToGhostText extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.multiGhostText.jumpToNext',
+			label: 'Jump to Ghost Text',
+			alias: 'Jump to Ghost Text',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
@@ -50,9 +95,9 @@ export class AcceptAndNextGhostText extends EditorAction {
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		console.log('Accept Ghost Text');
+		console.log('Jump to Next Ghost Text');
 		const controller = MultiGhostTextController.get(editor);
-		controller?.acceptAndNext();
+		controller?.jumpToCurrent();
 	}
 }
 

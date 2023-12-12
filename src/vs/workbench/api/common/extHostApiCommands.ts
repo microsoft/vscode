@@ -497,20 +497,11 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.showMultiGhostText', '_showMultiGhostText', 'Show ghost text for multiple ranges',
 		[
-			new ApiCommandArgument<{ ghostTexts: { position: types.Position; text: string; removeRange: types.Range | undefined }[]; auto: boolean }, { ghostTexts: { position: IPosition; text: string; removeRange: IRange | undefined }[]; auto: boolean }>('ranges',
+			new ApiCommandArgument<{ ghostText: { position: types.Position; text: string; removeRange: types.Range | undefined }; auto: boolean }, { ghostText: { position: IPosition; text: string; removeRange: IRange | undefined }; auto: boolean }>('ranges',
 				'The ranges to show ghost text for',
-				v => typeof (v.auto) === 'boolean' && Array.isArray(v.ghostTexts) && v.ghostTexts.every(v => typeof v === 'object' && types.Position.isPosition(v.position) && typeof v.text === 'string' && (v.removeRange === undefined || types.Range.isRange(v.removeRange))),
-				v => { return { auto: v.auto, ghostTexts: v.ghostTexts.map(({ position, text, removeRange }) => ({ position: typeConverters.Position.from(position), text, removeRange: typeConverters.Range.from(removeRange) })) }; },),
-		],
-		ApiCommandResult.Void
-	),
-	new ApiCommand(
-		'vscode.showMultiGhostTextMulti', '_showMultiGhostTextMulti', 'Show ghost text for multiple ranges',
-		[
-			new ApiCommandArgument<{ ghostTexts: { position: types.Position; text: string; removeRange: types.Range | undefined }[]; auto: boolean }, { ghostTexts: { position: IPosition; text: string; removeRange: IRange | undefined }[]; auto: boolean }>('ranges',
-				'The ranges to show ghost text for',
-				v => typeof (v.auto) === 'boolean' && Array.isArray(v.ghostTexts) && v.ghostTexts.every(v => typeof v === 'object' && types.Position.isPosition(v.position) && typeof v.text === 'string' && (v.removeRange === undefined || types.Range.isRange(v.removeRange))),
-				v => { return { auto: v.auto, ghostTexts: v.ghostTexts.map(({ position, text, removeRange }) => ({ position: typeConverters.Position.from(position), text, removeRange: typeConverters.Range.from(removeRange) })) }; },),
+				v => typeof (v.auto) === 'boolean' && typeof v.ghostText === 'object' && types.Position.isPosition(v.ghostText.position) && typeof v.ghostText.text === 'string' && (v.ghostText.removeRange === undefined || types.Range.isRange(v.ghostText.removeRange)),
+				v => { return { auto: v.auto, ghostText: { position: typeConverters.Position.from(v.ghostText.position), text: v.ghostText.text, removeRange: typeConverters.Range.from(v.ghostText.removeRange) } }; },
+			),
 		],
 		ApiCommandResult.Void
 	),
