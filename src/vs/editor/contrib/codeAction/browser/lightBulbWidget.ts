@@ -297,6 +297,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			hasAIFix: boolean;
 		};
 		type ShowLightBulbEventClassification = {
+			owner: 'abner-math';
 			autoFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Is there a preferred quick fix available?' };
 			autoRun: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Is there a auto run code action?' };
 			hasAIFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Is there an AI quick fix?' };
