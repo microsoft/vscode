@@ -2748,7 +2748,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.On };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2772,13 +2772,8 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 			return this.defaultValue;
 		}
 		const input = _input as IEditorLightbulbOptions;
-		const enabled = input.enabled && Object.values(ShowLightbulbIconMode).includes(input.enabled) ?
-			input.enabled :
-			(typeof input.enabled === 'boolean' ?
-				(input.enabled ? ShowLightbulbIconMode.OnCode : ShowLightbulbIconMode.Off) : this.defaultValue.enabled);
-
 		return {
-			enabled
+			enabled: stringSet(input.enabled, this.defaultValue.enabled, [ShowLightbulbIconMode.Off, ShowLightbulbIconMode.OnCode, ShowLightbulbIconMode.On])
 		};
 	}
 }
