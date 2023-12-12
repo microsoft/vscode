@@ -185,6 +185,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private async _renderRootNode(previousStickyLines: RenderedStickyLine[], foldingModel: FoldingModel | null, rebuildFromLine: number = Infinity): Promise<void> {
 
+		this._minContentWidthInPx = 0;
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const previousStickyLine = previousStickyLines[index];
@@ -197,6 +198,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
 			this._stickyLines.push(stickyLine);
+			if (stickyLine.lineDomNode.scrollWidth > this._minContentWidthInPx) {
+				this._minContentWidthInPx = stickyLine.lineDomNode.scrollWidth;
+			}
 		}
 		if (foldingModel) {
 			this._setFoldingHoverListeners();
@@ -214,7 +218,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.height = `${widgetHeight}px`;
 
 		this._rootDomNode.style.marginLeft = '0px';
-		this._updateMinContentWidth();
+		this._minContentWidthInPx += this._editor.getLayoutInfo().verticalScrollbarWidth;
 		this._editor.layoutOverlayWidget(this);
 	}
 
@@ -352,16 +356,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		foldingIcon.setVisible(this._isOnGlyphMargin ? true : (isCollapsed || showFoldingControls === 'always'));
 		foldingIcon.domNode.setAttribute(STICKY_IS_FOLDING_ICON_ATTR, '');
 		return foldingIcon;
-	}
-
-	private _updateMinContentWidth() {
-		this._minContentWidthInPx = 0;
-		for (const stickyLine of this._stickyLines) {
-			if (stickyLine.lineDomNode.scrollWidth > this._minContentWidthInPx) {
-				this._minContentWidthInPx = stickyLine.lineDomNode.scrollWidth;
-			}
-		}
-		this._minContentWidthInPx += this._editor.getLayoutInfo().verticalScrollbarWidth;
 	}
 
 	getId(): string {
