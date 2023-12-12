@@ -19,6 +19,7 @@ import type { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAct
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 namespace LightBulbState {
 
@@ -64,6 +65,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -246,6 +248,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 		let icon: ThemeIcon;
 		let autoRun = false;
+		let aiFixes = false;
 		const option = this._editor.getOption(EditorOption.lightbulb).experimental.showAiIcon;
 		if (option === ShowAiIconMode.On || option === ShowAiIconMode.OnCode) {
 			if (option === ShowAiIconMode.On && this.state.actions.allAIFixes) {
@@ -271,12 +274,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				icon = Codicon.lightBulb;
 			}
 		}
-		this._updateLightbulbTitle(this.state.actions.hasAutoFix, autoRun);
+		this._updateLightbulbTitle(this.state.actions.hasAutoFix, autoRun, this.state.actions.hasAIFix);
 		this._iconClasses = ThemeIcon.asClassNameArray(icon);
 		this._domNode.classList.add(...this._iconClasses);
 	}
 
-	private _updateLightbulbTitle(autoFix: boolean, autoRun: boolean): void {
+	private _updateLightbulbTitle(autoFix: boolean, autoRun: boolean, hasAIFix: boolean): void {
 		if (this.state.type !== LightBulbState.Type.Showing) {
 			return;
 		}
@@ -289,6 +292,22 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		} else if (!autoFix) {
 			this.title = nls.localize('codeAction', "Show Code Actions");
 		}
+		type ShowLightbulbEvent = {
+			autoFix: boolean;
+			autoRun: boolean;
+			hasAIFix: boolean;
+		};
+		type ShowLightBulbEventClassification = {
+			autoFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Is there a preferred quick fix available?' };
+			autoRun: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Is there a auto run code action?' };
+			hasAIFix: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Is there an AI quick fix?' };
+			comment: 'Event used to gain insights into when the lightbulb icon is displayed and which code actions it contains';
+		};
+		this._telemetryService.publicLog2<ShowLightbulbEvent, ShowLightBulbEventClassification>('codeAction.showLightbulb', {
+			autoFix,
+			autoRun,
+			hasAIFix,
+		});
 	}
 
 	private set title(value: string) {
