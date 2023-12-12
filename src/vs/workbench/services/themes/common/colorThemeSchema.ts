@@ -114,10 +114,11 @@ const textMateScopes = [
 	'variable.parameter'
 ];
 
-export const textmateColorsSchemaId = 'vscode://schemas/textmate-colors';
-export const textmateColorGroupSchemaId = `${textmateColorsSchemaId}#/definitions/colorGroup`;
+export const textmateColorsSchemaForSettingId = 'vscode://schemas/textmate-colors-settings';
+export const textmateColorGroupSchemaId = `${textmateColorsSchemaForSettingId}#/definitions/colorGroup`;
+//NOTE: textmateColorGroupSchema is only used in setting, not theme, so no need to create separate schema for theme
 
-const textmateColorSchema: IJSONSchema = {
+const textmateColorSchemaForSetting: IJSONSchema = {
 	type: 'array',
 	definitions: {
 		colorGroup: {
@@ -217,6 +218,23 @@ const textmateColorSchema: IJSONSchema = {
 	}
 };
 
+export const textmateColorsSchemaForThemeId = 'vscode://schemas/textmate-colors-theme';
+const textmateColorSchemaForTheme: IJSONSchema = JSON.parse(JSON.stringify(textmateColorSchemaForSetting));
+
+delete textmateColorSchemaForTheme.definitions!.colorGroup; //colorGroup is not used in theme
+
+textmateColorSchemaForTheme.definitions!.settings.properties!.foreground = {
+	anyOf: [
+		{
+			type: 'string',
+			description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
+			pattern: '^\\$\\w+',
+			patternErrorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)")
+		},
+		textmateColorSchemaForSetting.definitions!.settings.properties!.foreground
+	]
+};
+
 export const colorThemeSchemaId = 'vscode://schemas/color-theme';
 
 const colorThemeSchema: IJSONSchema = {
@@ -236,7 +254,7 @@ const colorThemeSchema: IJSONSchema = {
 			},
 			{
 				description: nls.localize('schema.colors', 'Colors for syntax highlighting'),
-				$ref: textmateColorsSchemaId
+				$ref: textmateColorsSchemaForThemeId
 			}
 			]
 		},
@@ -281,5 +299,6 @@ const colorThemeSchema: IJSONSchema = {
 export function registerColorThemeSchemas() {
 	const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	schemaRegistry.registerSchema(colorThemeSchemaId, colorThemeSchema);
-	schemaRegistry.registerSchema(textmateColorsSchemaId, textmateColorSchema);
+	schemaRegistry.registerSchema(textmateColorsSchemaForSettingId, textmateColorSchemaForSetting);
+	schemaRegistry.registerSchema(textmateColorsSchemaForThemeId, textmateColorSchemaForTheme);
 }
