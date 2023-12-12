@@ -236,7 +236,7 @@ function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: Colo
 	const trackedRange = editor.getModel()._setTrackedRange(null, replaceRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 	editor.executeEdits('colorpicker', textEdits);
 	editor.pushUndoStop();
-	return editor.getModel()._getTrackedRange(trackedRange) || replaceRange;
+	return editor.getModel()._getTrackedRange(trackedRange) ?? replaceRange;
 }
 
 async function _updateColorPresentations(editorModel: ITextModel, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: ColorHover | StandaloneColorPickerHover) {
