@@ -207,7 +207,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 		disposables.add(model.onColorFlushed(async (color: Color) => {
 			await _updateColorPresentations(editorModel, model, color, range, colorHover);
 			editorUpdatedByColorPicker = true;
-			range = _updateEditorModel(editor, range, model, context);
+			range = _updateEditorModel(editor, range, model);
 		}));
 	}
 	disposables.add(model.onDidChangeColor((color: Color) => {
@@ -224,7 +224,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	return disposables;
 }
 
-function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel, context?: IEditorHoverRenderContext): Range {
+function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
 	const textEdits: ISingleEditOperation[] = [];
 	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
 	textEdits.push(edit);
