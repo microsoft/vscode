@@ -274,11 +274,24 @@ export class Gesture extends Disposable {
 				}
 			}
 
+			const targets: [number, HTMLElement][] = [];
 			for (const target of this.targets) {
 				if (target.contains(event.initialTarget)) {
-					target.dispatchEvent(event);
-					this.dispatched = true;
+					let depth = 0;
+					let now: Node | null = event.initialTarget;
+					while (now && now !== target) {
+						depth++;
+						now = now.parentElement;
+					}
+					targets.push([depth, target]);
 				}
+			}
+
+			targets.sort((a, b) => a[0] - b[0]);
+
+			for (const [_, target] of targets) {
+				target.dispatchEvent(event);
+				this.dispatched = true;
 			}
 		}
 	}
