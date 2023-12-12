@@ -109,6 +109,7 @@ export const _inputEditorOptions: IEditorConstructionOptions = {
 	suggest: {
 		showIcons: false,
 		showSnippets: false,
+		showWords: true,
 		showStatusBar: false,
 	},
 	wordWrap: 'on',

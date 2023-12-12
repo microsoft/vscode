@@ -605,14 +605,14 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 			// Editor will be saved on focus change when a
 			// dialog appears, so just track that separate
-			else if (filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			else if (filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
 				dirtyAutoSaveOnFocusChangeEditors.add({ editor, groupId });
 			}
 
 			// Windows, Linux: editor will be saved on window change
 			// when a native dialog appears, so just track that separate
 			// (see https://github.com/microsoft/vscode/issues/134250)
-			else if ((isNative && (isWindows || isLinux)) && filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			else if ((isNative && (isWindows || isLinux)) && filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
 				dirtyAutoSaveOnWindowChangeEditors.add({ editor, groupId });
 			}
 

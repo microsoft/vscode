@@ -85,7 +85,7 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 			this._isOpenKey.set(true);
 		} catch (e) {
 			if (!cts.token.isCancellationRequested) {
-				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {}', String(e)));
+				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {0}', String(e)));
 			}
 			return;
 		}

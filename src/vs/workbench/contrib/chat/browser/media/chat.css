@@ -520,6 +520,11 @@
 .interactive-item-container .value .interactive-response-placeholder-content {
 	color: var(--vscode-editorGhostText-foreground);
 	font-size: 12px;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content p {
+	margin: 0;
 }
 
 .interactive-response  .interactive-response-codicon-details {

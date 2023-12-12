@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -39,6 +41,10 @@ export class SettingsEditor2Input extends EditorInput {
 
 	override getName(): string {
 		return nls.localize('settingsEditor2InputName', "Settings");
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.settings;
 	}
 
 	override async resolve(): Promise<Settings2EditorModel> {

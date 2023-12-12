@@ -246,7 +246,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
-		options.suggest = { showIcons: false };
+		options.suggest = {
+			showIcons: false,
+			showSnippets: false,
+			showWords: true,
+			showStatusBar: false,
+		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));

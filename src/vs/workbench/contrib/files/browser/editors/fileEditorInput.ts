@@ -318,7 +318,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// and it could result in bad UX where an editor can be closed even though
 		// it shows up as dirty and has not finished saving yet.
 
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (this.filesConfigurationService.getAutoSaveMode(this) === AutoSaveMode.AFTER_SHORT_DELAY) {
 			return true; // a short auto save is configured, treat this as being saved
 		}
 

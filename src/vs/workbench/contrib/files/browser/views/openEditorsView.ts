@@ -460,7 +460,7 @@ export class OpenEditorsView extends ViewPane {
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode(workingCopy.resource) === AutoSaveMode.AFTER_SHORT_DELAY) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}
@@ -650,7 +650,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			italic: openedEditor.isPreview(),
 			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			title: editor.getTitle(Verbosity.LONG)
+			title: editor.getTitle(Verbosity.LONG),
+			icon: editor.getIcon()
 		});
 		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
 		if (!templateData.actionBar.hasAction(editorAction)) {

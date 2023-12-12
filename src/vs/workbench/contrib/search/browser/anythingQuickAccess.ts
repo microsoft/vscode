@@ -207,7 +207,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			includeSymbols: searchConfig?.quickOpen.includeSymbols,
 			includeHistory: searchConfig?.quickOpen.includeHistory,
 			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			shortAutoSaveDelay: this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY,
 			preserveInput: quickAccessConfig.preserveInput
 		};
 	}
@@ -943,7 +942,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean; openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -951,6 +950,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
 		let extraClasses: string[];
+		let icon: ThemeIcon | undefined = undefined;
 
 		if (isEditorInput(resourceOrEditor)) {
 			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
@@ -958,17 +958,18 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
 			extraClasses = resourceOrEditor.getLabelExtraClasses();
+			icon = resourceOrEditor.getIcon();
 		} else {
 			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
-			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
+			isDirty = this.workingCopyService.isDirty(resource) && this.filesConfigurationService.getAutoSaveMode(resource) !== AutoSaveMode.AFTER_SHORT_DELAY;
 			extraClasses = [];
 		}
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
 
-		const iconClassesValue = new Lazy(() => getIconClasses(this.modelService, this.languageService, resource).concat(extraClasses));
+		const iconClassesValue = new Lazy(() => getIconClasses(this.modelService, this.languageService, resource, undefined, icon).concat(extraClasses));
 
 		const buttonsValue = new Lazy(() => {
 			const openSideBySideDirection = configuration.openSideBySideDirection;
