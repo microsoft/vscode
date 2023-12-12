@@ -56,6 +56,8 @@ export interface IFilesConfigurationService {
 
 	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration;
 
+	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean;
+
 	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): AutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
@@ -335,8 +337,28 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return resourceOrEditor;
 	}
 
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): AutoSaveMode {
+	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean {
 		const autoSaveConfiguration = this.getAutoSaveConfiguration(resourceOrEditor);
+		if (
+			autoSaveConfiguration.autoSave !== 'afterDelay' ||
+			typeof autoSaveConfiguration.autoSaveDelay !== 'number' ||
+			autoSaveConfiguration.autoSaveDelay > FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY ||
+			autoSaveConfiguration.autoSaveWhenNoErrors
+		) {
+			// We can avoid the call to `doGetAutoSaveMode` by checking
+			// the configuration for some properties that clearly indicate
+			// that the short auto save delay cannot apply.
+			return false;
+		}
+
+		return this.doGetAutoSaveMode(resourceOrEditor, autoSaveConfiguration) === AutoSaveMode.AFTER_SHORT_DELAY;
+	}
+
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): AutoSaveMode {
+		return this.doGetAutoSaveMode(resourceOrEditor, this.getAutoSaveConfiguration(resourceOrEditor));
+	}
+
+	private doGetAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, autoSaveConfiguration: IAutoSaveConfiguration): AutoSaveMode {
 		if (typeof autoSaveConfiguration.autoSave === 'undefined') {
 			return AutoSaveMode.OFF;
 		}
