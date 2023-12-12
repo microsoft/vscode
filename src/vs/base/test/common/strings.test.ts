@@ -144,12 +144,14 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('a', 10), 'a');
 		assert.strictEqual(strings.lcut(' a', 10), 'a');
 		assert.strictEqual(strings.lcut('            a', 10), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10), 'bbbb       a');
 		assert.strictEqual(strings.lcut('............a', 10), '............a');
 
 		assert.strictEqual(strings.lcut('', 10, '…'), '');
 		assert.strictEqual(strings.lcut('a', 10, '…'), 'a');
 		assert.strictEqual(strings.lcut(' a', 10, '…'), 'a');
 		assert.strictEqual(strings.lcut('            a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10, '…'), 'bbbb       a');
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 

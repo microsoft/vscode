@@ -713,14 +713,16 @@ export function isEmojiImprecise(x: number): boolean {
  * The return value can be longer than the given value of `n`. Leading whitespace is always trimmed.
  */
 export function lcut(text: string, n: number, prefix = '') {
-	if (text.length < n) {
-		return text.trimStart();
+	const trimmed = text.trimStart();
+
+	if (trimmed.length < n) {
+		return trimmed;
 	}
 
 	const re = /\b/g;
 	let i = 0;
-	while (re.test(text)) {
-		if (text.length - re.lastIndex < n) {
+	while (re.test(trimmed)) {
+		if (trimmed.length - re.lastIndex < n) {
 			break;
 		}
 
@@ -729,10 +731,10 @@ export function lcut(text: string, n: number, prefix = '') {
 	}
 
 	if (i === 0) {
-		return text.trimStart();
+		return trimmed;
 	}
 
-	return prefix + text.substring(i).trimStart();
+	return prefix + trimmed.substring(i).trimStart();
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
