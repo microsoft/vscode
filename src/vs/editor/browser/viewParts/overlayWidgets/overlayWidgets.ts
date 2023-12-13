@@ -27,6 +27,7 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	private _widgets: IWidgetMap;
 	private readonly _domNode: FastDomNode<HTMLElement>;
+	public readonly overflowingOverlayWidgetsDomNode: FastDomNode<HTMLElement>;
 
 	private _verticalScrollbarWidth: number;
 	private _minimapWidth: number;
@@ -50,6 +51,10 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._domNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this._domNode, PartFingerprint.OverlayWidgets);
 		this._domNode.setClassName('overlayWidgets');
+
+		this.overflowingOverlayWidgetsDomNode = createFastDomNode(document.createElement('div'));
+		PartFingerprints.write(this.overflowingOverlayWidgetsDomNode, PartFingerprint.OverflowingOverlayWidgets);
+		this.overflowingOverlayWidgetsDomNode.setClassName('overflowingOverlayWidgets');
 	}
 
 	public override dispose(): void {
@@ -89,7 +94,12 @@ export class ViewOverlayWidgets extends ViewPart {
 		// This is sync because a widget wants to be in the dom
 		domNode.setPosition('absolute');
 		domNode.setAttribute('widgetId', widget.getId());
-		this._domNode.appendChild(domNode);
+
+		if (widget.allowEditorOverflow) {
+			this.overflowingOverlayWidgetsDomNode.appendChild(domNode);
+		} else {
+			this._domNode.appendChild(domNode);
+		}
 
 		this.setShouldRender();
 		this._updateMaxMinWidth();
@@ -116,7 +126,7 @@ export class ViewOverlayWidgets extends ViewPart {
 			const domNode = widgetData.domNode.domNode;
 			delete this._widgets[widgetId];
 
-			domNode.parentNode!.removeChild(domNode);
+			domNode.remove();
 			this.setShouldRender();
 			this._updateMaxMinWidth();
 		}

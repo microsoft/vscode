@@ -239,6 +239,10 @@ export interface IOverlayWidgetPosition {
  */
 export interface IOverlayWidget {
 	/**
+	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
+	 */
+	allowEditorOverflow?: boolean;
+	/**
 	 * Get a unique identifier of the overlay widget.
 	 */
 	getId(): string;
