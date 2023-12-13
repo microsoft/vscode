@@ -225,9 +225,9 @@ registerEditorSettingMigration('codeActionWidget.includeNearbyQuickfixes', (valu
 });
 
 // Migrate the lightbulb settings
-registerEditorSettingMigration('editor.lightbulb.enabled', (value, read, write) => {
+registerEditorSettingMigration('lightbulb.enabled', (value, read, write) => {
 	if (typeof value === 'boolean') {
-		write('editor.lightbulb.enabled', value ? undefined : 'off');
+		write('lightbulb.enabled', value ? undefined : 'off');
 	}
 });
 
