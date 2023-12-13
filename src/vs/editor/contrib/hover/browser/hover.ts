@@ -177,14 +177,20 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._cancelScheduler();
 		const targetElement = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
 
-		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetElement)) {
+		if (
+			this._contentWidget?.widget.isResizing
+			|| this._contentWidget?.containsNode(targetElement)
+			|| this._hoverState.locked
+		) {
 			// When the content widget is resizing
 			// When the mouse is inside hover widget
+			// When the widget is locked
 			return;
 		}
 		if (_sticky) {
 			return;
 		}
+		console.log('return 1');
 		this._hideWidgets();
 	}
 
@@ -232,7 +238,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		this._mouseMoveEvent = mouseEvent;
 		const event = mouseEvent.event;
-		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 
 		if (
 			event.altKey
@@ -243,11 +248,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 			// When the alt key is pressed, and other key modifiers are not
 			if (
 				this._contentWidget?.isVisible
-				&& mouseIsOverWidget
 				&& !this._hoverState.locked
 			) {
-				// Toggle locked state when the hover is visible,
-				// the mouse is on the hover and the state is not locked
+				// Toggle locked state when the hover is visible and the state is not locked
 				this._toggleLockedState(true);
 				this._reactToEditorMouseMoveRunner.cancel();
 				return;
@@ -273,6 +276,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
+		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
 			this._reactToEditorMouseMoveRunner.cancel();
@@ -315,6 +319,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
 			)
 		) {
+			console.log('return 2');
 			this._hideWidgets();
 			return;
 		}
@@ -335,6 +340,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
+		console.log('return 3');
 		this._hideWidgets();
 	}
 
@@ -367,6 +373,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
+		console.log('return 4');
 		this._hideWidgets();
 	}
 
@@ -376,6 +383,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		console.log('this._hideWidgets');
 		if (_sticky) {
 			return;
 		}

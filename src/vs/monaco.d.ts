@@ -4011,6 +4011,10 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		above?: boolean;
+		/**
+		 * Enable locking of the hover
+		 */
+		enableLocking?: boolean;
 	}
 
 	/**

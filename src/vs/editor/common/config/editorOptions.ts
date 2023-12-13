@@ -2051,6 +2051,10 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Enable locking of the hover
+	 */
+	enableLocking?: boolean;
 }
 
 /**
@@ -2067,6 +2071,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			enableLocking: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2097,6 +2102,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 				'editor.hover.above': {
 					type: 'boolean',
 					default: defaults.above,
+					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
+				},
+				'editor.hover.enableLocking': {
+					type: 'boolean',
+					default: defaults.enableLocking,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
 			}
