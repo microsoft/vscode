@@ -256,9 +256,14 @@ export interface ITokenClassificationRegistry {
 	getTokenStylingDefaultRules(): SemanticTokenDefaultRule[];
 
 	/**
-	 * JSON schema for an object to assign styling to token classifications
+	 * JSON schema for an object to assign styling to token classifications used in settings.
 	 */
-	getTokenStylingSchema(): IJSONSchema;
+	getTokenStylingSchemaForSetting(): IJSONSchema;
+
+	/**
+	 * JSON schema for an object to assign styling to token classifications used in themes (allow accent variables)
+	 */
+	getTokenStylingSchemaForTheme(): IJSONSchema;
 }
 
 class TokenClassificationRegistry implements ITokenClassificationRegistry {
@@ -276,11 +281,11 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	private typeHierarchy: { [id: string]: string[] };
 
-	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap; patternProperties: IJSONSchemaMap } = {
+	private tokenStylingSchemaForSetting: IJSONSchema & { properties: IJSONSchemaMap; patternProperties: IJSONSchemaMap } = {
 		type: 'object',
 		properties: {},
 		patternProperties: {
-			[selectorPattern]: getStylingSchemeEntry()
+			[selectorPattern]: getStylingSchemaEntryForSetting()
 		},
 		//errorMessage: nls.localize('schema.token.errors', 'Valid token selectors have the form (*|tokenType)(.tokenModifier)*(:tokenLanguage)?.'),
 		additionalProperties: false,
@@ -346,7 +351,25 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		}
 	};
 
+	private tokenStylingSchemaForTheme: IJSONSchema & { properties: IJSONSchemaMap; patternProperties: IJSONSchemaMap };
+
 	constructor() {
+		this.tokenStylingSchemaForTheme = JSON.parse(JSON.stringify(this.tokenStylingSchemaForSetting));
+		this.tokenStylingSchemaForTheme.patternProperties = {
+			[selectorPattern]: getStylingSchemaEntryForTheme()
+		};
+		this.tokenStylingSchemaForTheme.definitions!.settings.properties!.foreground = {
+			anyOf: [
+				{
+					type: 'string',
+					description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
+					pattern: '^\\$\\w+',
+					patternErrorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)")
+				},
+				this.tokenStylingSchemaForSetting.definitions!.settings.properties!.foreground
+			]
+		};
+		this.tokenStylingSchemaForTheme.definitions!.settings.defaultSnippets!.unshift({ body: { foreground: '\$${1:accentName}', fontStyle: '${2:bold}' } });
 		this.tokenTypeById = Object.create(null);
 		this.tokenModifierById = Object.create(null);
 		this.typeHierarchy = Object.create(null);
@@ -364,8 +387,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
 
-		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
-		this.tokenStylingSchema.properties[id] = stylingSchemeEntry;
+		const stylingSchemeEntryForSetting = getStylingSchemaEntryForSetting(description, deprecationMessage);
+		const stylingSchemeEntryForTheme = getStylingSchemaEntryForTheme(description, deprecationMessage);
+		this.tokenStylingSchemaForSetting.properties[id] = stylingSchemeEntryForSetting;
+		this.tokenStylingSchemaForTheme.properties[id] = stylingSchemeEntryForTheme;
 		this.typeHierarchy = Object.create(null);
 	}
 
@@ -379,7 +404,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
 		this.tokenModifierById[id] = tokenStyleContribution;
 
-		this.tokenStylingSchema.properties[`*.${id}`] = getStylingSchemeEntry(description, deprecationMessage);
+		this.tokenStylingSchemaForSetting.properties[`*.${id}`] = getStylingSchemaEntryForSetting(description, deprecationMessage);
+		this.tokenStylingSchemaForTheme.properties[`*.${id}`] = getStylingSchemaEntryForTheme(description, deprecationMessage);
 	}
 
 	public parseTokenSelector(selectorString: string, language?: string): TokenSelector {
@@ -432,13 +458,15 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	public deregisterTokenType(id: string): void {
 		delete this.tokenTypeById[id];
-		delete this.tokenStylingSchema.properties[id];
+		delete this.tokenStylingSchemaForSetting.properties[id];
+		delete this.tokenStylingSchemaForTheme.properties[id];
 		this.typeHierarchy = Object.create(null);
 	}
 
 	public deregisterTokenModifier(id: string): void {
 		delete this.tokenModifierById[id];
-		delete this.tokenStylingSchema.properties[`*.${id}`];
+		delete this.tokenStylingSchemaForSetting.properties[`*.${id}`];
+		delete this.tokenStylingSchemaForTheme.properties[`*.${id}`];
 	}
 
 	public getTokenTypes(): TokenTypeOrModifierContribution[] {
@@ -449,8 +477,12 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return Object.keys(this.tokenModifierById).map(id => this.tokenModifierById[id]);
 	}
 
-	public getTokenStylingSchema(): IJSONSchema {
-		return this.tokenStylingSchema;
+	public getTokenStylingSchemaForSetting(): IJSONSchema {
+		return this.tokenStylingSchemaForSetting;
+	}
+
+	public getTokenStylingSchemaForTheme(): IJSONSchema {
+		return this.tokenStylingSchemaForTheme;
 	}
 
 	public getTokenStylingDefaultRules(): SemanticTokenDefaultRule[] {
@@ -600,7 +632,7 @@ export function getTokenClassificationRegistry(): ITokenClassificationRegistry {
 	return tokenClassificationRegistry;
 }
 
-function getStylingSchemeEntry(description?: string, deprecationMessage?: string): IJSONSchema {
+function getStylingSchemaEntryForSetting(description?: string, deprecationMessage?: string): IJSONSchema {
 	return {
 		description,
 		deprecationMessage,
@@ -617,12 +649,39 @@ function getStylingSchemeEntry(description?: string, deprecationMessage?: string
 	};
 }
 
-export const tokenStylingSchemaId = 'vscode://schemas/token-styling';
+function getStylingSchemaEntryForTheme(description?: string, deprecationMessage?: string): IJSONSchema {
+	return {
+		description,
+		deprecationMessage,
+		defaultSnippets: [{ body: '\$${1:accentName}' }, { body: '${1:#ff0000}' }],
+		anyOf: [
+			{
+				type: 'string',
+				pattern: '^\\$\\w+',
+				patternErrorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)")
+			},
+			{
+				type: 'string',
+				format: 'color-hex'
+			},
+			{
+				$ref: '#/definitions/style'
+			}
+		]
+	};
+}
+
+export const tokenStylingSchemaForSettingId = 'vscode://schemas/token-styling-settings';
+export const tokenStylingSchemaForThemeId = 'vscode://schemas/token-styling-theme';
 
 const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-schemaRegistry.registerSchema(tokenStylingSchemaId, tokenClassificationRegistry.getTokenStylingSchema());
+schemaRegistry.registerSchema(tokenStylingSchemaForSettingId, tokenClassificationRegistry.getTokenStylingSchemaForSetting());
+schemaRegistry.registerSchema(tokenStylingSchemaForThemeId, tokenClassificationRegistry.getTokenStylingSchemaForTheme());
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(tokenStylingSchemaId), 200);
+const delayer = new RunOnceScheduler(() => {
+	schemaRegistry.notifySchemaChanged(tokenStylingSchemaForSettingId);
+	schemaRegistry.notifySchemaChanged(tokenStylingSchemaForThemeId);
+}, 200);
 tokenClassificationRegistry.onDidChangeSchema(() => {
 	if (!delayer.isScheduled()) {
 		delayer.schedule();

@@ -11,7 +11,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaForSettingId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { workbenchColorsSchemaForSettingId } from 'vs/platform/theme/common/colorRegistry';
-import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { tokenStylingSchemaForSettingId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { isWeb } from 'vs/base/common/platform';
@@ -190,7 +190,7 @@ const semanticTokenColorSchema: IJSONSchema = {
 			suggestSortText: '0_enabled'
 		},
 		rules: {
-			$ref: tokenStylingSchemaId,
+			$ref: tokenStylingSchemaForSettingId,
 			description: nls.localize('editorColors.semanticHighlighting.rules', 'Semantic token styling rules for this theme.'),
 			suggestSortText: '0_rules'
 		}

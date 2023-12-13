@@ -9,7 +9,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { workbenchColorsSchemaForThemeId } from 'vs/platform/theme/common/colorRegistry';
-import { tokenStylingSchemaId } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { tokenStylingSchemaForThemeId } from 'vs/platform/theme/common/tokenClassificationRegistry';
 
 const textMateScopes = [
 	'comment',
@@ -235,6 +235,8 @@ textmateColorSchemaForTheme.definitions!.settings.properties!.foreground = {
 	]
 };
 
+textmateColorSchemaForTheme.definitions!.settings.defaultSnippets!.unshift({ body: { foreground: '\$${1:accentName}', fontStyle: '${2:bold}' } });
+
 export const colorThemeSchemaId = 'vscode://schemas/color-theme';
 
 const colorThemeSchema: IJSONSchema = {
@@ -265,7 +267,7 @@ const colorThemeSchema: IJSONSchema = {
 		semanticTokenColors: {
 			type: 'object',
 			description: nls.localize('schema.semanticTokenColors', 'Colors for semantic tokens'),
-			$ref: tokenStylingSchemaId
+			$ref: tokenStylingSchemaForThemeId
 		},
 		colorPalette: {
 			type: 'object',

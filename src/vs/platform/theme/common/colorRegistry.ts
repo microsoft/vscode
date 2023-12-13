@@ -109,9 +109,14 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined;
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contributions.
+	 * JSON schema for an object to assign color values to one of the color contributions used in settings.
 	 */
 	getColorSchemaForSetting(): IJSONSchema;
+
+	/**
+	 * JSON schema for an object to assign color values to one of the color contributions used in themes (allow accent variables).
+	 */
+	getColorSchemaForTheme(): IJSONSchema;
 
 	/**
 	 * JSON schema to for a reference to a color contribution.
