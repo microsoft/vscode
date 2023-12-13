@@ -67,8 +67,11 @@ class SplitPaneContainer extends Disposable {
 		if ((isHorizontal && this.orientation !== Orientation.HORIZONTAL) ||
 			(!isHorizontal && this.orientation !== Orientation.VERTICAL)) {
 			// Resize the entire pane as a whole
-			if ((this.orientation === Orientation.HORIZONTAL && direction === Direction.Down) ||
-				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
+			if (
+				(this.orientation === Orientation.HORIZONTAL && direction === Direction.Down) ||
+				(part === Parts.SIDEBAR_PART && direction === Direction.Left) ||
+				(part === Parts.AUXILIARYBAR_PART && direction === Direction.Right)
+			) {
 				amount *= -1;
 			}
 

@@ -40,10 +40,10 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	enabled: boolean;
-	sticky: boolean;
-	hidingDelay: number;
-	enableLocking: boolean;
+	readonly enabled: boolean;
+	readonly sticky: boolean;
+	readonly hidingDelay: number;
+	readonly enableLocking: boolean;
 }
 
 interface IHoverState {
@@ -315,9 +315,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 					(decoratorActivatedOn === 'click' && !activatedByDecoratorClick) ||
 					(decoratorActivatedOn === 'hover' && !enabled && !_sticky) ||
 					(decoratorActivatedOn === 'clickAndHover' && !enabled && !activatedByDecoratorClick))
-			)
-			||
-			(
+			) || (
 				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
 			)
 		) {

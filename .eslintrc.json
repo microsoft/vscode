@@ -73,6 +73,7 @@
 		"local/code-no-nls-in-standalone-editor": "warn",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
+		"local/code-must-use-super-dispose": "warn",
 		"local/code-declare-service-brand": "warn",
 		"local/code-layering": [
 			"warn",
@@ -119,6 +120,7 @@
 				"**/*.test.ts"
 			],
 			"rules": {
+				"local/code-must-use-super-dispose": "off",
 				"local/code-no-test-only": "error",
 				"local/code-no-test-async-suite": "warn",
 				"local/code-no-unexternalized-strings": "off",

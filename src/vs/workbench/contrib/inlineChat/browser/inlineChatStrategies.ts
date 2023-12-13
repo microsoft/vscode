@@ -309,7 +309,7 @@ export class LiveStrategy extends EditModeStrategy {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		LiveStrategy._undoModelUntil(modelN, targetAltVersion);
+		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
@@ -331,7 +331,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override async undoChanges(altVersionId: number): Promise<void> {
 		const { textModelN } = this._session;
-		LiveStrategy._undoModelUntil(textModelN, altVersionId);
+		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
@@ -359,18 +359,6 @@ export class LiveStrategy extends EditModeStrategy {
 			this._zone.widget.showCreatePreview(response.untitledTextModel);
 		} else {
 			this._zone.widget.hideCreatePreview();
-		}
-	}
-
-	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		let actualAltVersion = model.getAlternativeVersionId();
-		while (targetAltVersion < actualAltVersion && model.canUndo()) {
-			model.undo();
-			const newActualAltVersion = model.getAlternativeVersionId();
-			if (actualAltVersion === newActualAltVersion) {
-				break;
-			}
-			actualAltVersion = newActualAltVersion;
 		}
 	}
 
@@ -693,7 +681,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		LiveStrategy3._undoModelUntil(modelN, targetAltVersion);
+		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
@@ -718,7 +706,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
 
 		const { textModelN } = this._session;
-		LiveStrategy3._undoModelUntil(textModelN, altVersionId);
+		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
@@ -960,18 +948,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 		return await this._showDiff(true, false);
 	}
 
-	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		let actualAltVersion = model.getAlternativeVersionId();
-		while (targetAltVersion < actualAltVersion && model.canUndo()) {
-			model.undo();
-			const newActualAltVersion = model.getAlternativeVersionId();
-			if (actualAltVersion === newActualAltVersion) {
-				break;
-			}
-			actualAltVersion = newActualAltVersion;
-		}
-	}
-
 	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[], index: number) {
 		const changesCount = mappings.length;
 		let message: string;
@@ -992,5 +968,12 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
+	}
+}
+
+
+async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
+	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+		await model.undo();
 	}
 }

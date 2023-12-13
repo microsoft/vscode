@@ -1474,8 +1474,9 @@ export class Repository implements Disposable {
 		// Git config
 		try {
 			const mergeBase = await this.getConfig(branchMergeBaseConfigKey);
-			if (mergeBase) {
-				return await this.getBranch(mergeBase);
+			if (mergeBase !== '') {
+				const mergeBaseBranch = await this.getBranch(mergeBase);
+				return mergeBaseBranch;
 			}
 		} catch (err) { }
 

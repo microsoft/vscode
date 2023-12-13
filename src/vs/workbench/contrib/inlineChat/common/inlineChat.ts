@@ -130,7 +130,6 @@ export interface IInlineChatService {
 
 export const INLINE_CHAT_ID = 'interactiveEditor';
 export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';
-export const INLINE_CHAT_DECORATIONS_ID = 'interactiveEditorDecorations';
 
 export const CTX_INLINE_CHAT_HAS_PROVIDER = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
@@ -155,7 +154,6 @@ export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inli
 export const CTX_INLINE_CHAT_CHANGE_HAS_DIFF = new RawContextKey<boolean>('inlineChatChangeHasDiff', false, localize('inlineChatChangeHasDiff', "Whether the current change supports showing a diff"));
 export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inlineChatChangeShowsDiff', false, localize('inlineChatChangeShowsDiff', "Whether the current change showing a diff"));
 export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.mode', EditMode.Live);
-export const CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED = new RawContextKey<boolean>('config.inlineChat.showToolbarIcon', false);
 
 // --- (select) action identifier
 
@@ -196,12 +194,6 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
-export const enum ShowGutterIcon {
-	Always = 'always',
-	MouseOver = 'mouseover',
-	Never = 'never'
-}
-
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{
 		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
@@ -227,22 +219,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'inlineChat.showDiff': {
 			description: localize('showDiff', "Enable/disable showing the diff when edits are generated. Works only with inlineChat.mode equal to live or livePreview."),
 			default: true,
-			type: 'boolean'
-		},
-		'inlineChat.showGutterIcon': {
-			description: localize('showGutterIcon', "Controls when the gutter icon for spawning inline chat is shown."),
-			default: ShowGutterIcon.Never,
-			type: 'string',
-			enum: [ShowGutterIcon.Always, ShowGutterIcon.MouseOver, ShowGutterIcon.Never],
-			markdownEnumDescriptions: [
-				localize('showGutterIcon.always', "Always show the gutter icon."),
-				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
-				localize('showGutterIcon.never', "Never show the gutter icon."),
-			]
-		},
-		'inlineChat.showToolbarIcon': {
-			description: localize('showToolbarIcon', "Controls whether the toolbar icon spawning the inline chat is enabled."),
-			default: false,
 			type: 'boolean'
 		}
 	}

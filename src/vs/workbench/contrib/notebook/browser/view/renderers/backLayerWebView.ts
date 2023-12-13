@@ -117,6 +117,7 @@ interface BacklayerWebviewOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly outputLineLimit: number;
+	readonly outputLinkifyFilePaths: boolean;
 }
 
 
@@ -245,7 +246,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			renderOptions: {
 				lineLimit: this.options.outputLineLimit,
 				outputScrolling: this.options.outputScrolling,
-				outputWordWrap: this.options.outputWordWrap
+				outputWordWrap: this.options.outputWordWrap,
+				linkifyFilePaths: this.options.outputLinkifyFilePaths,
 			}
 		});
 	}
@@ -283,7 +285,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		const renderOptions = {
 			lineLimit: this.options.outputLineLimit,
 			outputScrolling: this.options.outputScrolling,
-			outputWordWrap: this.options.outputWordWrap
+			outputWordWrap: this.options.outputWordWrap,
+			linkifyFilePaths: this.options.outputLinkifyFilePaths
 		};
 		const preloadScript = preloadsScriptStr(
 			{
