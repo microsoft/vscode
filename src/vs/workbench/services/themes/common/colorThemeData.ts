@@ -740,7 +740,8 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 		if (semanticTokenColors && typeof semanticTokenColors === 'object') {
 			for (const key in semanticTokenColors) {
 				try {
-					const rule = readSemanticTokenRule(key, semanticTokenColors[key]);
+					const parsedSemanticTokenColor = _parseSemanticTokenColor(semanticTokenColors[key], colorPalette);
+					const rule = readSemanticTokenRule(key, parsedSemanticTokenColor);
 					if (rule) {
 						result.semanticTokenRules.push(rule);
 					}
@@ -774,6 +775,16 @@ function _parseTokenColor(tokenColor: any, colorPalette: { [key: string]: string
 	tokenColor.settings.foreground = _parseColor(tokenColor.settings.foreground, colorPalette);
 	tokenColor.settings.background = _parseColor(tokenColor.settings.background, colorPalette);
 	return tokenColor;
+}
+
+function _parseSemanticTokenColor(semanticTokenColor: any, colorPalette: { [key: string]: string }) {
+	if (typeof semanticTokenColor === 'string') {
+		semanticTokenColor = _parseColor(semanticTokenColor, colorPalette);
+	}
+	else {
+		semanticTokenColor.foreground = _parseColor(semanticTokenColor.foreground, colorPalette);
+	}
+	return semanticTokenColor;
 }
 
 function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): Promise<any> {
