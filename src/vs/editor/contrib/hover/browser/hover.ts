@@ -29,6 +29,7 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import 'vs/css!./hover';
@@ -42,6 +43,7 @@ interface IHoverSettings {
 	enabled: boolean;
 	sticky: boolean;
 	hidingDelay: number;
+	enableLocking: boolean;
 }
 
 interface IHoverState {
@@ -64,6 +66,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _mouseMoveEvent: IEditorMouseEvent | undefined;
 	private _reactToEditorMouseMoveRunner: RunOnceScheduler;
 
+	private _usingAltForLocking!: boolean;
 	private _hoverSettings!: IHoverSettings;
 	private _hoverState: IHoverState = {
 		mouseDown: false,
@@ -86,10 +89,14 @@ export class HoverController extends Disposable implements IEditorContribution {
 			)
 		);
 		this._hookListeners();
+		this._usingAltForLocking = this._editor.getOption(EditorOption.multiCursorModifier) === 'altKey';
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
 				this._unhookListeners();
 				this._hookListeners();
+			}
+			if (e.hasChanged(EditorOption.multiCursorModifier)) {
+				this._usingAltForLocking = this._editor.getOption(EditorOption.multiCursorModifier) === 'altKey';
 			}
 		}));
 	}
@@ -104,7 +111,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
-			hidingDelay: hoverOpts.delay
+			hidingDelay: hoverOpts.delay,
+			enableLocking: hoverOpts.enableLocking
 		};
 
 		if (hoverOpts.enabled) {
@@ -190,7 +198,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		console.log('return 1');
 		this._hideWidgets();
 	}
 
@@ -237,30 +244,25 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 
 		this._mouseMoveEvent = mouseEvent;
-		const event = mouseEvent.event;
-
-		if (
-			event.altKey
-			&& !event.ctrlKey
-			&& !event.metaKey
-			&& !event.shiftKey
-		) {
-			// When the alt key is pressed, and other key modifiers are not
-			if (
-				this._contentWidget?.isVisible
-				&& !this._hoverState.locked
-			) {
-				// Toggle locked state when the hover is visible and the state is not locked
-				this._toggleLockedState(true);
-				this._reactToEditorMouseMoveRunner.cancel();
-				return;
+		if (this._hoverSettings.enableLocking) {
+			if (this._lockHoverKeys(mouseEvent.event)) {
+				// When the alt key is pressed, and other key modifiers are not
+				if (
+					this._contentWidget?.isVisible
+					&& !this._hoverState.locked
+				) {
+					// Toggle locked state when the hover is visible and the state is not locked
+					this._toggleLockedState(true);
+					this._reactToEditorMouseMoveRunner.cancel();
+					return;
+				}
+				if (this._hoverState.locked) {
+					return;
+				}
 			}
 			if (this._hoverState.locked) {
-				return;
+				this._toggleLockedState(false);
 			}
-		}
-		if (this._hoverState.locked) {
-			this._toggleLockedState(false);
 		}
 
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
@@ -319,7 +321,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
 			)
 		) {
-			console.log('return 2');
 			this._hideWidgets();
 			return;
 		}
@@ -340,7 +341,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
-		console.log('return 3');
 		this._hideWidgets();
 	}
 
@@ -373,8 +373,15 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		console.log('return 4');
 		this._hideWidgets();
+	}
+
+	private _lockHoverKeys(event: IMouseEvent): boolean {
+		if (this._usingAltForLocking) {
+			return event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey;
+		} else {
+			return event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey;
+		}
 	}
 
 	private _toggleLockedState(locked: boolean) {
@@ -383,7 +390,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		console.log('this._hideWidgets');
 		if (_sticky) {
 			return;
 		}

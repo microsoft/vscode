@@ -2107,7 +2107,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 				'editor.hover.enableLocking': {
 					type: 'boolean',
 					default: defaults.enableLocking,
-					description: nls.localize('editor.hover.enableLocking', "Enable the locking of the hover. If enabled, will use `alt` when `editor.multiCursorModifier` is `ctrlCmd` and `ctrlCmd` otherwise.")
+					description: nls.localize('editor.hover.enableLocking', "Enable the locking of the hover. If enabled, the value of `editor.multiCursorModifier` will be used for locking.")
 				},
 			}
 		);
@@ -2124,6 +2124,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			enableLocking: boolean(input.enableLocking, this.defaultValue.enableLocking),
 		};
 	}
 }
