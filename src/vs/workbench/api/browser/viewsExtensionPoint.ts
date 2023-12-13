@@ -36,6 +36,7 @@ import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
+import { COMMENTS_VIEW_ID as COMMENTS } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -231,6 +232,12 @@ const viewsContribution: IJSONSchema = {
 			description: localize('views.remote', "Contributes views to Remote container in the Activity bar. To contribute to this container, enableProposedApi needs to be turned on"),
 			type: 'array',
 			items: remoteViewDescriptor,
+			default: []
+		},
+		'comments': {
+			description: localize('views.comments', "Contributes views to Comments container in the Panel"),
+			type: 'array',
+			items: viewDescriptor,
 			default: []
 		}
 	},
@@ -650,6 +657,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			case 'debug': return this.viewContainersRegistry.get(DEBUG);
 			case 'scm': return this.viewContainersRegistry.get(SCM);
 			case 'remote': return this.viewContainersRegistry.get(REMOTE);
+			case 'comments': return this.viewContainersRegistry.get(COMMENTS);
 			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}
