@@ -9,13 +9,17 @@ import { Model } from './model';
 import { throttle, debounce } from './decorators';
 
 async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<T>): Promise<T | undefined> {
+	const listeners: Disposable[] = [];
 	const result = await new Promise<T | undefined>(c => {
-		quickpick.onDidAccept(() => c(quickpick.selectedItems[0]));
-		quickpick.onDidHide(() => c(undefined));
+		listeners.push(
+			quickpick.onDidAccept(() => c(quickpick.selectedItems[0])),
+			quickpick.onDidHide(() => c(undefined)),
+		);
 		quickpick.show();
 	});
 
 	quickpick.hide();
+	listeners.forEach(l => l.dispose());
 	return result;
 }
 
