@@ -112,7 +112,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
-			this._listenersStore.add(this._editor.onKeyUp((e: IKeyboardEvent) => this._onKeyUp(e)));
 		} else {
 			this._listenersStore.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._listenersStore.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
@@ -232,10 +231,35 @@ export class HoverController extends Disposable implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 
 		this._mouseMoveEvent = mouseEvent;
-		if (this._hoverState.locked) {
-			// When the alt key is pressed, hover remains visible
-			return;
+		const event = mouseEvent.event;
+		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
+
+		if (
+			event.altKey
+			&& !event.ctrlKey
+			&& !event.metaKey
+			&& !event.shiftKey
+		) {
+			// When the alt key is pressed, and other key modifiers are not
+			if (
+				this._contentWidget?.isVisible
+				&& mouseIsOverWidget
+				&& !this._hoverState.locked
+			) {
+				// Toggle locked state when the hover is visible,
+				// the mouse is on the hover and the state is not locked
+				this._toggleLockedState(true);
+				this._reactToEditorMouseMoveRunner.cancel();
+				return;
+			}
+			if (this._hoverState.locked) {
+				return;
+			}
 		}
+		if (this._hoverState.locked) {
+			this._toggleLockedState(false);
+		}
+
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
 			return;
 		}
@@ -249,7 +273,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
-		const mouseIsOverWidget = this._isMouseOverWidget(mouseEvent);
 		// If the mouse is over the widget and the hiding timeout is defined, then cancel it
 		if (mouseIsOverWidget) {
 			this._reactToEditorMouseMoveRunner.cancel();
@@ -319,9 +342,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		if (this._editor.getOption(EditorOption.hover).enabled && this._isLockedCode(e)) {
-			this._toggleLockedState(e.altKey);
-		}
 
 		const resolvedKeyboardEvent = this._keybindingService.softDispatch(e, this._editor.getDomNode());
 
@@ -350,28 +370,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._hideWidgets();
 	}
 
-	private _isLockedCode(e: IKeyboardEvent): boolean {
-		return (
-			e.altKey
-			&& !e.altGraphKey
-			&& !e.ctrlKey
-			&& !e.metaKey
-			&& !e.shiftKey
-			&& (e.keyCode === KeyCode.Alt)
-		);
-	}
-
-	private _onKeyUp(e: IKeyboardEvent): void {
-		if (this._isLockedCode(e)) {
-			this._toggleLockedState(!e.altKey);
-		}
-	}
-
 	private _toggleLockedState(locked: boolean) {
-		if (this._hoverState.locked !== locked) {
-			this._hoverState.locked = locked;
-			this._contentWidget?.widget.toggleLocked(this._hoverState.locked);
-		}
+		this._hoverState.locked = locked;
+		this._contentWidget?.widget.toggleLocked(locked);
 	}
 
 	private _hideWidgets(): void {
