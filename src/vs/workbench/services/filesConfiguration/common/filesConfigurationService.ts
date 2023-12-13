@@ -227,16 +227,6 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>(), true);
 			}
 		}));
-
-		// Marker changes (only relevant when `files.autoSaveWhenNoErrors` is enabled)
-		this._register(this.markerService.onMarkerChanged(e => {
-			for (const uri of e) {
-				const autoSaveConfiguration = this.autoSaveConfigurationCache.get(uri);
-				if (autoSaveConfiguration?.autoSaveWhenNoErrors) {
-					this.autoSaveConfigurationCache.delete(uri);
-				}
-			}
-		}));
 	}
 
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration, fromEvent: boolean): void {
