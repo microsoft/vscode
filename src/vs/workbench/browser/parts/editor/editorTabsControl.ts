@@ -427,7 +427,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			getActionsContext: () => ({ groupId: this.groupView.id, editorIndex: this.groupView.getIndexOfEditor(editor) }),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, this.contextMenuContextKeyService),
 			onHide: () => this.groupsView.activeGroup.focus() // restore focus to active group
-
 		});
 	}
 
