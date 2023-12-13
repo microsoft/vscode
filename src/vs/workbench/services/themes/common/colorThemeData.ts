@@ -726,7 +726,10 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 		const tokenColors = contentValue.tokenColors;
 		if (tokenColors) {
 			if (Array.isArray(tokenColors)) {
-				result.textMateRules.push(...tokenColors);
+				const parsedTokenColors = tokenColors.map(tokenColor => {
+					const parsedTokenColor = _parseTokenColor(tokenColor, colorPalette); return parsedTokenColor;
+				});
+				result.textMateRules.push(...parsedTokenColors);
 			} else if (typeof tokenColors === 'string') { //link to textMate file
 				await _loadSyntaxTokens(extensionResourceLoaderService, resources.joinPath(resources.dirname(themeLocation), tokenColors), result);
 			} else {
@@ -765,6 +768,12 @@ function _parseColor(colorValue: string | null, colorPalette: { [key: string]: s
 		}
 	}
 	return '#f00'; //default to red to make it easily detectable
+}
+
+function _parseTokenColor(tokenColor: any, colorPalette: { [key: string]: string }): ITextMateThemingRule {
+	tokenColor.settings.foreground = _parseColor(tokenColor.settings.foreground, colorPalette);
+	tokenColor.settings.background = _parseColor(tokenColor.settings.background, colorPalette);
+	return tokenColor;
 }
 
 function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): Promise<any> {
