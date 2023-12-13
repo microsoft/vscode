@@ -371,24 +371,8 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	placeAtAnchor(anchor: HTMLElement, preferAlignAtTop: boolean) {
-		const editorDomNode = this._editor.getDomNode();
-		if (!editorDomNode) {
-			// might happen when running tests
-			return;
-		}
-
-		// get the bounding rectangle of the editor and the suggest widget (relative to the viewport)
-		const editorBoundingBox = editorDomNode.getBoundingClientRect();
-		const anchorBoundingBox = anchor.getBoundingClientRect();
-
-		// get bounding rectangle of the suggest widget relative to the editor
-		const relativeAnchorBox: dom.IDomNodePagePosition = {
-			top: anchorBoundingBox.top - editorBoundingBox.top,
-			left: anchorBoundingBox.left - editorBoundingBox.left,
-			width: anchorBoundingBox.width,
-			height: anchorBoundingBox.height,
-		};
-		this._anchorBox = relativeAnchorBox;
+		const anchorBox = anchor.getBoundingClientRect();
+		this._anchorBox = anchorBox;
 		this._preferAlignAtTop = preferAlignAtTop;
 		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, preferAlignAtTop);
 	}
@@ -458,6 +442,14 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 				alignAtTop = true;
 				maxSize = placement.maxSizeTop;
 			}
+		}
+
+		const editorDomNode = this._editor.getDomNode();
+		if (editorDomNode) {
+			// get bounding rectangle of the suggest widget relative to the editor
+			const editorBoundingBox = editorDomNode.getBoundingClientRect();
+			placement.top -= editorBoundingBox.top;
+			placement.left -= editorBoundingBox.left;
 		}
 
 		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });
