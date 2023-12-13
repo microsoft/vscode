@@ -39,7 +39,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -460,7 +460,7 @@ export class OpenEditorsView extends ViewPane {
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode(workingCopy.resource) === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}
