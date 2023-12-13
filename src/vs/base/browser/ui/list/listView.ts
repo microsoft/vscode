@@ -255,7 +255,7 @@ export interface IListView<T> extends ISpliceable<T>, IDisposable {
 	setScrollTop(scrollTop: number, reuseAnimation?: boolean): void;
 	getScrollLeft(): number;
 	setScrollLeft(scrollLeft: number): void;
-	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
+	delegateScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent): void;
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	updateWidth(index: number): void;
 	updateElementHeight(index: number, size: number | undefined, anchorIndex: number | null): void;
@@ -492,8 +492,8 @@ export class ListView<T> implements IListView<T> {
 		}
 	}
 
-	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.scrollableElement.delegateScrollFromMouseWheelEvent(browserEvent);
+	delegateScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent) {
+		this.scrollableElement.delegateScrollFromMouseWheelEvent(targetWindow, browserEvent);
 	}
 
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {

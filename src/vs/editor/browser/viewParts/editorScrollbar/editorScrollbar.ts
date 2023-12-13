@@ -131,8 +131,8 @@ export class EditorScrollbar extends ViewPart {
 		this.scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
-	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.scrollbar.delegateScrollFromMouseWheelEvent(browserEvent);
+	public delegateScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent) {
+		this.scrollbar.delegateScrollFromMouseWheelEvent(targetWindow, browserEvent);
 	}
 
 	// --- begin event handlers

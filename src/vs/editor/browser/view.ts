@@ -549,8 +549,8 @@ export class View extends ViewEventHandler {
 		this._scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
-	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this._scrollbar.delegateScrollFromMouseWheelEvent(browserEvent);
+	public delegateScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent) {
+		this._scrollbar.delegateScrollFromMouseWheelEvent(targetWindow, browserEvent);
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {

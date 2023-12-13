@@ -73,7 +73,7 @@ export interface INotebookCellList {
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void;
+	triggerScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent): void;
 	updateElementHeight2(element: ICellViewModel, size: number, anchorElementIndex?: number | null): void;
 	domFocus(): void;
 	focusContainer(): void;

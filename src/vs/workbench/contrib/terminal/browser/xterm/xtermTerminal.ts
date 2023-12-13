@@ -356,7 +356,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// as it must be disabled when a trackpad is used
 		ad.add(dom.addDisposableListener(this.raw.element!, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
 			const classifier = MouseWheelClassifier.INSTANCE;
-			classifier.acceptStandardWheelEvent(new StandardWheelEvent(e));
+			classifier.acceptStandardWheelEvent(new StandardWheelEvent(dom.getWindow(this.raw.element), e));
 			const value = classifier.isPhysicalMouseWheel();
 			if (value !== this._isPhysicalMouseWheel) {
 				this._isPhysicalMouseWheel = value;

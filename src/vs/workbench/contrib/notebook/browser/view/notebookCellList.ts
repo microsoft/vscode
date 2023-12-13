@@ -1144,8 +1144,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.domNode.focus();
 	}
 
-	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
+	triggerScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(targetWindow, browserEvent);
 	}
 
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {

@@ -798,8 +798,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list.scrollTop = scrollTop;
 	}
 
-	triggerScroll(event: IMouseWheelEvent) {
-		this._list.triggerScrollFromMouseWheelEvent(event);
+	triggerScroll(targetWindow: Window, event: IMouseWheelEvent) {
+		this._list.triggerScrollFromMouseWheelEvent(targetWindow, event);
 	}
 
 	previousChange(): void {

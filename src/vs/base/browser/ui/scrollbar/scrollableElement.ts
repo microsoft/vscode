@@ -345,8 +345,8 @@ export abstract class AbstractScrollableElement extends Widget {
 		this._revealOnScroll = value;
 	}
 
-	public delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
-		this._onMouseWheel(new StandardWheelEvent(browserEvent));
+	public delegateScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent) {
+		this._onMouseWheel(new StandardWheelEvent(targetWindow, browserEvent));
 	}
 
 	// -------------------- mouse wheel scrolling --------------------
@@ -365,7 +365,7 @@ export abstract class AbstractScrollableElement extends Widget {
 		// Start listening (if necessary)
 		if (shouldListen) {
 			const onMouseWheel = (browserEvent: IMouseWheelEvent) => {
-				this._onMouseWheel(new StandardWheelEvent(browserEvent));
+				this._onMouseWheel(new StandardWheelEvent(dom.getWindow(this._listenOnDomNode), browserEvent));
 			};
 
 			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { passive: false }));

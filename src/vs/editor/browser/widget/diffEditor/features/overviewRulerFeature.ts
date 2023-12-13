@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener, addStandardDisposableListener, h } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, addStandardDisposableListener, h, getWindow } from 'vs/base/browser/dom';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
@@ -59,7 +59,7 @@ export class OverviewRulerFeature extends Disposable {
 			this._editors.modified.delegateVerticalScrollbarPointerDown(e);
 		}));
 		this._register(addDisposableListener(diffOverviewRoot, EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
-			this._editors.modified.delegateScrollFromMouseWheelEvent(e);
+			this._editors.modified.delegateScrollFromMouseWheelEvent(getWindow(diffOverviewRoot), e);
 		}, { passive: false }));
 		this._register(appendRemoveOnDispose(this._rootElement, diffOverviewRoot));
 

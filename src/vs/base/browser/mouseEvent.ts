@@ -128,7 +128,7 @@ export class StandardWheelEvent {
 	public readonly deltaX: number;
 	public readonly target: Node;
 
-	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
+	constructor(targetWindow: Window, e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;
@@ -143,7 +143,12 @@ export class StandardWheelEvent {
 
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
-				this.deltaY = e1.wheelDeltaY / 120;
+				if (browser.isChrome) {
+					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					this.deltaY = e1.wheelDeltaY / (120 * targetWindow.devicePixelRatio);
+				} else {
+					this.deltaY = e1.wheelDeltaY / 120;
+				}
 			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
 				this.deltaY = -e2.detail / 3;
 			} else if (e.type === 'wheel') {
@@ -167,6 +172,9 @@ export class StandardWheelEvent {
 			if (typeof e1.wheelDeltaX !== 'undefined') {
 				if (browser.isSafari && platform.isWindows) {
 					this.deltaX = - (e1.wheelDeltaX / 120);
+				} else if (browser.isChrome) {
+					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					this.deltaX = e1.wheelDeltaX / (120 * targetWindow.devicePixelRatio);
 				} else {
 					this.deltaX = e1.wheelDeltaX / 120;
 				}
@@ -191,7 +199,12 @@ export class StandardWheelEvent {
 
 			// Assume a vertical scroll if nothing else worked
 			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
-				this.deltaY = e.wheelDelta / 120;
+				if (browser.isChrome) {
+					// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+					this.deltaY = e.wheelDelta / (120 * targetWindow.devicePixelRatio);
+				} else {
+					this.deltaY = e.wheelDelta / 120;
+				}
 			}
 		}
 	}

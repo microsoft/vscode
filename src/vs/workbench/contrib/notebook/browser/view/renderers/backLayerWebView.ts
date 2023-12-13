@@ -94,7 +94,7 @@ export interface INotebookDelegateForWebview {
 	didEndDragMarkupCell(cellId: string): void;
 	didResizeOutput(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
-	triggerScroll(event: IMouseWheelEvent): void;
+	triggerScroll(targetWindow: Window, event: IMouseWheelEvent): void;
 	updatePerformanceMetadata(cellId: string, executionId: string, duration: number, rendererId: string): void;
 	didFocusOutputInputChange(inputFocused: boolean): void;
 }
@@ -692,7 +692,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					break;
 				}
 				case 'did-scroll-wheel': {
-					this.notebookEditor.triggerScroll({
+					this.notebookEditor.triggerScroll(
+						getWindow(this.element), {
 						...data.payload,
 						preventDefault: () => { },
 						stopPropagation: () => { }

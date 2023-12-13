@@ -44,7 +44,7 @@ export interface INotebookTextDiffEditor {
 	/**
 	 * Trigger the editor to scroll from scroll event programmatically
 	 */
-	triggerScroll(event: IMouseWheelEvent): void;
+	triggerScroll(targetWindow: Window, event: IMouseWheelEvent): void;
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
