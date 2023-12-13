@@ -227,16 +227,6 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>(), true);
 			}
 		}));
-
-		// Marker changes (only relevant when `files.autoSaveWhenNoErrors` is enabled)
-		this._register(this.markerService.onMarkerChanged(e => {
-			for (const uri of e) {
-				const autoSaveConfiguration = this.autoSaveConfigurationCache.get(uri);
-				if (autoSaveConfiguration?.autoSaveWhenNoErrors) {
-					this.autoSaveConfigurationCache.delete(uri);
-				}
-			}
-		}));
 	}
 
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration, fromEvent: boolean): void {
@@ -338,7 +328,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean {
-		const autoSaveConfiguration = this.getAutoSaveConfiguration(resourceOrEditor);
+		const resource = this.toResource(resourceOrEditor);
+		const autoSaveConfiguration = this.getAutoSaveConfiguration(resource);
 		if (
 			autoSaveConfiguration.autoSave !== 'afterDelay' ||
 			typeof autoSaveConfiguration.autoSaveDelay !== 'number' ||
@@ -351,7 +342,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 			return false;
 		}
 
-		return this.doGetAutoSaveMode(resourceOrEditor, autoSaveConfiguration) === AutoSaveMode.AFTER_SHORT_DELAY;
+		return this.doGetAutoSaveMode(resource, autoSaveConfiguration) === AutoSaveMode.AFTER_SHORT_DELAY;
 	}
 
 	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): AutoSaveMode {
