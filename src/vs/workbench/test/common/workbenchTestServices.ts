@@ -319,6 +319,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration { throw new Error('Method not implemented.'); }
 	getAutoSaveMode(): AutoSaveMode { throw new Error('Method not implemented.'); }
+	isShortAutoSaveDelayConfigured(): boolean { throw new Error('Method not implemented.'); }
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }

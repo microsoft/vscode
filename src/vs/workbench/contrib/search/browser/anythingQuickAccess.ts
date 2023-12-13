@@ -37,7 +37,7 @@ import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheSta
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
@@ -963,7 +963,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
-			isDirty = this.workingCopyService.isDirty(resource) && this.filesConfigurationService.getAutoSaveMode(resource) !== AutoSaveMode.AFTER_SHORT_DELAY;
+			isDirty = this.workingCopyService.isDirty(resource) && !this.filesConfigurationService.isShortAutoSaveDelayConfigured(resource);
 			extraClasses = [];
 		}
 
