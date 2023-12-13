@@ -160,6 +160,8 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	private resources: URI[] = []; // unsupported in web (only in-memory)
 	private resourcesStateHash: number | undefined = undefined;
 
+	private static readonly MAX_RESOURCE_STATE_SOURCE_LENGTH = 1000;
+
 	async writeResources(resources: URI[]): Promise<void> {
 		if (resources.length === 0) {
 			this.clearResources();
@@ -188,7 +190,8 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// As such, we compute the hash of the current clipboard
 		// and use that to later validate the resources clipboard.
 
-		return hash(await this.readText());
+		const clipboardText = await this.readText();
+		return hash(clipboardText.substring(0, BrowserClipboardService.MAX_RESOURCE_STATE_SOURCE_LENGTH));
 	}
 
 	async hasResources(): Promise<boolean> {
