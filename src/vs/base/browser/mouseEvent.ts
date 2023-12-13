@@ -151,12 +151,23 @@ export class StandardWheelEvent {
 		this.deltaX = deltaX;
 
 		if (e) {
+			const logData = {
+				wheelDeltaY: e.wheelDeltaY,
+				wheelDeltaX: e.wheelDeltaX,
+				wheelDelta: e.wheelDelta,
+				type: e.type,
+				deltaY: e.deltaY,
+				deltaX: e.deltaX,
+				deltaMode: e.deltaMode
+			};
+			console.log(JSON.stringify(logData));
 			// Old (deprecated) wheel events
 			let e1 = <IWebKitMouseWheelEvent><any>e;
 			let e2 = <IGeckoMouseWheelEvent><any>e;
 
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
+				console.log('Using webkit wheel events');
 				this.deltaY = e1.wheelDeltaY / 120;
 			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
 				this.deltaY = -e2.detail / 3;
@@ -164,7 +175,7 @@ export class StandardWheelEvent {
 				// Modern wheel event
 				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
 				const ev = <WheelEvent><unknown>e;
-
+				console.log(`Using modern wheel events`);
 				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
 					// the deltas are expressed in lines
 					if (browser.isFirefox && !platform.isMacintosh) {
@@ -176,6 +187,7 @@ export class StandardWheelEvent {
 					this.deltaY = -e.deltaY / 40;
 				}
 			}
+			console.log(`deltaY: ${this.deltaY}`);
 
 			// horizontal delta scroll
 			if (typeof e1.wheelDeltaX !== 'undefined') {
