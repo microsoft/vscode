@@ -44,6 +44,7 @@ export class BufferLogger extends AbstractMessageLogger {
 
 	override dispose(): void {
 		this._logger?.dispose();
+		super.dispose();
 	}
 
 	override flush(): void {

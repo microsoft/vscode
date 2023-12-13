@@ -296,7 +296,7 @@ suite('InteractiveChatController', function () {
 
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(4, 1, 4, 12));
 
 		await ctrl.cancelSession();
 		await r;

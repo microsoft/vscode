@@ -124,13 +124,6 @@
 	align-items: center;
 }
 
-.scm-sync-view .monaco-list-row .monaco-icon-label .icon-container
-.scm-sync-view .monaco-list-row .monaco-icon-label .icon-container {
-	display: flex;
-	font-size: 14px;
-	padding-right: 4px;
-}
-
 .scm-view .monaco-list-row .history-item {
 	display: flex;
 	align-items: center;
@@ -172,10 +165,15 @@
 	color: var(--vscode-scm-historyItemDeletionsForeground);
 }
 
+.scm-view .monaco-list-row .history-item .stats-container.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .insertions-label.hidden,
+.scm-view .monaco-list-row .history-item .stats-container > .deletions-label.hidden {
+	display: none;
+}
+
 .scm-view .monaco-list-row .history-item-group .monaco-icon-label .icon-container,
 .scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
-	font-size: 14px;
 	padding-right: 4px;
 }
 

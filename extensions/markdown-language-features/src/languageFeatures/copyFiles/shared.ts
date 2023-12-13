@@ -189,11 +189,11 @@ export function appendToLinkSnippet(
 	title: string,
 	link: string,
 	placeholderValue: number,
-	isExternalLink: boolean,
+	_isExternalLink: boolean,
 ): void {
 	snippet.appendText('[');
 	snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
-	snippet.appendText(`](${escapeMarkdownLinkPath(link, isExternalLink)})`);
+	snippet.appendText(`](${escapeMarkdownLinkPath(link)})`);
 }
 
 export function createUriListSnippet(
@@ -238,17 +238,15 @@ export function createUriListSnippet(
 			snippet.appendPlaceholder(escapeBrackets(title) || 'Title', placeholderValue);
 			snippet.appendText('"></audio>');
 		} else if (insertAsMedia) {
-			if (insertAsMedia) {
-				insertedImageCount++;
-				if (pasteAsMarkdownLink) {
-					snippet.appendText('![');
-					const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
-					const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
-					snippet.appendPlaceholder(placeholderText, placeholderIndex);
-					snippet.appendText(`](${escapeMarkdownLinkPath(mdPath, isExternalLink)})`);
-				} else {
-					snippet.appendText(escapeMarkdownLinkPath(mdPath, isExternalLink));
-				}
+			insertedImageCount++;
+			if (pasteAsMarkdownLink) {
+				snippet.appendText('![');
+				const placeholderText = escapeBrackets(title) || options?.placeholderText || 'Alt text';
+				const placeholderIndex = typeof options?.placeholderStartIndex !== 'undefined' ? options?.placeholderStartIndex + i : (placeholderValue === 0 ? undefined : placeholderValue);
+				snippet.appendPlaceholder(placeholderText, placeholderIndex);
+				snippet.appendText(`](${escapeMarkdownLinkPath(mdPath)})`);
+			} else {
+				snippet.appendText(escapeMarkdownLinkPath(mdPath));
 			}
 		} else {
 			insertedLinkCount++;
@@ -371,12 +369,12 @@ function escapeHtmlAttribute(attr: string): string {
 	return encodeURI(attr).replaceAll('"', '&quot;');
 }
 
-function escapeMarkdownLinkPath(mdPath: string, isExternalLink: boolean): string {
+function escapeMarkdownLinkPath(mdPath: string): string {
 	if (needsBracketLink(mdPath)) {
 		return '<' + mdPath.replaceAll('<', '\\<').replaceAll('>', '\\>') + '>';
 	}
 
-	return isExternalLink ? mdPath : encodeURI(mdPath);
+	return mdPath;
 }
 
 function escapeBrackets(value: string): string {
@@ -384,7 +382,7 @@ function escapeBrackets(value: string): string {
 	return value;
 }
 
-function needsBracketLink(mdPath: string) {
+function needsBracketLink(mdPath: string): boolean {
 	// Links with whitespace or control characters must be enclosed in brackets
 	if (mdPath.startsWith('<') || /\s|[\u007F\u0000-\u001f]/.test(mdPath)) {
 		return true;

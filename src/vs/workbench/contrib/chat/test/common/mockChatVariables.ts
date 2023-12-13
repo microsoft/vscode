@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatVariableData, IChatVariableResolveResult, IChatVariableResolver, IChatVariablesService, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariableData, IChatVariableResolveResult, IChatVariableResolver, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;
@@ -23,7 +23,7 @@ export class MockChatVariablesService implements IChatVariablesService {
 		throw new Error('Method not implemented.');
 	}
 
-	getDynamicReferences(sessionId: string): readonly IDynamicReference[] {
+	getDynamicVariables(sessionId: string): readonly IDynamicVariable[] {
 		return [];
 	}
 

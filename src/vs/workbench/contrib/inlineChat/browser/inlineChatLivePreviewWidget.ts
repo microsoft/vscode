@@ -8,7 +8,7 @@ import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
@@ -60,6 +60,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	constructor(
 		editor: ICodeEditor,
 		private readonly _session: Session,
+		options: IDiffEditorOptions,
 		onDidChangeDiff: (() => void) | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -95,6 +96,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			useInlineViewWhenSpaceIsLimited: false,
 			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode(),
 			onlyShowAccessibleDiffViewer: this.accessibilityService.isScreenReaderOptimized(),
+			...options
 		}, {
 			originalEditor: { contributions: diffContributions },
 			modifiedEditor: { contributions: diffContributions }

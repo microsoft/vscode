@@ -5,15 +5,21 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { ActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,20 +29,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { IChatExecuteActionContext, SubmitAction } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { CONTEXT_CHAT_INPUT_CURSOR_AT_TOP, CONTEXT_CHAT_INPUT_HAS_TEXT, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isMacintosh } from 'vs/base/common/platform';
-import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { ChatSubmitEditorAction, ChatSubmitSecondaryAgentEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { IPosition } from 'vs/editor/common/core/position';
 
 const $ = dom.$;
 
@@ -45,6 +51,9 @@ const INPUT_EDITOR_MAX_HEIGHT = 250;
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	static readonly INPUT_SCHEME = 'chatSessionInput';
 	private static _counter = 0;
+
+	private _onDidLoadInputState = this._register(new Emitter<any>());
+	readonly onDidLoadInputState = this._onDidLoadInputState.event;
 
 	private _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -74,9 +83,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private history: HistoryNavigator<string>;
-	private setHistoryNavigationEnablement!: (enabled: boolean) => void;
+	private historyStates: Map<string, any> = new Map();
+	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
+	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
+	private chatCursorAtTop: IContextKey<boolean>;
 	private providerId: string | undefined;
 
 	private cachedDimensions: dom.Dimension | undefined;
@@ -98,6 +110,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		super();
 
 		this.inputEditorHasText = CONTEXT_CHAT_INPUT_HAS_TEXT.bindTo(contextKeyService);
+		this.chatCursorAtTop = CONTEXT_CHAT_INPUT_CURSOR_AT_TOP.bindTo(contextKeyService);
+
 		this.history = new HistoryNavigator([], 5);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -119,7 +133,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	setState(providerId: string, inputValue: string | undefined): void {
 		this.providerId = providerId;
 		const history = this.historyService.getHistory(providerId);
-		this.history = new HistoryNavigator(history, 50);
+		this.historyStates = new Map(history.map(h => [h.text, h.state]));
+		const historyTexts: string[] = [];
+		this.historyStates.forEach((_, str) => historyTexts.push(str));
+
+		this.history = new HistoryNavigator(historyTexts, 50);
 
 		if (typeof inputValue === 'string') {
 			this.setValue(inputValue);
@@ -145,7 +163,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		aria.status(historyInput);
 		this.setValue(historyInput);
-		this.setHistoryNavigationEnablement(true);
+		this._onDidLoadInputState.fire(this.historyStates.get(historyInput));
+		if (previous) {
+			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
+		} else {
+			const model = this._inputEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			this._inputEditor.setPosition(getLastPosition(model));
+		}
 	}
 
 	setValue(value: string): void {
@@ -166,9 +194,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(userQuery?: string): Promise<void> {
+	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
 		if (userQuery) {
 			this.history.add(userQuery);
+			this.historyStates.set(userQuery, inputState);
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
@@ -204,10 +233,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService]));
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
-		this.setHistoryNavigationEnablement = enabled => {
-			historyNavigationBackwardsEnablement.set(enabled);
-			historyNavigationForwardsEnablement.set(enabled);
-		};
+		this.historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
+		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
 		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = false;
@@ -219,12 +246,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
 		options.bracketPairColorization = { enabled: false };
-		options.suggest = { showIcons: false };
+		options.suggest = {
+			showIcons: false,
+			showSnippets: false,
+			showWords: true,
+			showStatusBar: false,
+		};
 		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
 
 		this._inputEditorElement = dom.append(inputContainer, $('.interactive-input-editor'));
 		const editorOptions = getSimpleCodeEditorWidgetOptions();
-		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([ModesHoverController.ID]));
+		editorOptions.contributions?.push(...EditorExtensionsRegistry.getSomeEditorContributions([HoverController.ID]));
 		this._inputEditor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, this._inputEditorElement, options, editorOptions));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
@@ -238,7 +270,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// (If this model change happened as a result of a history navigation, this is canceled out by a call in this.navigateHistory)
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValueLength() > 0;
-			this.setHistoryNavigationEnablement(!inputHasText);
 			this.inputEditorHasText.set(inputHasText);
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
@@ -250,14 +281,32 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this._onDidBlur.fire();
 		}));
+		this._register(this._inputEditor.onDidChangeCursorPosition(e => {
+			const model = this._inputEditor.getModel();
+			if (!model) {
+				return;
+			}
+
+			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
+			this.historyNavigationBackwardsEnablement.set(atTop);
+			this.chatCursorAtTop.set(atTop);
+			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
 			menuOptions: {
 				shouldForwardArgs: true
+			},
+			actionViewItemProvider: (action, options) => {
+				if (action.id === SubmitAction.ID) {
+					return this.instantiationService.createInstance(SubmitButtonActionViewItem, { widget } satisfies IChatExecuteActionContext, action, options);
+				}
+
+				return undefined;
 			}
 		}));
 		this.toolbar.getElement().classList.add('interactive-execute-toolbar');
-		this.toolbar.context = <IChatExecuteActionContext>{ widget };
+		this.toolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.toolbar.onDidChangeMenuItems(() => {
 			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.toolbar.getItemsWidth()) {
 				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
@@ -271,7 +320,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}));
 			toolbarSide.getElement().classList.add('chat-side-toolbar');
-			toolbarSide.context = <IChatExecuteActionContext>{ widget };
+			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
 		}
 
 		this.inputModel = this.modelService.getModel(this.inputUri) || this.modelService.createModel('', null, this.inputUri, true);
@@ -331,6 +380,45 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	saveState(): void {
 		const inputHistory = this.history.getHistory();
-		this.historyService.saveHistory(this.providerId!, inputHistory);
+		const historyEntries = inputHistory.map(entry => ({ text: entry, state: this.historyStates.get(entry) }));
+		this.historyService.saveHistory(this.providerId!, historyEntries);
 	}
+}
+
+class SubmitButtonActionViewItem extends ActionViewItem {
+	private readonly _tooltip: string;
+
+	constructor(
+		context: unknown,
+		action: IAction,
+		options: IActionViewItemOptions,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IChatAgentService chatAgentService: IChatAgentService,
+	) {
+		super(context, action, options);
+
+		const primaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitEditorAction.ID)?.getLabel();
+		let tooltip = action.label;
+		if (primaryKeybinding) {
+			tooltip += ` (${primaryKeybinding})`;
+		}
+
+		const secondaryAgent = chatAgentService.getSecondaryAgent();
+		if (secondaryAgent) {
+			const secondaryKeybinding = keybindingService.lookupKeybinding(ChatSubmitSecondaryAgentEditorAction.ID)?.getLabel();
+			if (secondaryKeybinding) {
+				tooltip += `\n${chatAgentLeader}${secondaryAgent.id} (${secondaryKeybinding})`;
+			}
+		}
+
+		this._tooltip = tooltip;
+	}
+
+	protected override getTooltip(): string | undefined {
+		return this._tooltip;
+	}
+}
+
+function getLastPosition(model: ITextModel): IPosition {
+	return { lineNumber: model.getLineCount(), column: model.getLineLength(model.getLineCount()) + 1 };
 }

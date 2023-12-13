@@ -38,18 +38,28 @@ const osLabel: { [key: number | OperatingSystem]: string } = {
 const testRow = 339;
 const testCol = 12;
 const testRowEnd = 341;
-const testColEnd = 14;
+const testColEnd = 789;
 const testLinks: ITestLink[] = [
 	// Simple
 	{ link: 'foo', prefix: undefined, suffix: undefined, hasRow: false, hasCol: false },
 	{ link: 'foo:339', prefix: undefined, suffix: ':339', hasRow: true, hasCol: false },
 	{ link: 'foo:339:12', prefix: undefined, suffix: ':339:12', hasRow: true, hasCol: true },
+	{ link: 'foo:339:12-789', prefix: undefined, suffix: ':339:12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
 	{ link: 'foo:339.12', prefix: undefined, suffix: ':339.12', hasRow: true, hasCol: true },
+	{ link: 'foo:339.12-789', prefix: undefined, suffix: ':339.12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
+	{ link: 'foo:339.12-341.789', prefix: undefined, suffix: ':339.12-341.789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: 'foo#339', prefix: undefined, suffix: '#339', hasRow: true, hasCol: false },
+	{ link: 'foo#339:12', prefix: undefined, suffix: '#339:12', hasRow: true, hasCol: true },
+	{ link: 'foo#339:12-789', prefix: undefined, suffix: '#339:12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
+	{ link: 'foo#339.12', prefix: undefined, suffix: '#339.12', hasRow: true, hasCol: true },
+	{ link: 'foo#339.12-789', prefix: undefined, suffix: '#339.12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
+	{ link: 'foo#339.12-341.789', prefix: undefined, suffix: '#339.12-341.789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 	{ link: 'foo 339', prefix: undefined, suffix: ' 339', hasRow: true, hasCol: false },
 	{ link: 'foo 339:12', prefix: undefined, suffix: ' 339:12', hasRow: true, hasCol: true },
+	{ link: 'foo 339:12-789', prefix: undefined, suffix: ' 339:12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
 	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
-	{ link: 'foo 339.12-14', prefix: undefined, suffix: ' 339.12-14', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
-	{ link: 'foo 339.12-341.14', prefix: undefined, suffix: ' 339.12-341.14', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: 'foo 339.12-789', prefix: undefined, suffix: ' 339.12-789', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
+	{ link: 'foo 339.12-341.789', prefix: undefined, suffix: ' 339.12-341.789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
@@ -129,9 +139,9 @@ const testLinks: ITestLink[] = [
 
 	// OCaml-style
 	{ link: '"foo", line 339, character 12', prefix: '"', suffix: '", line 339, character 12', hasRow: true, hasCol: true },
-	{ link: '"foo", line 339, characters 12-14', prefix: '"', suffix: '", line 339, characters 12-14', hasRow: true, hasCol: true, hasColEnd: true },
+	{ link: '"foo", line 339, characters 12-789', prefix: '"', suffix: '", line 339, characters 12-789', hasRow: true, hasCol: true, hasColEnd: true },
 	{ link: '"foo", lines 339-341', prefix: '"', suffix: '", lines 339-341', hasRow: true, hasCol: false, hasRowEnd: true },
-	{ link: '"foo", lines 339-341, characters 12-14', prefix: '"', suffix: '", lines 339-341, characters 12-14', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
+	{ link: '"foo", lines 339-341, characters 12-789', prefix: '"', suffix: '", lines 339-341, characters 12-789', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 
 	// Non-breaking space
 	{ link: 'foo\u00A0339:12', prefix: undefined, suffix: '\u00A0339:12', hasRow: true, hasCol: true },

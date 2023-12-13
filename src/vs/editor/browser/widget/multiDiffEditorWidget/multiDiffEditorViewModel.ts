@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { derivedWithStore, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -24,6 +25,22 @@ export class MultiDiffEditorViewModel extends Disposable {
 		for (const d of this.items.get()) {
 			await d.diffEditorViewModel.waitForDiff();
 		}
+	}
+
+	public collapseAll(): void {
+		transaction(tx => {
+			for (const d of this.items.get()) {
+				d.collapsed.set(true, tx);
+			}
+		});
+	}
+
+	public expandAll(): void {
+		transaction(tx => {
+			for (const d of this.items.get()) {
+				d.collapsed.set(false, tx);
+			}
+		});
 	}
 
 	constructor(
@@ -44,10 +61,19 @@ export class DocumentDiffItemViewModel extends Disposable {
 	) {
 		super();
 
-		const options = new DiffEditorOptions(this.entry.value!.options || {});
+		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
+			return {
+				...options,
+				hideUnchangedRegions: {
+					enabled: true,
+				},
+			};
+		}
+
+		const options = new DiffEditorOptions(updateOptions(this.entry.value!.options || {}));
 		if (this.entry.value!.onOptionsDidChange) {
 			this._register(this.entry.value!.onOptionsDidChange(() => {
-				options.updateOptions(this.entry.value!.options || {});
+				options.updateOptions(updateOptions(this.entry.value!.options || {}));
 			}));
 		}
 

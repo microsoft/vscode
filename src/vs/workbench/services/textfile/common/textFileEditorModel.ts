@@ -135,8 +135,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private registerListeners(): void {
 		this._register(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
-		this._register(this.filesConfigurationService.onFilesAssociationChange(() => this.onFilesAssociationChange()));
-		this._register(this.filesConfigurationService.onReadonlyChange(() => this._onDidChangeReadonly.fire()));
+		this._register(this.filesConfigurationService.onDidChangeFilesAssociation(() => this.onDidChangeFilesAssociation()));
+		this._register(this.filesConfigurationService.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
 	}
 
 	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
@@ -191,7 +191,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private onFilesAssociationChange(): void {
+	private onDidChangeFilesAssociation(): void {
 		if (!this.isResolved()) {
 			return;
 		}
@@ -443,7 +443,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		try {
 			const content = await this.textFileService.readStream(this.resource, {
 				acceptTextOnly: !allowBinary,
-				etag, encoding: this.preferredEncoding,
+				etag,
+				encoding: this.preferredEncoding,
 				limits: options?.limits
 			});
 

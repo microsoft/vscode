@@ -7,9 +7,9 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
-import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, TitleBarVisibleContext, TitleBarStyleContext, MultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
+import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, MainEditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, TitleBarVisibleContext, TitleBarStyleContext, MultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, ActiveCompareEditorOriginalWriteableContext } from 'vs/workbench/common/contextkeys';
 import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow, getActiveWindow } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -27,6 +27,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { mainWindow } from 'vs/base/browser/window';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -39,6 +40,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private activeEditorAvailableEditorIds: IContextKey<string>;
 
 	private activeEditorIsReadonly: IContextKey<boolean>;
+	private activeCompareEditorOriginalWritable: IContextKey<boolean>;
 	private activeEditorCanToggleReadonly: IContextKey<boolean>;
 
 	private activeEditorGroupEmpty: IContextKey<boolean>;
@@ -70,7 +72,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private isAuxiliaryWindowFocusedContext: IContextKey<boolean>;
 	private isCenteredLayoutContext: IContextKey<boolean>;
 	private sideBarVisibleContext: IContextKey<boolean>;
-	private editorAreaVisibleContext: IContextKey<boolean>;
+	private mainEditorAreaVisibleContext: IContextKey<boolean>;
 	private panelPositionContext: IContextKey<string>;
 	private panelVisibleContext: IContextKey<boolean>;
 	private panelAlignmentContext: IContextKey<string>;
@@ -127,6 +129,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
 		this.activeEditorIsReadonly = ActiveEditorReadonlyContext.bindTo(this.contextKeyService);
+		this.activeCompareEditorOriginalWritable = ActiveCompareEditorOriginalWriteableContext.bindTo(this.contextKeyService);
 		this.activeEditorCanToggleReadonly = ActiveEditorCanToggleReadonlyContext.bindTo(this.contextKeyService);
 		this.activeEditorCanRevert = ActiveEditorCanRevertContext.bindTo(this.contextKeyService);
 		this.activeEditorCanSplitInGroup = ActiveEditorCanSplitInGroupContext.bindTo(this.contextKeyService);
@@ -195,7 +198,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.isCenteredLayoutContext = IsCenteredLayoutContext.bindTo(this.contextKeyService);
 
 		// Editor Area
-		this.editorAreaVisibleContext = EditorAreaVisibleContext.bindTo(this.contextKeyService);
+		this.mainEditorAreaVisibleContext = MainEditorAreaVisibleContext.bindTo(this.contextKeyService);
 		this.editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.contextKeyService);
 
 		// Sidebar
@@ -267,7 +270,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.paneCompositeService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
-			this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART));
+			this.mainEditorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 			this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
@@ -310,11 +313,13 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorCanSplitInGroup.set(activeEditorPane.input.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 			applyAvailableEditorIds(this.activeEditorAvailableEditorIds, activeEditorPane.input, this.editorResolverService);
 			this.activeEditorIsReadonly.set(!!activeEditorPane.input.isReadonly());
+			this.activeCompareEditorOriginalWritable.set(activeEditorPane.input instanceof DiffEditorInput && !activeEditorPane.input.original.isReadonly());
 			const primaryEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
 			this.activeEditorCanToggleReadonly.set(!!primaryEditorResource && this.fileService.hasProvider(primaryEditorResource) && !this.fileService.hasCapability(primaryEditorResource, FileSystemProviderCapabilities.Readonly));
 		} else {
 			this.activeEditorContext.reset();
 			this.activeEditorIsReadonly.reset();
+			this.activeCompareEditorOriginalWritable.reset();
 			this.activeEditorCanToggleReadonly.reset();
 			this.activeEditorCanRevert.reset();
 			this.activeEditorCanSplitInGroup.reset();
@@ -348,7 +353,18 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		if (isInputFocused) {
 			const tracker = trackFocus(ownerDocument.activeElement as HTMLElement);
 			Event.once(tracker.onDidBlur)(() => {
-				this.inputFocusedContext.set(activeElementIsInput());
+
+				// Ensure we are only updating the context key if we are
+				// still in the same document that we are tracking. This
+				// fixes a race condition in multi-window setups where
+				// the blur event arrives in the inactive window overwriting
+				// the context key of the active window. This is because
+				// blur events from the focus tracker are emitted with a
+				// timeout of 0.
+
+				if (getActiveWindow().document === ownerDocument) {
+					this.inputFocusedContext.set(activeElementIsInput());
+				}
 
 				tracker.dispose();
 			});
@@ -381,7 +397,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateTitleBarContextKeys(): void {
-		this.titleAreaVisibleContext.set(this.layoutService.isVisible(Parts.TITLEBAR_PART));
+		this.titleAreaVisibleContext.set(this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow));
 		this.titleBarStyleContext.set(getTitleBarStyle(this.configurationService));
 	}
 

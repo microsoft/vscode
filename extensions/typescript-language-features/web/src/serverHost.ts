@@ -6,32 +6,16 @@
 import { ApiClient, FileStat, FileType, Requests } from '@vscode/sync-api-client';
 import { ClientConnection } from '@vscode/sync-api-common/browser';
 import { basename } from 'path';
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type * as ts from 'typescript/lib/tsserverlibrary';
 import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
 
-// BEGIN misc internals
-const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
-const byteOrderMarkIndicator = '\uFEFF';
-const matchFiles: (
-	path: string,
-	extensions: readonly string[] | undefined,
-	excludes: readonly string[] | undefined,
-	includes: readonly string[] | undefined,
-	useCaseSensitiveFileNames: boolean,
-	currentDirectory: string,
-	depth: number | undefined,
-	getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
-	realpath: (path: string) => string
-) => string[] = (ts as any).matchFiles;
-const generateDjb2Hash = (ts as any).generateDjb2Hash;
-// End misc internals
-
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
 function createServerHost(
+	ts: typeof import('typescript/lib/tsserverlibrary'),
 	logger: Logger,
 	apiClient: ApiClient | undefined,
 	args: readonly string[],
@@ -42,6 +26,22 @@ function createServerHost(
 ): ServerHostWithImport {
 	const currentDirectory = '/';
 	const fs = apiClient?.vscode.workspace.fileSystem;
+
+	// Internals
+	const combinePaths: (path: string, ...paths: (string | undefined)[]) => string = (ts as any).combinePaths;
+	const byteOrderMarkIndicator = '\uFEFF';
+	const matchFiles: (
+		path: string,
+		extensions: readonly string[] | undefined,
+		excludes: readonly string[] | undefined,
+		includes: readonly string[] | undefined,
+		useCaseSensitiveFileNames: boolean,
+		currentDirectory: string,
+		depth: number | undefined,
+		getFileSystemEntries: (path: string) => { files: readonly string[]; directories: readonly string[] },
+		realpath: (path: string) => string
+	) => string[] = (ts as any).matchFiles;
+	const generateDjb2Hash = (ts as any).generateDjb2Hash;
 
 	// Legacy web
 	const memoize: <T>(callback: () => T) => () => T = (ts as any).memoize;
@@ -404,6 +404,7 @@ function createServerHost(
 }
 
 export async function createSys(
+	ts: typeof import('typescript/lib/tsserverlibrary'),
 	args: readonly string[],
 	fsPort: MessagePort,
 	logger: Logger,
@@ -418,10 +419,10 @@ export async function createSys(
 
 		const apiClient = new ApiClient(connection);
 		const fs = apiClient.vscode.workspace.fileSystem;
-		const sys = createServerHost(logger, apiClient, args, watchManager, pathMapper, enabledExperimentalTypeAcquisition, onExit);
+		const sys = createServerHost(ts, logger, apiClient, args, watchManager, pathMapper, enabledExperimentalTypeAcquisition, onExit);
 		return { sys, fs };
 	} else {
-		return { sys: createServerHost(logger, undefined, args, watchManager, pathMapper, false, onExit) };
+		return { sys: createServerHost(ts, logger, undefined, args, watchManager, pathMapper, false, onExit) };
 	}
 }
 

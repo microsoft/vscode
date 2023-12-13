@@ -1714,7 +1714,7 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 			return this.defaultValue;
 		}
 		if (typeof input === 'string') {
-			if (input === 'false') {
+			if (input === 'false' || input.length === 0) {
 				return EditorFontLigatures.OFF;
 			}
 			if (input === 'true') {
@@ -2720,6 +2720,12 @@ class WrappingStrategy extends BaseEditorOption<EditorOption.wrappingStrategy, '
 
 //#region lightbulb
 
+export enum ShowAiIconMode {
+	Off = 'off',
+	OnCode = 'onCode',
+	On = 'on'
+}
+
 /**
  * Configuration options for editor lightbulb
  */
@@ -2729,6 +2735,13 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+
+	experimental?: {
+		/**
+		 * Highlight AI code actions with AI icon
+		 */
+		showAiIcon?: ShowAiIconMode;
+	};
 }
 
 /**
@@ -2739,7 +2752,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: true };
+		const defaults: EditorLightbulbOptions = { enabled: true, experimental: { showAiIcon: ShowAiIconMode.Off } };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -2747,6 +2760,17 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('codeActions', "Enables the Code Action lightbulb in the editor.")
+				},
+				'editor.lightbulb.experimental.showAiIcon': {
+					type: 'string',
+					enum: [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On],
+					default: defaults.experimental.showAiIcon,
+					enumDescriptions: [
+						nls.localize('editor.lightbulb.showAiIcon.off', 'Don not show the AI icon.'),
+						nls.localize('editor.lightbulb.showAiIcon.onCode', 'Show an AI icon when the code action menu contains an AI action, but only on code.'),
+						nls.localize('editor.lightbulb.showAiIcon.on', 'Show an AI icon when the code action menu contains an AI action, on code and empty lines.'),
+					],
+					description: nls.localize('showAiIcons', "Show an AI icon along with the lightbulb when the code action menu contains an AI action.")
 				},
 			}
 		);
@@ -2758,7 +2782,10 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLi
 		}
 		const input = _input as IEditorLightbulbOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			experimental: {
+				showAiIcon: stringSet(input.experimental?.showAiIcon, this.defaultValue.experimental?.showAiIcon, [ShowAiIconMode.Off, ShowAiIconMode.OnCode, ShowAiIconMode.On])
+			}
 		};
 	}
 }
@@ -2794,7 +2821,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
+		const defaults: EditorStickyScrollOptions = { enabled: true, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -4910,7 +4937,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 				'editor.dropIntoEditor.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down `Shift`-key (instead of opening the file in an editor)."),
+					markdownDescription: nls.localize('dropIntoEditor.enabled', "Controls whether you can drag and drop a file into a text editor by holding down the `Shift` key (instead of opening the file in an editor)."),
 				},
 				'editor.dropIntoEditor.showDropSelector': {
 					type: 'string',
@@ -5573,7 +5600,11 @@ export const EditorOptions = {
 	)),
 	mouseWheelZoom: register(new EditorBooleanOption(
 		EditorOption.mouseWheelZoom, 'mouseWheelZoom', false,
-		{ markdownDescription: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.") }
+		{
+			markdownDescription: platform.isMacintosh
+				? nls.localize('mouseWheelZoom.mac', "Zoom the font of the editor when using mouse wheel and holding `Cmd`.")
+				: nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.")
+		}
 	)),
 	multiCursorMergeOverlapping: register(new EditorBooleanOption(
 		EditorOption.multiCursorMergeOverlapping, 'multiCursorMergeOverlapping', true,

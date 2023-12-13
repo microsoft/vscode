@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
-import { activeContrastBorder, editorBackground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorBackground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -92,8 +92,8 @@ export const editorBracketPairGuideActiveBackground4 = registerColor('editorBrac
 export const editorBracketPairGuideActiveBackground5 = registerColor('editorBracketPairGuide.activeBackground5', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground5', 'Background color of active bracket pair guides (5). Requires enabling bracket pair guides.'));
 export const editorBracketPairGuideActiveBackground6 = registerColor('editorBracketPairGuide.activeBackground6', { dark: '#00000000', light: '#00000000', hcDark: '#00000000', hcLight: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground6', 'Background color of active bracket pair guides (6). Requires enabling bracket pair guides.'));
 
-export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: '#BD9B03', light: '#CEA33D', hcDark: '#ff0000', hcLight: '#CEA33D' }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
-export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHighlight.background', { dark: '#bd9b0326', light: '#cea33d14', hcDark: '#00000000', hcLight: '#cea33d14' }, nls.localize('editorUnicodeHighlight.background', 'Background color used to highlight unicode characters.'));
+export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: editorWarningForeground, light: editorWarningForeground, hcDark: editorWarningForeground, hcLight: editorWarningForeground }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
+export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHighlight.background', { dark: editorWarningBackground, light: editorWarningBackground, hcDark: editorWarningBackground, hcLight: editorWarningBackground }, nls.localize('editorUnicodeHighlight.background', 'Background color used to highlight unicode characters.'));
 
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css

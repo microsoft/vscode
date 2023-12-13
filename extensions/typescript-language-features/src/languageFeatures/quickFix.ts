@@ -346,12 +346,12 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				inferFromBody.diagnostics = [diagnostic];
 				inferFromBody.command = {
 					command: EditorChatFollowUp.ID,
-					arguments: [<EditorChatFollowUp_Args>{
+					arguments: [{
 						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
 						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
 						document,
 						action: { type: 'quickfix', quickfix: action }
-					}],
+					} satisfies EditorChatFollowUp_Args],
 					title: ''
 				};
 				actions.push(inferFromBody);
@@ -371,7 +371,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [<ApplyCodeActionCommand_args>{ action: action, diagnostic, document }],
+			arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 			title: ''
 		};
 		if (expand && message !== undefined) {
@@ -381,11 +381,12 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				arguments: [codeAction.command, {
 					command: EditorChatFollowUp.ID,
 					title: '',
-					arguments: [<EditorChatFollowUp_Args>{
+					arguments: [{
 						message,
 						expand,
-						document
-					}],
+						document,
+						action: { type: 'quickfix', quickfix: action }
+					} satisfies EditorChatFollowUp_Args],
 				}],
 			};
 		}
@@ -424,7 +425,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		action.diagnostics = [diagnostic];
 		action.command = {
 			command: ApplyFixAllCodeAction.ID,
-			arguments: [<ApplyFixAllCodeAction_args>{ action }],
+			arguments: [{ action } satisfies ApplyFixAllCodeAction_args],
 			title: ''
 		};
 		results.addFixAllAction(tsAction.fixId, action);
