@@ -17,7 +17,6 @@ import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CompletionItem } from './suggest';
-import { assert } from 'vs/base/common/assert';
 
 export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
@@ -264,6 +263,8 @@ interface TopLeftPosition {
 
 export class SuggestDetailsOverlay implements IOverlayWidget {
 
+	readonly allowEditorOverflow = true;
+
 	private readonly _disposables = new DisposableStore();
 	private readonly _resizable: ResizableHTMLElement;
 
@@ -370,27 +371,23 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	placeAtAnchor(anchor: HTMLElement, preferAlignAtTop: boolean) {
-		let relativeAnchorBox: dom.IDomNodePagePosition;
-
-		const editorAsHtmlElement = this._editor.getDomNode();
-		if (editorAsHtmlElement) {
-			// get the bounding rectangle of the editor and the suggest widget (relative to the viewport)
-			const monacoEditorBoundingBox = editorAsHtmlElement.getBoundingClientRect();
-			const suggest = anchor.getBoundingClientRect();
-
-			// get bounding rectangle of the suggest widget relative to the editor
-			relativeAnchorBox = {
-				top: suggest.top - monacoEditorBoundingBox.top,
-				left: suggest.left - monacoEditorBoundingBox.left,
-				width: suggest.width,
-				height: suggest.height,
-			};
-		} else {
-			// Editor Dom Node should be available
-			assert(false);
-			relativeAnchorBox = anchor.getBoundingClientRect();
+		const editorDomNode = this._editor.getDomNode();
+		if (!editorDomNode) {
+			// might happen when running tests
+			return;
 		}
 
+		// get the bounding rectangle of the editor and the suggest widget (relative to the viewport)
+		const editorBoundingBox = editorDomNode.getBoundingClientRect();
+		const anchorBoundingBox = anchor.getBoundingClientRect();
+
+		// get bounding rectangle of the suggest widget relative to the editor
+		const relativeAnchorBox: dom.IDomNodePagePosition = {
+			top: anchorBoundingBox.top - editorBoundingBox.top,
+			left: anchorBoundingBox.left - editorBoundingBox.left,
+			width: anchorBoundingBox.width,
+			height: anchorBoundingBox.height,
+		};
 		this._anchorBox = relativeAnchorBox;
 		this._preferAlignAtTop = preferAlignAtTop;
 		this._placeAtAnchor(this._anchorBox, this._userSize ?? this.widget.size, preferAlignAtTop);
