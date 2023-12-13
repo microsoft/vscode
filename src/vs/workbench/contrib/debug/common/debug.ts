@@ -118,6 +118,7 @@ export interface IRawStoppedDetails {
 	text?: string;
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
+	preserveFocusHint?: boolean;
 	framesErrorMessage?: string;
 	hitBreakpointIds?: number[];
 }
