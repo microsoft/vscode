@@ -1217,7 +1217,8 @@ class IncreaseViewSizeAction extends BaseResizeViewAction {
 		super({
 			id: 'workbench.action.increaseViewSize',
 			title: { value: localize('increaseViewSize', "Increase Current View Size"), original: 'Increase Current View Size' },
-			f1: true
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1232,7 +1233,8 @@ class IncreaseViewWidthAction extends BaseResizeViewAction {
 		super({
 			id: 'workbench.action.increaseViewWidth',
 			title: { value: localize('increaseEditorWidth', "Increase Editor Width"), original: 'Increase Editor Width' },
-			f1: true
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1247,7 +1249,8 @@ class IncreaseViewHeightAction extends BaseResizeViewAction {
 		super({
 			id: 'workbench.action.increaseViewHeight',
 			title: { value: localize('increaseEditorHeight', "Increase Editor Height"), original: 'Increase Editor Height' },
-			f1: true
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1262,7 +1265,8 @@ class DecreaseViewSizeAction extends BaseResizeViewAction {
 		super({
 			id: 'workbench.action.decreaseViewSize',
 			title: { value: localize('decreaseViewSize', "Decrease Current View Size"), original: 'Decrease Current View Size' },
-			f1: true
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1276,7 +1280,8 @@ class DecreaseViewWidthAction extends BaseResizeViewAction {
 		super({
 			id: 'workbench.action.decreaseViewWidth',
 			title: { value: localize('decreaseEditorWidth', "Decrease Editor Width"), original: 'Decrease Editor Width' },
-			f1: true
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 
@@ -1291,7 +1296,8 @@ class DecreaseViewHeightAction extends BaseResizeViewAction {
 		super({
 			id: 'workbench.action.decreaseViewHeight',
 			title: { value: localize('decreaseEditorHeight', "Decrease Editor Height"), original: 'Decrease Editor Height' },
-			f1: true
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
 		});
 	}
 

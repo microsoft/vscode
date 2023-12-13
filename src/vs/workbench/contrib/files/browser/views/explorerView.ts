@@ -329,8 +329,9 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			if (!this.hasFocus() || this.readonlyContext.get()) {
 				return;
 			}
-
-			await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+			if (event.clipboardData?.files?.length) {
+				await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+			}
 		}));
 	}
 
