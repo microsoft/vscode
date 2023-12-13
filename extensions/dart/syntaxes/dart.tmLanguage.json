@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/bd0079ba7ca85cdd6400a8a467e532b539d0f285",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/0a6648177bdbb91a4e1a38c16e57ede0ccba4f18",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -90,15 +90,7 @@
 					"end": "```"
 				},
 				{
-					"match": "(`.*?`)",
-					"captures": {
-						"0": {
-							"name": "variable.other.source.dart"
-						}
-					}
-				},
-				{
-					"match": "(`.*?`)",
+					"match": "(`[^`]+?`)",
 					"captures": {
 						"0": {
 							"name": "variable.other.source.dart"
@@ -395,6 +387,7 @@
 		"string-interp": {
 			"patterns": [
 				{
+					"name": "string.interpolated.expression.dart",
 					"match": "\\$([a-zA-Z0-9_]+)",
 					"captures": {
 						"1": {
@@ -408,8 +401,7 @@
 					"end": "\\}",
 					"patterns": [
 						{
-							"include": "#constants-and-special-vars",
-							"name": "variable.parameter.dart"
+							"include": "#constants-and-special-vars"
 						},
 						{
 							"include": "#strings"

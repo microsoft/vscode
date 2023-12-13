@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/078bbf85225b82de3ae4c2db7ee74d9239b249ce",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/472c6b2030c962217cbbb26e4ddcce1b8ffe0867",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -600,7 +600,7 @@
 				},
 				{
 					"name": "comment.line.double-slash.fsharp",
-					"match": "(?<![!%&+-.<=>?@^|/])//(?![!%&+-.<=>?@^|]).*$"
+					"match": "(?<![!%&+-.<=>?@^|/])//(.*$)"
 				}
 			]
 		},
@@ -630,7 +630,7 @@
 		},
 		"abstract_definition": {
 			"name": "abstract.definition.fsharp",
-			"begin": "\\b(abstract)\\s+(member)?(\\s+\\[\\<.*\\>\\])?\\s*([_[:alpha:]0-9,\\._`\\s]+)(:)",
+			"begin": "\\b(abstract)\\s+(member)?(\\s+\\[\\<.*\\>\\])?\\s*([_[:alpha:]0-9,\\._`\\s]+)(<)?",
 			"end": "\\s*(with)\\b|=|$",
 			"beginCaptures": {
 				"1": {
@@ -676,7 +676,7 @@
 					}
 				},
 				{
-					"match": "(?!with|get|set\\b)\\b([\\w0-9'`^._]+)",
+					"match": "(?!with|get|set\\b)\\s*([\\w0-9'`^._]+)",
 					"comments": "Here we need the \\w modifier in order to check that the words isn't blacklisted",
 					"captures": {
 						"1": {
