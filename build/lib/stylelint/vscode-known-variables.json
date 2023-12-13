@@ -458,6 +458,8 @@
 		"--vscode-notificationsErrorIcon-foreground",
 		"--vscode-notificationsInfoIcon-foreground",
 		"--vscode-notificationsWarningIcon-foreground",
+		"--vscode-outputEditor-background",
+		"--vscode-outputEditorStickyScroll-background",
 		"--vscode-panel-background",
 		"--vscode-panel-border",
 		"--vscode-panel-dropBorder",
