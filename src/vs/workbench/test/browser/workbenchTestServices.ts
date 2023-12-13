@@ -52,11 +52,11 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer, IAuxiliaryEditorPartCreateEvent } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { Dimension, IDimension } from 'vs/base/browser/dom';
+import { IDimension } from 'vs/base/browser/dom';
 import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
@@ -98,7 +98,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -168,6 +168,7 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -265,7 +266,8 @@ export function workbenchInstantiationService(
 		}
 	});
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
+	const textResourceConfigurationService = new TestTextResourceConfigurationService(configService);
+	instantiationService.stub(ITextResourceConfigurationService, textResourceConfigurationService);
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
@@ -293,7 +295,9 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IFileService, fileService);
 	const uriIdentityService = new UriIdentityService(fileService);
 	disposables.add(uriIdentityService);
-	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService, environmentService, uriIdentityService, fileService)));
+	const markerService = new TestMarkerService();
+	instantiationService.stub(IMarkerService, markerService);
+	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService, environmentService, uriIdentityService, fileService, markerService, textResourceConfigurationService)));
 	instantiationService.stub(IUriIdentityService, disposables.add(uriIdentityService));
 	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService())));
 	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
@@ -314,7 +318,7 @@ export function workbenchInstantiationService(
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
-	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
+	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : disposables.add(new TestEditorService(editorGroupService));
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
 	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
@@ -593,6 +597,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerDimension: IDimension = { width: 800, height: 600 };
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	whenActiveContainerStylesLoaded = Promise.resolve();
 
 	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
@@ -601,7 +606,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeFullscreen: Event<boolean> = Event.None;
-	onDidChangeWindowMaximized: Event<boolean> = Event.None;
+	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	onDidChangePartVisibility: Event<void> = Event.None;
@@ -618,11 +623,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	focusPart(_part: Parts): void { }
-	hasWindowBorder(): boolean { return false; }
-	getWindowBorderWidth(): number { return 0; }
-	getWindowBorderRadius(): string | undefined { return undefined; }
+	hasMainWindowBorder(): boolean { return false; }
+	getMainWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
-	getDimension(_part: Parts): IDimension { return new Dimension(0, 0); }
 	getContainer(): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
@@ -653,8 +656,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
 	registerPart(part: Part): void { }
-	isWindowMaximized() { return false; }
-	updateWindowMaximizedState(maximized: boolean): void { }
+	isWindowMaximized(targetWindow: Window) { return false; }
+	updateWindowMaximizedState(targetWindow: Window, maximized: boolean): void { }
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined { return undefined; }
 	focus() { }
 }
@@ -825,7 +828,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
-	onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }> = Event.None;
+	onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent> = Event.None;
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
@@ -870,7 +873,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	removeGroup(_group: number | IEditorGroup): void { }
 	moveGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	mergeGroup(_group: number | IEditorGroup, _target: number | IEditorGroup, _options?: IMergeGroupOptions): IEditorGroup { throw new Error('not implemented'); }
-	mergeAllGroups(): IEditorGroup { throw new Error('not implemented'); }
+	mergeAllGroups(_group: number | IEditorGroup): IEditorGroup { throw new Error('not implemented'); }
 	copyGroup(_group: number | IEditorGroup, _location: number | IEditorGroup, _direction: GroupDirection): IEditorGroup { throw new Error('not implemented'); }
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
@@ -986,7 +989,7 @@ export class TestEditorGroupAccessor implements IEditorGroupsView {
 	toggleExpandGroup(group: number | IEditorGroupView): void { throw new Error('Method not implemented.'); }
 }
 
-export class TestEditorService implements EditorServiceImpl {
+export class TestEditorService extends Disposable implements EditorServiceImpl {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -1015,7 +1018,9 @@ export class TestEditorService implements EditorServiceImpl {
 	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
-	constructor(private editorGroupService?: IEditorGroupsService) { }
+	constructor(private editorGroupService?: IEditorGroupsService) {
+		super();
+	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
 	findEditors() { return [] as any; }
@@ -1023,6 +1028,11 @@ export class TestEditorService implements EditorServiceImpl {
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
+		// openEditor takes ownership of the input, register it to the TestEditorService
+		// so it's not marked as leaked during tests.
+		if ('dispose' in editor) {
+			this._register(editor);
+		}
 		return undefined;
 	}
 	async closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void> { }
@@ -1478,7 +1488,7 @@ export class TestHostService implements IHostService {
 	private _onDidChangeFocus = new Emitter<boolean>();
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
 
-	private _onDidChangeWindow = new Emitter<void>();
+	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
 
 	setFocus(focus: boolean) {
@@ -1508,7 +1518,7 @@ export class TestHostService implements IHostService {
 export class TestFilesConfigurationService extends FilesConfigurationService {
 
 	testOnFilesConfigurationChange(configuration: any): void {
-		super.onFilesConfigurationChange(configuration);
+		super.onFilesConfigurationChange(configuration, true);
 	}
 }
 
@@ -1758,7 +1768,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 
-	readonly onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }> = Event.None;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent> = Event.None;
 
 	testSaveState(): void {
 		return super.saveState();

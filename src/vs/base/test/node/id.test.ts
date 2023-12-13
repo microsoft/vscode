@@ -7,8 +7,10 @@ import * as assert from 'assert';
 import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
 import { getMac } from 'vs/base/node/macAddress';
 import { flakySuite } from 'vs/base/test/node/testUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 flakySuite('ID', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getMachineId', async function () {
 		const errors = [];

@@ -1608,6 +1608,7 @@ export class SearchResult extends Disposable {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
 
+		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
 		this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {

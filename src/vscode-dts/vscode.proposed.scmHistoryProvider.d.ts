@@ -11,13 +11,7 @@ declare module 'vscode' {
 	}
 
 	export interface SourceControlHistoryProvider {
-		actionButton?: SourceControlActionButton;
 		currentHistoryItemGroup?: SourceControlHistoryItemGroup;
-
-		/**
-		 * Fires when the action button changes
-		 */
-		onDidChangeActionButton: Event<void>;
 
 		/**
 		 * Fires when the current history item group changes after

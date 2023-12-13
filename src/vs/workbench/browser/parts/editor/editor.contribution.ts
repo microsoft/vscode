@@ -10,7 +10,7 @@ import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/ed
 import {
 	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
 	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
-	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext, IsAuxiliaryEditorPartContext
+	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext, IsAuxiliaryEditorPartContext, ActiveCompareEditorOriginalWriteableContext
 } from 'vs/workbench/common/contextkeys';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -20,7 +20,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { ChangeEncodingAction, ChangeEOLAction, ChangeLanguageAction, EditorStatusContribution } from 'vs/workbench/browser/parts/editor/editorStatus';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuRegistry, MenuId, IMenuItem, registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -41,13 +41,13 @@ import {
 	ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction,
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
 	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction,
-	MaximizeGroupHideSidebarAction, ExperimentalMoveEditorIntoNewWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction
+	MaximizeGroupHideSidebarAction, MoveEditorToNewWindowAction, CopyEditorToNewindowAction, RestoreEditorsToMainWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction, CopyEditorGroupToNewWindowAction, MoveEditorGroupToNewWindowAction, NewEmptyEditorWindowAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 	CLOSE_PINNED_EDITOR_COMMAND_ID, CLOSE_SAVED_EDITORS_COMMAND_ID, GOTO_NEXT_CHANGE, GOTO_PREVIOUS_CHANGE, KEEP_EDITOR_COMMAND_ID, PIN_EDITOR_COMMAND_ID, SHOW_EDITORS_IN_GROUP, SPLIT_EDITOR_DOWN, SPLIT_EDITOR_LEFT,
 	SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE, TOGGLE_KEEP_EDITORS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, setup as registerEditorCommands, REOPEN_WITH_COMMAND_ID,
-	TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_FIRST_SIDE_EDITOR, FOCUS_SECOND_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT, LOCK_GROUP_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP
+	TOGGLE_LOCK_GROUP_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID, SPLIT_EDITOR_IN_GROUP, JOIN_EDITOR_IN_GROUP, FOCUS_FIRST_SIDE_EDITOR, FOCUS_SECOND_SIDE_EDITOR, TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT, LOCK_GROUP_COMMAND_ID, SPLIT_EDITOR, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, DIFF_SWAP_SIDES
 } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -65,8 +65,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
-import { EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction } from 'vs/workbench/browser/actions/layoutActions';
+import { EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ZenHideEditorTabsAction, ZenShowMultipleEditorTabsAction, ZenShowSingleEditorTabAction } from 'vs/workbench/browser/actions/layoutActions';
 import { ICommandAction } from 'vs/platform/action/common/action';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 //#region Editor Registrations
 
@@ -124,7 +125,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 //#region Workbench Contributions
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorAutoSave, LifecyclePhase.Ready);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatus, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EditorStatusContribution, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(UntitledTextEditorWorkingCopyEditorHandler, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DynamicEditorConfigurations, LifecyclePhase.Ready);
 
@@ -292,7 +293,13 @@ registerAction2(QuickAccessLeastRecentlyUsedEditorAction);
 registerAction2(QuickAccessPreviousRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessLeastRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessPreviousEditorFromHistoryAction);
-registerAction2(ExperimentalMoveEditorIntoNewWindowAction);
+
+registerAction2(MoveEditorToNewWindowAction);
+registerAction2(CopyEditorToNewindowAction);
+registerAction2(MoveEditorGroupToNewWindowAction);
+registerAction2(CopyEditorGroupToNewWindowAction);
+registerAction2(RestoreEditorsToMainWindowAction);
+registerAction2(NewEmptyEditorWindowAction);
 
 const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -338,15 +345,16 @@ if (isMacintosh) {
 // Empty Editor Group Toolbar
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ContextKeyExpr.and(IsAuxiliaryEditorPartContext, ActiveEditorGroupLockedContext.toNegated()) });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock, toggled: ContextKeyExpr.true() }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20, when: ContextKeyExpr.or(IsAuxiliaryEditorPartContext, EditorPartMultipleEditorGroupsContext) });
 
 // Empty Editor Group Context Menu
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '2_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('toggleLockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '3_lock', order: 10, when: ContextKeyExpr.and(MultipleEditorGroupsContext, IsAuxiliaryEditorPartContext.toNegated()) });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('close', "Close") }, group: '4_close', order: 10, when: MultipleEditorGroupsContext });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, title: localize('newWindow', "New Window") }, group: '3_window', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('toggleLockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '4_lock', order: 10, when: IsAuxiliaryEditorPartContext.toNegated() /* already a primary action for aux windows */ });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('close', "Close") }, group: '5_close', order: 10, when: MultipleEditorGroupsContext });
 
 // Editor Tab Container Context Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
@@ -354,12 +362,20 @@ MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { submenu: MenuId.EditorTabsBarShowTabsSubmenu, title: localize('tabBar', "Tab Bar"), group: '3_config', order: 10, when: InEditorZenModeContext.negate() });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, title: localize('moveEditorGroupToNewWindow', "Move into New Window") }, group: '3_window', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, title: localize('copyEditorGroupToNewWindow', "Copy into New Window") }, group: '3_window', order: 20 });
+
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { submenu: MenuId.EditorTabsBarShowTabsSubmenu, title: localize('tabBar', "Tab Bar"), group: '4_config', order: 10, when: InEditorZenModeContext.negate() });
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsSubmenu, { command: { id: ShowMultipleEditorTabsAction.ID, title: localize('multipleTabs', "Multiple Tabs"), toggled: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple') }, group: '1_config', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsSubmenu, { command: { id: ShowSingleEditorTabAction.ID, title: localize('singleTab', "Single Tab"), toggled: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single') }, group: '1_config', order: 20 });
-MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsSubmenu, { command: { id: HideEditorTabsAction.ID, title: localize('hideTabBar', "Hide"), toggled: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none') }, group: '1_config', order: 30 });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsSubmenu, { command: { id: HideEditorTabsAction.ID, title: localize('hideTabs', "Hidden"), toggled: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none') }, group: '1_config', order: 30 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { submenu: MenuId.EditorActionsPositionSubmenu, title: localize('editorActionsPosition', "Editor Actions Position"), group: '3_config', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { submenu: MenuId.EditorTabsBarShowTabsZenModeSubmenu, title: localize('tabBar', "Tab Bar"), group: '4_config', order: 10, when: InEditorZenModeContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsZenModeSubmenu, { command: { id: ZenShowMultipleEditorTabsAction.ID, title: localize('multipleTabs', "Multiple Tabs"), toggled: ContextKeyExpr.equals('config.zenMode.showTabs', 'multiple') }, group: '1_config', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsZenModeSubmenu, { command: { id: ZenShowSingleEditorTabAction.ID, title: localize('singleTab', "Single Tab"), toggled: ContextKeyExpr.equals('config.zenMode.showTabs', 'single') }, group: '1_config', order: 20 });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarShowTabsZenModeSubmenu, { command: { id: ZenHideEditorTabsAction.ID, title: localize('hideTabs', "Hidden"), toggled: ContextKeyExpr.equals('config.zenMode.showTabs', 'none') }, group: '1_config', order: 30 });
+
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { submenu: MenuId.EditorActionsPositionSubmenu, title: localize('editorActionsPosition', "Editor Actions Position"), group: '4_config', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorActionsPositionSubmenu, { command: { id: EditorActionsDefaultAction.ID, title: localize('tabBar', "Tab Bar"), toggled: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'default') }, group: '1_config', order: 10, when: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate() });
 MenuRegistry.appendMenuItem(MenuId.EditorActionsPositionSubmenu, { command: { id: EditorActionsTitleBarAction.ID, title: localize('titleBar', "Title Bar"), toggled: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'titleBar'), ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none'), ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'default'))) }, group: '1_config', order: 20, when: ContextKeyExpr.equals('config.window.titleBarStyle', 'native').negate() });
 MenuRegistry.appendMenuItem(MenuId.EditorActionsPositionSubmenu, { command: { id: HideEditorActionsAction.ID, title: localize('hidden', "Hidden"), toggled: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden'), ContextKeyExpr.and(ContextKeyExpr.equals('config.window.titleBarStyle', 'native'), ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'titleBar'))) }, group: '1_config', order: 30 });
@@ -378,8 +394,10 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_ED
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorCanSplitInGroupContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: SideBySideEditorActiveContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '5_split', order: 50, when: ActiveEditorCanSplitInGroupContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '5_split', order: 50, when: SideBySideEditorActiveContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, title: localize('moveToNewWindow', "Move into New Window") }, group: '6_new_window', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, title: localize('copyToNewWindow', "Copy into New Window") }, group: '6_new_window', order: 20 });
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
@@ -389,7 +407,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: CLOSE_SAVED_EDI
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_KEEP_EDITORS_COMMAND_ID, title: localize('togglePreviewMode', "Enable Preview Editors"), toggled: ContextKeyExpr.has('config.workbench.editor.enablePreview') }, group: '7_settings', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_MAXIMIZE_EDITOR_GROUP, title: localize('maximizeGroup', "Maximize Group") }, group: '8_group_operations', order: 5, when: ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext) });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_MAXIMIZE_EDITOR_GROUP, title: localize('unmaximizeGroup', "Unmaximize Group") }, group: '8_group_operations', order: 5, when: EditorPartMaximizedEditorGroupContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_group_operations', order: 10, when: ContextKeyExpr.and(MultipleEditorGroupsContext, IsAuxiliaryEditorPartContext.toNegated()) });
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('lockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '8_group_operations', order: 10, when: IsAuxiliaryEditorPartContext.toNegated() /* already a primary action for aux windows */ });
 
 function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpression | undefined, order: number, alternative?: ICommandAction, precondition?: ContextKeyExpression | undefined): void {
 	const item: IMenuItem = {
@@ -560,7 +578,9 @@ appendEditorToolItem(
 		icon: previousChangeIcon
 	},
 	TextCompareEditorActiveContext,
-	10
+	10,
+	undefined,
+	EditorContextKeys.hasChanges
 );
 
 // Diff Editor Title Menu: Next Change
@@ -571,7 +591,22 @@ appendEditorToolItem(
 		icon: nextChangeIcon
 	},
 	TextCompareEditorActiveContext,
-	11
+	11,
+	undefined,
+	EditorContextKeys.hasChanges
+);
+
+// Diff Editor Title Menu: Swap Sides
+appendEditorToolItem(
+	{
+		id: DIFF_SWAP_SIDES,
+		title: localize('swapDiffSides', "Swap Left and Right Side"),
+		icon: Codicon.arrowSwap
+	},
+	ContextKeyExpr.and(TextCompareEditorActiveContext, ActiveCompareEditorOriginalWriteableContext),
+	15,
+	undefined,
+	undefined
 );
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -716,7 +751,33 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '3_new_window',
+	command: {
+		id: MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+		title: {
+			original: 'Move Editor into New Window',
+			value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
+			mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window")
+		}
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '3_new_window',
+	command: {
+		id: COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+		title: {
+			original: 'Copy Editor into New Window',
+			value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
+			mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window")
+		}
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutSingleAction.ID,
 		title: {
@@ -729,7 +790,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsAction.ID,
 		title: {
@@ -742,7 +803,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutThreeColumnsAction.ID,
 		title: {
@@ -755,7 +816,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoRowsAction.ID,
 		title: {
@@ -768,7 +829,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutThreeRowsAction.ID,
 		title: {
@@ -781,7 +842,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoByTwoGridAction.ID,
 		title: {
@@ -794,7 +855,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoRowsRightAction.ID,
 		title: {
@@ -807,7 +868,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '3_layouts',
+	group: '4_layouts',
 	command: {
 		id: EditorLayoutTwoColumnsBottomAction.ID,
 		title: {

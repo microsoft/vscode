@@ -57,7 +57,7 @@
 	width: 11px;
 }
 
-.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+.interactive-item-container:not(.show-detail-progress) .chat-animated-ellipsis {
 	display: none;
 }
 
@@ -276,6 +276,7 @@
 
 .interactive-item-container.interactive-item-compact.no-padding {
 	padding: unset;
+	gap: unset;
 }
 
 .interactive-item-container.interactive-item-compact .header {
@@ -519,6 +520,11 @@
 .interactive-item-container .value .interactive-response-placeholder-content {
 	color: var(--vscode-editorGhostText-foreground);
 	font-size: 12px;
+	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .interactive-response-placeholder-content p {
+	margin: 0;
 }
 
 .interactive-response  .interactive-response-codicon-details {
@@ -601,6 +607,7 @@
 	flex-direction: column;
 	gap: 4px;
 	margin-left: 4px;
+	white-space: normal;
 }
 
 .interactive-item-container .progress-steps .progress-step {
@@ -610,7 +617,12 @@
 	opacity: 0.7;
 }
 
-.interactive-item-container .progress-steps .progress-step .codicon-check {
+.interactive-item-container .progress-steps .progress-step .codicon {
+	/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.interactive-item-container .progress-steps .progress-step .codicon.codicon-check {
 	font-size: 14px;
-	color: var(--vscode-debugIcon-startForeground);
+	color: var(--vscode-debugIcon-startForeground) !important;
 }

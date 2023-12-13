@@ -19,12 +19,11 @@ import { IFileWatcher, watch } from './watch';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
-import { CommitActionButton } from './actionButton';
+import { ActionButton } from './actionButton';
 import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './postCommitCommands';
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { GitHistoryProvider } from './historyProvider';
-import { GenerateCommitMessageActionButton, ICommitMessageProviderRegistry } from './commitMessageProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -32,47 +31,6 @@ const iconsRootPath = path.join(path.dirname(__dirname), 'resources', 'icons');
 
 function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
-}
-
-function wrapCommitMessage(message: string, subjectLineLength: number, bodyLineLength: number): string {
-	const messageLinesWrapped: string[] = [];
-	const messageLines = message.split(/\r?\n/g);
-
-	for (let index = 0; index < messageLines.length; index++) {
-		const messageLine = messageLines[index];
-		const threshold = index === 0 ? subjectLineLength : bodyLineLength;
-
-		if (messageLine.length <= threshold) {
-			messageLinesWrapped.push(messageLine);
-			continue;
-		}
-
-		let position = 0;
-		const lineSegments: string[] = [];
-		while (messageLine.length - position > threshold) {
-			const lastSpaceBeforeThreshold = messageLine.lastIndexOf(' ', position + threshold);
-			if (lastSpaceBeforeThreshold !== -1 && lastSpaceBeforeThreshold > position) {
-				lineSegments.push(...[messageLine.substring(position, lastSpaceBeforeThreshold), '\n']);
-				position = lastSpaceBeforeThreshold + 1;
-			} else {
-				// Find first space after threshold
-				const firstSpaceAfterThreshold = messageLine.indexOf(' ', position);
-				if (firstSpaceAfterThreshold !== -1) {
-					lineSegments.push(...[messageLine.substring(position, firstSpaceAfterThreshold), '\n']);
-					position = firstSpaceAfterThreshold + 1;
-				} else {
-					lineSegments.push(messageLine.substring(position));
-					position = messageLine.length;
-				}
-			}
-		}
-		if (position < messageLine.length) {
-			lineSegments.push(messageLine.substring(position));
-		}
-		messageLinesWrapped.push(lineSegments.join(''));
-	}
-
-	return messageLinesWrapped.join('\n');
 }
 
 export const enum RepositoryState {
@@ -845,7 +803,6 @@ export class Repository implements Disposable {
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
-	private generateCommitMessageCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -855,7 +812,6 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
-		private readonly commitMessageProviderRegistry: ICommitMessageProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -900,11 +856,6 @@ export class Repository implements Disposable {
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
-
-		const inputActionButton = new GenerateCommitMessageActionButton(this, commitMessageProviderRegistry);
-		this.disposables.push(inputActionButton);
-		inputActionButton.onDidChange(() => this._sourceControl.inputBox.actionButton = inputActionButton.button);
-		this._sourceControl.inputBox.actionButton = inputActionButton.button;
 
 		this.disposables.push(this._sourceControl);
 
@@ -991,10 +942,10 @@ export class Repository implements Disposable {
 		this.commitCommandCenter = new CommitCommandsCenter(globalState, this, postCommitCommandsProviderRegistry);
 		this.disposables.push(this.commitCommandCenter);
 
-		const commitActionButton = new CommitActionButton(this, this.commitCommandCenter);
-		this.disposables.push(commitActionButton);
-		commitActionButton.onDidChange(() => this._sourceControl.actionButton = commitActionButton.button);
-		this._sourceControl.actionButton = commitActionButton.button;
+		const actionButton = new ActionButton(this, this.commitCommandCenter);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
@@ -1523,8 +1474,9 @@ export class Repository implements Disposable {
 		// Git config
 		try {
 			const mergeBase = await this.getConfig(branchMergeBaseConfigKey);
-			if (mergeBase) {
-				return await this.getBranch(mergeBase);
+			if (mergeBase !== '') {
+				const mergeBaseBranch = await this.getBranch(mergeBase);
+				return mergeBaseBranch;
 			}
 		} catch (err) { }
 
@@ -1669,6 +1621,21 @@ export class Repository implements Disposable {
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		return await this.run(Operation.RevList, () => this.repository.getCommitCount(range));
+	}
+
+	async getDiff(): Promise<string[]> {
+		const diff: string[] = [];
+		if (this.indexGroup.resourceStates.length !== 0) {
+			for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffIndexWithHEAD(file));
+			}
+		} else {
+			for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+				diff.push(await this.diffWithHEAD(file));
+			}
+		}
+
+		return diff;
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {
@@ -2069,58 +2036,6 @@ export class Repository implements Disposable {
 				child.on('exit', onExit);
 			});
 		});
-	}
-
-	async generateCommitMessage(): Promise<void> {
-		if (!this.commitMessageProviderRegistry.commitMessageProvider) {
-			return;
-		}
-
-		this._onDidStartCommitMessageGeneration.fire();
-		this.generateCommitMessageCancellationTokenSource?.cancel();
-		this.generateCommitMessageCancellationTokenSource = new CancellationTokenSource();
-
-		try {
-			const diff: string[] = [];
-			if (this.indexGroup.resourceStates.length !== 0) {
-				for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-					diff.push(await this.diffIndexWithHEAD(file));
-				}
-			} else {
-				for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
-					diff.push(await this.diffWithHEAD(file));
-				}
-			}
-
-			if (diff.length === 0) {
-				return;
-			}
-
-			const token = this.generateCommitMessageCancellationTokenSource.token;
-			const provider = this.commitMessageProviderRegistry.commitMessageProvider;
-			const commitMessage = await provider.provideCommitMessage(new ApiRepository(this), diff, token);
-			if (commitMessage) {
-				const config = workspace.getConfiguration('git');
-				const subjectLineLength = config.get<number | null>('inputValidationSubjectLength', null);
-				const bodyLineLength = config.get<number>('inputValidationLength', 50);
-
-				this.inputBox.value = wrapCommitMessage(commitMessage, subjectLineLength ?? bodyLineLength, bodyLineLength);
-			}
-		}
-		catch (err) {
-			this.logger.error(err);
-		}
-		finally {
-			this._onDidEndCommitMessageGeneration.fire();
-		}
-	}
-
-	generateCommitMessageCancel(): void {
-		this.generateCommitMessageCancellationTokenSource?.cancel();
-		this.generateCommitMessageCancellationTokenSource?.dispose();
-		this.generateCommitMessageCancellationTokenSource = undefined;
-
-		this._onDidEndCommitMessageGeneration.fire();
 	}
 
 	// Parses output of `git check-ignore -v -z` and returns only those paths

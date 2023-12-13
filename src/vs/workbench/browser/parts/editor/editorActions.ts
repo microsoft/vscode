@@ -13,8 +13,8 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -33,9 +33,10 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
 import { URI } from 'vs/base/common/uri';
 import { getActiveDocument } from 'vs/base/browser/dom';
+import { ICommandActionTitle } from 'vs/platform/action/common/action';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -225,7 +226,7 @@ export class JoinAllGroupsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		editorGroupService.mergeAllGroups();
+		editorGroupService.mergeAllGroups(editorGroupService.activeGroup);
 	}
 }
 
@@ -604,14 +605,14 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 			// Editor will be saved on focus change when a
 			// dialog appears, so just track that separate
-			else if (filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			else if (!editor.hasCapability(EditorInputCapabilities.Untitled) && filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_FOCUS_CHANGE) {
 				dirtyAutoSaveOnFocusChangeEditors.add({ editor, groupId });
 			}
 
 			// Windows, Linux: editor will be saved on window change
 			// when a native dialog appears, so just track that separate
 			// (see https://github.com/microsoft/vscode/issues/134250)
-			else if ((isNative && (isWindows || isLinux)) && filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			else if ((isNative && (isWindows || isLinux)) && !editor.hasCapability(EditorInputCapabilities.Untitled) && filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_WINDOW_CHANGE) {
 				dirtyAutoSaveOnWindowChangeEditors.add({ editor, groupId });
 			}
 
@@ -1144,6 +1145,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+
 		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
 		editorGroupsService.toggleMaximizeGroup(group);
 	}
@@ -2485,33 +2487,172 @@ export class ReOpenInTextEditorAction extends Action2 {
 	}
 }
 
-export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
 
-	constructor() {
+abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
+
+	constructor(
+		id: string,
+		title: ICommandActionTitle,
+		private readonly move: boolean
+	) {
 		super({
-			id: 'workbench.action.experimentalMoveEditorIntoNewWindowAction',
-			title: {
-				value: localize('popEditorOut', "Move Active Editor into a New Window (Experimental)"),
-				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Move Active Editor into a New Window (Experimental)"),
-				original: 'Move Active Editor into a New Window (Experimental)'
-			},
+			id,
+			title,
 			category: Categories.View,
 			precondition: ActiveEditorContext,
 			f1: true
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const activeEditorPane = editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
+		const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		if (group && editor) {
+			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+			if (this.move) {
+				group.moveEditor(editor, auxiliaryEditorPart.activeGroup);
+			} else {
+				group.copyEditor(editor, auxiliaryEditorPart.activeGroup);
+			}
+
+			auxiliaryEditorPart.activeGroup.focus();
 		}
+	}
+}
+
+export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAction {
+
+	constructor() {
+		super(
+			MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				value: localize('moveEditorToNewWindow', "Move Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
+				original: 'Move Editor into New Window'
+			},
+			true
+		);
+	}
+}
+
+export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAction {
+
+	constructor() {
+		super(
+			COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				value: localize('copyEditorToNewWindow', "Copy Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
+				original: 'Copy Editor into New Window'
+			},
+			false
+		);
+	}
+}
+
+abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
+
+	constructor(
+		id: string,
+		title: ICommandActionTitle,
+		private readonly move: boolean
+	) {
+		super({
+			id,
+			title,
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const activeGroup = editorGroupService.activeGroup;
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
+		editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
+			mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+		});
+
+		auxiliaryEditorPart.activeGroup.focus();
+	}
+}
+
+export class MoveEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
+
+	constructor() {
+		super(
+			MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				value: localize('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Window"),
+				original: 'Move Editor Group into New Window'
+			},
+			true
+		);
+	}
+}
+
+export class CopyEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
+
+	constructor() {
+		super(
+			COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				value: localize('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Window"),
+				original: 'Copy Editor Group into New Window'
+			},
+			false
+		);
+	}
+}
+
+export class RestoreEditorsToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.restoreEditorsToMainWindow',
+			title: {
+				value: localize('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
+				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Editors into Main Window"),
+				original: 'Restore Editors into Main Window'
+			},
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.mergeAllGroups(editorGroupService.mainPart.activeGroup);
+	}
+}
+
+export class NewEmptyEditorWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID,
+			title: {
+				value: localize('newEmptyEditorWindow', "New Empty Editor Window"),
+				mnemonicTitle: localize({ key: 'miNewEmptyEditorWindow', comment: ['&& denotes a mnemonic'] }, "&&New Empty Editor Window"),
+				original: 'New Empty Editor Window'
+			},
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		auxiliaryEditorPart.activeGroup.focus();
 	}
 }

@@ -11,6 +11,7 @@ import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { CancellationError } from 'vs/base/common/errors';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -19,6 +20,8 @@ function assertToJSON(a: any, expected: any) {
 }
 
 suite('ExtHostTypes', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('URI, toJSON', function () {
 

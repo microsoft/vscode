@@ -5,9 +5,17 @@ set -e
 # To workaround the issue of yarn not respecting the registry value from .npmrc
 yarn config set registry "$NPM_REGISTRY"
 
-if [ -z "$CC" ] || [ -z "$CXX" ]; then
+SYSROOT_ARCH=$VSCODE_ARCH
+if [ "$SYSROOT_ARCH" == "x64" ]; then
+  SYSROOT_ARCH="amd64"
+fi
+
+export VSCODE_SYSROOT_DIR=$PWD/.build/sysroots
+SYSROOT_ARCH="$SYSROOT_ARCH" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+
+if [ "$npm_config_arch" == "x64" ]; then
   # Download clang based on chromium revision used by vscode
-  curl -s https://raw.githubusercontent.com/chromium/chromium/114.0.5735.199/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+  curl -s https://raw.githubusercontent.com/chromium/chromium/118.0.5993.159/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
 
   # Download libcxx headers and objects from upstream electron releases
   DEBUG=libcxx-fetcher \
@@ -19,15 +27,30 @@ if [ -z "$CC" ] || [ -z "$CXX" ]; then
 
   # Set compiler toolchain
   # Flags for the client build are based on
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/114.0.5735.199:build/config/arm.gni
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/114.0.5735.199:build/config/compiler/BUILD.gn
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/114.0.5735.199:build/config/c++/BUILD.gn
-  export CC=$PWD/.build/CR_Clang/bin/clang
-  export CXX=$PWD/.build/CR_Clang/bin/clang++
-  export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr"
-  export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -Wl,--lto-O0"
-  export VSCODE_REMOTE_CC=$(which gcc)
-  export VSCODE_REMOTE_CXX=$(which g++)
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/118.0.5993.159:build/config/arm.gni
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/118.0.5993.159:build/config/compiler/BUILD.gn
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/118.0.5993.159:build/config/c++/BUILD.gn
+  export CC="$PWD/.build/CR_Clang/bin/clang --gcc-toolchain=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu"
+  export CXX="$PWD/.build/CR_Clang/bin/clang++ --gcc-toolchain=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu"
+  export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+  export LDFLAGS="-stdlib=libc++ --sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu -L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/lib/x86_64-linux-gnu -Wl,--lto-O0"
+  # Set compiler toolchain for remote server
+  export VSCODE_REMOTE_CC=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc
+  export VSCODE_REMOTE_CXX=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/bin/x86_64-linux-gnu-g++
+  export VSCODE_REMOTE_CXXFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot"
+  export VSCODE_REMOTE_LDFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot -L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/usr/lib/x86_64-linux-gnu -L$VSCODE_SYSROOT_DIR/x86_64-linux-gnu/x86_64-linux-gnu/sysroot/lib/x86_64-linux-gnu"
+elif [ "$npm_config_arch" == "arm64" ]; then
+  # Set compiler toolchain for client native modules and remote server
+  export CC=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc
+  export CXX=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/bin/aarch64-linux-gnu-g++
+  export CXXFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot"
+  export LDFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot -L$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/usr/lib/aarch64-linux-gnu -L$VSCODE_SYSROOT_DIR/aarch64-linux-gnu/aarch64-linux-gnu/sysroot/lib/aarch64-linux-gnu"
+elif [ "$npm_config_arch" == "arm" ]; then
+  # Set compiler toolchain for client native modules and remote server
+  export CC=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-gcc
+  export CXX=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/bin/arm-rpi-linux-gnueabihf-g++
+  export CXXFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot"
+  export LDFLAGS="--sysroot=$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot -L$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/usr/lib/arm-linux-gnueabihf -L$VSCODE_SYSROOT_DIR/arm-rpi-linux-gnueabihf/arm-rpi-linux-gnueabihf/sysroot/lib/arm-linux-gnueabihf"
 fi
 
 for i in {1..5}; do # try 5 times

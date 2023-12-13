@@ -24,7 +24,21 @@ export interface IRegisteredCodeWindow {
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+//# region Multi-Window Support Utilities
+
+export const {
+	registerWindow,
+	getWindow,
+	getDocument,
+	getWindows,
+	getWindowsCount,
+	getWindowId,
+	getWindowById,
+	hasWindow,
+	onDidRegisterWindow,
+	onWillUnregisterWindow,
+	onDidUnregisterWindow
+} = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	ensureCodeWindow(mainWindow, 1);
@@ -72,9 +86,34 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 		},
 		getWindowId(targetWindow: Window): number {
 			return (targetWindow as CodeWindow).vscodeWindowId;
+		},
+		hasWindow(windowId: number): boolean {
+			return windows.has(windowId);
+		},
+		getWindowById(windowId: number): IRegisteredCodeWindow | undefined {
+			return windows.get(windowId);
+		},
+		getWindow(e: Node | UIEvent | undefined | null): CodeWindow {
+			const candidateNode = e as Node | undefined | null;
+			if (candidateNode?.ownerDocument?.defaultView) {
+				return candidateNode.ownerDocument.defaultView.window as CodeWindow;
+			}
+
+			const candidateEvent = e as UIEvent | undefined | null;
+			if (candidateEvent?.view) {
+				return candidateEvent.view.window as CodeWindow;
+			}
+
+			return mainWindow;
+		},
+		getDocument(e: Node | UIEvent | undefined | null): Document {
+			const candidateNode = e as Node | undefined | null;
+			return getWindow(candidateNode).document;
 		}
 	};
 })();
+
+//#endregion
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -97,7 +136,7 @@ class DomListener implements IDisposable {
 		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (!this._handler) {
 			// Already disposed
 			return;
@@ -174,7 +213,6 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
-
 /**
  * Execute the callback the next time the browser is idle, returning an
  * {@link IDisposable} that will cancel the callback when disposed. This wraps
@@ -207,7 +245,6 @@ export class WindowIdleValue<T> extends AbstractIdleValue<T> {
 		super(targetWindow, executor);
 	}
 }
-
 
 /**
  * Schedule a callback to be run at the next animation frame.
@@ -257,11 +294,11 @@ class AnimationFrameQueueItem implements IDisposable {
 		this._canceled = false;
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this._canceled = true;
 	}
 
-	public execute(): void {
+	execute(): void {
 		if (this._canceled) {
 			return;
 		}
@@ -274,7 +311,7 @@ class AnimationFrameQueueItem implements IDisposable {
 	}
 
 	// Sort by priority (largest to lowest)
-	public static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
+	static sort(a: AnimationFrameQueueItem, b: AnimationFrameQueueItem): number {
 		return b.priority - a.priority;
 	}
 }
@@ -407,10 +444,9 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return getWindow(el).getComputedStyle(el, null);
 }
 
-export function getClientArea(element: HTMLElement): Dimension {
-
-	const elDocument = element.ownerDocument;
-	const elWindow = elDocument.defaultView?.window;
+export function getClientArea(element: HTMLElement, fallback?: HTMLElement): Dimension {
+	const elWindow = getWindow(element);
+	const elDocument = elWindow.document;
 
 	// Try with DOM clientWidth / clientHeight
 	if (element !== elDocument.body) {
@@ -435,6 +471,10 @@ export function getClientArea(element: HTMLElement): Dimension {
 	// Try with document.documentElement.clientWidth / document.documentElement.clientHeight
 	if (elDocument.documentElement && elDocument.documentElement.clientWidth && elDocument.documentElement.clientHeight) {
 		return new Dimension(elDocument.documentElement.clientWidth, elDocument.documentElement.clientHeight);
+	}
+
+	if (fallback) {
+		return getClientArea(fallback);
 	}
 
 	throw new Error('Unable to figure out browser width and height');
@@ -506,8 +546,8 @@ export class Dimension implements IDimension {
 	static readonly None = new Dimension(0, 0);
 
 	constructor(
-		public readonly width: number,
-		public readonly height: number,
+		readonly width: number,
+		readonly height: number,
 	) { }
 
 	with(width: number = this.width, height: number = this.height): Dimension {
@@ -800,8 +840,9 @@ export function getShadowRoot(domNode: Node): ShadowRoot | null {
 }
 
 /**
- * Returns the active element across all child windows.
- * Use this instead of `document.activeElement` to handle multiple windows.
+ * Returns the active element across all child windows
+ * based on document focus. Falls back to the main
+ * window if no window has focus.
  */
 export function getActiveElement(): Element | null {
 	let result = getActiveDocument().activeElement;
@@ -814,73 +855,57 @@ export function getActiveElement(): Element | null {
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `element` is `element`.
+ * Returns true if the focused window active element matches
+ * the provided element. Falls back to the main window if no
+ * window has focus.
  */
 export function isActiveElement(element: Element): boolean {
-	return element.ownerDocument.activeElement === element;
+	return getActiveElement() === element;
 }
 
 /**
- * Returns whether the active element of the `document` that owns
- * the `ancestor` is contained in `ancestor`.
+ * Returns true if the focused window active element is contained in
+ * `ancestor`. Falls back to the main window if no window has focus.
  */
 export function isAncestorOfActiveElement(ancestor: Element): boolean {
-	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+	return isAncestor(getActiveElement(), ancestor);
 }
 
 /**
- * Returns whether the element is in the active `document`.
+ * Returns whether the element is in the active `document`. The active
+ * document has focus or will be the main windows document.
  */
 export function isActiveDocument(element: Element): boolean {
 	return element.ownerDocument === getActiveDocument();
 }
 
 /**
- * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom
- * events to handle multiple windows.
+ * Returns the active document across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main windows document.
  */
 export function getActiveDocument(): Document {
 	if (getWindowsCount() <= 1) {
-		return document;
+		return mainWindow.document;
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? mainWindow.document;
 }
 
-export function getDocument(element: Node | undefined | null): Document;
-export function getDocument(event: UIEvent | undefined | null): Document;
-export function getDocument(e: unknown): Document {
-	const candidateNode = e as Node | undefined | null;
-	return getWindow(candidateNode).document;
-}
-
+/**
+ * Returns the active window across main and child windows.
+ * Prefers the window with focus, otherwise falls back to
+ * the main window.
+ */
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
-export function getWindow(element: Node | undefined | null): CodeWindow;
-export function getWindow(event: UIEvent | undefined | null): CodeWindow;
-export function getWindow(e: unknown): CodeWindow {
-	const candidateNode = e as Node | undefined | null;
-	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window as CodeWindow;
-	}
-
-	const candidateEvent = e as UIEvent | undefined | null;
-	if (candidateEvent?.view) {
-		return candidateEvent.view.window as CodeWindow;
-	}
-
-	return mainWindow;
-}
-
 export function focusWindow(element: Node): void {
 	const window = getWindow(element);
-	if (window !== getActiveWindow()) {
+	if (!window.document.hasFocus()) {
 		window.focus();
 	}
 }
@@ -1006,9 +1031,17 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	const meta = document.createElement('meta');
-	container.appendChild(meta);
-	return meta;
+	return createHeadElement('meta', container) as HTMLMetaElement;
+}
+
+export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
+	return createHeadElement('link', container) as HTMLLinkElement;
+}
+
+function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+	const element = document.createElement(tagName);
+	container.appendChild(element);
+	return element;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;
@@ -1176,8 +1209,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker extends Disposable {
-	onDidFocus: event.Event<void>;
-	onDidBlur: event.Event<void>;
+	readonly onDidFocus: event.Event<void>;
+	readonly onDidBlur: event.Event<void>;
 	refreshState(): void;
 }
 
@@ -1202,10 +1235,10 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	public readonly onDidFocus: event.Event<void> = this._onDidFocus.event;
+	readonly onDidFocus = this._onDidFocus.event;
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	public readonly onDidBlur: event.Event<void> = this._onDidBlur.event;
+	readonly onDidBlur = this._onDidBlur.event;
 
 	private _refreshStateHandler: () => void;
 

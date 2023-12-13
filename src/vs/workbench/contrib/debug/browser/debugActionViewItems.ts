@@ -174,6 +174,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 	}
 
 	private updateOptions(): void {
