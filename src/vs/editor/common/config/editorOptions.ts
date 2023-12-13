@@ -2107,7 +2107,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 				'editor.hover.enableLocking': {
 					type: 'boolean',
 					default: defaults.enableLocking,
-					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
+					description: nls.localize('editor.hover.enableLocking', "Enable the locking of the hover. If enabled, will use `alt` when `editor.multiCursorModifier` is `ctrlCmd` and `ctrlCmd` otherwise.")
 				},
 			}
 		);
@@ -5632,7 +5632,7 @@ export const EditorOptions = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
+			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition, Open Link mouse and Lock Hover gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
