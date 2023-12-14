@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
@@ -147,22 +148,26 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 	const workspaceFolder = getWorkspaceFolder(documentUri);
 
 	const vars = new Map<string, string>([
-		['documentDirName', documentDirName.path], //  Parent directory path
+		// Document
+		['documentDirName', documentDirName.path], // Absolute parent directory path
+		['documentRelativeDirName', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentDirName.path) : documentDirName.path], // Absolute parent directory path
 		['documentFileName', documentBaseName], // Full filename: file.md
 		['documentBaseName', documentBaseName.slice(0, documentBaseName.length - documentExtName.length)], // Just the name: file
 		['documentExtName', documentExtName.replace('.', '')], // Just the file ext: md
+		['documentFilePath', documentUri.path], // Full document path
+		['documentRelativeFilePath', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentUri.path) : documentUri.path], // Full document path relative to workspace
 
 		// Workspace
-		['documentWorkspaceFolder', (workspaceFolder ?? documentDirName).path],
+		['documentWorkspaceFolder', ((workspaceFolder ?? documentDirName).path)],
 
 		// File
-		['fileName', fileName],// Full file name
+		['fileName', fileName], // Full file name
 	]);
 
-	return outDest.replaceAll(/\$\{(\w+)(?:\/([^\}]+?)\/([^\}]+?)\/)?\}/g, (_, name, pattern, replacement) => {
+	return outDest.replaceAll(/\$\{(\w+)(?:\/([^\}]+?)\/([^\}]+?)\/)?\}/g, (match, name, pattern, replacement) => {
 		const entry = vars.get(name);
 		if (!entry) {
-			return '';
+			return match;
 		}
 
 		if (pattern && replacement) {
