@@ -16,7 +16,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-const ExtensionEditorIcon = registerIcon('extension-editor-label-icon', Codicon.extensions, localize('extensionEditorLabelIcon', 'Icon of the extension editor label.'));
+const ExtensionEditorIcon = registerIcon('extensions-editor-label-icon', Codicon.extensions, localize('extensionsEditorLabelIcon', 'Icon of the extensions editor label.'));
 
 export interface IExtensionEditorOptions extends IEditorOptions {
 	showPreReleaseVersion?: boolean;
