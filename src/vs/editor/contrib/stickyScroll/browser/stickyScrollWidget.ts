@@ -130,31 +130,33 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if ((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state))) {
 			return;
 		}
-		const rebuildFromLine = this._findLineToRebuildFrom(_state, _rebuildFromLine);
-		this._previousState = _state;
-		let state = _state;
-		if (_state) {
-			const futureWidgetHeight = _state.startLineNumbers.length * this._lineHeight + _state.lastLineRelativePosition;
-			if (futureWidgetHeight > 0) {
-				this._lastLineRelativePosition = _state.lastLineRelativePosition;
-				const lineNumbers = [..._state.startLineNumbers];
-				if (_state.showEndForLine !== null) {
-					lineNumbers[_state.showEndForLine] = _state.endLineNumbers[_state.showEndForLine];
-				}
-				this._lineNumbers = lineNumbers;
-			} else {
-				this._lastLineRelativePosition = 0;
-				this._lineNumbers = [];
-			}
-			const widgetHeight = this._lineNumbers.length * this._lineHeight + this._lastLineRelativePosition;
-			if (!widgetHeight) {
-				state = undefined;
-			}
-		}
+		const isWidgetHeightZero = this._isWidgetHeightZero(_state);
+		const state = isWidgetHeightZero ? undefined : _state;
+		const rebuildFromLine = isWidgetHeightZero ? 0 : this._findLineToRebuildWidgetFrom(_state, _rebuildFromLine);
 		this._renderRootNode(state, foldingModel, rebuildFromLine);
+		this._previousState = _state;
 	}
 
-	private _findLineToRebuildFrom(state: StickyScrollWidgetState | undefined, _rebuildFromLine?: number): number {
+	private _isWidgetHeightZero(state: StickyScrollWidgetState | undefined): boolean {
+		if (!state) {
+			return true;
+		}
+		const futureWidgetHeight = state.startLineNumbers.length * this._lineHeight + state.lastLineRelativePosition;
+		if (futureWidgetHeight > 0) {
+			this._lastLineRelativePosition = state.lastLineRelativePosition;
+			const lineNumbers = [...state.startLineNumbers];
+			if (state.showEndForLine !== null) {
+				lineNumbers[state.showEndForLine] = state.endLineNumbers[state.showEndForLine];
+			}
+			this._lineNumbers = lineNumbers;
+		} else {
+			this._lastLineRelativePosition = 0;
+			this._lineNumbers = [];
+		}
+		return futureWidgetHeight === 0;
+	}
+
+	private _findLineToRebuildWidgetFrom(state: StickyScrollWidgetState | undefined, _rebuildFromLine?: number): number {
 		if (!state || !this._previousState) {
 			return 0;
 		}
@@ -201,7 +203,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, rebuildFromLine: number = 0): Promise<void> {
+	private async _renderRootNode(state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, rebuildFromLine: number): Promise<void> {
 		this._clearStickyLinesFromLine(rebuildFromLine);
 		if (!state) {
 			return;
