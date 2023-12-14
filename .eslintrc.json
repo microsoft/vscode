@@ -263,7 +263,6 @@
 							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts",
 							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts",
 							"src/vs/workbench/contrib/notebook/test/browser/notebookTextModel.test.ts",
-							"src/vs/workbench/contrib/search/test/common/extractRange.test.ts",
 							"src/vs/workbench/contrib/snippets/test/browser/snippetFile.test.ts",
 							"src/vs/workbench/contrib/snippets/test/browser/snippetsRegistry.test.ts",
 							"src/vs/workbench/contrib/snippets/test/browser/snippetsRewrite.test.ts",
