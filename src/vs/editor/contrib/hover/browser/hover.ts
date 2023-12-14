@@ -372,6 +372,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._glyphWidget;
 	}
 
+	public hideContentHover(): void {
+		this._hideWidgets();
+	}
+
 	public showContentHover(
 		range: Range,
 		mode: HoverStartMode,
