@@ -962,6 +962,16 @@ export class CommandCenter {
 		this.model.close(repository);
 	}
 
+	@command('git.closeOtherRepositories', { repository: true })
+	async closeOtherRepositories(repository: Repository): Promise<void> {
+		for (const r of this.model.repositories) {
+			if (r === repository) {
+				continue;
+			}
+			this.model.close(r);
+		}
+	}
+
 	@command('git.openFile')
 	async openFile(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		const preserveFocus = arg instanceof Resource;
