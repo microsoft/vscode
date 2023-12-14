@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
+import { $, addDisposableListener, getActiveDocument, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
@@ -27,6 +28,14 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		if (isSafari || isWebkitWebView) {
 			this.installWebKitWriteTextWorkaround();
 		}
+
+		// Keep track of copy operations to reset our set of
+		// copied resources: since we keep resources in memory
+		// and not in the clipboard, we have to invalidate
+		// that state when the user copies other data.
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window.document, 'copy', () => this.clearResources()));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
