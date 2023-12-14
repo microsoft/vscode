@@ -10,7 +10,6 @@ import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { Codicon } from 'vs/base/common/codicons';
 import { INewScrollPosition, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
-import * as dom from 'vs/base/browser/dom';
 
 
 
@@ -50,7 +49,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				right: undefined,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(dom.getActiveWindow(), null, 1, 0)),
+				onActivate: (targetWindow: Window) => this._host.onMouseWheel(new StandardWheelEvent(targetWindow, null, 1, 0)),
 			});
 
 			this._createArrow({
@@ -62,7 +61,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				right: arrowDelta,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(dom.getActiveWindow(), null, -1, 0)),
+				onActivate: (targetWindow: Window) => this._host.onMouseWheel(new StandardWheelEvent(targetWindow, null, -1, 0)),
 			});
 		}
 

@@ -15,7 +15,7 @@ import * as dom from 'vs/base/browser/dom';
 export const ARROW_IMG_SIZE = 11;
 
 export interface ScrollbarArrowOptions {
-	onActivate: () => void;
+	onActivate: (targetWindow: Window) => void;
 	className: string;
 	icon: ThemeIcon;
 
@@ -30,7 +30,7 @@ export interface ScrollbarArrowOptions {
 
 export class ScrollbarArrow extends Widget {
 
-	private _onActivate: () => void;
+	private _onActivate: (targetWindow: Window) => void;
 	public bgDomNode: HTMLElement;
 	public domNode: HTMLElement;
 	private _pointerdownRepeatTimer: dom.WindowIntervalTimer;
@@ -92,10 +92,10 @@ export class ScrollbarArrow extends Widget {
 			return;
 		}
 		const scheduleRepeater = () => {
-			this._pointerdownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24, dom.getWindow(e));
+			this._pointerdownRepeatTimer.cancelAndSet(() => this._onActivate(dom.getWindow(e)), 1000 / 24, dom.getWindow(e));
 		};
 
-		this._onActivate();
+		this._onActivate(dom.getWindow(e));
 		this._pointerdownRepeatTimer.cancel();
 		this._pointerdownScheduleRepeatTimer.cancelAndSet(scheduleRepeater, 200);
 
