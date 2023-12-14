@@ -394,7 +394,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (!this._foldingModel || line === null) {
 			return;
 		}
-		const stickyLine = this._stickyScrollWidget.getRenderedStickyLineForLine(line);
+		const stickyLine = this._stickyScrollWidget.getRenderedStickyLine(line);
 		const foldingIcon = stickyLine?.foldingIcon;
 		if (!foldingIcon) {
 			return;

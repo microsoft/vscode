@@ -118,7 +118,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		return this._lineNumbers.length;
 	}
 
-	getRenderedStickyLineForLine(lineNumber: number): RenderedStickyLine | undefined {
+	getRenderedStickyLine(lineNumber: number): RenderedStickyLine | undefined {
 		return this._renderedStickyLines.find(stickyLine => stickyLine.lineNumber === lineNumber);
 	}
 
