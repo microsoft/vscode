@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { OS } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -37,6 +39,10 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	override getName(): string {
 		return nls.localize('keybindingsInputName', "Keyboard Shortcuts");
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.keyboard;
 	}
 
 	override async resolve(): Promise<KeybindingsEditorModel> {

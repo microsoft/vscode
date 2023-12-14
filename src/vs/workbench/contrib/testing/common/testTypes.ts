@@ -571,12 +571,12 @@ export namespace IFileCoverage {
 		uri: original.uri.toJSON(),
 	});
 
-	export const deserialize = (serialized: Serialized): IFileCoverage => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
 		statement: serialized.statement,
 		branch: serialized.branch,
 		function: serialized.function,
 		details: serialized.details?.map(CoverageDetails.deserialize),
-		uri: URI.from(serialized.uri),
+		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 }
 

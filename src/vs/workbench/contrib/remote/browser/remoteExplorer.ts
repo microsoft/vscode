@@ -385,8 +385,11 @@ class OnAutoForwardedAction extends Disposable {
 		});
 	}
 
-	private basicMessage(tunnel: RemoteTunnel) {
-		return nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.  ",
+	private async basicMessage(tunnel: RemoteTunnel) {
+		const properties = await this.remoteExplorerService.tunnelModel.getAttributes([{ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }], false);
+		const label = properties?.get(tunnel.tunnelRemotePort)?.label;
+		return nls.localize('remote.tunnelsView.automaticForward', "Your application{0} running on port {1} is available.  ",
+			label ? ` (${label})` : '',
 			tunnel.tunnelRemotePort);
 	}
 
@@ -402,7 +405,7 @@ class OnAutoForwardedAction extends Disposable {
 		}
 
 		this.lastNotification?.close();
-		let message = this.basicMessage(tunnel);
+		let message = await this.basicMessage(tunnel);
 		const choices = [this.openBrowserChoice(tunnel)];
 		if (!isWeb || openPreviewEnabledContext.getValue(this.contextKeyService)) {
 			choices.push(this.openPreviewChoice(tunnel));
@@ -481,7 +484,7 @@ class OnAutoForwardedAction extends Disposable {
 				this.lastNotification?.close();
 				this.lastShownPort = newTunnel.tunnelRemotePort;
 				this.lastNotification = this.notificationService.prompt(Severity.Info,
-					this.basicMessage(newTunnel) + this.linkMessage(),
+					await this.basicMessage(newTunnel) + this.linkMessage(),
 					[this.openBrowserChoice(newTunnel), this.openPreviewChoice(tunnel)],
 					{ neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 				this.lastNotification.onDidClose(() => {

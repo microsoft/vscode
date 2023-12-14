@@ -96,6 +96,10 @@ export class DebugHoverWidget implements IContentWidget {
 	private expressionToRender: IExpression | undefined;
 	private isUpdatingTree = false;
 
+	public get isShowingComplexValue() {
+		return this.complexValueContainer?.hidden === false;
+	}
+
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
