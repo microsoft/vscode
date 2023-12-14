@@ -48,6 +48,12 @@ export function format2(template: string, values: Record<string, unknown>): stri
 	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
 }
 
+/**
+ * Encodes the given value so that it can be used as literal value in html attributes.
+ *
+ * In other words, computes `$val`, such that `attr` in `<div attr="$val" />` has the runtime value `value`.
+ * This prevents XSS injection.
+ */
 export function htmlAttributeEncodeValue(value: string): string {
 	return value.replace(/[<>"'&]/g, ch => {
 		switch (ch) {
