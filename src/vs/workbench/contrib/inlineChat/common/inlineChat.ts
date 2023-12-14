@@ -47,17 +47,17 @@ export interface IInlineChatRequest {
 	live: boolean;
 }
 
-export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse | IInlineChatMessageResponse;
+export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse;
 
 export const enum InlineChatResponseType {
 	EditorEdit = 'editorEdit',
-	BulkEdit = 'bulkEdit',
-	Message = 'message'
+	BulkEdit = 'bulkEdit'
 }
 
-export const enum InlineChateResponseTypes {
-	OnlyMessages = 'onlyMessages',
+export const enum InlineChatResponseTypes {
+	Empty = 'empty',
 	OnlyEdits = 'onlyEdits',
+	OnlyMessages = 'onlyMessages',
 	Mixed = 'mixed'
 }
 
@@ -75,14 +75,6 @@ export interface IInlineChatBulkEditResponse {
 	type: InlineChatResponseType.BulkEdit;
 	edits: WorkspaceEdit;
 	message?: IMarkdownString;
-	placeholder?: string;
-	wholeRange?: IRange;
-}
-
-export interface IInlineChatMessageResponse {
-	id: number;
-	type: InlineChatResponseType.Message;
-	message: IMarkdownString;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -145,7 +137,7 @@ export const CTX_INLINE_CHAT_OUTER_CURSOR_POSITION = new RawContextKey<'above' |
 export const CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('inlineChatHasActiveRequest', false, localize('inlineChatHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INLINE_CHAT_HAS_STASHED_SESSION = new RawContextKey<boolean>('inlineChatHasStashedSession', false, localize('inlineChatHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
 export const CTX_INLINE_CHAT_LAST_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType | undefined>('inlineChatLastResponseType', undefined, localize('inlineChatResponseType', "What type was the last response of the current interactive editor session"));
-export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChateResponseTypes | undefined>('inlineChatResponseTypes', undefined, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
+export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChatResponseTypes | undefined>('inlineChatResponseTypes', undefined, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
 export const CTX_INLINE_CHAT_DID_EDIT = new RawContextKey<boolean>('inlineChatDidEdit', undefined, localize('inlineChatDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineChatUserDidEdit', undefined, localize('inlineChatUserDidEdit', "Whether the user did changes ontop of the inline chat"));
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
