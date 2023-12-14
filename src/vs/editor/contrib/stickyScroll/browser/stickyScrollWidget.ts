@@ -185,7 +185,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	private async _renderRootNode(previousStickyLines: RenderedStickyLine[], foldingModel: FoldingModel | null, rebuildFromLine: number = Infinity): Promise<void> {
 
-		this._minContentWidthInPx = 0;
 		const layoutInfo = this._editor.getLayoutInfo();
 		for (const [index, line] of this._lineNumbers.entries()) {
 			const previousStickyLine = previousStickyLines[index];
@@ -198,9 +197,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			this._linesDomNode.appendChild(stickyLine.lineDomNode);
 			this._lineNumbersDomNode.appendChild(stickyLine.lineNumberDomNode);
 			this._stickyLines.push(stickyLine);
-			if (stickyLine.lineDomNode.scrollWidth > this._minContentWidthInPx) {
-				this._minContentWidthInPx = stickyLine.lineDomNode.scrollWidth;
-			}
 		}
 		if (foldingModel) {
 			this._setFoldingHoverListeners();
@@ -218,7 +214,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		this._rootDomNode.style.height = `${widgetHeight}px`;
 
 		this._rootDomNode.style.marginLeft = '0px';
-		this._minContentWidthInPx += this._editor.getLayoutInfo().verticalScrollbarWidth;
+		this._minContentWidthInPx = Math.max(...this._stickyLines.map(l => l.scrollWidth)) + this._editor.getLayoutInfo().verticalScrollbarWidth;
 		this._editor.layoutOverlayWidget(this);
 	}
 
@@ -245,7 +241,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			return;
 		}
 		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
-		const lineRenderingData = viewModel!.getViewLineRenderingData(viewLineNumber);
+		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 
 		let actualInlineDecorations: LineDecoration[];
@@ -268,7 +264,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 		let newLine;
 		if (_ttPolicy) {
-			newLine = _ttPolicy.createHTML(sb.build() as string);
+			newLine = _ttPolicy.createHTML(sb.build());
 		} else {
 			newLine = sb.build();
 		}
@@ -317,7 +313,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		lineNumberHTMLNode.style.height = `${this._lineHeight}px`;
 		lineHTMLNode.style.height = `${this._lineHeight}px`;
 
-		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping);
+		const renderedLine = new RenderedStickyLine(index, line, lineHTMLNode, lineNumberHTMLNode, foldingIcon, renderOutput.characterMapping, lineHTMLNode.scrollWidth);
 		return this._updateTopAndZIndexOfStickyLine(renderedLine);
 	}
 
@@ -460,7 +456,8 @@ class RenderedStickyLine {
 		public readonly lineDomNode: HTMLElement,
 		public readonly lineNumberDomNode: HTMLElement,
 		public readonly foldingIcon: StickyFoldingIcon | undefined,
-		public readonly characterMapping: CharacterMapping
+		public readonly characterMapping: CharacterMapping,
+		public readonly scrollWidth: number,
 	) { }
 }
 
