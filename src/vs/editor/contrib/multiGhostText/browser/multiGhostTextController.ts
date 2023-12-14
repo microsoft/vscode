@@ -38,7 +38,6 @@ export class MultiGhostTextController extends Disposable {
 	}
 
 	private _currentWidget: [GhostTextWidget, GhostTextData] | undefined;
-	private _dontClear = false;
 
 	private readonly _rulerDecorations: IEditorDecorationsCollection;
 	private readonly _rulerDecoration: ModelDecorationOptions;
@@ -136,8 +135,6 @@ export class MultiGhostTextController extends Disposable {
 		const widget = this._currentWidget[0];
 		const data = this._currentWidget[1];
 
-		this._dontClear = true;
-
 		//It should only happen in case of last line suggestion
 		let text = data.text;
 		if (data.text.startsWith('\n')) {
@@ -165,10 +162,6 @@ export class MultiGhostTextController extends Disposable {
 	}
 
 	public clear() {
-		if (this._dontClear) {
-			this._dontClear = false;
-			return;
-		}
 		// this._widgetsData = [];
 		this._currentWidget?.[0].dispose();
 		this._currentWidget = undefined;
