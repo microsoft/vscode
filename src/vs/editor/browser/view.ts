@@ -194,7 +194,7 @@ export class View extends ViewEventHandler {
 		this._viewParts.push(this._viewCursors);
 
 		// Overlay widgets
-		this._overlayWidgets = new ViewOverlayWidgets(this._context);
+		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._viewParts.push(this._overlayWidgets);
 
 		const rulers = new Rulers(this._context);

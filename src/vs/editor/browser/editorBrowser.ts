@@ -225,6 +225,22 @@ export const enum OverlayWidgetPositionPreference {
 	 */
 	TOP_CENTER
 }
+
+
+/**
+ * Represents editor-relative coordinates of an overlay widget.
+ */
+export interface IOverlayWidgetPositionCoordinates {
+	/**
+	 * The top position for the overlay widget, relative to the editor.
+	 */
+	top: number;
+	/**
+	 * The left position for the overlay widget, relative to the editor.
+	 */
+	left: number;
+}
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -232,7 +248,7 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference | null;
+	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 }
 /**
  * An overlay widgets renders on top of the text.

@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
-import { ICodeEditor, IOverlayWidget } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
 import * as nls from 'vs/nls';
@@ -343,14 +343,13 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		return this._resizable.domNode;
 	}
 
-	getPosition(): null {
-		return null;
+	getPosition(): IOverlayWidgetPosition | null {
+		return this._topLeft ? { preference: this._topLeft } : null;
 	}
 
 	show(): void {
 		if (!this._added) {
 			this._editor.addOverlayWidget(this);
-			this.getDomNode().style.position = 'absolute';
 			this._added = true;
 		}
 	}
@@ -444,16 +443,18 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 			}
 		}
 
+		let { top, left } = placement;
+		if (!alignAtTop) {
+			top = bottom - height;
+		}
 		const editorDomNode = this._editor.getDomNode();
 		if (editorDomNode) {
 			// get bounding rectangle of the suggest widget relative to the editor
 			const editorBoundingBox = editorDomNode.getBoundingClientRect();
-			placement.top -= editorBoundingBox.top;
-			placement.left -= editorBoundingBox.left;
+			top -= editorBoundingBox.top;
+			left -= editorBoundingBox.left;
 		}
-
-		this._applyTopLeft({ left: placement.left, top: alignAtTop ? placement.top : bottom - height });
-		this.getDomNode().style.position = 'absolute';
+		this._applyTopLeft({ left, top });
 
 		this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
 
@@ -465,7 +466,6 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private _applyTopLeft(topLeft: TopLeftPosition): void {
 		this._topLeft = topLeft;
-		this.getDomNode().style.left = `${this._topLeft.left}px`;
-		this.getDomNode().style.top = `${this._topLeft.top}px`;
+		this._editor.layoutOverlayWidget(this);
 	}
 }
