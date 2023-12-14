@@ -16,6 +16,7 @@ import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -24,7 +25,7 @@ import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -432,15 +433,28 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		await this.updateInlineValueDecorations(sf);
 	}
 
-	@memoize
-	private get showHoverScheduler(): RunOnceScheduler {
-		const hoverOption = this.editor.getOption(EditorOption.hover);
+	private get hoverDelay() {
+		const baseDelay = this.editorHoverOptions?.delay || 0;
 
+		// heuristic to get a 'good' but configurable delay for evaluation. The
+		// debug hover can be very large, so we tend to be more conservative about
+		// when to show it (#180621). With this equation:
+		// - default 300ms hover => * 2   = 600ms
+		// - short   100ms hover => * 2   = 200ms
+		// - longer  600ms hover => * 1.5 = 900ms
+		// - long   1000ms hover => * 1.0 = 1000ms
+		const delayFactor = clamp(2 - (baseDelay - 300) / 600, 1, 2);
+
+		return baseDelay * delayFactor;
+	}
+
+	@memoize
+	private get showHoverScheduler() {
 		const scheduler = new RunOnceScheduler(() => {
 			if (this.hoverPosition && !this.altPressed) {
 				this.showHover(this.hoverPosition, false);
 			}
-		}, hoverOption.delay * 2);
+		}, this.hoverDelay);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
@@ -496,7 +510,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.hoverPosition = target.position;
 				// Disable the editor hover during the request to avoid flickering
 				this.preventDefaultEditorHover();
-				this.showHoverScheduler.schedule();
+				this.showHoverScheduler.schedule(this.hoverDelay);
 			}
 		} else if (!this.mouseDown) {
 			// Do not hide debug hover when the mouse is pressed because it usually leads to accidental closing #64620
