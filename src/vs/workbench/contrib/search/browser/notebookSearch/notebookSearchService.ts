@@ -141,6 +141,10 @@ export class NotebookSearchService implements INotebookSearchService {
 
 		contributedNotebookTypes.forEach((notebook) => {
 			promises.push((async () => {
+				const canResolve = await this.notebookService.canResolve(notebook.id);
+				if (!canResolve) {
+					return undefined;
+				}
 				const serializer = (await this.notebookService.withNotebookDataProvider(notebook.id)).serializer;
 				return await serializer.searchInNotebooks(textQuery, token, allPriorityInfo);
 			})());
