@@ -90,14 +90,14 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		}
 	}
 
-	private maybeTriggerAutoSave(reason: SaveReason, editorIdentifier?: IEditorIdentifier): void {
+	private maybeTriggerAutoSave(reason: SaveReason.WINDOW_CHANGE | SaveReason.FOCUS_CHANGE, editorIdentifier?: IEditorIdentifier): void {
 		if (editorIdentifier) {
 			if (
 				!editorIdentifier.editor.isDirty() ||
 				editorIdentifier.editor.isReadonly() ||
 				editorIdentifier.editor.hasCapability(EditorInputCapabilities.Untitled)
 			) {
-				return; // no auto save for readonly or untitled editors
+				return; // no auto save for non-dirty, readonly or untitled editors
 			}
 
 			// Determine if we need to save all. In case of a window focus change we also save if

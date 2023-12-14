@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, h, EventType } from 'vs/base/browser/dom';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorunWithStore, derived } from 'vs/base/common/observable';
 import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -12,12 +15,9 @@ import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEdi
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { Range } from 'vs/editor/common/core/range';
+import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { GlyphMarginLane } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Codicon } from 'vs/base/common/codicons';
-import { h } from 'vs/base/browser/dom';
 
 export class RevertButtonsFeature extends Disposable {
 	constructor(
@@ -69,7 +69,7 @@ export class RevertButtonsFeature extends Disposable {
 			if (selectedDiffs_.length > 0) {
 				const selections = this._editors.modifiedSelections.read(reader);
 
-				const btn = new RevertButton(selections[selections.length - 1].positionLineNumber, this._widget, selectedDiffs_.flatMap(d => d.rangeMappings), true);
+				const btn = store.add(new RevertButton(selections[selections.length - 1].positionLineNumber, this._widget, selectedDiffs_.flatMap(d => d.rangeMappings), true));
 				this._editors.modified.addGlyphMarginWidget(btn);
 				glyphWidgetsModified.push(btn);
 			}
@@ -79,7 +79,7 @@ export class RevertButtonsFeature extends Disposable {
 					continue;
 				}
 				if (!m.lineRangeMapping.modified.isEmpty && m.lineRangeMapping.innerChanges) {
-					const btn = new RevertButton(m.lineRangeMapping.modified.startLineNumber, this._widget, m.lineRangeMapping.innerChanges, false);
+					const btn = store.add(new RevertButton(m.lineRangeMapping.modified.startLineNumber, this._widget, m.lineRangeMapping.innerChanges, false));
 					this._editors.modified.addGlyphMarginWidget(btn);
 					glyphWidgetsModified.push(btn);
 				}
@@ -94,7 +94,7 @@ export class RevertButtonsFeature extends Disposable {
 	}
 }
 
-export class RevertButton implements IGlyphMarginWidget {
+export class RevertButton extends Disposable implements IGlyphMarginWidget {
 	public static counter = 0;
 
 	private readonly _id: string = `revertButton${RevertButton.counter++}`;
@@ -115,22 +115,27 @@ export class RevertButton implements IGlyphMarginWidget {
 		private readonly _diffs: RangeMapping[],
 		private readonly _selection: boolean,
 	) {
-		this._domNode.onmousedown = e => {
+		super();
+
+
+		this._register(addDisposableListener(this._domNode, EventType.MOUSE_DOWN, e => {
 			// don't prevent context menu from showing up
 			if (e.button !== 2) {
 				e.stopPropagation();
 				e.preventDefault();
 			}
-		};
-		this._domNode.onmouseup = e => {
+		}));
+
+		this._register(addDisposableListener(this._domNode, EventType.MOUSE_UP, e => {
 			e.stopPropagation();
 			e.preventDefault();
-		};
-		this._domNode.onclick = (e) => {
+		}));
+
+		this._register(addDisposableListener(this._domNode, EventType.CLICK, (e) => {
 			this._widget.revertRangeMappings(this._diffs);
 			e.stopPropagation();
 			e.preventDefault();
-		};
+		}));
 	}
 
 	/**

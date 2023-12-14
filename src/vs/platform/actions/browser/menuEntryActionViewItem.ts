@@ -381,11 +381,11 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		};
 
 		this._dropdown = new DropdownMenuActionViewItem(submenuAction, submenuAction.actions, this._contextMenuService, dropdownOptions);
-		this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
+		this._register(this._dropdown.actionRunner.onDidRun((e: IRunEvent) => {
 			if (e.action instanceof MenuItemAction) {
 				this.update(e.action);
 			}
-		});
+		}));
 	}
 
 	private update(lastAction: MenuItemAction): void {
