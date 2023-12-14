@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken, ThemeIcon } from 'vscode';
-export { ProviderResult } from 'vscode';
 
 export interface Git {
 	readonly path: string;
