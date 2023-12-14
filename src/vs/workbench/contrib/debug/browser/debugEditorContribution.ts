@@ -15,7 +15,8 @@ import { Event } from 'vs/base/common/event';
 import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -24,7 +25,7 @@ import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -223,10 +224,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingEditorClickWidget | undefined;
-	private altListener: IDisposable | undefined;
+	private altListener = new MutableDisposable();
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
+	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
+
+	// Holds a Disposable that prevents the default editor hover behavior while it exists.
+	private readonly defaultHoverLockout = new MutableDisposable();
 
 	constructor(
 		private editor: ICodeEditor,
@@ -242,7 +247,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	) {
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
-		this.toDispose = [];
+		this.toDispose = [this.defaultHoverLockout, this.altListener];
 		this.registerListeners();
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
@@ -275,7 +280,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
-			this.updateHoverConfiguration();
+			this.addDocumentListeners();
 			this.toggleExceptionWidget();
 			this.hideHoverWidget();
 			this._wordToLineNumbersMap = undefined;
@@ -291,11 +296,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.updateInlineValuesScheduler.schedule();
 			}
 		}));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('editor.hover')) {
+				this.updateHoverConfiguration();
+			}
+		}));
 		this.toDispose.push(this.debugService.onDidChangeState((state: State) => {
 			if (state !== State.Stopped) {
 				this.toggleExceptionWidget();
 			}
 		}));
+
+		this.updateHoverConfiguration();
 	}
 
 	private _wordToLineNumbersMap: Map<string, number[]> | undefined = undefined;
@@ -307,74 +319,66 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private updateHoverConfiguration(): void {
+		const model = this.editor.getModel();
+		if (model) {
+			this.editorHoverOptions = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', {
+				resource: model.uri,
+				overrideIdentifier: model.getLanguageId()
+			});
+		}
+	}
+
+	private addDocumentListeners(): void {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (model) {
-			this.applyHoverConfiguration(model, stackFrame);
+			this.applyDocumentListeners(model, stackFrame);
 		}
 	}
 
-	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
-		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
-			const ownerDocument = this.editor.getContainerDomNode().ownerDocument;
-			if (this.altListener) {
-				this.altListener.dispose();
-			}
-			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
-			this.altListener = addDisposableListener(ownerDocument, 'keydown', keydownEvent => {
-				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
-				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
-					this.altPressed = true;
-					const debugHoverWasVisible = this.hoverWidget.isVisible();
-					this.hoverWidget.hide();
-					this.enableEditorHover();
-					if (debugHoverWasVisible && this.hoverPosition) {
-						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-						this.showEditorHover(this.hoverPosition, false);
+	private applyDocumentListeners(model: ITextModel, stackFrame: IStackFrame | undefined): void {
+		if (!stackFrame || !this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
+			this.altListener.clear();
+			return;
+		}
+
+		const ownerDocument = this.editor.getContainerDomNode().ownerDocument;
+
+		// When the alt key is pressed show regular editor hover and hide the debug hover #84561
+		this.altListener.value = addDisposableListener(ownerDocument, 'keydown', keydownEvent => {
+			const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
+			if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
+				this.altPressed = true;
+				const debugHoverWasVisible = this.hoverWidget.isVisible();
+				this.hoverWidget.hide();
+				this.defaultHoverLockout.clear();
+
+				if (debugHoverWasVisible && this.hoverPosition) {
+					// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
+					this.showEditorHover(this.hoverPosition, false);
+				}
+
+				const onKeyUp = new DomEmitter(ownerDocument, 'keyup');
+				const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
+					let standardKeyboardEvent = undefined;
+					if (isKeyboardEvent(keyupEvent)) {
+						standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
 					}
-
-					const onKeyUp = new DomEmitter(ownerDocument, 'keyup');
-					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
-						let standardKeyboardEvent = undefined;
-						if (isKeyboardEvent(keyupEvent)) {
-							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
-						}
-						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
-							this.altPressed = false;
-							this.editor.updateOptions({ hover: { enabled: false } });
-							listener.dispose();
-							onKeyUp.dispose();
-						}
-					});
-				}
-			});
-
-			this.editor.updateOptions({ hover: { enabled: false } });
-		} else {
-			this.altListener?.dispose();
-			this.enableEditorHover();
-		}
-	}
-
-	private enableEditorHover(): void {
-		if (this.editor.hasModel()) {
-			const model = this.editor.getModel();
-			const overrides = {
-				resource: model.uri,
-				overrideIdentifier: model.getLanguageId()
-			};
-			const defaultConfiguration = this.configurationService.getValue<IEditorHoverOptions>('editor.hover', overrides);
-			this.editor.updateOptions({
-				hover: {
-					enabled: defaultConfiguration.enabled,
-					delay: defaultConfiguration.delay,
-					sticky: defaultConfiguration.sticky
-				}
-			});
-		}
+					if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
+						this.altPressed = false;
+						this.preventDefaultEditorHover();
+						listener.dispose();
+						onKeyUp.dispose();
+					}
+				});
+			}
+		});
 	}
 
 	async showHover(position: Position, focus: boolean): Promise<void> {
+		// normally will already be set in `showHoverScheduler`, but public callers may hit this directly:
+		this.preventDefaultEditorHover();
+
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
@@ -388,16 +392,37 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 	}
 
+	private preventDefaultEditorHover() {
+		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === false) {
+			return;
+		}
+
+		const hoverController = this.editor.getContribution<HoverController>(HoverController.ID);
+		hoverController?.hideContentHover();
+
+		this.editor.updateOptions({ hover: { enabled: false } });
+		this.defaultHoverLockout.value = {
+			dispose: () => {
+				this.editor.updateOptions({
+					hover: { enabled: this.editorHoverOptions?.enabled ?? true }
+				});
+			}
+		};
+	}
+
 	private showEditorHover(position: Position, focus: boolean) {
 		const hoverController = this.editor.getContribution<HoverController>(HoverController.ID);
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		// enable the editor hover, otherwise the content controller will see it
+		// as disabled and hide it on the first mouse move (#193149)
+		this.defaultHoverLockout.clear();
 		hoverController?.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, focus);
 	}
 
 	private async onFocusStackFrame(sf: IStackFrame | undefined): Promise<void> {
 		const model = this.editor.getModel();
 		if (model) {
-			this.applyHoverConfiguration(model, sf);
+			this.applyDocumentListeners(model, sf);
 			if (sf && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
 				await this.toggleExceptionWidget();
 			} else {
@@ -408,34 +433,36 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		await this.updateInlineValueDecorations(sf);
 	}
 
+	private get hoverDelay() {
+		const baseDelay = this.editorHoverOptions?.delay || 0;
+
+		// heuristic to get a 'good' but configurable delay for evaluation. The
+		// debug hover can be very large, so we tend to be more conservative about
+		// when to show it (#180621). With this equation:
+		// - default 300ms hover => * 2   = 600ms
+		// - short   100ms hover => * 2   = 200ms
+		// - longer  600ms hover => * 1.5 = 900ms
+		// - long   1000ms hover => * 1.0 = 1000ms
+		const delayFactor = clamp(2 - (baseDelay - 300) / 600, 1, 2);
+
+		return baseDelay * delayFactor;
+	}
+
 	@memoize
-	private get showHoverScheduler(): RunOnceScheduler {
-		const hoverOption = this.editor.getOption(EditorOption.hover);
+	private get showHoverScheduler() {
 		const scheduler = new RunOnceScheduler(() => {
 			if (this.hoverPosition && !this.altPressed) {
 				this.showHover(this.hoverPosition, false);
 			}
-		}, hoverOption.delay * 2);
-		this.toDispose.push(scheduler);
-
-		return scheduler;
-	}
-
-	@memoize
-	private get hideHoverScheduler(): RunOnceScheduler {
-		const scheduler = new RunOnceScheduler(() => {
-			if (!this.hoverWidget.isHovered()) {
-				this.hoverWidget.hide();
-			}
-		}, 0);
+		}, this.hoverDelay);
 		this.toDispose.push(scheduler);
 
 		return scheduler;
 	}
 
 	private hideHoverWidget(): void {
-		if (!this.hideHoverScheduler.isScheduled() && this.hoverWidget.willBeVisible()) {
-			this.hideHoverScheduler.schedule();
+		if (this.hoverWidget.willBeVisible()) {
+			this.hoverWidget.hide();
 		}
 		this.showHoverScheduler.cancel();
 	}
@@ -461,7 +488,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		if (!this.altPressed) {
 			if (target.type === MouseTargetType.GUTTER_GLYPH_MARGIN) {
-				this.editor.updateOptions({ hover: { enabled: true } });
+				this.defaultHoverLockout.clear();
 				this.gutterIsHovered = true;
 			} else if (this.gutterIsHovered) {
 				this.gutterIsHovered = false;
@@ -471,14 +498,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
-			return;
+
+			const sticky = this.editorHoverOptions?.sticky ?? true;
+			if (sticky || this.hoverWidget.isShowingComplexValue) {
+				return;
+			}
 		}
 
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
 			if (target.position && !Position.equals(target.position, this.hoverPosition)) {
 				this.hoverPosition = target.position;
-				this.hideHoverScheduler.cancel();
-				this.showHoverScheduler.schedule();
+				// Disable the editor hover during the request to avoid flickering
+				this.preventDefaultEditorHover();
+				this.showHoverScheduler.schedule(this.hoverDelay);
 			}
 		} else if (!this.mouseDown) {
 			// Do not hide debug hover when the mouse is pressed because it usually leads to accidental closing #64620
@@ -488,8 +520,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private onKeyDown(e: IKeyboardEvent): void {
 		const stopKey = env.isMacintosh ? KeyCode.Meta : KeyCode.Ctrl;
-		if (e.keyCode !== stopKey) {
-			// do not hide hover when Ctrl/Meta is pressed
+		if (e.keyCode !== stopKey && e.keyCode !== KeyCode.Alt) {
+			// do not hide hover when Ctrl/Meta is pressed, and alt is handled separately
 			this.hideHoverWidget();
 		}
 	}

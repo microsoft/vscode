@@ -42,9 +42,9 @@ import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, LiveStrategy3, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { EditModeStrategy, LivePreviewStrategy, LiveStrategy3, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatResponseFeedbackKind, InlineChatResponseType, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -113,8 +113,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _store = new DisposableStore();
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
-	private readonly _ctxLastResponseType: IContextKey<undefined | InlineChatResponseType>;
-	private readonly _ctxResponseTypes: IContextKey<undefined | InlineChateResponseTypes>;
+	private readonly _ctxResponseTypes: IContextKey<undefined | InlineChatResponseTypes>;
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
@@ -153,7 +152,6 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
 		this._ctxUserDidEdit = CTX_INLINE_CHAT_USER_DID_EDIT.bindTo(contextKeyService);
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
-		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
 		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
@@ -365,9 +363,6 @@ export class InlineChatController implements IEditorContribution {
 
 		switch (session.editMode) {
 			case EditMode.Live:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
-				break;
-			case EditMode.Live3:
 				this._strategy = this._instaService.createInstance(LiveStrategy3, session, this._editor, this._zone.value);
 				break;
 			case EditMode.Preview:
@@ -807,9 +802,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const { response } = this._activeSession.lastExchange!;
 
-		this._ctxLastResponseType.set(response instanceof ReplyResponse ? response.raw.type : undefined);
-
-		let responseTypes: InlineChateResponseTypes | undefined;
+		let responseTypes: InlineChatResponseTypes | undefined;
 		for (const { response } of this._activeSession.exchanges) {
 
 			const thisType = response instanceof ReplyResponse
@@ -819,7 +812,7 @@ export class InlineChatController implements IEditorContribution {
 			if (responseTypes === undefined) {
 				responseTypes = thisType;
 			} else if (responseTypes !== thisType) {
-				responseTypes = InlineChateResponseTypes.Mixed;
+				responseTypes = InlineChatResponseTypes.Mixed;
 				break;
 			}
 		}
@@ -882,7 +875,6 @@ export class InlineChatController implements IEditorContribution {
 
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
-		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
 		this._ctxSupportIssueReporting.reset();
 

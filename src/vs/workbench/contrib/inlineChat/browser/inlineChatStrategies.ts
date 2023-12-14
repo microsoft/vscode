@@ -243,7 +243,8 @@ export interface ProgressingEditsOptions {
 	token: CancellationToken;
 }
 
-export class LiveStrategy extends EditModeStrategy {
+// TODO@jrieken merge this with LivePreview
+class LiveStrategy extends EditModeStrategy {
 
 	protected _diffEnabled: boolean = false;
 

@@ -214,7 +214,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				// it inline would overlay the cursor...
 				return this.hide();
 			}
-			effectiveColumnNumber = !!model.getLineContent(effectiveLineNumber).match(/^\S\s*$/) ? 2 : 1;
+			effectiveColumnNumber = /^\S\s*$/.test(model.getLineContent(effectiveLineNumber)) ? 2 : 1;
 		}
 
 		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {

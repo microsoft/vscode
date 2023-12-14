@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/806e024d8ea2478596d7e0ab871d2b1436e6fead",
+	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/ab893c684dd7eeb7c249139e29e931334316fda7",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -2834,7 +2834,7 @@
 					"match": "(?<!\\.)\\bdefer\\b"
 				},
 				{
-					"match": "(?<!\\.)\\b(?:(await\\s+try)|(await)\\b)",
+					"match": "(?<!\\.)\\b(?:(await\\s+try)|(await))\\b",
 					"captures": {
 						"1": {
 							"name": "invalid.illegal.try-must-precede-await.swift"

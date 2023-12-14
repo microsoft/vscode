@@ -194,7 +194,7 @@ export class View extends ViewEventHandler {
 		this._viewParts.push(this._viewCursors);
 
 		// Overlay widgets
-		this._overlayWidgets = new ViewOverlayWidgets(this._context);
+		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._viewParts.push(this._overlayWidgets);
 
 		const rulers = new Rulers(this._context);
@@ -231,8 +231,10 @@ export class View extends ViewEventHandler {
 
 		if (overflowWidgetsDomNode) {
 			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
+			overflowWidgetsDomNode.appendChild(this._overlayWidgets.overflowingOverlayWidgetsDomNode.domNode);
 		} else {
 			this.domNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode);
+			this.domNode.appendChild(this._overlayWidgets.overflowingOverlayWidgetsDomNode);
 		}
 
 		this._applyLayout();
