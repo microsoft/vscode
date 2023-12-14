@@ -17,6 +17,7 @@ import * as assert from 'assert';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ts, assertTokenStyle, undefinedStyle, unsetStyle } from 'vs/workbench/services/themes/test/node/tokenStyleResolving.test';
 
 
 suite('Theme color parsing', () => {
@@ -35,7 +36,7 @@ suite('Theme color parsing', () => {
 	});
 
 
-	test('parse with palette', async () => {
+	test('workbench color parse with palette', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('bar');
 		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme-with-pallet.json');
 		await themeData.ensureLoaded(extensionResourceLoaderService);
@@ -54,7 +55,7 @@ suite('Theme color parsing', () => {
 
 	});
 
-	test('parse without palette', async () => {
+	test('workbench color parse without palette', async () => {
 		const themeData = ColorThemeData.createUnloadedTheme('bar');
 		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme-without-pallet.json');
 		await themeData.ensureLoaded(extensionResourceLoaderService);
@@ -73,6 +74,49 @@ suite('Theme color parsing', () => {
 
 		assert.equal(themeData.getColor('editorGroup.dropBackground')?.toString(), '#ff0000');
 
+	});
+
+	test('token color parse with palette', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('bar');
+		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme-with-pallet.json');
+		await themeData.ensureLoaded(extensionResourceLoaderService);
+		assertTokenStyle(themeData.resolveScopes([['comment']]), ts('#400000', undefinedStyle));
+		assertTokenStyle(themeData.resolveScopes([['string']]), ts('#0400ff', undefinedStyle));
+		assertTokenStyle(themeData.resolveScopes([['constant.numeric']]), ts('#555555', undefinedStyle));
+		assertTokenStyle(themeData.resolveScopes([['variable']]), ts('#ff0000', unsetStyle));
+	});
+
+	test('token color parse without palette', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('bar');
+		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme-without-pallet.json');
+		await themeData.ensureLoaded(extensionResourceLoaderService);
+		assertTokenStyle(themeData.resolveScopes([['comment']]), ts('#ff0000', undefinedStyle));
+		assertTokenStyle(themeData.resolveScopes([['string']]), ts('#ff0000', undefinedStyle));
+		assertTokenStyle(themeData.resolveScopes([['constant.numeric']]), ts('#555555', undefinedStyle));
+		assertTokenStyle(themeData.resolveScopes([['variable']]), ts('#ff0000', unsetStyle));
+	});
+
+	test('semantic token color parse with palette', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('bar');
+		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme-with-pallet.json');
+		await themeData.ensureLoaded(extensionResourceLoaderService);
+		assert.equal(themeData.resolveTokenStyleValue('strings')?.foreground?.toString(), '#a31515');
+		assert.equal(themeData.resolveTokenStyleValue('number')?.foreground?.toString(), '#400000');
+		assert.equal(themeData.resolveTokenStyleValue('regexp')?.foreground?.toString(), '#ff0000');
+		assert.equal(themeData.resolveTokenStyleValue('comments')?.foreground?.toString(), '#008000');
+		assert.equal(themeData.resolveTokenStyleValue('keywords')?.foreground?.toString(), '#400000');
+		assert.equal(themeData.resolveTokenStyleValue('functions')?.foreground?.toString(), '#ff0000');
+	});
+	test('semantic token color parse without palette', async () => {
+		const themeData = ColorThemeData.createUnloadedTheme('bar');
+		themeData.location = FileAccess.asFileUri('vs/workbench/services/themes/test/node/color-theme-without-pallet.json');
+		await themeData.ensureLoaded(extensionResourceLoaderService);
+		assert.equal(themeData.resolveTokenStyleValue('strings')?.foreground?.toString(), '#a31515');
+		assert.equal(themeData.resolveTokenStyleValue('number')?.foreground?.toString(), '#ff0000');
+		assert.equal(themeData.resolveTokenStyleValue('regexp')?.foreground?.toString(), '#ff0000');
+		assert.equal(themeData.resolveTokenStyleValue('comments')?.foreground?.toString(), '#008000');
+		assert.equal(themeData.resolveTokenStyleValue('keywords')?.foreground?.toString(), '#ff0000');
+		assert.equal(themeData.resolveTokenStyleValue('functions')?.foreground?.toString(), '#ff0000');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

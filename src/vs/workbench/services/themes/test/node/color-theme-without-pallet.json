@@ -1,5 +1,6 @@
 {
 	"name": "my theme",
+	"type": "dark",
 	"colors": {
 		"editorGroup.emptyBackground": "$primary",
 		"statusBar.border": "$secondary",
@@ -7,5 +8,62 @@
 		"badge.background": "#fce566",
 		"badge.foreground": null,
 		"editorGroup.dropBackground": "$notExist"
+	},
+	"tokenColors": [
+		{
+			"scope": "comment",
+			"settings": {
+				"foreground": "$accent1"
+			}
+		},
+		{
+			"scope": "string",
+			"settings": {
+				"foreground": "$accent2"
+			}
+		},
+		{
+			"scope": "constant.numeric",
+			"settings": {
+				"foreground": "#555555"
+			}
+		},
+		{
+			"scope": "variable",
+			"settings": {
+				"fontStyle": "",
+				"foreground": "$notExist"
+			}
+		}
+	],
+	"semanticTokenColors": {
+		"strings": "#a31515",
+		"number": "$accent1",
+		"regexp": "$notExist",
+		"comments": {
+			"foreground": "#008000",
+			"fontStyle": "italic",
+			"bold": false,
+			"italic": true,
+			"underline": false,
+			"strikethrough": false
+		},
+		"keywords": {
+			"foreground": "$accent1",
+			"fontStyle": "bold",
+			"bold": true,
+			"italic": false,
+			"underline": false,
+			"strikethrough": false
+		},
+		"functions": {
+			"foreground": "$notExist",
+			"fontStyle": "bold",
+			"bold": true,
+			"italic": false,
+			"underline": false,
+			"strikethrough": false
+
+		}
 	}
 }

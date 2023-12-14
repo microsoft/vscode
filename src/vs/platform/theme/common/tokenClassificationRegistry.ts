@@ -358,7 +358,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		this.tokenStylingSchemaForTheme.patternProperties = {
 			[selectorPattern]: getStylingSchemaEntryForTheme()
 		};
-		this.tokenStylingSchemaForTheme.definitions!.settings.properties!.foreground = {
+		this.tokenStylingSchemaForTheme.definitions!.style.properties!.foreground = {
 			anyOf: [
 				{
 					type: 'string',
@@ -366,10 +366,10 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 					pattern: '^\\$\\w+',
 					patternErrorMessage: nls.localize('error.invalidFormat.colorEntryWithPalette', "Color must either in hex format (e.g. `#ffffff`) or one of the palette (e.g. `$accentName`)")
 				},
-				this.tokenStylingSchemaForSetting.definitions!.settings.properties!.foreground
+				this.tokenStylingSchemaForSetting.definitions!.style.properties!.foreground
 			]
 		};
-		this.tokenStylingSchemaForTheme.definitions!.settings.defaultSnippets!.unshift({ body: { foreground: '\$${1:accentName}', fontStyle: '${2:bold}' } });
+		this.tokenStylingSchemaForTheme.definitions!.style.defaultSnippets!.unshift({ body: { foreground: '\$${1:accentName}', fontStyle: '${2:bold}' } });
 		this.tokenTypeById = Object.create(null);
 		this.tokenModifierById = Object.create(null);
 		this.typeHierarchy = Object.create(null);

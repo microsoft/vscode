@@ -21,15 +21,15 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
-const unsetStyle = { bold: false, underline: false, italic: false };
+export const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
+export const unsetStyle = { bold: false, underline: false, italic: false };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean } | undefined): TokenStyle {
+export function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean } | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
 	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic);
 }
 
-function tokenStyleAsString(ts: TokenStyle | undefined | null) {
+export function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 	if (!ts) {
 		return 'tokenstyle-undefined';
 	}
@@ -46,11 +46,11 @@ function tokenStyleAsString(ts: TokenStyle | undefined | null) {
 	return str;
 }
 
-function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
+export function assertTokenStyle(actual: TokenStyle | undefined | null, expected: TokenStyle | undefined | null, message?: string) {
 	assert.strictEqual(tokenStyleAsString(actual), tokenStyleAsString(expected), message);
 }
 
-function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message = '') {
+export function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | undefined, expected: TokenStyle | undefined | null, message = '') {
 	if (expected === undefined || expected === null || actual === undefined) {
 		assert.strictEqual(actual, expected, message);
 		return;
@@ -68,7 +68,7 @@ function assertTokenStyleMetaData(colorIndex: string[], actual: ITokenStyle | un
 }
 
 
-function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }, language = 'typescript') {
+export function assertTokenStyles(themeData: ColorThemeData, expected: { [qualifiedClassifier: string]: TokenStyle }, language = 'typescript') {
 	const colorIndex = themeData.tokenColorMap;
 
 	for (const qualifiedClassifier in expected) {

@@ -730,7 +730,7 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 					const parsedTokenColor = _parseTokenColor(tokenColor, colorPalette); return parsedTokenColor;
 				});
 				result.textMateRules.push(...parsedTokenColors);
-			} else if (typeof tokenColors === 'string') { //link to textMate file
+			} else if (typeof tokenColors === 'string') { //link to a tmTheme file
 				await _loadSyntaxTokens(extensionResourceLoaderService, resources.joinPath(resources.dirname(themeLocation), tokenColors), result);
 			} else {
 				return Promise.reject(new Error(nls.localize({ key: 'error.invalidformat.tokenColors', comment: ['{0} will be replaced by a path. Values in quotes should not be translated.'] }, "Problem parsing color theme file: {0}. Property 'tokenColors' should be either an array specifying colors or a path to a TextMate theme file", themeLocation.toString())));
