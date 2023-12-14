@@ -42,6 +42,9 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 
 	setGroup(group: IEditorGroup | undefined) {
 		this._group = group;
+		if (group?.scopedContextKeyService) {
+			this._terminalInstance?.setParentContextKeyService(group.scopedContextKeyService);
+		}
 	}
 
 	get group(): IEditorGroup | undefined {
@@ -127,7 +130,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
@@ -221,6 +224,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	detachInstance() {
 		if (!this._isShuttingDown) {
 			this._terminalInstance?.detachFromElement();
+			this._terminalInstance?.setParentContextKeyService(this._contextKeyService);
 			this._isDetached = true;
 		}
 	}
