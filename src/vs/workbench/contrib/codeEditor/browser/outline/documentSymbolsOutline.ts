@@ -36,7 +36,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 
 type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
-class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem>{
+class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<DocumentSymbolItem> {
 
 	private _breadcrumbs: (OutlineGroup | OutlineElement)[] = [];
 

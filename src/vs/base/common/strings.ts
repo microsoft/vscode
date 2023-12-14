@@ -92,6 +92,17 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 	return `${value.substr(0, maxLength)}${suffix}`;
 }
 
+export function truncateMiddle(value: string, maxLength: number, suffix = '…'): string {
+	if (value.length <= maxLength) {
+		return value;
+	}
+
+	const prefixLength = Math.ceil(maxLength / 2) - suffix.length / 2;
+	const suffixLength = Math.floor(maxLength / 2) - suffix.length / 2;
+
+	return `${value.substr(0, prefixLength)}${suffix}${value.substr(value.length - suffixLength)}`;
+}
+
 /**
  * Removes all occurrences of needle from the beginning and end of haystack.
  * @param haystack string to trim
@@ -699,16 +710,19 @@ export function isEmojiImprecise(x: number): boolean {
 /**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
+ * The return value can be longer than the given value of `n`. Leading whitespace is always trimmed.
  */
-export function lcut(text: string, n: number) {
-	if (text.length < n) {
-		return text;
+export function lcut(text: string, n: number, prefix = '') {
+	const trimmed = text.trimStart();
+
+	if (trimmed.length < n) {
+		return trimmed;
 	}
 
 	const re = /\b/g;
 	let i = 0;
-	while (re.test(text)) {
-		if (text.length - re.lastIndex < n) {
+	while (re.test(trimmed)) {
+		if (trimmed.length - re.lastIndex < n) {
 			break;
 		}
 
@@ -716,7 +730,11 @@ export function lcut(text: string, n: number) {
 		re.lastIndex += 1;
 	}
 
-	return text.substring(i).replace(/^\s/, '');
+	if (i === 0) {
+		return trimmed;
+	}
+
+	return prefix + trimmed.substring(i).trimStart();
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_

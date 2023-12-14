@@ -17,7 +17,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
-import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/renderLines';
+import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -58,6 +58,8 @@ export abstract class EditModeStrategy {
 		this._onDidAccept.dispose();
 		this._onDidDiscard.dispose();
 	}
+
+	abstract start(): Promise<void>;
 
 	abstract apply(): Promise<void>;
 
@@ -100,6 +102,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		this._listener.dispose();
 		this._ctxDocumentChanged.reset();
 		super.dispose();
+	}
+
+	async start() {
+		// nothing to do
 	}
 
 	async apply() {
@@ -280,6 +286,10 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 	}
 
+	async start() {
+		// nothing to do
+	}
+
 	async apply() {
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
@@ -299,7 +309,7 @@ export class LiveStrategy extends EditModeStrategy {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		LiveStrategy._undoModelUntil(modelN, targetAltVersion);
+		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
@@ -321,7 +331,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override async undoChanges(altVersionId: number): Promise<void> {
 		const { textModelN } = this._session;
-		LiveStrategy._undoModelUntil(textModelN, altVersionId);
+		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
@@ -349,12 +359,6 @@ export class LiveStrategy extends EditModeStrategy {
 			this._zone.widget.showCreatePreview(response.untitledTextModel);
 		} else {
 			this._zone.widget.hideCreatePreview();
-		}
-	}
-
-	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-			model.undo();
 		}
 	}
 
@@ -637,22 +641,27 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	override dispose(): void {
-		this._ctxCurrentChangeHasDiff.reset();
-		this._ctxCurrentChangeShowsDiff.reset();
-		this._modifiedRangesDecorations.clear();
+		this._resetDiff();
 		this._previewZone.rawValue?.dispose();
-		this._sessionStore.dispose();
 		this._store.dispose();
 		super.dispose();
 	}
 
-
-	async apply() {
+	private _resetDiff(): void {
 		this._ctxCurrentChangeHasDiff.reset();
 		this._ctxCurrentChangeShowsDiff.reset();
 		this._sessionStore.clear();
 		this._modifiedRangesDecorations.clear();
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
+		this._zone.widget.updateStatus('');
+	}
+
+	async start() {
+		this._resetDiff();
+	}
+
+	async apply() {
+		this._resetDiff();
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
@@ -666,17 +675,13 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 	async cancel() {
-		this._ctxCurrentChangeHasDiff.reset();
-		this._ctxCurrentChangeShowsDiff.reset();
-		this._sessionStore.clear();
-		this._modifiedRangesDecorations.clear();
-		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
+		this._resetDiff();
 		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
 		if (modelN.isDisposed()) {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		LiveStrategy3._undoModelUntil(modelN, targetAltVersion);
+		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
@@ -701,7 +706,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
 
 		const { textModelN } = this._session;
-		LiveStrategy3._undoModelUntil(textModelN, altVersionId);
+		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
@@ -889,18 +894,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 					}
 					: undefined;
 
-
 				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
-
-					for (const editRange of e.changes.map(c => c.range).flat()) {
-						if (Range.areIntersectingOrTouching(modifiedRange, editRange)) {
-							// implicit accepted
-							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
-						}
-					}
 					this._showDiff(true, true);
 				}));
-
 
 				const zoneLineNumber = this._zone.position!.lineNumber;
 				const myDistance = zoneLineNumber <= modifiedRange.startLineNumber
@@ -952,12 +948,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 		return await this._showDiff(true, false);
 	}
 
-	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-			model.undo();
-		}
-	}
-
 	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[], index: number) {
 		const changesCount = mappings.length;
 		let message: string;
@@ -978,5 +968,12 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
+	}
+}
+
+
+async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
+	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+		await model.undo();
 	}
 }

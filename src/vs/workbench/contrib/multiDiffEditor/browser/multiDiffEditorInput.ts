@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
@@ -46,6 +49,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override get editorId(): string {
 		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.diffMultiple;
 	}
 
 	constructor(
@@ -114,7 +121,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					modified: r.modifiedRef ? r.modifiedRef.object.textEditorModel : r.modifiedModel!,
 					title: r.title,
 					get options() {
-						return computeOptions(textResourceConfigurationService.getValue(uri));
+						r.modifiedRef?.object.isReadonly;
+
+						return {
+							...getReadonlyConfiguration(r.modifiedRef?.object.isReadonly() ?? true),
+							...computeOptions(textResourceConfigurationService.getValue(uri)),
+						} satisfies IDiffEditorOptions;
 					},
 					onOptionsDidChange: h => this._textResourceConfigurationService.onDidChangeConfiguration(e => {
 						if (e.affectsConfiguration(uri, 'editor') || e.affectsConfiguration(uri, 'diffEditor')) {
@@ -125,6 +137,13 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}),
 		};
 	}
+}
+
+function getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
+	return {
+		readOnly: !!isReadonly,
+		readOnlyMessage: typeof isReadonly !== 'boolean' ? isReadonly : undefined
+	};
 }
 
 function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions {

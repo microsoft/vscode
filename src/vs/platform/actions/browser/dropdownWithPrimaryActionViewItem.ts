@@ -93,6 +93,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
+
+		this.updateEnabled();
 	}
 
 	override focus(fromRight?: boolean): void {
@@ -117,6 +119,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			this._primaryAction.element!.tabIndex = -1;
 			this._dropdown.setFocusable(false);
 		}
+	}
+
+	protected override updateEnabled(): void {
+		const disabled = !this.action.enabled;
+		this.element?.classList.toggle('disabled', disabled);
 	}
 
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {

@@ -46,7 +46,7 @@ export async function fetchUrl(url: string, options: IFetchOptions, retries = 10
 	try {
 		let startTime = 0;
 		if (verbose) {
-			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? `(${10 - retries} retry}` : ''}`);
+			log(`Start fetching ${ansiColors.magenta(url)}${retries !== 10 ? ` (${10 - retries} retry)` : ''}`);
 			startTime = new Date().getTime();
 		}
 		const controller = new AbortController();
