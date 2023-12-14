@@ -209,11 +209,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('mode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
 			default: EditMode.LivePreview,
 			type: 'string',
-			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
+			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live, EditMode.Live3],
 			markdownEnumDescriptions: [
 				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
+				localize('mode.live3', "Changes are applied directly to the document but can be highlighted via inline diffs and accepted/discarded by hunks. Ending a session will keep the changes."),
 			]
 		},
 		'inlineChat.showDiff': {
