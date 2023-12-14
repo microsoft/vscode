@@ -24,7 +24,7 @@ class SurroundWithSnippetCodeActionProvider implements CodeActionProvider {
 	private static readonly _MAX_CODE_ACTIONS = 4;
 
 	private static readonly _overflowCommandCodeAction: CodeAction = {
-		kind: CodeActionKind.SurroundWithSnippet.value,
+		kind: CodeActionKind.SurroundWith.value,
 		title: SurroundWithSnippetEditorAction.options.title.value,
 		command: {
 			id: SurroundWithSnippetEditorAction.options.id,

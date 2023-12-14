@@ -76,7 +76,6 @@ export function toMenuItems(
 					label: action.action.title,
 					disabled: !!action.action.disabled,
 					keybinding: keybindingResolver(action.action),
-					snippet: action.action.kind === CodeActionKind.SurroundWithSnippet.value ?? undefined
 				});
 			}
 		}
