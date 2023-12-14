@@ -160,7 +160,6 @@ export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWi
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 export const MENU_INLINE_CHAT_WIDGET_FEEDBACK = MenuId.for('inlineChatWidget.feedback');
 export const MENU_INLINE_CHAT_WIDGET_DISCARD = MenuId.for('inlineChatWidget.undo');
-export const MENU_INLINE_CHAT_WIDGET_TOGGLE = MenuId.for('inlineChatWidget.toggle');
 
 // --- colors
 
@@ -181,7 +180,6 @@ export const inlineChatDiffRemoved = registerColor('inlineChatDiff.removed', { d
 
 export const enum EditMode {
 	Live = 'live',
-	Live3 = 'live3',
 	LivePreview = 'livePreview',
 	Preview = 'preview'
 }
@@ -201,18 +199,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('mode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
 			default: EditMode.LivePreview,
 			type: 'string',
-			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live, EditMode.Live3],
+			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
 			markdownEnumDescriptions: [
 				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
-				localize('mode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
-				localize('mode.live3', "Changes are applied directly to the document but can be highlighted via inline diffs and accepted/discarded by hunks. Ending a session will keep the changes."),
+				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
 			]
-		},
-		'inlineChat.showDiff': {
-			description: localize('showDiff', "Enable/disable showing the diff when edits are generated. Works only with inlineChat.mode equal to live or livePreview."),
-			default: true,
-			type: 'boolean'
 		}
 	}
 });
