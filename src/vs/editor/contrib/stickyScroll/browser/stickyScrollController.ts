@@ -438,7 +438,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
 				this._showEndForLine = null;
-				this._renderStickyScroll(-1);
+				this._renderStickyScroll(0);
 			}));
 		}
 	}
@@ -457,8 +457,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private _onTokensChange(event: IModelTokensChangedEvent) {
 		if (this._needsUpdate(event)) {
-			// Rebuilding the whole widget from line -1
-			this._renderStickyScroll(-1);
+			// Rebuilding the whole widget from line 0
+			this._renderStickyScroll(0);
 		}
 	}
 
@@ -469,17 +469,23 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._maxStickyLines = Math.round(theoreticalLines * .25);
 	}
 
-	private async _renderStickyScroll(rebuildFromLine: number = Infinity) {
+	private async _renderStickyScroll(_rebuildFromLine?: number) {
 		const model = this._editor.getModel();
 		if (!model || model.isTooLargeForTokenization()) {
 			this._foldingModel = null;
-			this._stickyScrollWidget.setState(undefined, null, rebuildFromLine);
+			this._stickyScrollWidget.setState(undefined, null);
 			return;
 		}
 		const stickyLineVersion = this._stickyLineCandidateProvider.getVersionId();
 		if (stickyLineVersion === undefined || stickyLineVersion === model.getVersionId()) {
 			this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? null;
+			const previousWidgetState = this._widgetState;
 			this._widgetState = this.findScrollWidgetState();
+			let rebuildFromLine = _rebuildFromLine;
+			if (rebuildFromLine === undefined) {
+				const _rebuildFromLine = this._widgetState.startLineNumbers.findIndex(startLineNumber => !previousWidgetState.startLineNumbers.includes(startLineNumber));
+				rebuildFromLine = _rebuildFromLine === -1 ? 0 : _rebuildFromLine;
+			}
 			this._stickyScrollVisibleContextKey.set(!(this._widgetState.startLineNumbers.length === 0));
 
 			if (!this._focused) {
