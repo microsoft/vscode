@@ -47,7 +47,7 @@ registerAction2(InlineChatActions.ToggleDiffForChange);
 registerAction2(InlineChatActions.FeebackHelpfulCommand);
 registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
 registerAction2(InlineChatActions.ReportIssueForBugCommand);
-registerAction2(InlineChatActions.ApplyPreviewEdits);
+registerAction2(InlineChatActions.AcceptChanges);
 
 registerAction2(InlineChatActions.CopyRecordings);
 
