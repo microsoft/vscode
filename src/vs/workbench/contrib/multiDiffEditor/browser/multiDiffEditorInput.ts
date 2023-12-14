@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
@@ -47,6 +49,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override get editorId(): string {
 		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	override getIcon(): ThemeIcon {
+		return Codicon.diffMultiple;
 	}
 
 	constructor(

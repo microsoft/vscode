@@ -6,7 +6,7 @@
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
-import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, EditorPinnedAndUnpinnedTabsContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ResourceContextKey, applyAvailableEditorIds, ActiveEditorAvailableEditorIdsContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
@@ -172,7 +172,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 
 			// Container
-			this.element.classList.add('editor-group-container');
+			this.element.classList.add(...coalesce(['editor-group-container', this.model.isLocked ? 'locked' : undefined]));
 
 			// Container listeners
 			this.registerContainerListeners();
@@ -249,7 +249,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
-		const groupHasPinnedAndUnpinnedContext = EditorPinnedAndUnpinnedTabsContext.bindTo(this.scopedContextKeyService);
 
 		const groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
 		const groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
@@ -287,10 +286,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupModelChangeKind.GROUP_LOCKED:
 					groupLockedContext.set(this.isLocked);
 					break;
+				case GroupModelChangeKind.EDITOR_ACTIVE:
+					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
+					groupActiveEditorLastContext.set(this.model.isLast(this.model.activeEditor));
+					groupActiveEditorPinnedContext.set(this.model.activeEditor ? this.model.isPinned(this.model.activeEditor) : false);
+					groupActiveEditorStickyContext.set(this.model.activeEditor ? this.model.isSticky(this.model.activeEditor) : false);
+					break;
 				case GroupModelChangeKind.EDITOR_CLOSE:
 				case GroupModelChangeKind.EDITOR_OPEN:
-					groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
-				case GroupModelChangeKind.EDITOR_ACTIVE:
 				case GroupModelChangeKind.EDITOR_MOVE:
 					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
 					groupActiveEditorLastContext.set(this.model.isLast(this.model.activeEditor));
@@ -304,7 +307,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					if (e.editor && e.editor === this.model.activeEditor) {
 						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
-					groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
 					break;
 			}
 
@@ -320,11 +322,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Update context keys on startup
 		observeActiveEditor();
-		groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
-	}
-
-	private hasPinnedAndUnpinnedEditors(): boolean {
-		return this.model.stickyCount > 0 && this.model.stickyCount < this.model.count;
 	}
 
 	private registerContainerListeners(): void {
@@ -547,6 +544,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidModelChange.fire(e);
 
 		// Handle within
+
+		if (e.kind === GroupModelChangeKind.GROUP_LOCKED) {
+			this.element.classList.toggle('locked', this.isLocked);
+		}
 
 		if (!e.editor) {
 			return;
@@ -1079,9 +1080,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Conditionally lock the group
 		if (
-			isNew &&				// only if this editor was new for the group
-			this.count === 1 &&		// only when this editor was the first editor in the group
-			this.canLock()			// only when we met the requirements to lock
+			isNew &&								// only if this editor was new for the group
+			this.count === 1 &&						// only when this editor was the first editor in the group
+			this.editorPartsView.groups.length > 1 	// only allow auto locking if more than 1 group is opened
 		) {
 			// only when the editor identifier is configured as such
 			if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
@@ -1574,7 +1575,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Auto-save on focus change: save, because a dialog would steal focus
 			// (see https://github.com/microsoft/vscode/issues/108752)
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE) {
+			if (this.filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_FOCUS_CHANGE) {
 				autoSave = true;
 				confirmation = ConfirmResult.SAVE;
 				saveReason = SaveReason.FOCUS_CHANGE;
@@ -1583,7 +1584,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Auto-save on window change: save, because on Windows and Linux, a
 			// native dialog triggers the window focus change
 			// (see https://github.com/microsoft/vscode/issues/134250)
-			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE) {
+			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_WINDOW_CHANGE) {
 				autoSave = true;
 				confirmation = ConfirmResult.SAVE;
 				saveReason = SaveReason.WINDOW_CHANGE;
@@ -1880,27 +1881,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Locking
 
 	get isLocked(): boolean {
-		if (!this.canLock()) {
-			// Special case: if only 1 group is opened, never report it as locked
-			// to ensure editors can always open in the "default" editor group
-			return false;
-		}
-
 		return this.model.isLocked;
 	}
 
 	lock(locked: boolean): void {
-		if (!this.canLock()) {
-			// Special case: if only 1 group is opened, never allow to lock
-			// to ensure editors can always open in the "default" editor group
-			locked = false;
-		}
-
 		this.model.lock(locked);
-	}
-
-	private canLock(): boolean {
-		return this.editorPartsView.groups.length > 1; // only allow locking if more than 1 group is opened
 	}
 
 	//#endregion

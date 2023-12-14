@@ -50,6 +50,7 @@ export interface NotebookDisplayOptions {
 	outputScrolling: boolean;
 	outputWordWrap: boolean;
 	outputLineLimit: number;
+	outputLinkifyFilePaths: boolean;
 	fontSize: number;
 	outputFontSize: number;
 	outputFontFamily: string;
@@ -106,6 +107,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly outputLineHeight?: boolean;
 	readonly outputWordWrap?: boolean;
 	readonly outputScrolling?: boolean;
+	readonly outputLinkifyFilePaths?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({
@@ -199,6 +201,7 @@ export class NotebookOptions extends Disposable {
 		const outputLineHeight = this._computeOutputLineHeight(outputLineHeightSettingValue, outputFontSize);
 		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
+		const linkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths) ?? true;
 
 		this._layoutConfiguration = {
 			...(compactView ? compactConfigConstants : defaultConfigConstants),
@@ -239,7 +242,8 @@ export class NotebookOptions extends Disposable {
 			markdownFoldHintHeight: 22,
 			outputScrolling: outputScrolling,
 			outputWordWrap: outputWordWrap,
-			outputLineLimit: outputLineLimit
+			outputLineLimit: outputLineLimit,
+			outputLinkifyFilePaths: linkifyFilePaths
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -355,6 +359,7 @@ export class NotebookOptions extends Disposable {
 		const outputLineHeight = e.affectsConfiguration(NotebookSetting.outputLineHeight);
 		const outputScrolling = e.affectsConfiguration(NotebookSetting.outputScrolling);
 		const outputWordWrap = e.affectsConfiguration(NotebookSetting.outputWordWrap);
+		const outputLinkifyFilePaths = e.affectsConfiguration(NotebookSetting.LinkifyOutputFilePaths);
 
 		if (
 			!cellStatusBarVisibility
@@ -379,7 +384,8 @@ export class NotebookOptions extends Disposable {
 			&& !interactiveWindowCollapseCodeCells
 			&& !outputLineHeight
 			&& !outputScrolling
-			&& !outputWordWrap) {
+			&& !outputWordWrap
+			&& !outputLinkifyFilePaths) {
 			return;
 		}
 
@@ -478,6 +484,10 @@ export class NotebookOptions extends Disposable {
 			configuration.outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 		}
 
+		if (outputLinkifyFilePaths) {
+			configuration.outputLinkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths);
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -504,7 +514,8 @@ export class NotebookOptions extends Disposable {
 			interactiveWindowCollapseCodeCells,
 			outputLineHeight,
 			outputScrolling,
-			outputWordWrap
+			outputWordWrap,
+			outputLinkifyFilePaths: outputLinkifyFilePaths
 		});
 	}
 
@@ -713,6 +724,7 @@ export class NotebookOptions extends Disposable {
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
+			outputLinkifyFilePaths: this._layoutConfiguration.outputLinkifyFilePaths,
 		};
 	}
 
@@ -734,6 +746,7 @@ export class NotebookOptions extends Disposable {
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
+			outputLinkifyFilePaths: false
 		};
 	}
 

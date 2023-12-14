@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -81,8 +83,8 @@ export class ChatEditorInput extends EditorInput {
 		return this.model?.title || nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
 	}
 
-	override getLabelExtraClasses(): string[] {
-		return ['chat-editor-label'];
+	override getIcon(): ThemeIcon {
+		return Codicon.commentDiscussion;
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {

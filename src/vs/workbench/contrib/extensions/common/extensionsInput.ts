@@ -12,6 +12,8 @@ import { ExtensionEditorTab, IExtension } from 'vs/workbench/contrib/extensions/
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { join } from 'vs/base/common/path';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IExtensionEditorOptions extends IEditorOptions {
 	showPreReleaseVersion?: boolean;
@@ -46,6 +48,10 @@ export class ExtensionsInput extends EditorInput {
 
 	override getName(): string {
 		return localize('extensionsInputName', "Extension: {0}", this._extension.displayName);
+	}
+
+	override getIcon(): ThemeIcon | undefined {
+		return Codicon.extensions;
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

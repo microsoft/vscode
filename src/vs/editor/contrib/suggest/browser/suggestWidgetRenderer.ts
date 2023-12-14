@@ -85,6 +85,8 @@ export interface ISuggestionTemplateData {
 	readonly detailsLabel: HTMLElement;
 	readonly readMore: HTMLElement;
 	readonly disposables: DisposableStore;
+
+	readonly configureFont: () => void;
 }
 
 export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -156,18 +158,14 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			readMore.style.width = lineHeightPx;
 		};
 
-		configureFont();
-
-		disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-				configureFont();
-			}
-		}));
-
-		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables };
+		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables, configureFont };
 	}
 
 	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
+
+
+		data.configureFont();
+
 		const { completion } = element;
 		data.root.id = getAriaId(index);
 		data.colorspan.style.backgroundColor = '';
