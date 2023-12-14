@@ -555,15 +555,12 @@ export class InlayHintsController implements IEditorContribution {
 		// collect all decoration ids that are affected by the ranges
 		// and only update those decorations
 		const decorationIdsToReplace: string[] = [];
-		for (const range of ranges) {
-
-			for (const { id } of this._editor.getDecorationsInRange(range) ?? []) {
-				const metadata = this._decorationsMetadata.get(id);
-				if (metadata) {
-					decorationIdsToReplace.push(id);
-					metadata.classNameRef.dispose();
-					this._decorationsMetadata.delete(id);
-				}
+		for (const [id, metadata] of this._decorationsMetadata) {
+			const range = this._editor.getModel()?.getDecorationRange(id);
+			if (range && ranges.some(r => r.containsRange(range))) {
+				decorationIdsToReplace.push(id);
+				metadata.classNameRef.dispose();
+				this._decorationsMetadata.delete(id);
 			}
 		}
 
