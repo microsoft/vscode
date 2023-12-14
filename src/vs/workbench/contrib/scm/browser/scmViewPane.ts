@@ -1756,7 +1756,6 @@ class SCMInputWidgetActionRunner extends ActionRunner {
 
 	constructor(
 		private readonly input: ISCMInput,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
@@ -1806,36 +1805,48 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	private _dropdownAction: IAction;
 	get dropdownAction(): IAction { return this._dropdownAction; }
 
+	private _cancelAction: IAction;
+
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private readonly repositoryDisposables = new DisposableStore();
+
 	constructor(
 		container: HTMLElement,
-		input: ISCMInput,
-		actionRunner: SCMInputWidgetActionRunner,
 		options: IMenuWorkbenchToolBarOptions | undefined,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@ICommandService commandService: ICommandService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, { resetMenu: MenuId.SCMInputBox, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
-
-		const menu = this._store.add(menuService.createMenu(MenuId.SCMInputBox, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		this._dropdownAction = new Action(
 			'scmInputMoreActions',
 			localize('scmInputMoreActions', "More Actions..."),
 			'codicon-chevron-down');
 
-		const cancelAction = new MenuItemAction({
+		this._cancelAction = new MenuItemAction({
 			id: SCMInputWidgetCommandId.CancelAction,
 			title: localize('scmInputCancelAction', "Cancel"),
 			icon: Codicon.debugStop,
 		}, undefined, undefined, undefined, contextKeyService, commandService);
+	}
+
+	public setInput(input: ISCMInput): void {
+		this.repositoryDisposables.clear();
+
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['scmProvider', input.repository.provider.contextValue],
+			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
+			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
+		]);
+
+		const menu = this.repositoryDisposables.add(this.menuService.createMenu(MenuId.SCMInputBox, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const isEnabled = (): boolean => {
 			return input.repository.provider.groups.some(g => g.resources.length > 0);
@@ -1843,7 +1854,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 		const updateToolbar = () => {
 			const actions: IAction[] = [];
-			createAndFillInActionBarActions(menu, options?.menuOptions, actions);
+			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
 
 			for (const action of actions) {
 				action.enabled = isEnabled();
@@ -1855,7 +1866,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			if (actions.length === 1) {
 				primaryAction = actions[0];
 			} else if (actions.length > 1) {
-				const lastActionId = storageService.get(SCMInputWidgetStorageKey.LastActionId, StorageScope.PROFILE, '');
+				const lastActionId = this.storageService.get(SCMInputWidgetStorageKey.LastActionId, StorageScope.PROFILE, '');
 				primaryAction = actions.find(a => a.id === lastActionId) ?? actions[0];
 			}
 
@@ -1865,23 +1876,24 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			this._onDidChange.fire();
 		};
 
-		this._store.add(menu.onDidChange(() => updateToolbar()));
-		this._store.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
+		this.repositoryDisposables.add(menu.onDidChange(() => updateToolbar()));
+		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
+		this.repositoryDisposables.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this.repositoryDisposables)(() => updateToolbar()));
 
-		this._store.add(actionRunner.onWillRun(e => {
-			if (actionRunner.runningActions.size === 0) {
-				super.setActions([cancelAction], []);
+		this.actionRunner = new SCMInputWidgetActionRunner(input, this.storageService);
+		this.repositoryDisposables.add(this.actionRunner.onWillRun(e => {
+			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
+				super.setActions([this._cancelAction], []);
 				this._onDidChange.fire();
 			}
 		}));
-		this._store.add(actionRunner.onDidRun(e => {
-			if (actionRunner.runningActions.size === 0) {
+		this.repositoryDisposables.add(this.actionRunner.onDidRun(e => {
+			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				updateToolbar();
 			}
 		}));
 
-		// Delay initial update to finish class initialization
-		setTimeout(() => updateToolbar(), 0);
+		updateToolbar();
 	}
 
 }
@@ -1902,7 +1914,7 @@ class SCMInputWidget {
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
 	private toolbarContainer: HTMLElement;
-	private toolbar: SCMInputWidgetToolbar | undefined;
+	private toolbar: SCMInputWidgetToolbar;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
@@ -2056,9 +2068,7 @@ class SCMInputWidget {
 		updateEnablement(input.enabled);
 
 		// Toolbar
-		this.toolbar = this.createToolbar(input);
-		this.repositoryDisposables.add(this.toolbar.onDidChange(() => this.layout()));
-		this.repositoryDisposables.add(this.toolbar);
+		this.toolbar.setInput(input);
 	}
 
 	get selections(): Selection[] | null {
@@ -2069,36 +2079,6 @@ class SCMInputWidget {
 		if (selections) {
 			this.inputEditor.setSelections(selections);
 		}
-	}
-
-	private createToolbar(input: ISCMInput): SCMInputWidgetToolbar {
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmProvider', input.repository.provider.contextValue],
-			['scmProviderRootUri', input.repository.provider.rootUri?.toString()],
-			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
-		]);
-
-		const serviceCollection = new ServiceCollection([IContextKeyService, contextKeyService]);
-		const instantiationService = this.instantiationService.createChild(serviceCollection);
-
-		const actionRunner = instantiationService.createInstance(SCMInputWidgetActionRunner, input);
-		this.repositoryDisposables.add(actionRunner);
-
-		const toolbar: SCMInputWidgetToolbar = instantiationService.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, input, actionRunner, {
-			actionRunner,
-			actionViewItemProvider: action => {
-				if (action instanceof MenuItemAction && toolbar.dropdownActions.length > 1) {
-					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, toolbar.dropdownAction, toolbar.dropdownActions, '', this.contextMenuService, { actionRunner });
-				}
-
-				return createActionViewItem(instantiationService, action);
-			},
-			menuOptions: {
-				shouldForwardArgs: true
-			}
-		});
-
-		return toolbar;
 	}
 
 	private setValidation(validation: IInputValidation | undefined, options?: { focus?: boolean; timeout?: boolean }) {
@@ -2268,6 +2248,22 @@ class SCMInputWidget {
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(() => this.layout(), this, this.disposables);
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged, this.disposables));
+
+		// Toolbar
+		this.toolbar = instantiationService2.createInstance(SCMInputWidgetToolbar, this.toolbarContainer, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction && this.toolbar.dropdownActions.length > 1) {
+					return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, action, this.toolbar.dropdownAction, this.toolbar.dropdownActions, '', this.contextMenuService, { actionRunner: this.toolbar.actionRunner });
+				}
+
+				return createActionViewItem(instantiationService, action);
+			},
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		});
+		this.disposables.add(this.toolbar.onDidChange(() => this.layout()));
+		this.disposables.add(this.toolbar);
 	}
 
 	getContentHeight(): number {
