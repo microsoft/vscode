@@ -379,22 +379,22 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	ok: boolean | 'default';
 
 	/**
-	 * An event that is fired when the custom button is triggered.
+	 * An event that is fired when the custom button is triggered. The custom button is a button with text rendered to the right of the input.
 	 */
 	readonly onDidCustom: Event<void>;
 
 	/**
-	 * Whether to show the custom button.
+	 * Whether to show the custom button. The custom button is a button with text rendered to the right of the input.
 	 */
 	customButton: boolean;
 
 	/**
-	 * The label for the custom button.
+	 * The label for the custom button. The custom button is a button with text rendered to the right of the input.
 	 */
 	customLabel: string | undefined;
 
 	/**
-	 * The hover text for the custom button.
+	 * The hover text for the custom button. The custom button is a button with text rendered to the right of the input.
 	 */
 	customHover: string | undefined;
 
