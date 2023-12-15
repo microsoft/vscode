@@ -2816,7 +2816,8 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 				'editor.stickyScroll.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor.")
+					description: nls.localize('editor.stickyScroll.enabled', "Shows the nested current scopes during the scroll at the top of the editor."),
+					tags: ['experimental']
 				},
 				'editor.stickyScroll.maxLineCount': {
 					type: 'number',

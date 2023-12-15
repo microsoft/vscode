@@ -29,6 +29,7 @@ import { StickyRange } from 'vs/editor/contrib/stickyScroll/browser/stickyScroll
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
@@ -76,7 +77,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILanguageConfigurationService _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeatureDebounceService _languageFeatureDebounceService: ILanguageFeatureDebounceService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._stickyScrollWidget = new StickyScrollWidget(this._editor);
@@ -88,6 +90,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		this._readConfiguration();
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
 		this._register(this._editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.stickyScroll)) {
+				this._logEnablementChangeEvent();
+			}
 			if (
 				e.hasChanged(EditorOption.stickyScroll)
 				|| e.hasChanged(EditorOption.minimap)
@@ -407,6 +412,23 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			- this._editor.getOption(EditorOption.lineHeight) * stickyLine.index + 1;
 		this._editor.setScrollTop(scrollTop);
 		this._renderStickyScroll(line);
+	}
+
+	private _logEnablementChangeEvent() {
+		type StickyScrollConfigurationEvent = { value: boolean };
+		type StickyScrollConfigurationClassificationEditor = {
+			comment: 'Helps understand the effectiveness of the editor sticky scroll gradual release';
+			value: {
+				classification: 'SystemMetaData';
+				purpose: 'FeatureInsight';
+				comment: 'Helps understand the effectiveness of the editor sticky scroll gradual release';
+			};
+			owner: 'aiday-mar';
+		};
+		const options = this._editor.getOption(EditorOption.stickyScroll);
+		this._telemetryService.publicLog2<StickyScrollConfigurationEvent, StickyScrollConfigurationClassificationEditor>('stickyScrollSettingEditor', {
+			value: options.enabled
+		});
 	}
 
 	private _readConfiguration() {
