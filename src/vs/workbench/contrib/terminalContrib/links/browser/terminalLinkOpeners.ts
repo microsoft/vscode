@@ -110,6 +110,13 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// would break absolute Windows paths (eg. `C:/Users/...`).
 		text = text.replace(/:[^\\/\d][^\d]+$/, '');
 
+		// Remove any trailing periods after the line/column numbers, to prevent breaking the search feature, #200257
+		// Examples:
+		// "Check your code Test.tsx:12:45." -> Test.tsx:12:45
+		// "Check your code Test.tsx:12." -> Test.tsx:12
+
+		text = text.replace(/:[\d]+\.$/, (match) => match.slice(0, -1));
+
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
 		this._workspaceContextService.getWorkspace().folders.forEach((folder) => {
