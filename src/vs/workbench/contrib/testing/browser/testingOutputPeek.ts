@@ -57,7 +57,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -252,7 +252,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: candidate.location.range, ...options });
+		}, undefined, { selection: candidate.location.range, selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport, ...options });
 		return true;
 	}
 
@@ -1023,7 +1023,8 @@ class TestResultsPeek extends PeekViewWidget {
 		}
 
 		this.show(subject.revealLocation.range, TestResultsPeek.lastHeightInLines || hintMessagePeekHeight(message));
-		this.editor.revealPositionNearTop(subject.revealLocation.range.getStartPosition(), ScrollType.Smooth);
+		const startPosition = subject.revealLocation.range.getStartPosition();
+		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(startPosition), ScrollType.Smooth);
 
 		return this.showInPlace(subject);
 	}
