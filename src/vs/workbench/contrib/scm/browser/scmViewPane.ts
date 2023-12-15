@@ -3249,12 +3249,30 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			// Incoming/Outgoing Separator
 			if (historyItemGroups.length > 0) {
-				children.push({
-					label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
-					ariaLabel: localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes"),
-					repository: inputOrElement,
-					type: 'separator'
-				} as SCMViewSeparatorElement);
+				const showIncomingChanges = this.showIncomingChanges();
+				const showOutgoingChanges = this.showOutgoingChanges();
+				if (showIncomingChanges !== 'never' && showOutgoingChanges !== 'never') {
+					children.push({
+						label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
+						ariaLabel: localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes"),
+						repository: inputOrElement,
+						type: 'separator'
+					} as SCMViewSeparatorElement);
+				} else if (showIncomingChanges === 'never') {
+					children.push({
+						label: localize('syncOutgoingSeparatorHeader', "Outgoing"),
+						ariaLabel: localize('syncOutgoingSeparatorHeaderAriaLabel', "Outgoing changes"),
+						repository: inputOrElement,
+						type: 'separator'
+					} as SCMViewSeparatorElement);
+				} else if (showOutgoingChanges === 'never') {
+					children.push({
+						label: localize('syncIncomingSeparatorHeader', "Incoming"),
+						ariaLabel: localize('syncIncomingSeparatorHeaderAriaLabel', "Incoming changes"),
+						repository: inputOrElement,
+						type: 'separator'
+					} as SCMViewSeparatorElement);
+				}
 			}
 
 			children.push(...historyItemGroups);
