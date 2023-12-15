@@ -1542,6 +1542,7 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			precondition: CONTEXT_BREAKPOINT_SUPPORTS_CONDITION,
 			menu: [{
 				id: MenuId.DebugBreakpointsContext,
+				when: CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('functionBreakpoint'),
 				group: 'navigation',
 				order: 10
 			}, {
@@ -1588,10 +1589,10 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 		super({
 			id: 'debug.editFunctionBreakpoint',
 			viewId: BREAKPOINTS_VIEW_ID,
-			title: localize('editBreakpoint', "Edit Function Breakpoint..."),
+			title: localize('editBreakpoint', "Edit Function Condition..."),
 			menu: [{
 				id: MenuId.DebugBreakpointsContext,
-				group: '1_breakpoints',
+				group: 'navigation',
 				order: 10,
 				when: CONTEXT_BREAKPOINT_ITEM_TYPE.isEqualTo('functionBreakpoint')
 			}]
