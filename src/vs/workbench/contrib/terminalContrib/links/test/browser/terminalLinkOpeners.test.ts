@@ -342,6 +342,32 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					},
 				});
 			});
+
+			test('should extract line and column from links and remove trailing periods', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Linux);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/folder/foo/bar.txt' })
+				]);
+				await opener.open({
+					text: './foo/bar.txt:10:5.',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
+					},
+				});
+			});
+
+
 		});
 
 		suite('Windows', () => {
@@ -438,6 +464,45 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 				deepStrictEqual(activationResult, {
 					link: 'file:///c%3A/space%20folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
+					},
+				});
+			});
+
+			test('should extract line and column from links and remove trailing periods', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, 'c:/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Windows);
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: 'c:/folder/foo/bar.txt' })
+				]);
+				await opener.open({
+					text: './foo/bar.txt:10:5.',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///c%3A/folder/foo/bar.txt',
+					source: 'editor',
+					selection: {
+						startColumn: 5,
+						startLineNumber: 10,
+						endColumn: undefined,
+						endLineNumber: undefined
+					},
+				});
+				await opener.open({
+					text: '.\\foo\\bar.txt:10:5',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///c%3A/folder/foo/bar.txt',
 					source: 'editor',
 					selection: {
 						startColumn: 5,
