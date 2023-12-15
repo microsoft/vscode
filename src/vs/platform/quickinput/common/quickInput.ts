@@ -97,11 +97,6 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	matchOnLabel?: boolean;
 
 	/**
-	 * an option flag to control whether focus is always automatically brought to a list item. Defaults to true.
-	 */
-	autoFocusOnList?: boolean;
-
-	/**
 	 * an optional flag to not close the picker on focus lost
 	 */
 	ignoreFocusLost?: boolean;
