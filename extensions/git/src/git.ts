@@ -1109,13 +1109,22 @@ export class Repository {
 
 		args.push('--', uri.fsPath);
 
-		const result = await this.exec(args);
-		if (result.exitCode) {
-			// No file history, e.g. a new file or untracked
-			return [];
-		}
+		try {
+			const result = await this.exec(args);
+			if (result.exitCode) {
+				// No file history, e.g. a new file or untracked
+				return [];
+			}
 
-		return parseGitCommits(result.stdout);
+			return parseGitCommits(result.stdout);
+		} catch (err) {
+			// Repository has no commits yet
+			if (/does not have any commits yet/.test(err.stderr)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async reflog(ref: string, pattern: string): Promise<string[]> {
