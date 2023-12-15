@@ -366,6 +366,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					URI.from({ scheme: Schemas.file, path: '/folder/foo/bar.txt' })
 				]);
 				await opener.open({
+					text: './foo/bar.txt.',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///folder/foo/bar.txt',
+					source: 'editor',
+				});
+				await opener.open({
 					text: './foo/bar.txt:10:5.',
 					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
 					type: TerminalBuiltinLinkType.Search
@@ -644,6 +653,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					URI.from({ scheme: Schemas.file, path: 'c:/folder/foo/bar.txt' })
 				]);
 				await opener.open({
+					text: './foo/bar.txt.',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///c%3A/folder/foo/bar.txt',
+					source: 'editor',
+				});
+				await opener.open({
 					text: './foo/bar.txt:10:5.',
 					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
 					type: TerminalBuiltinLinkType.Search
@@ -672,6 +690,15 @@ suite('Workbench - TerminalLinkOpeners', () => {
 						endColumn: undefined,
 						endLineNumber: undefined
 					},
+				});
+				await opener.open({
+					text: '.\\foo\\bar.txt.',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 8, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///c%3A/folder/foo/bar.txt',
+					source: 'editor',
 				});
 				await opener.open({
 					text: '.\\foo\\bar.txt:2:5.',

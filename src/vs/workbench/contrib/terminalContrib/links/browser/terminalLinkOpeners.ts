@@ -115,7 +115,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// "Check your code Test.tsx:12:45." -> Test.tsx:12:45
 		// "Check your code Test.tsx:12." -> Test.tsx:12
 
-		text = text.replace(/:[\d]+\.$/, (match) => match.slice(0, -1));
+		text = text.replace(/\.$/, '');
 
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
