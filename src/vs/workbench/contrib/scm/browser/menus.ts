@@ -21,6 +21,18 @@ function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
 }
 
+const repositoryMenuDisposables = new DisposableStore();
+
+MenuRegistry.onDidChangeMenu(e => {
+	if (e.has(MenuId.SCMTitle)) {
+		repositoryMenuDisposables.clear();
+
+		for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
+			repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
+		}
+	}
+});
+
 export class SCMTitleMenu implements IDisposable {
 
 	private _actions: IAction[] = [];
@@ -148,6 +160,8 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private contextKeyService: IContextKeyService;
 
 	readonly titleMenu: SCMTitleMenu;
+	readonly repositoryMenu: IMenu;
+
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
 	private _repositoryContextMenu: IMenu | undefined;
@@ -170,9 +184,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		return this._historyProviderMenu;
 	}
 
-	readonly repositoryMenu: IMenu;
-	private readonly repositoryMenuDisposables = new DisposableStore();
-
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -194,9 +205,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 		this.repositoryMenu = menuService.createMenu(MenuId.SCMSourceControlInline, this.contextKeyService);
 		this.disposables.add(this.repositoryMenu);
-
-		this.titleMenu.onDidChangeTitle(this.onDidChangeTitle, this, this.disposables);
-		this.onDidChangeTitle();
 
 		provider.onDidChangeResourceGroups(this.onDidChangeResourceGroups, this, this.disposables);
 		this.onDidChangeResourceGroups();
@@ -235,14 +243,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 				this.resourceGroupMenusItems.get(resourceGroup)?.dispose();
 				this.resourceGroupMenusItems.delete(resourceGroup);
 			}
-		}
-	}
-
-	private onDidChangeTitle(): void {
-		this.repositoryMenuDisposables.clear();
-
-		for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
-			this.repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
 		}
 	}
 
