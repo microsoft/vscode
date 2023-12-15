@@ -41,7 +41,8 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private actionViewItemProvider: IActionViewItemProvider,
+		private readonly toolbarMenuId: MenuId,
+		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -62,7 +63,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
-		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: MenuId.SCMTitle }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
@@ -114,8 +115,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		onDidChangeProvider();
 
-		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		templateData.elementDisposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
+		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
+		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
+		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
 			menuPrimaryActions = primary;
 			menuSecondaryActions = secondary;
 			updateToolbar();
