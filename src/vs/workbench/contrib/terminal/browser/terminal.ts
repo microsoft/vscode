@@ -7,7 +7,7 @@ import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -26,6 +26,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -576,6 +577,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly injectedArgs: string[] | undefined;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
+	/**
+	 * The underlying disposable store, allowing objects who share the same lifecycle as the
+	 * terminal instance but are created externally to be managed by the instance.
+	 */
+	readonly store: DisposableStore;
+
 	readonly statusList: ITerminalStatusList;
 
 	/**
@@ -992,6 +999,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
+
+	/**
+	 * Update the parent context key service to use for this terminal instance.
+	 */
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
 }
 
 export const enum XtermTerminalConstants {

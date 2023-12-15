@@ -35,8 +35,6 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	}
 
 	private _linkManager: TerminalLinkManager | undefined;
-	get linkManager(): TerminalLinkManager | undefined { return this._linkManager; }
-
 	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
 	private _linkResolver: TerminalLinkResolver;
 

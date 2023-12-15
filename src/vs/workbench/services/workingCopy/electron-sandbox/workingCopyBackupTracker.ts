@@ -87,12 +87,12 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		// If auto save is enabled, save all non-untitled working copies
 		// and then check again for modified copies
 
-		if (this.filesConfigurationService.getAutoSaveMode() !== AutoSaveMode.OFF) {
+		const workingCopiesToAutoSave = modifiedWorkingCopies.filter(wc => !(wc.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode(wc.resource).mode !== AutoSaveMode.OFF);
+		if (workingCopiesToAutoSave.length > 0) {
 
 			// Save all modified working copies that can be auto-saved
 			try {
-				const workingCopiesToSave = modifiedWorkingCopies.filter(wc => !(wc.capabilities & WorkingCopyCapabilities.Untitled));
-				await this.doSaveAllBeforeShutdown(workingCopiesToSave, SaveReason.AUTO);
+				await this.doSaveAllBeforeShutdown(workingCopiesToAutoSave, SaveReason.AUTO);
 			} catch (error) {
 				this.logService.error(`[backup tracker] error saving modified working copies: ${error}`); // guard against misbehaving saves, we handle remaining modified below
 			}

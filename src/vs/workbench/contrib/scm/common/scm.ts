@@ -182,6 +182,7 @@ export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
 	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
+	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;

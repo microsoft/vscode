@@ -118,6 +118,7 @@ export interface IRawStoppedDetails {
 	text?: string;
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
+	preserveFocusHint?: boolean;
 	framesErrorMessage?: string;
 	hitBreakpointIds?: number[];
 }
@@ -686,6 +687,7 @@ export interface IDebugConfiguration {
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
 	showSubSessionsInToolBar: boolean;
+	closeReadonlyTabsOnEnd: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;

@@ -161,9 +161,10 @@
 	height: 35px;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.empty.locked > .editor-group-container-toolbar,
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar,
 .monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-container-toolbar {
-	display: block; /* show toolbar when more than one editor group or always when auxiliary */
+	display: block; /* show toolbar when more than one editor group or always when auxiliary or locked */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-container-toolbar .actions-container {

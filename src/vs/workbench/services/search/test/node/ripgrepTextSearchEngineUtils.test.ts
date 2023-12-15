@@ -103,7 +103,7 @@ suite('RipgrepTextSearchEngine', () => {
 		const TEST_FOLDER = URI.file('/foo/bar');
 
 		function testParser(inputData: string[], expectedResults: TextSearchResult[]): void {
-			const testParser = new RipgrepParser(1000, TEST_FOLDER.fsPath);
+			const testParser = new RipgrepParser(1000, TEST_FOLDER);
 
 			const actualResults: TextSearchResult[] = [];
 			testParser.on('result', r => {

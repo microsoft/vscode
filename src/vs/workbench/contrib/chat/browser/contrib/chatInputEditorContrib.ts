@@ -489,6 +489,7 @@ class AgentCompletions extends Disposable {
 							return {
 								label: { label: withSlash, description: agentLabel },
 								filterText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
 								detail: `(${agentLabel}) ${c.description}`,
 								range: new Range(1, 1, 1, 1),

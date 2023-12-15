@@ -145,7 +145,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isCancellationError(e.error)) {
-				this.notificationService.error(e.error);
+				this.notificationService.warn(e.error);
 			}
 
 			// log in telemetry
