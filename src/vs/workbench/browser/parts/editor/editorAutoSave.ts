@@ -76,7 +76,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			const workingCopyResult = this.waitingOnErrorAutoSaveWorkingCopies.get(resource);
 			if (workingCopyResult) {
 				if (
-					workingCopyResult.workingCopy?.isDirty() &&
+					workingCopyResult.workingCopy.isDirty() &&
 					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
 				) {
 					this.discardAutoSave(workingCopyResult.workingCopy);
@@ -91,12 +91,12 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				const editorResult = this.waitingOnErrorAutoSaveEditors.get(resource);
 				if (
 					!editorResult?.editor.editor.isDisposed() &&
-					editorResult?.editor?.editor.isDirty() &&
+					editorResult?.editor.editor.isDirty() &&
 					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
 				) {
 					this.waitingOnErrorAutoSaveEditors.delete(resource);
 
-					this.logService.info(`[editor auto save] triggering auto save from marker change event with reason ${editorResult.reason}`);
+					this.logService.info(`[editor auto save] running auto save from marker change event with reason ${editorResult.reason}`);
 					this.editorService.save(editorResult.editor, { reason: editorResult.reason });
 				}
 			}
@@ -258,7 +258,6 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 					this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
 					workingCopy.save({ reason: SaveReason.AUTO });
 				} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS) {
-					this.logService.trace(`[editor auto save] delaying auto save because of error markers`, workingCopy.resource.toString(), workingCopy.typeId);
 					this.waitingOnErrorAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason: SaveReason.AUTO });
 				}
 			}
