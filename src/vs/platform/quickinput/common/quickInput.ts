@@ -425,12 +425,6 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	items: ReadonlyArray<T | IQuickPickSeparator>;
 
 	/**
-	 * The scroll position of the quick pick input. Used by keepScrollPosition.
-	 * @todo this should be private
-	 */
-	scrollTop: number;
-
-	/**
 	 * Whether multiple items can be selected. If so, checkboxes will be rendered.
 	 */
 	canSelectMany: boolean;
