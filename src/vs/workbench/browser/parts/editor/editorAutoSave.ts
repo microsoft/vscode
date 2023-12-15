@@ -74,26 +74,30 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 			// Waiting working copies
 			const workingCopyResult = this.waitingOnErrorAutoSaveWorkingCopies.get(resource);
-			if (
-				workingCopyResult?.workingCopy?.isDirty() &&
-				this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
-			) {
-				this.waitingOnErrorAutoSaveWorkingCopies.delete(resource);
+			if (workingCopyResult) {
+				if (
+					workingCopyResult.workingCopy?.isDirty() &&
+					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
+				) {
+					this.waitingOnErrorAutoSaveWorkingCopies.delete(resource);
 
-				this.logService.trace(`[editor auto save] running auto save from marker change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
-				workingCopyResult.workingCopy.save({ reason: workingCopyResult.reason });
+					this.logService.info(`[editor auto save] running auto save from marker change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
+					workingCopyResult.workingCopy.save({ reason: workingCopyResult.reason });
+				}
 			}
 
 			// Waiting editors
-			const editorResult = this.waitingOnErrorAutoSaveEditors.get(resource);
-			if (
-				editorResult?.editor?.editor.isDirty() &&
-				this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
-			) {
-				this.waitingOnErrorAutoSaveEditors.delete(resource);
+			else {
+				const editorResult = this.waitingOnErrorAutoSaveEditors.get(resource);
+				if (
+					editorResult?.editor?.editor.isDirty() &&
+					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
+				) {
+					this.waitingOnErrorAutoSaveEditors.delete(resource);
 
-				this.logService.trace(`[editor auto save] triggering auto save from marker change event with reason ${editorResult.reason}`);
-				this.editorService.save(editorResult.editor, { reason: editorResult.reason });
+					this.logService.info(`[editor auto save] triggering auto save from marker change event with reason ${editorResult.reason}`);
+					this.editorService.save(editorResult.editor, { reason: editorResult.reason });
+				}
 			}
 		}
 	}
