@@ -79,7 +79,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 					workingCopyResult.workingCopy?.isDirty() &&
 					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
 				) {
-					this.waitingOnErrorAutoSaveWorkingCopies.delete(resource);
+					this.discardAutoSave(workingCopyResult.workingCopy);
 
 					this.logService.info(`[editor auto save] running auto save from marker change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
 					workingCopyResult.workingCopy.save({ reason: workingCopyResult.reason });
@@ -90,6 +90,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			else {
 				const editorResult = this.waitingOnErrorAutoSaveEditors.get(resource);
 				if (
+					!editorResult?.editor.editor.isDisposed() &&
 					editorResult?.editor?.editor.isDirty() &&
 					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
 				) {
