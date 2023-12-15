@@ -118,6 +118,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
 			this._cancelScheduler();
+			console.log('before _hideWidgets 1');
 			this._hideWidgets();
 		}));
 		this._listenersStore.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
@@ -135,11 +136,13 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
+			console.log('before _hideWidgets 2');
 			this._hideWidgets();
 		}
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		console.log('_onEditorMouseDown');
 
 		this._hoverState.mouseDown = true;
 		const target = mouseEvent.target;
@@ -163,6 +166,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
+		console.log('before _hideWidgets 3');
 		this._hideWidgets();
 	}
 
@@ -171,7 +175,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
-
+		console.log('_onEditorMouseLeave');
 		this._cancelScheduler();
 		const targetElement = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
 
@@ -183,6 +187,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
+		console.log('before _hideWidgets 4');
 		this._hideWidgets();
 	}
 
@@ -283,13 +288,17 @@ export class HoverController extends Disposable implements IEditorContribution {
 				!mouseOnDecorator && !enabled && !activatedByDecoratorClick
 			)
 		) {
+			console.log('before _hideWidgets 5');
 			this._hideWidgets();
 			return;
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
+		console.log('contentWidget : ', contentWidget);
 
-		if (contentWidget.showsOrWillShow(mouseEvent)) {
+		const showsOrWillShow = contentWidget.showsOrWillShow(mouseEvent);
+		console.log('showsOrWillShow : ', showsOrWillShow);
+		if (showsOrWillShow) {
 			this._glyphWidget?.hide();
 			return;
 		}
@@ -303,6 +312,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		if (_sticky) {
 			return;
 		}
+		console.log('before _hideWidgets 6');
 		this._hideWidgets();
 	}
 
@@ -335,10 +345,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 			return;
 		}
 
+		console.log('before _hideWidgets 7');
 		this._hideWidgets();
 	}
 
 	private _hideWidgets(): void {
+		console.log('inside of _hideWidgets');
 		if (_sticky) {
 			return;
 		}
@@ -354,6 +366,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 		this._hoverState.activatedByDecoratorClick = false;
 		this._hoverState.contentHoverFocused = false;
+		console.log('before hide');
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}

@@ -88,6 +88,7 @@ export class ContentHoverController extends Disposable {
 		mouseEvent: IEditorMouseEvent | null
 	): boolean {
 
+		console.log('inside of _startShowingOrUpdateHover');
 		if (!this._widget.position || !this._currentResult) {
 			// The hover is not visible
 			if (anchor) {
@@ -153,6 +154,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	private _setCurrentResult(hoverResult: HoverResult | null): void {
+		console.log('inside of _setCurrentResult : ', hoverResult);
 
 		if (this._currentResult === hoverResult) {
 			// avoid updating the DOM to avoid resetting the user selection
@@ -350,6 +352,7 @@ export class ContentHoverController extends Disposable {
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, source: HoverStartSource, focus: boolean): void {
+		console.log('startShowingAtRange');
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
