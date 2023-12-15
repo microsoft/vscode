@@ -170,4 +170,6 @@
 	},
 	"css.format.spaceAroundSelectorSeparator": true,
 	"inlineChat.mode": "live",
+	"python.analysis.autoImportCompletions": true,
+	"python.analysis.typeCheckingMode": "basic",
 }
