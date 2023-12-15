@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { assertThrowsAsync } from 'vs/base/test/common/utils';
+import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -35,6 +35,12 @@ suite('NotebookExecutionService', () => {
 	let contextKeyService: IContextKeyService;
 	let kernelService: INotebookKernelService;
 	let disposables: DisposableStore;
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -71,13 +77,9 @@ suite('NotebookExecutionService', () => {
 			}
 		});
 
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
 		contextKeyService = instantiationService.get(IContextKeyService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {

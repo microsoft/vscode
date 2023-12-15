@@ -10,6 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -33,6 +34,10 @@ suite('NotebookExecutionStateService', () => {
 	let kernelService: INotebookKernelService;
 	let disposables: DisposableStore;
 	let testNotebookModel: NotebookTextModel | undefined;
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	setup(function () {
 
@@ -63,10 +68,6 @@ suite('NotebookExecutionStateService', () => {
 		instantiationService.set(INotebookKernelService, kernelService);
 		instantiationService.set(INotebookExecutionService, instantiationService.createInstance(NotebookExecutionService));
 		instantiationService.set(INotebookExecutionStateService, instantiationService.createInstance(NotebookExecutionStateService));
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
