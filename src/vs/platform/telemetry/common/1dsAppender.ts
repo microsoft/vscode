@@ -45,6 +45,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 		// Configure the channel to use a XHR Request override since it's not available in node
 		const channelConfig: IChannelConfiguration = {
 			alwaysUseXhrOverride: true,
+			ignoreMc1Ms0CookieProcessing: true,
 			httpXHROverride: xhrOverride
 		};
 		coreConfig.extensionConfig[collectorChannelPlugin.identifier] = channelConfig;
