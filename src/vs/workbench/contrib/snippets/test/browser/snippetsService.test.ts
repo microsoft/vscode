@@ -1026,7 +1026,7 @@ suite('SnippetsService', function () {
 		assert.strictEqual(completions.items[0].editStart.column, 5);
 	});
 
-	test.skip('Autocomplete suggests based on the last letter of a word and it depends on the typing speed #191070', async function () {
+	test('Autocomplete suggests based on the last letter of a word and it depends on the typing speed #191070', async function () {
 		snippetService = new SimpleSnippetService([
 			new Snippet(false, ['fooLang'], '/whiletrue', '/whiletrue', '', 'one', '', SnippetSource.User, generateUuid()),
 			new Snippet(false, ['fooLang'], '/sc not expanding', '/sc not expanding', '', 'two', '', SnippetSource.User, generateUuid()),
