@@ -1293,12 +1293,10 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages: string[] = [];
-
+		let icon = breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular;
 		if (!breakpoint.supported) {
-			return {
-				icon: icons.debugBreakpointUnsupported,
-				message: localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"),
-			};
+			icon = icons.debugBreakpointUnsupported;
+			messages.push(localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"));
 		}
 
 		if (breakpoint.logMessage) {
@@ -1312,7 +1310,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		}
 
 		return {
-			icon: breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular,
+			icon,
 			message: appendMessage(messages.join('\n'))
 		};
 	}
