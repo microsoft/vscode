@@ -319,7 +319,16 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private layoutTree(): void {
 		const scrollBarHeight = 10;
-		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight);
+		let maxHeightToAvoidCursorOverlay = Infinity;
+		if (this.showAtPosition) {
+			const editorTop = this.editor.getDomNode()?.offsetTop || 0;
+			const containerTop = this.treeContainer.offsetTop + editorTop;
+			const hoveredCharTop = this.editor.getTopForLineNumber(this.showAtPosition.lineNumber, true) - this.editor.getScrollTop();
+			if (containerTop < hoveredCharTop) {
+				maxHeightToAvoidCursorOverlay = hoveredCharTop + editorTop - 22; // 22 is monaco top padding https://github.com/microsoft/vscode/blob/a1df2d7319382d42f66ad7f411af01e4cc49c80a/src/vs/editor/browser/viewParts/contentWidgets/contentWidgets.ts#L364
+			}
+		}
+		const treeHeight = Math.min(Math.max(266, this.editor.getLayoutInfo().height * 0.55), this.tree.contentHeight + scrollBarHeight, maxHeightToAvoidCursorOverlay);
 
 		const realTreeWidth = this.tree.contentWidth;
 		const treeWidth = clamp(realTreeWidth, 400, 550);
