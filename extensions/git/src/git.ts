@@ -1049,7 +1049,11 @@ export class Repository {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
-			args.push('--shortstat', '--diff-merges=first-parent');
+			args.push('--shortstat');
+
+			if (this._git.compareGitVersionTo('2.31') !== -1) {
+				args.push('--diff-merges=first-parent');
+			}
 		}
 
 		if (options?.reverse) {
