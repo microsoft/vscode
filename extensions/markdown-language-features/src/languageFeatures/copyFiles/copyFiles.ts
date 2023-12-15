@@ -153,7 +153,7 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 		['documentRelativeDirName', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentDirName.path) : documentDirName.path], // Absolute parent directory path
 		['documentFileName', documentBaseName], // Full filename: file.md
 		['documentBaseName', documentBaseName.slice(0, documentBaseName.length - documentExtName.length)], // Just the name: file
-		['documentExtName', documentExtName.replace('.', '')], // Just the file ext: md
+		['documentExtName', documentExtName.replace('.', '')], // The document ext (without dot): md
 		['documentFilePath', documentUri.path], // Full document path
 		['documentRelativeFilePath', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentUri.path) : documentUri.path], // Full document path relative to workspace
 
@@ -162,18 +162,28 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 
 		// File
 		['fileName', fileName], // Full file name
+		['fileExtName', path.extname(fileName).replace('.', '')], // File extension (without dot): png
 	]);
 
-	return outDest.replaceAll(/\$\{(\w+)(?:\/([^\}]+?)\/([^\}]+?)\/)?\}/g, (match, name, pattern, replacement) => {
+	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}])+?)\/(?<replacement>(?:\\\/|[^\}])+?)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {
+		if (groups?.['escape']) {
+			return '$';
+		}
+
 		const entry = vars.get(name);
-		if (!entry) {
+		if (typeof entry !== 'string') {
 			return match;
 		}
 
 		if (pattern && replacement) {
-			return entry.replace(new RegExp(pattern), replacement);
+			return entry.replace(new RegExp(replaceTransformEscapes(pattern)), replaceTransformEscapes(replacement));
 		}
 
 		return entry;
 	});
 }
+
+function replaceTransformEscapes(str: string): string {
+	return str.replaceAll(/\\\//g, '/');
+}
+
