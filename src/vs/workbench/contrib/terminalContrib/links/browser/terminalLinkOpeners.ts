@@ -108,7 +108,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// - Grep output: <link>:<result line>
 		// This only happens when the colon is _not_ followed by a forward- or back-slash as that
 		// would break absolute Windows paths (eg. `C:/Users/...`).
-		text = text.replace(/:[^\\/\d][^\d]+$/, '');
+		text = text.replace(/:[^\\/\d][^\d]*$/, '');
 
 		// Remove any trailing periods after the line/column numbers, to prevent breaking the search feature, #200257
 		// Examples:
