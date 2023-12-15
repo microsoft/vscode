@@ -59,6 +59,7 @@ async function getClient(instrumentationKey: string, addInternalFlag?: boolean, 
 			envelope['ext']['utc'] = envelope['ext']['utc'] ?? {};
 			// Sets it to be internal only based on Windows UTC flagging
 			envelope['ext']['utc']['flags'] = 0x0000811ECD;
+			envelope['ext']['web']['consentDetails'] = '{"GPC_DataSharingOptIn":false}';
 		}
 	});
 
