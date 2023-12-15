@@ -558,26 +558,10 @@ const findArgDescription = {
 			properties: {
 				searchString: { type: 'string' },
 				replaceString: { type: 'string' },
-				regex: { type: 'boolean' },
-				regexOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.isRegexOverride', 'Overrides "Use Regular Expression" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
-				wholeWord: { type: 'boolean' },
-				wholeWordOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.wholeWordOverride', 'Overrides "Match Whole Word" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
-				matchCase: { type: 'boolean' },
-				matchCaseOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.matchCaseOverride', 'Overrides "Math Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
+				isRegex: { type: 'boolean' },
+				matchWholeWord: { type: 'boolean' },
+				isCaseSensitive: { type: 'boolean' },
 				preserveCase: { type: 'boolean' },
-				preserveCaseOverride: {
-					type: 'number',
-					description: nls.localize('actions.find.preserveCaseOverride', 'Overrides "Preserve Case" flag.\nThe flag will not be saved for the future.\n0: Do Nothing\n1: True\n2: False')
-				},
 				findInSelection: { type: 'boolean' },
 			}
 		}

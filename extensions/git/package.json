@@ -835,7 +835,7 @@
         },
         {
           "command": "git.closeOtherRepositories",
-          "when": "false"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.refresh",

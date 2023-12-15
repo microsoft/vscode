@@ -4131,7 +4131,7 @@ declare namespace monaco.editor {
 		readonly minimapCanvasOuterHeight: number;
 	}
 
-	export enum ShowAiIconMode {
+	export enum ShowLightbulbIconMode {
 		Off = 'off',
 		OnCode = 'onCode',
 		On = 'on'
@@ -4143,15 +4143,12 @@ declare namespace monaco.editor {
 	export interface IEditorLightbulbOptions {
 		/**
 		 * Enable the lightbulb code action.
-		 * Defaults to true.
+		 * The three possible values are `off`, `on` and `onCode` and the default is `onCode`.
+		 * `off` disables the code action menu.
+		 * `on` shows the code action menu on code and on empty lines.
+		 * `onCode` shows the code action menu on code only.
 		 */
-		enabled?: boolean;
-		experimental?: {
-			/**
-			 * Highlight AI code actions with AI icon
-			 */
-			showAiIcon?: ShowAiIconMode;
-		};
+		enabled?: ShowLightbulbIconMode;
 	}
 
 	export interface IEditorStickyScrollOptions {
