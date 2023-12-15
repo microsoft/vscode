@@ -319,10 +319,26 @@ export interface IQuickPickDidAcceptEvent {
 	inBackground: boolean;
 }
 
+/**
+ * Represents the activation behavior for items in a quick input. This means which item will be
+ * "active" (aka focused).
+ */
 export enum ItemActivation {
+	/**
+	 * No item will be active.
+	 */
 	NONE,
+	/**
+	 * First item will be active.
+	 */
 	FIRST,
+	/**
+	 * Second item will be active.
+	 */
 	SECOND,
+	/**
+	 * Last item will be active.
+	 */
 	LAST
 }
 
@@ -450,11 +466,6 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	sortByLabel: boolean;
 
 	/**
-	 * Whether to autofocus on the list.
-	 */
-	autoFocusOnList: boolean;
-
-	/**
 	 * Whether to keep the scroll position when the quick pick input is updated.
 	 */
 	keepScrollPosition: boolean;
@@ -475,7 +486,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	readonly onDidChangeActive: Event<T[]>;
 
 	/**
-	 * The item activation behavior.
+	 * The item activation behavior for the next time `items` is set. Item activation means which
+	 * item is "active" (aka focused) when the quick pick is opened or when `items` is set.
 	 */
 	itemActivation: ItemActivation;
 
