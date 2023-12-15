@@ -167,13 +167,13 @@ class ColorRegistry implements IColorRegistry {
 		if (needsTransparency) {
 			propertySchemaForSetting.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
 			propertySchemaForSetting.patternErrorMessage = 'This color must be transparent or it will obscure content';
-			if (propertySchemaForTheme.anyOf) {
-				propertySchemaForTheme.anyOf[1] = {
-					...propertySchemaForTheme.anyOf[1],
-					pattern: '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$',
-					patternErrorMessage: 'This color must be transparent or it will obscure content'
-				};
-			}
+
+			propertySchemaForTheme.anyOf![1] = {
+				...propertySchemaForTheme.anyOf![1],
+				pattern: '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$',
+				patternErrorMessage: 'This color must be transparent or it will obscure content'
+			};
+
 		}
 
 		this.colorReferenceSchema.enum.push(id);
