@@ -27,6 +27,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -144,7 +145,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
-			zoomLevel: getZoomLevel(),
+			zoomLevel: getZoomLevel(mainWindow),
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
 			restrictedMode: !this.workspaceTrustManagementService.isWorkspaceTrusted(),
@@ -158,7 +159,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
 			pid: this.environmentService.mainPid,
-			zoomLevel: getZoomLevel(),
+			zoomLevel: getZoomLevel(mainWindow),
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),
 				color: getColor(theme, editorForeground),

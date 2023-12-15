@@ -1700,6 +1700,10 @@ declare namespace monaco.editor {
 		 */
 		linesDecorationsClassName?: string | null;
 		/**
+		 * Controls the tooltip text of the line decoration.
+		 */
+		linesDecorationsTooltip?: string | null;
+		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 		 */
 		firstLineDecorationClassName?: string | null;

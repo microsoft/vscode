@@ -28,8 +28,7 @@ import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
 import { Direction } from 'vs/base/browser/ui/menu/menu';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { isFullscreen } from 'vs/base/browser/browser';
+import { isFullscreen, onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -398,7 +397,6 @@ export class CustomMenubarControl extends MenubarControl {
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IHostService hostService: IHostService,
 		@ICommandService commandService: ICommandService
@@ -535,7 +533,7 @@ export class CustomMenubarControl extends MenubarControl {
 			enableMenuBarMnemonics = true;
 		}
 
-		return enableMenuBarMnemonics && (!isWeb || isFullscreen());
+		return enableMenuBarMnemonics && (!isWeb || isFullscreen(mainWindow));
 	}
 
 	private get currentCompactMenuMode(): Direction | undefined {
@@ -798,7 +796,11 @@ export class CustomMenubarControl extends MenubarControl {
 
 		// Mnemonics require fullscreen in web
 		if (isWeb) {
-			this._register(this.layoutService.onDidChangeFullscreen(e => this.updateMenubar()));
+			this._register(onDidChangeFullscreen(windowId => {
+				if (windowId === mainWindow.vscodeWindowId) {
+					this.updateMenubar();
+				}
+			}));
 			this._register(this.webNavigationMenu.onDidChange(() => this.updateMenubar()));
 		}
 	}

@@ -144,7 +144,7 @@ export class TestingExplorerView extends ViewPane {
 	 * Gets include/exclude items in the tree, based either on visible tests
 	 * or a use selection.
 	 */
-	public getTreeIncludeExclude(profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
+	public getTreeIncludeExclude(withinItems?: InternalTestItem[], profile?: ITestRunProfile, filterToType: 'visible' | 'selected' = 'visible') {
 		const projection = this.viewModel.projection.value;
 		if (!projection) {
 			return { include: [], exclude: [] };
@@ -215,7 +215,7 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		for (const root of this.testService.collection.rootItems) {
+		for (const root of withinItems || this.testService.collection.rootItems) {
 			const element = projection.getElementByTestId(root.item.extId);
 			if (!element) {
 				continue;
@@ -328,7 +328,7 @@ export class TestingExplorerView extends ViewPane {
 					undefined,
 					undefined,
 					() => {
-						const { include, exclude } = this.getTreeIncludeExclude(profile);
+						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
 							targets: [{

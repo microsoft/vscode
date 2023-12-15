@@ -444,7 +444,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		}
 
 		let { top, left } = placement;
-		if (!alignAtTop) {
+		if (!alignAtTop && height > anchorBox.height) {
 			top = bottom - height;
 		}
 		const editorDomNode = this._editor.getDomNode();

@@ -6,7 +6,7 @@
 import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -23,7 +23,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
 import { getActiveWindow } from 'vs/base/browser/dom';
@@ -74,7 +74,7 @@ abstract class BaseZoomAction extends Action2 {
 		super(desc);
 	}
 
-	protected async setConfiguredZoomLevel(accessor: ServicesAccessor, level: number): Promise<void> {
+	protected async setZoomLevel(accessor: ServicesAccessor, level: number, target: ApplyZoomTarget): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
@@ -83,21 +83,23 @@ abstract class BaseZoomAction extends Action2 {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
-		await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		if (target === ApplyZoomTarget.ALL_WINDOWS) {
+			await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		}
 
-		applyZoom(level);
+		applyZoom(level, target);
 	}
 }
 
-export class ZoomInAction extends BaseZoomAction {
+export class ZoomInAllWindowsAction extends BaseZoomAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.zoomIn',
 			title: {
-				value: localize('zoomIn', "Zoom In"),
+				value: localize('zoomIn', "Zoom In (All Windows)"),
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
-				original: 'Zoom In'
+				original: 'Zoom In (All Windows)'
 			},
 			category: Categories.View,
 			f1: true,
@@ -115,19 +117,19 @@ export class ZoomInAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() + 1);
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) + 1, ApplyZoomTarget.ALL_WINDOWS);
 	}
 }
 
-export class ZoomOutAction extends BaseZoomAction {
+export class ZoomOutAllWindowsAction extends BaseZoomAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.zoomOut',
 			title: {
-				value: localize('zoomOut', "Zoom Out"),
+				value: localize('zoomOut', "Zoom Out (All Windows)"),
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
-				original: 'Zoom Out'
+				original: 'Zoom Out (All Windows)'
 			},
 			category: Categories.View,
 			f1: true,
@@ -149,19 +151,19 @@ export class ZoomOutAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() - 1);
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) - 1, ApplyZoomTarget.ALL_WINDOWS);
 	}
 }
 
-export class ZoomResetAction extends BaseZoomAction {
+export class ZoomResetAllWindowsAction extends BaseZoomAction {
 
 	constructor() {
 		super({
 			id: 'workbench.action.zoomReset',
 			title: {
-				value: localize('zoomReset', "Reset Zoom"),
+				value: localize('zoomReset', "Reset Zoom (All Windows)"),
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
-				original: 'Reset Zoom'
+				original: 'Reset Zoom (All Windows)'
 			},
 			category: Categories.View,
 			f1: true,
@@ -178,7 +180,82 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, 0);
+		return super.setZoomLevel(accessor, 0, ApplyZoomTarget.ALL_WINDOWS);
+	}
+}
+
+export class ZoomInActiveWindowAction extends BaseZoomAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.zoomInActiveWindow',
+			title: {
+				value: localize('zoomInActiveWindow', "Zoom In (Active Window)"),
+				original: 'Zoom In (Active Window)'
+			},
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
+				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.NumpadAdd)]
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) + 1, ApplyZoomTarget.ACTIVE_WINDOW);
+	}
+}
+
+export class ZoomOutActiveWindowAction extends BaseZoomAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.zoomOutActiveWindow',
+			title: {
+				value: localize('zoomOutActiveWindow', "Zoom Out (Active Window)"),
+				original: 'Zoom Out (Active Window)'
+			},
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Minus),
+				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.NumpadSubtract)],
+				linux: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Minus),
+					secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.NumpadSubtract)]
+				}
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) - 1, ApplyZoomTarget.ACTIVE_WINDOW);
+	}
+}
+
+export class ZoomResetActiveWindowAction extends BaseZoomAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.zoomResetActiveWindow',
+			title: {
+				value: localize('zoomResetActiveWindow', "Reset Zoom (Active Window)"),
+				original: 'Reset Zoom (Active Window)'
+			},
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Numpad0)
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		return super.setZoomLevel(accessor, 0, ApplyZoomTarget.ACTIVE_WINDOW);
 	}
 }
 

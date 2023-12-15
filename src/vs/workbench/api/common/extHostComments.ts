@@ -673,6 +673,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			checkProposedApiEnabled(extension, 'commentsDraftState');
 		}
 
+		if (vscodeComment.reactions?.some(reaction => reaction.reactors !== undefined)) {
+			checkProposedApiEnabled(extension, 'commentReactor');
+		}
+
 		return {
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
@@ -693,6 +697,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
 			count: reaction.count,
 			hasReacted: reaction.authorHasReacted,
+			reactors: reaction.reactors
 		};
 	}
 
@@ -701,7 +706,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			label: reaction.label || '',
 			count: reaction.count || 0,
 			iconPath: reaction.iconPath ? URI.revive(reaction.iconPath) : '',
-			authorHasReacted: reaction.hasReacted || false
+			authorHasReacted: reaction.hasReacted || false,
+			reactors: reaction.reactors
 		};
 	}
 

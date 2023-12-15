@@ -70,7 +70,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		@IViewsService private readonly _viewsService: IViewsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
-		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true });
+		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
