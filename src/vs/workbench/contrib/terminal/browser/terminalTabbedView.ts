@@ -24,7 +24,7 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
 

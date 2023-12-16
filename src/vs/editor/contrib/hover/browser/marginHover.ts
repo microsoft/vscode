@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { asArray } from 'vs/base/common/arrays';
 import { IMarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/languages/language';

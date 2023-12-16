@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';

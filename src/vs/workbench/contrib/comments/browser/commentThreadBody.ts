@@ -15,7 +15,7 @@ import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';

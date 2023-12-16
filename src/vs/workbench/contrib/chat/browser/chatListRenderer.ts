@@ -28,7 +28,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';

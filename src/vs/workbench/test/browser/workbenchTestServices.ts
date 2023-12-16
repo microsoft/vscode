@@ -162,7 +162,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { EnablementState, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { InstallVSIXOptions, ILocalExtension, IGalleryExtension, InstallOptions, IExtensionIdentifier, UninstallOptions, IExtensionsControlManifest, IGalleryMetadata, IExtensionManagementParticipant, Metadata, InstallExtensionResult, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/platform/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';

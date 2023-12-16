@@ -45,7 +45,7 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Event } from 'vs/base/common/event';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 

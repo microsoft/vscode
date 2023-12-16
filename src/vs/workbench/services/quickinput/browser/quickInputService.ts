@@ -14,7 +14,7 @@ import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinp
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { InQuickPickContextKey } from 'vs/workbench/browser/quickaccess';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export class QuickInputService extends BaseQuickInputService {
