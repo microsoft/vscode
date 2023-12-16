@@ -3719,7 +3719,7 @@ export class CommandCenter {
 			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
-			return result?.catch(err => {
+			return result.catch(err => {
 				const options: MessageOptions = {
 					modal: true
 				};
