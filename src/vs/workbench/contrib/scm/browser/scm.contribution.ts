@@ -267,7 +267,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('inputMinLines', "Controls the minimum number of lines that the input will auto-grow from."),
 			minimum: 1,
 			maximum: 50,
-			default: 3
+			default: 1
 		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
