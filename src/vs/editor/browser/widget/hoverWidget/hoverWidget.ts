@@ -23,6 +23,7 @@ import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { status } from 'vs/base/browser/ui/aria/aria';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 const $ = dom.$;
 type TargetRect = {
@@ -41,7 +42,7 @@ const enum Constants {
 	HoverWindowEdgeMargin = 2,
 }
 
-export class HoverWidget extends Widget {
+export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _lockMouseTracker: CompositeMouseTracker;
 
