@@ -27,7 +27,7 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
+import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -449,7 +449,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			...this._xterm.getXtermTheme(),
 			background: isHovering
 				? theme.getColor(terminalStickyScrollHoverBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString()
-				: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
+				: theme.getColor(terminalStickyScrollBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};

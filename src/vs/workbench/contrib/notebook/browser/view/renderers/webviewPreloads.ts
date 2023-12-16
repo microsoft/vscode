@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly lineLimit: number;
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
+	readonly linkifyFilePaths: boolean;
 }
 
 interface PreloadContext {
@@ -1696,6 +1697,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get lineLimit() { return currentRenderOptions.lineLimit; },
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
+					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};

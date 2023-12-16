@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined, isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
@@ -18,10 +20,13 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
+
+const MultiDiffEditorIcon = registerIcon('multi-diff-editor-label-icon', Codicon.diffMultiple, localize('multiDiffEditorLabelIcon', 'Icon of the multi diff editor label.'));
 
 /* hot-reload:patch-prototype-methods */
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
@@ -47,6 +52,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 	override get editorId(): string {
 		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
+	override getIcon(): ThemeIcon {
+		return MultiDiffEditorIcon;
 	}
 
 	constructor(

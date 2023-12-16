@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/6666eb1d5e6fb565a4110d6db645cc534fb3c6d2",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/7bf5709ac1a713e340a618d1b41f44a043e393c6",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -232,7 +232,7 @@
 					"include": "#try-statement"
 				},
 				{
-					"include": "#checked-unchecked-statement"
+					"include": "#expression-operator-expression"
 				},
 				{
 					"include": "#context-control-statement"
@@ -3824,7 +3824,7 @@
 		},
 		"char-character-escape": {
 			"name": "constant.character.escape.cs",
-			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4})"
+			"match": "\\\\(x[0-9a-fA-F]{1,4}|u[0-9a-fA-F]{4}|.)"
 		},
 		"string-literal": {
 			"name": "string.quoted.double.cs",
@@ -3851,7 +3851,7 @@
 		},
 		"string-character-escape": {
 			"name": "constant.character.escape.cs",
-			"match": "\\\\(['\"\\\\0abfnrtv]|x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4})"
+			"match": "\\\\(x[0-9a-fA-F]{1,4}|U[0-9a-fA-F]{8}|u[0-9a-fA-F]{4}|.)"
 		},
 		"verbatim-string-literal": {
 			"name": "string.quoted.double.cs",

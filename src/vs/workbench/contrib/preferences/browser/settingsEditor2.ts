@@ -407,7 +407,9 @@ export class SettingsEditor2 extends EditorPane {
 			const settingsTarget = cachedState.target;
 			this.settingsTargetsWidget.settingsTarget = settingsTarget;
 			this.viewState.settingsTarget = settingsTarget;
-			this.searchWidget.setValue(cachedState.searchQuery);
+			if (!this.searchWidget.getValue()) {
+				this.searchWidget.setValue(cachedState.searchQuery);
+			}
 		}
 
 		if (this.input) {

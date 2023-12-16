@@ -12,7 +12,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
-import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties, pathIncludedInQuery } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -137,17 +137,21 @@ export class NotebookSearchService implements INotebookSearchService {
 		const promises: Promise<{
 			results: INotebookFileMatchNoModel<URI>[];
 			limitHit: boolean;
-		}>[] = [];
+		} | undefined>[] = [];
 
 		contributedNotebookTypes.forEach((notebook) => {
 			promises.push((async () => {
+				const canResolve = await this.notebookService.canResolve(notebook.id);
+				if (!canResolve) {
+					return undefined;
+				}
 				const serializer = (await this.notebookService.withNotebookDataProvider(notebook.id)).serializer;
 				return await serializer.searchInNotebooks(textQuery, token, allPriorityInfo);
 			})());
 		});
 
 		const start = Date.now();
-		const searchComplete = (await Promise.all(promises));
+		const searchComplete = arrays.coalesce(await Promise.all(promises));
 		const results = searchComplete.flatMap(e => e.results);
 		let limitHit = searchComplete.some(e => e.limitHit);
 
@@ -186,6 +190,12 @@ export class NotebookSearchService implements INotebookSearchService {
 				continue;
 			}
 			const askMax = isNumber(query.maxResults) ? query.maxResults + 1 : Number.MAX_SAFE_INTEGER;
+			const uri = widget.viewModel!.uri;
+
+			if (!pathIncludedInQuery(query, uri.fsPath)) {
+				continue;
+			}
+
 			let matches = await widget
 				.find(query.contentPattern.pattern, {
 					regex: query.contentPattern.isRegExp,
@@ -197,7 +207,6 @@ export class NotebookSearchService implements INotebookSearchService {
 					includeOutput: query.contentPattern.notebookInfo?.isInNotebookCellOutput ?? true,
 				}, token, false, true, searchID);
 
-			const uri = widget.viewModel!.uri;
 
 			if (matches.length) {
 				if (askMax && matches.length >= askMax) {
