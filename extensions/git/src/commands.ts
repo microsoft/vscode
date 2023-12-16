@@ -216,6 +216,7 @@ class RepositoryItem implements QuickPickItem {
 
 interface ScmCommandOptions {
 	repository?: boolean;
+	selectedRepositories?: boolean;
 	diff?: boolean;
 }
 
@@ -958,9 +959,11 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.close', { repository: true })
-	async close(repository: Repository): Promise<void> {
-		this.model.close(repository);
+	@command('git.close', { repository: true, selectedRepositories: true })
+	async close(...repositories: Repository[]): Promise<void> {
+		for (const repository of repositories) {
+			this.model.close(repository);
+		}
 	}
 
 	@command('git.closeOtherRepositories', { repository: true })
@@ -3680,28 +3683,32 @@ export class CommandCenter {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
 
-			if (!options.repository) {
+			if (!options.repository && !options.selectedRepositories) {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
-				// try to guess the repository based on the first argument
-				const repository = this.model.getRepository(args[0]);
-				let repositoryPromise: Promise<Repository | undefined>;
+				const repositories = args.map(arg => this.model.getRepository(arg)).filter(r => r !== undefined);
 
-				if (repository) {
-					repositoryPromise = Promise.resolve(repository);
-				} else if (this.model.repositories.length === 1) {
-					repositoryPromise = Promise.resolve(this.model.repositories[0]);
+				if (options.selectedRepositories && repositories?.length >= 1) {
+					result = Promise.resolve(method.apply(this, repositories));
 				} else {
-					repositoryPromise = this.model.pickRepository();
-				}
+					let repositoryPromise: Promise<Repository | undefined>;
 
-				result = repositoryPromise.then(repository => {
-					if (!repository) {
-						return Promise.resolve();
+					if (repositories?.length >= 1) {
+						repositoryPromise = Promise.resolve(repositories[0]);
+					} else if (this.model.repositories.length === 1) {
+						repositoryPromise = Promise.resolve(this.model.repositories[0]);
+					} else {
+						repositoryPromise = this.model.pickRepository();
 					}
 
-					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
-				});
+					result = repositoryPromise.then(repository => {
+						if (!repository) {
+							return Promise.resolve();
+						}
+
+						return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
+					});
+				}
 			}
 
 			/* __GDPR__
@@ -3712,7 +3719,7 @@ export class CommandCenter {
 			*/
 			this.telemetryReporter.sendTelemetryEvent('git.command', { command: id });
 
-			return result.catch(err => {
+			return result?.catch(err => {
 				const options: MessageOptions = {
 					modal: true
 				};
