@@ -52,6 +52,7 @@ export class MenuId {
 	static readonly DebugCallStackContext = new MenuId('DebugCallStackContext');
 	static readonly DebugConsoleContext = new MenuId('DebugConsoleContext');
 	static readonly DebugVariablesContext = new MenuId('DebugVariablesContext');
+	static readonly DebugHoverContext = new MenuId('DebugHoverContext');
 	static readonly DebugWatchContext = new MenuId('DebugWatchContext');
 	static readonly DebugToolBar = new MenuId('DebugToolBar');
 	static readonly DebugToolBarStop = new MenuId('DebugToolBarStop');
@@ -70,6 +71,7 @@ export class MenuId {
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
+	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
 	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
@@ -104,6 +106,7 @@ export class MenuId {
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMInputBox = new MenuId('SCMInputBox');
 	static readonly SCMHistoryItem = new MenuId('SCMHistoryItem');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
@@ -111,6 +114,7 @@ export class MenuId {
 	static readonly SCMResourceFolderContext = new MenuId('SCMResourceFolderContext');
 	static readonly SCMResourceGroupContext = new MenuId('SCMResourceGroupContext');
 	static readonly SCMSourceControl = new MenuId('SCMSourceControl');
+	static readonly SCMSourceControlInline = new MenuId('SCMSourceControlInline');
 	static readonly SCMTitle = new MenuId('SCMTitle');
 	static readonly SearchContext = new MenuId('SearchContext');
 	static readonly SearchActionMenu = new MenuId('SearchActionContext');
@@ -181,6 +185,7 @@ export class MenuId {
 	static readonly TerminalNewDropdownContext = new MenuId('TerminalNewDropdownContext');
 	static readonly TerminalTabContext = new MenuId('TerminalTabContext');
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
+	static readonly TerminalStickyScrollContext = new MenuId('TerminalStickyScrollContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 	static readonly NewFile = new MenuId('NewFile');
@@ -195,6 +200,7 @@ export class MenuId {
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
+	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier

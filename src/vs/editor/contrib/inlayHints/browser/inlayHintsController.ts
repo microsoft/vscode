@@ -156,6 +156,37 @@ export class InlayHintsController implements IEditorContribution {
 			return;
 		}
 
+		if (options.enabled === 'on') {
+			// different "on" modes: always
+			this._activeRenderMode = RenderMode.Normal;
+		} else {
+			// different "on" modes: offUnlessPressed, or onUnlessPressed
+			let defaultMode: RenderMode;
+			let altMode: RenderMode;
+			if (options.enabled === 'onUnlessPressed') {
+				defaultMode = RenderMode.Normal;
+				altMode = RenderMode.Invisible;
+			} else {
+				defaultMode = RenderMode.Invisible;
+				altMode = RenderMode.Normal;
+			}
+			this._activeRenderMode = defaultMode;
+
+			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
+				if (!this._editor.hasModel()) {
+					return;
+				}
+				const newRenderMode = e.altKey && e.ctrlKey && !(e.shiftKey || e.metaKey) ? altMode : defaultMode;
+				if (newRenderMode !== this._activeRenderMode) {
+					this._activeRenderMode = newRenderMode;
+					const model = this._editor.getModel();
+					const copies = this._copyInlayHintsWithCurrentAnchor(model);
+					this._updateHintsDecorators([model.getFullModelRange()], copies);
+					scheduler.schedule(0);
+				}
+			}));
+		}
+
 		// iff possible, quickly update from cache
 		const cached = this._inlayHintsCache.get(model);
 		if (cached) {
@@ -226,41 +257,12 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
+			cts?.cancel();
+
 			// update less aggressive when typing
 			const delay = Math.max(scheduler.delay, 1250);
 			scheduler.schedule(delay);
 		}));
-
-		if (options.enabled === 'on') {
-			// different "on" modes: always
-			this._activeRenderMode = RenderMode.Normal;
-		} else {
-			// different "on" modes: offUnlessPressed, or onUnlessPressed
-			let defaultMode: RenderMode;
-			let altMode: RenderMode;
-			if (options.enabled === 'onUnlessPressed') {
-				defaultMode = RenderMode.Normal;
-				altMode = RenderMode.Invisible;
-			} else {
-				defaultMode = RenderMode.Invisible;
-				altMode = RenderMode.Normal;
-			}
-			this._activeRenderMode = defaultMode;
-
-			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
-				if (!this._editor.hasModel()) {
-					return;
-				}
-				const newRenderMode = e.altKey && e.ctrlKey && !(e.shiftKey || e.metaKey) ? altMode : defaultMode;
-				if (newRenderMode !== this._activeRenderMode) {
-					this._activeRenderMode = newRenderMode;
-					const model = this._editor.getModel();
-					const copies = this._copyInlayHintsWithCurrentAnchor(model);
-					this._updateHintsDecorators([model.getFullModelRange()], copies);
-					scheduler.schedule(0);
-				}
-			}));
-		}
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installDblClickGesture(() => scheduler.schedule(0)));
@@ -553,15 +555,12 @@ export class InlayHintsController implements IEditorContribution {
 		// collect all decoration ids that are affected by the ranges
 		// and only update those decorations
 		const decorationIdsToReplace: string[] = [];
-		for (const range of ranges) {
-
-			for (const { id } of this._editor.getDecorationsInRange(range) ?? []) {
-				const metadata = this._decorationsMetadata.get(id);
-				if (metadata) {
-					decorationIdsToReplace.push(id);
-					metadata.classNameRef.dispose();
-					this._decorationsMetadata.delete(id);
-				}
+		for (const [id, metadata] of this._decorationsMetadata) {
+			const range = this._editor.getModel()?.getDecorationRange(id);
+			if (range && ranges.some(r => r.containsRange(range))) {
+				decorationIdsToReplace.push(id);
+				metadata.classNameRef.dispose();
+				this._decorationsMetadata.delete(id);
 			}
 		}
 

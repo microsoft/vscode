@@ -63,12 +63,15 @@ export function registerClearActions() {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
 					when: CONTEXT_IN_CHAT_SESSION
+				},
+				menu: {
+					id: MenuId.ChatContext,
+					group: 'z_clear'
 				}
 			});
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			announceChatCleared(accessor);
 			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -76,7 +79,9 @@ export function registerClearActions() {
 				return;
 			}
 
+			announceChatCleared(accessor);
 			widget.clear();
+			widget.focusInput();
 		}
 	});
 }
@@ -89,7 +94,7 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
 		group: 'navigation',
-		order: 0
+		order: -1
 	},
 	precondition: CONTEXT_PROVIDER_EXISTS,
 	category: CHAT_CATEGORY,
@@ -106,6 +111,7 @@ export function getClearAction(viewId: string, providerId: string) {
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
 			announceChatCleared(accessor);
 			await view.clear();
+			view.widget.focusInput();
 		}
 	};
 }

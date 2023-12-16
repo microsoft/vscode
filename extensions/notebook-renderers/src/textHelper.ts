@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { handleANSIOutput } from './ansi';
+import { LinkOptions } from './linkify';
 import { OutputElementOptions, OutputWithAppend } from './rendererTypes';
 export const scrollableClass = 'scrollable';
 
@@ -68,44 +69,44 @@ function generateNestedViewAllElement(outputId: string) {
 	return container;
 }
 
-function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, trustHtml: boolean) {
+function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, linkOptions: LinkOptions) {
 	const container = document.createElement('div');
 	const lineCount = buffer.length;
 
 	if (lineCount <= linesLimit) {
-		const spanElement = handleANSIOutput(buffer.join('\n'), trustHtml);
+		const spanElement = handleANSIOutput(buffer.join('\n'), linkOptions);
 		container.appendChild(spanElement);
 		return container;
 	}
 
-	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), trustHtml));
+	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), linkOptions));
 
 	// truncated piece
 	const elipses = document.createElement('div');
 	elipses.innerText = '...';
 	container.appendChild(elipses);
 
-	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), trustHtml));
+	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), linkOptions));
 
 	container.appendChild(generateViewMoreElement(id));
 
 	return container;
 }
 
-function scrollableArrayOfString(id: string, buffer: string[], trustHtml: boolean) {
+function scrollableArrayOfString(id: string, buffer: string[], linkOptions: LinkOptions) {
 	const element = document.createElement('div');
 	if (buffer.length > softScrollableLineLimit) {
 		element.appendChild(generateNestedViewAllElement(id));
 	}
 
-	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), trustHtml));
+	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), linkOptions));
 
 	return element;
 }
 
 const outputLengths: Record<string, number> = {};
 
-function appendScrollableOutput(element: HTMLElement, id: string, appended: string, trustHtml: boolean) {
+function appendScrollableOutput(element: HTMLElement, id: string, appended: string, linkOptions: LinkOptions) {
 	if (!outputLengths[id]) {
 		outputLengths[id] = 0;
 	}
@@ -117,22 +118,23 @@ function appendScrollableOutput(element: HTMLElement, id: string, appended: stri
 		return false;
 	}
 	else {
-		element.appendChild(handleANSIOutput(buffer.join('\n'), trustHtml));
+		element.appendChild(handleANSIOutput(buffer.join('\n'), linkOptions));
 		outputLengths[id] = appendedLength;
 	}
 	return true;
 }
 
 export function createOutputContent(id: string, outputText: string, options: OutputElementOptions): HTMLElement {
-	const { linesLimit, error, scrollable, trustHtml } = options;
+	const { linesLimit, error, scrollable, trustHtml, linkifyFilePaths } = options;
+	const linkOptions: LinkOptions = { linkifyFilePaths, trustHtml };
 	const buffer = outputText.split(/\r\n|\r|\n/g);
 	outputLengths[id] = outputLengths[id] = Math.min(buffer.length, softScrollableLineLimit);
 
 	let outputElement: HTMLElement;
 	if (scrollable) {
-		outputElement = scrollableArrayOfString(id, buffer, !!trustHtml);
+		outputElement = scrollableArrayOfString(id, buffer, linkOptions);
 	} else {
-		outputElement = truncatedArrayOfString(id, buffer, linesLimit, !!trustHtml);
+		outputElement = truncatedArrayOfString(id, buffer, linesLimit, linkOptions);
 	}
 
 	outputElement.setAttribute('output-item-id', id);
@@ -145,9 +147,10 @@ export function createOutputContent(id: string, outputText: string, options: Out
 
 export function appendOutput(outputInfo: OutputWithAppend, existingContent: HTMLElement, options: OutputElementOptions) {
 	const appendedText = outputInfo.appendedText?.();
+	const linkOptions = { linkifyFilePaths: options.linkifyFilePaths, trustHtml: options.trustHtml };
 	// appending output only supported for scrollable ouputs currently
 	if (appendedText && options.scrollable) {
-		if (appendScrollableOutput(existingContent, outputInfo.id, appendedText, false)) {
+		if (appendScrollableOutput(existingContent, outputInfo.id, appendedText, linkOptions)) {
 			return;
 		}
 	}

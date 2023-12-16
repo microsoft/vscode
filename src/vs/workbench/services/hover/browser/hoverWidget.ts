@@ -22,7 +22,6 @@ import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { status } from 'vs/base/browser/ui/aria/aria';
-import { mainWindow } from 'vs/base/browser/window';
 
 const $ = dom.$;
 type TargetRect = {
@@ -61,10 +60,10 @@ export class HoverWidget extends Widget {
 	private _addedFocusTrap: boolean = false;
 
 	private get _targetWindow(): Window {
-		return this._target.targetElements?.[0].ownerDocument.defaultView || mainWindow;
+		return dom.getWindow(this._target.targetElements[0]);
 	}
 	private get _targetDocumentElement(): HTMLElement {
-		return this._target.targetElements?.[0].ownerDocument.documentElement;
+		return dom.getWindow(this._target.targetElements[0]).document.documentElement;
 	}
 
 	get isDisposed(): boolean { return this._isDisposed; }
@@ -303,7 +302,8 @@ export class HoverWidget extends Widget {
 
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
-		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
+		const hoverFocused = this._hoverContainer.contains(this._hoverContainer.ownerDocument.activeElement);
+		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
 		if (accessibleViewHint) {
 
 			status(accessibleViewHint);

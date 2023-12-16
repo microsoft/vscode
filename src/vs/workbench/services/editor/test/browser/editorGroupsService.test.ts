@@ -431,7 +431,7 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(rootGroup.count, 1);
 
-		const result = part.mergeAllGroups();
+		const result = part.mergeAllGroups(part.activeGroup);
 		assert.strictEqual(result.id, rootGroup.id);
 		assert.strictEqual(rootGroup.count, 3);
 
@@ -1701,12 +1701,12 @@ suite('EditorGroupsService', () => {
 		rightGroupListener.dispose();
 	});
 
-	test('locked groups - single group is never locked', async () => {
+	test('locked groups - single group is can be locked', async () => {
 		const [part] = await createPart();
 		const group = part.activeGroup;
 
 		group.lock(true);
-		assert.strictEqual(group.isLocked, false);
+		assert.strictEqual(group.isLocked, true);
 
 		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
 		rightGroup.lock(true);
@@ -1714,7 +1714,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rightGroup.isLocked, true);
 
 		part.removeGroup(group);
-		assert.strictEqual(rightGroup.isLocked, false);
+		assert.strictEqual(rightGroup.isLocked, true);
 
 		const rightGroup2 = part.addGroup(rightGroup, GroupDirection.RIGHT);
 		rightGroup.lock(true);
@@ -1725,7 +1725,7 @@ suite('EditorGroupsService', () => {
 
 		part.removeGroup(rightGroup2);
 
-		assert.strictEqual(rightGroup.isLocked, false);
+		assert.strictEqual(rightGroup.isLocked, true);
 	});
 
 	test('locked groups - auto locking via setting', async () => {

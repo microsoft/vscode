@@ -27,7 +27,26 @@ const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellA
 const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
 const INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertMarkdownCellAtTop';
 
-abstract class InsertCellCommand extends NotebookAction {
+export function insertNewCell(accessor: ServicesAccessor, context: INotebookActionContext, kind: CellKind, direction: 'above' | 'below', focusEditor: boolean) {
+	let newCell: CellViewModel | null = null;
+	if (context.ui) {
+		context.notebookEditor.focus();
+	}
+
+	const languageService = accessor.get(ILanguageService);
+	if (context.cell) {
+		const idx = context.notebookEditor.getCellIndex(context.cell);
+		newCell = insertCell(languageService, context.notebookEditor, idx, kind, direction, undefined, true);
+	} else {
+		const focusRange = context.notebookEditor.getFocus();
+		const next = Math.max(focusRange.end - 1, 0);
+		newCell = insertCell(languageService, context.notebookEditor, next, kind, direction, undefined, true);
+	}
+
+	return newCell;
+}
+
+export abstract class InsertCellCommand extends NotebookAction {
 	constructor(
 		desc: Readonly<IAction2Options>,
 		private kind: CellKind,
@@ -38,20 +57,7 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		let newCell: CellViewModel | null = null;
-		if (context.ui) {
-			context.notebookEditor.focus();
-		}
-
-		const languageService = accessor.get(ILanguageService);
-		if (context.cell) {
-			const idx = context.notebookEditor.getCellIndex(context.cell);
-			newCell = insertCell(languageService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
-		} else {
-			const focusRange = context.notebookEditor.getFocus();
-			const next = Math.max(focusRange.end - 1, 0);
-			newCell = insertCell(languageService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
-		}
+		const newCell = await insertNewCell(accessor, context, this.kind, this.direction, this.focusEditor);
 
 		if (newCell) {
 			await context.notebookEditor.focusNotebookCell(newCell, this.focusEditor ? 'editor' : 'container');

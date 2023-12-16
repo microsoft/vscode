@@ -11,6 +11,7 @@ import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { CancellationError } from 'vs/base/common/errors';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -19,6 +20,8 @@ function assertToJSON(a: any, expected: any) {
 }
 
 suite('ExtHostTypes', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('URI, toJSON', function () {
 
@@ -553,11 +556,38 @@ suite('ExtHostTypes', function () {
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,$boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
 		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa$aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa$aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa,aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\,aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa|aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\|aaa|}bbb\\$bbb');
+		}
+		{
+			const s = new types.SnippetString();
+			s.appendChoice(["aaa\\aaa"]);
+			s.appendText("bbb$bbb");
+			assert.strictEqual(s.value, '${1|aaa\\\\aaa|}bbb\\$bbb');
+		}
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {

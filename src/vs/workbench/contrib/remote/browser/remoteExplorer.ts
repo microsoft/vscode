@@ -223,7 +223,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 	private listenForPorts() {
 		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid() && this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS) {
 			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
-				if (this.procForwarder?.forwarded && this.procForwarder.forwarded.size > 20) {
+				if (Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.source.source === TunnelSource.Auto).length > 20) {
 					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
 					this.notificationService.notify({
 						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings. Some ports may no longer be detected."),
@@ -385,8 +385,11 @@ class OnAutoForwardedAction extends Disposable {
 		});
 	}
 
-	private basicMessage(tunnel: RemoteTunnel) {
-		return nls.localize('remote.tunnelsView.automaticForward', "Your application running on port {0} is available.  ",
+	private async basicMessage(tunnel: RemoteTunnel) {
+		const properties = await this.remoteExplorerService.tunnelModel.getAttributes([{ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }], false);
+		const label = properties?.get(tunnel.tunnelRemotePort)?.label;
+		return nls.localize('remote.tunnelsView.automaticForward', "Your application{0} running on port {1} is available.  ",
+			label ? ` (${label})` : '',
 			tunnel.tunnelRemotePort);
 	}
 
@@ -402,7 +405,7 @@ class OnAutoForwardedAction extends Disposable {
 		}
 
 		this.lastNotification?.close();
-		let message = this.basicMessage(tunnel);
+		let message = await this.basicMessage(tunnel);
 		const choices = [this.openBrowserChoice(tunnel)];
 		if (!isWeb || openPreviewEnabledContext.getValue(this.contextKeyService)) {
 			choices.push(this.openPreviewChoice(tunnel));
@@ -481,7 +484,7 @@ class OnAutoForwardedAction extends Disposable {
 				this.lastNotification?.close();
 				this.lastShownPort = newTunnel.tunnelRemotePort;
 				this.lastNotification = this.notificationService.prompt(Severity.Info,
-					this.basicMessage(newTunnel) + this.linkMessage(),
+					await this.basicMessage(newTunnel) + this.linkMessage(),
 					[this.openBrowserChoice(newTunnel), this.openPreviewChoice(tunnel)],
 					{ neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 				this.lastNotification.onDidClose(() => {

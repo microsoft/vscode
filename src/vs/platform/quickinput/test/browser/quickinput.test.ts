@@ -18,6 +18,8 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { mainWindow } from 'vs/base/browser/window';
+import { QuickPick } from 'vs/platform/quickinput/browser/quickInput';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -146,7 +148,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with activeItems', async () => {
-		const quickpick = store.add(controller.createQuickPick());
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {
@@ -171,7 +173,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with items', async () => {
-		const quickpick = store.add(controller.createQuickPick());
+		const quickpick = store.add(controller.createQuickPick() as QuickPick<IQuickPickItem>);
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {

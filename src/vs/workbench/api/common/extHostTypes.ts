@@ -1007,7 +1007,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+		const value = values.map(s => s.replaceAll(/[|\\,]/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -1223,6 +1223,25 @@ export class DocumentHighlight {
 		return {
 			range: this.range,
 			kind: DocumentHighlightKind[this.kind]
+		};
+	}
+}
+
+@es5ClassCompat
+export class MultiDocumentHighlight {
+
+	uri: URI;
+	highlights: DocumentHighlight[];
+
+	constructor(uri: URI, highlights: DocumentHighlight[]) {
+		this.uri = uri;
+		this.highlights = highlights;
+	}
+
+	toJSON(): any {
+		return {
+			uri: this.uri,
+			highlights: this.highlights.map(h => h.toJSON())
 		};
 	}
 }
@@ -3798,6 +3817,11 @@ export class NotebookKernelSourceAction {
 	) { }
 }
 
+export enum NotebookVariablesRequestKind {
+	Named = 1,
+	Indexed = 2
+}
+
 //#endregion
 
 //#region Timeline
@@ -3923,12 +3947,10 @@ export class TestTag implements vscode.TestTag {
 //#endregion
 
 //#region Test Coverage
-@es5ClassCompat
 export class CoveredCount implements vscode.CoveredCount {
 	constructor(public covered: number, public total: number) { }
 }
 
-@es5ClassCompat
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
@@ -3972,7 +3994,6 @@ export class FileCoverage implements vscode.FileCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class StatementCoverage implements vscode.StatementCoverage {
 	constructor(
 		public executionCount: number,
@@ -3981,7 +4002,6 @@ export class StatementCoverage implements vscode.StatementCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class BranchCoverage implements vscode.BranchCoverage {
 	constructor(
 		public executionCount: number,
@@ -3989,9 +4009,9 @@ export class BranchCoverage implements vscode.BranchCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class FunctionCoverage implements vscode.FunctionCoverage {
 	constructor(
+		public readonly name: string,
 		public executionCount: number,
 		public location: Position | Range,
 	) { }
@@ -4084,16 +4104,35 @@ export class ChatEditorTabInput {
 }
 //#endregion
 
-//#region Interactive session
+//#region Chat
 
 export enum InteractiveSessionVoteDirection {
 	Down = 0,
 	Up = 1
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	Action = 1,
 	Toolbar = 2
+}
+
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
+export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+	label: string | CompletionItemLabel;
+	insertText?: string;
+	values: vscode.ChatVariableValue[];
+	detail?: string;
+	documentation?: string | MarkdownString;
+
+	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.label = label;
+		this.values = values;
+	}
 }
 
 //#endregion
@@ -4104,7 +4143,8 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 	Undone = 2,
-	Accepted = 3
+	Accepted = 3,
+	Bug = 4
 }
 
 export enum ChatMessageRole {
@@ -4112,12 +4152,6 @@ export enum ChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	Function = 3,
-}
-
-export enum ChatVariableLevel {
-	Short = 1,
-	Medium = 2,
-	Full = 3
 }
 
 export class ChatMessage implements vscode.ChatMessage {

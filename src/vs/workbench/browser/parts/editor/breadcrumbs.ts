@@ -87,7 +87,7 @@ export abstract class BreadcrumbsConfig<T> {
 					}
 				});
 
-				return new class implements BreadcrumbsConfig<T>{
+				return new class implements BreadcrumbsConfig<T> {
 					readonly name = name;
 					readonly onDidChange = onDidChange.event;
 					getValue(overrides?: IConfigurationOverrides): T {

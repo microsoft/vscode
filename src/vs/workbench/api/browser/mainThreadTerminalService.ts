@@ -203,9 +203,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		(await this._getTerminalInstance(id))?.dispose(TerminalExitReason.Extension);
 	}
 
-	public async $sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): Promise<void> {
+	public async $sendText(id: ExtHostTerminalIdentifier, text: string, shouldExecute: boolean): Promise<void> {
 		const instance = await this._getTerminalInstance(id);
-		await instance?.sendText(text, addNewLine);
+		await instance?.sendText(text, shouldExecute);
 	}
 
 	public $sendProcessExit(terminalId: number, exitCode: number | undefined): void {

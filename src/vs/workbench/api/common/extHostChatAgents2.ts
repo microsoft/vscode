@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
@@ -70,7 +70,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
-		setTimeout(() => commandExecution.complete(), 10 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension.identifier, commandExecution.p);
 
 		const slashCommand = request.command
@@ -96,6 +95,11 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 
 					const convertedProgress = typeConvert.ChatResponseProgress.from(agent.extension, progress);
+					if (!convertedProgress) {
+						this._logService.error('Unknown progress type: ' + JSON.stringify(progress));
+						return;
+					}
+
 					if ('placeholder' in progress && 'resolvedContent' in progress) {
 						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(requestId, convertedProgress), progress.resolvedContent]);
 						raceCancellation(resolvedContent, token).then(res => {
@@ -103,7 +107,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 								return; /* Cancelled */
 							}
 							const [progressHandle, progressContent] = res;
-							this._proxy.$handleProgressChunk(requestId, progressContent, progressHandle ?? undefined);
+							const convertedContent = typeConvert.ChatResponseProgress.from(agent.extension, progressContent);
+							if (!convertedContent) {
+								this._logService.error('Unknown progress type: ' + JSON.stringify(progressContent));
+								return;
+							}
+
+							this._proxy.$handleProgressChunk(requestId, convertedContent, progressHandle ?? undefined);
 						});
 					} else {
 						this._proxy.$handleProgressChunk(requestId, convertedProgress);
@@ -169,7 +179,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideFollowups(result, token);
 	}
 
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void {
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -188,7 +198,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				kind = extHostTypes.ChatAgentResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(Object.freeze({ result, kind }));
+		agent.acceptFeedback(reportIssue ? Object.freeze({ result, kind, reportIssue }) : Object.freeze({ result, kind }));
 	}
 
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void {
@@ -205,6 +215,16 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			return;
 		}
 		agent.acceptAction(Object.freeze({ action: action.action, result }));
+	}
+
+	async $invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return [];
+		}
+
+		const items = await agent.invokeCompletionProvider(query, token);
+		return items.map(typeConvert.ChatAgentCompletionItem.from);
 	}
 }
 
@@ -223,6 +243,8 @@ class ExtHostChatAgent {
 	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
+	private _supportIssueReporting: boolean | undefined;
+	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -238,6 +260,14 @@ class ExtHostChatAgent {
 
 	acceptAction(event: vscode.ChatAgentUserActionEvent) {
 		this._onDidPerformAction.fire(event);
+	}
+
+	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatAgentCompletionItem[]> {
+		if (!this._agentVariableProvider) {
+			return [];
+		}
+
+		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
 	}
 
 	async validateSlashCommand(command: string) {
@@ -313,6 +343,7 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
+					supportIssueReporting: this._supportIssueReporting
 				});
 				updateScheduled = false;
 			});
@@ -409,8 +440,32 @@ class ExtHostChatAgent {
 				that._sampleRequest = v;
 				updateMetadataSoon();
 			},
+			get supportIssueReporting() {
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				return that._supportIssueReporting;
+			},
+			set supportIssueReporting(v) {
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				that._supportIssueReporting = v;
+				updateMetadataSoon();
+			},
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
+			},
+			set agentVariableProvider(v) {
+				that._agentVariableProvider = v;
+				if (v) {
+					if (!v.triggerCharacters.length) {
+						throw new Error('triggerCharacters are required');
+					}
+
+					that._proxy.$registerAgentCompletionsProvider(that._handle, v.triggerCharacters);
+				} else {
+					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
+				}
+			},
+			get agentVariableProvider() {
+				return that._agentVariableProvider;
 			},
 			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
 				? undefined!

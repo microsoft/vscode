@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
@@ -254,16 +254,18 @@ interface IBaseTerminalCommand {
 
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
-	promptStartMarker?: IMarker;
-	marker?: IXtermMarker;
+	readonly promptStartMarker?: IMarker;
+	readonly marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
-	executedMarker?: IXtermMarker;
-	aliases?: string[][];
-	wasReplayed?: boolean;
+	readonly executedMarker?: IXtermMarker;
+	readonly aliases?: string[][];
+	readonly wasReplayed?: boolean;
 
 	getOutput(): string | undefined;
 	getOutputMatch(outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined;
 	hasOutput(): boolean;
+	getPromptRowCount(): number;
+	getCommandRowCount(): number;
 }
 
 export interface ISerializedTerminalCommand extends IBaseTerminalCommand {

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/developer';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -23,7 +23,8 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import type { Terminal } from '@xterm/xterm';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { getWindow } from 'vs/base/browser/dom';
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
@@ -118,6 +119,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	private _activeDevModeDisposables = new MutableDisposable();
+	private _currentColor = 0;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -145,7 +147,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 		// Text area syncing
 		if (this._xterm?.raw.textarea) {
-			const font = this._terminalService.configHelper.getFont();
+			const font = this._terminalService.configHelper.getFont(getWindow(this._xterm.raw.textarea));
 			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
 			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
 		}
@@ -154,46 +156,74 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (devMode) {
 			if (commandDetection) {
-				this._activeDevModeDisposables.value = commandDetection.onCommandFinished(command => {
-					if (command.promptStartMarker) {
-						const d = this._instance.xterm!.raw?.registerDecoration({
-							marker: command.promptStartMarker
-						});
-						d?.onRender(e => {
-							e.textContent = 'A';
-							e.classList.add('xterm-sequence-decoration', 'top', 'left');
-						});
-					}
-					if (command.marker) {
-						const d = this._instance.xterm!.raw?.registerDecoration({
-							marker: command.marker,
-							x: command.startX
-						});
-						d?.onRender(e => {
-							e.textContent = 'B';
-							e.classList.add('xterm-sequence-decoration', 'top', 'right');
-						});
-					}
-					if (command.executedMarker) {
-						const d = this._instance.xterm!.raw?.registerDecoration({
-							marker: command.executedMarker,
-							x: command.executedX
-						});
-						d?.onRender(e => {
-							e.textContent = 'C';
-							e.classList.add('xterm-sequence-decoration', 'bottom', 'left');
-						});
-					}
-					if (command.endMarker) {
-						const d = this._instance.xterm!.raw?.registerDecoration({
-							marker: command.endMarker
-						});
-						d?.onRender(e => {
-							e.textContent = 'D';
-							e.classList.add('xterm-sequence-decoration', 'bottom', 'right');
-						});
-					}
-				});
+				const commandDecorations = new Map<ITerminalCommand, IDisposable[]>();
+				this._activeDevModeDisposables.value = combinedDisposable(
+					commandDetection.onCommandFinished(command => {
+						const colorClass = `color-${this._currentColor}`;
+						const decorations: IDisposable[] = [];
+						commandDecorations.set(command, decorations);
+						if (command.promptStartMarker) {
+							const d = this._instance.xterm!.raw?.registerDecoration({
+								marker: command.promptStartMarker
+							});
+							if (d) {
+								decorations.push(d);
+								d.onRender(e => {
+									e.textContent = 'A';
+									e.classList.add('xterm-sequence-decoration', 'top', 'left', colorClass);
+								});
+							}
+						}
+						if (command.marker) {
+							const d = this._instance.xterm!.raw?.registerDecoration({
+								marker: command.marker,
+								x: command.startX
+							});
+							if (d) {
+								decorations.push(d);
+								d.onRender(e => {
+									e.textContent = 'B';
+									e.classList.add('xterm-sequence-decoration', 'top', 'right', colorClass);
+								});
+							}
+						}
+						if (command.executedMarker) {
+							const d = this._instance.xterm!.raw?.registerDecoration({
+								marker: command.executedMarker,
+								x: command.executedX
+							});
+							if (d) {
+								decorations.push(d);
+								d.onRender(e => {
+									e.textContent = 'C';
+									e.classList.add('xterm-sequence-decoration', 'bottom', 'left', colorClass);
+								});
+							}
+						}
+						if (command.endMarker) {
+							const d = this._instance.xterm!.raw?.registerDecoration({
+								marker: command.endMarker
+							});
+							if (d) {
+								decorations.push(d);
+								d.onRender(e => {
+									e.textContent = 'D';
+									e.classList.add('xterm-sequence-decoration', 'bottom', 'right', colorClass);
+								});
+							}
+						}
+						this._currentColor = (this._currentColor + 1) % 2;
+					}),
+					commandDetection.onCommandInvalidated(commands => {
+						for (const c of commands) {
+							const decorations = commandDecorations.get(c);
+							if (decorations) {
+								dispose(decorations);
+							}
+							commandDecorations.delete(c);
+						}
+					})
+				);
 			} else {
 				this._activeDevModeDisposables.value = this._instance.capabilities.onDidAddCapabilityType(e => {
 					if (e === TerminalCapability.CommandDetection) {

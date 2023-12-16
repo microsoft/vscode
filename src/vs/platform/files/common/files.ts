@@ -1453,25 +1453,29 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: {
-		associations: { [filepattern: string]: string };
-		exclude: IExpression;
-		watcherExclude: IGlobPatterns;
-		watcherInclude: string[];
-		encoding: string;
-		autoGuessEncoding: boolean;
-		defaultLanguage: string;
-		trimTrailingWhitespace: boolean;
-		autoSave: string;
-		autoSaveDelay: number;
-		eol: string;
-		enableTrash: boolean;
-		hotExit: string;
-		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
-		readonlyInclude: IGlobPatterns;
-		readonlyExclude: IGlobPatterns;
-		readonlyFromPermissions: boolean;
-	};
+	files: IFilesConfigurationNode;
+}
+
+export interface IFilesConfigurationNode {
+	associations: { [filepattern: string]: string };
+	exclude: IExpression;
+	watcherExclude: IGlobPatterns;
+	watcherInclude: string[];
+	encoding: string;
+	autoGuessEncoding: boolean;
+	defaultLanguage: string;
+	trimTrailingWhitespace: boolean;
+	autoSave: string;
+	autoSaveDelay: number;
+	autoSaveWorkspaceFilesOnly: boolean;
+	autoSaveWhenNoErrors: boolean;
+	eol: string;
+	enableTrash: boolean;
+	hotExit: string;
+	saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+	readonlyInclude: IGlobPatterns;
+	readonlyExclude: IGlobPatterns;
+	readonlyFromPermissions: boolean;
 }
 
 //#endregion

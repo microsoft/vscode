@@ -621,6 +621,7 @@ declare namespace monaco {
 		 * Test if `obj` is an `IPosition`.
 		 */
 		static isIPosition(obj: any): obj is IPosition;
+		toJSON(): IPosition;
 	}
 
 	/**
@@ -2568,8 +2569,11 @@ declare namespace monaco.editor {
 		 * be called when the container of the editor gets resized.
 		 *
 		 * If a dimension is passed in, the passed in value will be used.
+		 *
+		 * By default, this will also render the editor immediately.
+		 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 		 */
-		layout(dimension?: IDimension): void;
+		layout(dimension?: IDimension, postponeRendering?: boolean): void;
 		/**
 		 * Brings browser focus to the editor text
 		 */
@@ -2777,6 +2781,10 @@ declare namespace monaco.editor {
 		 * Replace all previous decorations with `newDecorations`.
 		 */
 		set(newDecorations: readonly IModelDeltaDecoration[]): string[];
+		/**
+		 * Append `newDecorations` to this collection.
+		 */
+		append(newDecorations: readonly IModelDeltaDecoration[]): string[];
 		/**
 		 * Remove all previous decorations.
 		 */
@@ -4123,15 +4131,24 @@ declare namespace monaco.editor {
 		readonly minimapCanvasOuterHeight: number;
 	}
 
+	export enum ShowLightbulbIconMode {
+		Off = 'off',
+		OnCode = 'onCode',
+		On = 'on'
+	}
+
 	/**
 	 * Configuration options for editor lightbulb
 	 */
 	export interface IEditorLightbulbOptions {
 		/**
 		 * Enable the lightbulb code action.
-		 * Defaults to true.
+		 * The three possible values are `off`, `on` and `onCode` and the default is `onCode`.
+		 * `off` disables the code action menu.
+		 * `on` shows the code action menu on code and on empty lines.
+		 * `onCode` shows the code action menu on code only.
 		 */
-		enabled?: boolean;
+		enabled?: ShowLightbulbIconMode;
 	}
 
 	export interface IEditorStickyScrollOptions {
@@ -4439,7 +4456,7 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
-		showToolbar?: 'always' | 'onHover';
+		showToolbar?: 'always' | 'onHover' | 'never';
 		suppressSuggestions?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
@@ -5244,19 +5261,37 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Represents editor-relative coordinates of an overlay widget.
+	 */
+	export interface IOverlayWidgetPositionCoordinates {
+		/**
+		 * The top position for the overlay widget, relative to the editor.
+		 */
+		top: number;
+		/**
+		 * The left position for the overlay widget, relative to the editor.
+		 */
+		left: number;
+	}
+
+	/**
 	 * A position for rendering overlay widgets.
 	 */
 	export interface IOverlayWidgetPosition {
 		/**
 		 * The position preference for the overlay widget.
 		 */
-		preference: OverlayWidgetPositionPreference | null;
+		preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 	}
 
 	/**
 	 * An overlay widgets renders on top of the text.
 	 */
 	export interface IOverlayWidget {
+		/**
+		 * Render this overlay widget in a location where it could overflow the editor's view dom node.
+		 */
+		allowEditorOverflow?: boolean;
 		/**
 		 * Get a unique identifier of the overlay widget.
 		 */
@@ -5995,6 +6030,15 @@ declare namespace monaco.editor {
 		 * Update the editor's options after the editor has been created.
 		 */
 		updateOptions(newOptions: IDiffEditorOptions): void;
+		/**
+		 * Jumps to the next or previous diff.
+		 */
+		goToDiff(target: 'next' | 'previous'): void;
+		/**
+		 * Scrolls to the first diff.
+		 * (Waits until the diff computation finished.)
+		 */
+		revealFirstDiff(): unknown;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
 		handleInitialized(): void;
@@ -7149,6 +7193,20 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Represents a set of document highlights for a specific Uri.
+	 */
+	export interface MultiDocumentHighlight {
+		/**
+		 * The Uri of the document that the highlights belong to.
+		 */
+		uri: Uri;
+		/**
+		 * The set of highlights for the document.
+		 */
+		highlights: DocumentHighlight[];
+	}
+
+	/**
 	 * The document highlight provider interface defines the contract between extensions and
 	 * the word-highlight-feature.
 	 */
@@ -7160,13 +7218,23 @@ declare namespace monaco.languages {
 		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
 	}
 
+	/**
+	 * A provider that can provide document highlights across multiple documents.
+	 */
 	export interface MultiDocumentHighlightProvider {
+		selector: LanguageFilter;
 		/**
 		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
 		 * all exit-points of a function.
 		 *
 		 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
 		 * with shared symbols.
+		 *
+		 * @param primaryModel The primary text model.
+		 * @param position The position at which to provide document highlights.
+		 * @param otherModels The other text models to search for document highlights.
+		 * @param token A cancellation token.
+		 * @returns A map of Uri to document highlights.
 		 */
 		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, otherModels: editor.ITextModel[], token: CancellationToken): ProviderResult<Map<Uri, DocumentHighlight[]>>;
 	}

@@ -44,6 +44,12 @@ export interface IWorkbenchContributionsRegistry {
 	 * Starts the registry by providing the required services.
 	 */
 	start(accessor: ServicesAccessor): void;
+
+	/**
+	 * A promise that resolves when all contributions up to the `Restored`
+	 * phase have been instantiated.
+	 */
+	readonly whenRestored: Promise<void>;
 }
 
 class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
@@ -54,7 +60,9 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 	private environmentService: IEnvironmentService | undefined;
 
 	private readonly contributions = new Map<LifecyclePhase, IConstructorSignature<IWorkbenchContribution>[]>();
+
 	private readonly pendingRestoredContributions = new DeferredPromise<void>();
+	readonly whenRestored = this.pendingRestoredContributions.p;
 
 	registerWorkbenchContribution(contribution: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 

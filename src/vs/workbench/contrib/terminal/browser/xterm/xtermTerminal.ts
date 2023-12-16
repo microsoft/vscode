@@ -19,7 +19,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IShellIntegration, ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalFont, ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, ISuggestController, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IMarkTracker, IInternalXtermTerminal, IXtermTerminal, IXtermColorProvider, XtermTerminalConstants, IXtermAttachToElementOptions, IDetachedXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -36,7 +36,6 @@ import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from '
 import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { importAMDNodeModule } from 'vs/amdX';
-import { SuggestAddon } from 'vs/workbench/contrib/terminal/browser/xterm/suggestAddon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -45,7 +44,6 @@ import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { $window } from 'vs/base/browser/window';
 
 const enum RenderConstants {
 	/**
@@ -133,7 +131,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _decorationAddon: DecorationAddon;
 
 	// Optional addons
-	private _suggestAddon?: SuggestAddon;
 	private _canvasAddon?: CanvasAddonType;
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
@@ -170,7 +167,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get markTracker(): IMarkTracker { return this._markNavigationAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
-	get suggestController(): ISuggestController | undefined { return this._suggestAddon; }
 
 	get textureAtlas(): Promise<ImageBitmap> | undefined {
 		const canvas = this._webglAddon?.textureAtlas || this._canvasAddon?.textureAtlas;
@@ -199,7 +195,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		private readonly _xtermColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		shellIntegrationNonce: string,
-		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean> | undefined,
 		disableShellIntegrationReporting: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -214,7 +209,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
-		const font = this._configHelper.getFont(undefined, true);
+		const font = this._configHelper.getFont(dom.getActiveWindow(), undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
@@ -222,7 +217,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			allowProposedApi: true,
 			cols,
 			rows,
-			documentOverride: layoutService.container.ownerDocument,
+			documentOverride: layoutService.mainContainer.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this.getXtermTheme(),
@@ -289,17 +284,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
-
-		// Load the suggest addon, this should be loaded regardless of the setting as the sequences
-		// may still come in
-		if (this._terminalSuggestWidgetVisibleContextKey) {
-			this._suggestAddon = this._register(this._instantiationService.createInstance(SuggestAddon, this._terminalSuggestWidgetVisibleContextKey));
-			this.raw.loadAddon(this._suggestAddon);
-			this._register(this._suggestAddon.onAcceptedCompletion(async text => {
-				this._onDidRequestFocus.fire();
-				this._onDidRequestSendText.fire(text);
-			}));
-		}
 	}
 
 	*getBufferReverseIterator(): IterableIterator<string> {
@@ -379,8 +363,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				this._updateSmoothScrolling();
 			}
 		}, { passive: true }));
-
-		this._suggestAddon?.setContainer(container);
 
 		this._attached = { container, options };
 		// Screen must be created at this point as xterm.open is called
@@ -533,7 +515,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	getFont(): ITerminalFont {
-		return this._configHelper.getFont(this._core);
+		return this._configHelper.getFont(dom.getWindow(this.raw.element), this._core);
 	}
 
 	getLongestViewportWrappedLineLength(): number {
@@ -651,9 +633,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
-				$window.document.addEventListener('copy', listener);
-				$window.document.execCommand('copy');
-				$window.document.removeEventListener('copy', listener);
+				const doc = dom.getDocument(this.raw.element);
+				doc.addEventListener('copy', listener);
+				doc.execCommand('copy');
+				doc.removeEventListener('copy', listener);
 			} else {
 				await this._clipboardService.writeText(this.raw.getSelection());
 			}
@@ -976,7 +959,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 }
 
-export function getXtermScaledDimensions(font: ITerminalFont, width: number, height: number) {
+export function getXtermScaledDimensions(w: Window, font: ITerminalFont, width: number, height: number) {
 	if (!font.charWidth || !font.charHeight) {
 		return null;
 	}
@@ -985,13 +968,13 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 	// the use of canvas, window.devicePixelRatio needs to be used here in
 	// order to be precise. font.charWidth/charHeight alone as insufficient
 	// when window.devicePixelRatio changes.
-	const scaledWidthAvailable = width * $window.devicePixelRatio;
+	const scaledWidthAvailable = width * w.devicePixelRatio;
 
-	const scaledCharWidth = font.charWidth * $window.devicePixelRatio + font.letterSpacing;
+	const scaledCharWidth = font.charWidth * w.devicePixelRatio + font.letterSpacing;
 	const cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
-	const scaledHeightAvailable = height * $window.devicePixelRatio;
-	const scaledCharHeight = Math.ceil(font.charHeight * $window.devicePixelRatio);
+	const scaledHeightAvailable = height * w.devicePixelRatio;
+	const scaledCharHeight = Math.ceil(font.charHeight * w.devicePixelRatio);
 	const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
 	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 

@@ -20,6 +20,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IInlineChatSlashCommand {
 	command: string;
@@ -46,17 +47,17 @@ export interface IInlineChatRequest {
 	live: boolean;
 }
 
-export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse | IInlineChatMessageResponse;
+export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse;
 
 export const enum InlineChatResponseType {
 	EditorEdit = 'editorEdit',
-	BulkEdit = 'bulkEdit',
-	Message = 'message'
+	BulkEdit = 'bulkEdit'
 }
 
-export const enum InlineChateResponseTypes {
-	OnlyMessages = 'onlyMessages',
+export const enum InlineChatResponseTypes {
+	Empty = 'empty',
 	OnlyEdits = 'onlyEdits',
+	OnlyMessages = 'onlyMessages',
 	Mixed = 'mixed'
 }
 
@@ -78,14 +79,6 @@ export interface IInlineChatBulkEditResponse {
 	wholeRange?: IRange;
 }
 
-export interface IInlineChatMessageResponse {
-	id: number;
-	type: InlineChatResponseType.Message;
-	message: IMarkdownString;
-	placeholder?: string;
-	wholeRange?: IRange;
-}
-
 export interface IInlineChatProgressItem {
 	markdownFragment?: string;
 	edits?: TextEdit[];
@@ -98,17 +91,21 @@ export const enum InlineChatResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 	Undone = 2,
-	Accepted = 3
+	Accepted = 3,
+	Bug = 4
 }
 
 export interface IInlineChatSessionProvider {
 
 	debugName: string;
 	label: string;
+	supportIssueReporting?: boolean;
 
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
+
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IChatReplyFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
@@ -125,7 +122,6 @@ export interface IInlineChatService {
 
 export const INLINE_CHAT_ID = 'interactiveEditor';
 export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';
-export const INLINE_CHAT_DECORATIONS_ID = 'interactiveEditorDecorations';
 
 export const CTX_INLINE_CHAT_HAS_PROVIDER = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
@@ -141,12 +137,15 @@ export const CTX_INLINE_CHAT_OUTER_CURSOR_POSITION = new RawContextKey<'above' |
 export const CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('inlineChatHasActiveRequest', false, localize('inlineChatHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INLINE_CHAT_HAS_STASHED_SESSION = new RawContextKey<boolean>('inlineChatHasStashedSession', false, localize('inlineChatHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
 export const CTX_INLINE_CHAT_LAST_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType | undefined>('inlineChatLastResponseType', undefined, localize('inlineChatResponseType', "What type was the last response of the current interactive editor session"));
-export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChateResponseTypes | undefined>('inlineChatResponseTypes', undefined, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
+export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChatResponseTypes | undefined>('inlineChatResponseTypes', undefined, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
 export const CTX_INLINE_CHAT_DID_EDIT = new RawContextKey<boolean>('inlineChatDidEdit', undefined, localize('inlineChatDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineChatUserDidEdit', undefined, localize('inlineChatUserDidEdit', "Whether the user did changes ontop of the inline chat"));
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
+export const CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING = new RawContextKey<boolean>('inlineChatSupportIssueReporting', false, localize('inlineChatSupportIssueReporting', "Whether the interactive editor supports issue reporting"));
 export const CTX_INLINE_CHAT_DOCUMENT_CHANGED = new RawContextKey<boolean>('inlineChatDocumentChanged', false, localize('inlineChatDocumentChanged', "Whether the document has changed concurrently"));
-export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.editMode', EditMode.Live);
+export const CTX_INLINE_CHAT_CHANGE_HAS_DIFF = new RawContextKey<boolean>('inlineChatChangeHasDiff', false, localize('inlineChatChangeHasDiff', "Whether the current change supports showing a diff"));
+export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inlineChatChangeShowsDiff', false, localize('inlineChatChangeShowsDiff', "Whether the current change showing a diff"));
+export const CTX_INLINE_CHAT_EDIT_MODE = new RawContextKey<EditMode>('config.inlineChat.mode', EditMode.Live);
 
 // --- (select) action identifier
 
@@ -161,7 +160,6 @@ export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWi
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 export const MENU_INLINE_CHAT_WIDGET_FEEDBACK = MenuId.for('inlineChatWidget.feedback');
 export const MENU_INLINE_CHAT_WIDGET_DISCARD = MenuId.for('inlineChatWidget.undo');
-export const MENU_INLINE_CHAT_WIDGET_TOGGLE = MenuId.for('inlineChatWidget.toggle');
 
 // --- colors
 
@@ -186,12 +184,6 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
-export const enum ShowGutterIcon {
-	Always = 'always',
-	MouseOver = 'mouseover',
-	Never = 'never'
-}
-
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{
 		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
@@ -211,23 +203,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			markdownEnumDescriptions: [
 				localize('mode.livePreview', "Changes are applied directly to the document and are highlighted visually via inline or side-by-side diffs. Ending a session will keep the changes."),
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
-				localize('mode.live', "Changes are applied directly to the document but can be highlighted via inline diffs. Ending a session will keep the changes."),
-			]
-		},
-		'inlineChat.showDiff': {
-			description: localize('showDiff', "Enable/disable showing the diff when edits are generated. Works only with inlineChat.mode equal to live or livePreview."),
-			default: true,
-			type: 'boolean'
-		},
-		'inlineChat.showGutterIcon': {
-			description: localize('showGutterIcon', "Controls when the gutter icon for spawning inline chat is shown."),
-			default: ShowGutterIcon.Always,
-			type: 'string',
-			enum: [ShowGutterIcon.Always, ShowGutterIcon.MouseOver, ShowGutterIcon.Never],
-			markdownEnumDescriptions: [
-				localize('showGutterIcon.always', "Always show the gutter icon."),
-				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
-				localize('showGutterIcon.never', "Never show the gutter icon."),
+				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
 			]
 		}
 	}

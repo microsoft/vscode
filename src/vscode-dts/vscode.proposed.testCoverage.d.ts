@@ -176,6 +176,11 @@ declare module 'vscode' {
 	 */
 	export class FunctionCoverage {
 		/**
+		 * Name of the function or method.
+		 */
+		name: string;
+
+		/**
 		 * The number of times this function was executed. If zero, the
 		 * function will be marked as un-covered.
 		 */
@@ -190,7 +195,7 @@ declare module 'vscode' {
 		 * @param executionCount The number of times this function was executed.
 		 * @param location The function position.
 		 */
-		constructor(executionCount: number, location: Position | Range);
+		constructor(name: string, executionCount: number, location: Position | Range);
 	}
 
 	export type DetailedCoverage = StatementCoverage | FunctionCoverage;

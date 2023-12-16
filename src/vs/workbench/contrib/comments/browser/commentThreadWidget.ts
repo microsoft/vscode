@@ -342,7 +342,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	layout(widthInPixel?: number) {
-		this._body.layout();
+		this._body.layout(widthInPixel);
 
 		if (widthInPixel !== undefined) {
 			this._commentReply?.layout(widthInPixel);

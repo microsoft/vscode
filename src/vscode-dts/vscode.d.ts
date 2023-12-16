@@ -3025,12 +3025,12 @@ declare module 'vscode' {
 	export type MarkedString = string | {
 		/**
 		 * The language of a markdown code block
-		 * @deprecated, please use {@linkcode MarkdownString} instead
+		 * @deprecated please use {@linkcode MarkdownString} instead
 		 */
 		language: string;
 		/**
 		 * The code snippet of a markdown code block.
-		 * @deprecated, please use {@linkcode MarkdownString} instead
+		 * @deprecated please use {@linkcode MarkdownString} instead
 		 */
 		value: string;
 	};
@@ -7330,11 +7330,10 @@ declare module 'vscode' {
 		 * (shell) of the terminal.
 		 *
 		 * @param text The text to send.
-		 * @param addNewLine Whether to add a new line to the text being sent, this is normally
-		 * required to run a command in the terminal. The character(s) added are \n or \r\n
-		 * depending on the platform. This defaults to `true`.
+		 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+		 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 		 */
-		sendText(text: string, addNewLine?: boolean): void;
+		sendText(text: string, shouldExecute?: boolean): void;
 
 		/**
 		 * Show the terminal panel and reveal this terminal in the UI.
@@ -13649,6 +13648,29 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
+
+		/**
+		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
+		 * if save was not successful or no editor with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved.
+		 *
+		 * @param uri the associated uri for the opened editor to save.
+		 * @returns A thenable that resolves when the save operation has finished.
+		 */
+		export function save(uri: Uri): Thenable<Uri | undefined>;
+
+		/**
+		 * Saves the editor identified by the given resource to a new file name as provided by the user and
+		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
+		 * with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
+		 *
+		 * @param uri the associated uri for the opened editor to save as.
+		 * @returns A thenable that resolves when the save-as operation has finished.
+		 */
+		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
 	}
 
 	/**
