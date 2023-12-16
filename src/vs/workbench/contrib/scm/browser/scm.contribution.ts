@@ -262,6 +262,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			maximum: 50,
 			default: 10
 		},
+		'scm.inputMinLines': {
+			type: 'number',
+			markdownDescription: localize('inputMinLines', "Controls the minimum number of lines that the input will auto-grow from."),
+			minimum: 1,
+			maximum: 50,
+			default: 1
+		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),
