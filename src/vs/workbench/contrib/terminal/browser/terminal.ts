@@ -26,6 +26,7 @@ import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGro
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -998,6 +999,11 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * If successful, places commandToRun on the command line
 	 */
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
+
+	/**
+	 * Update the parent context key service to use for this terminal instance.
+	 */
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
 }
 
 export const enum XtermTerminalConstants {

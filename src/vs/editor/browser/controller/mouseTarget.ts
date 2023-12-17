@@ -219,6 +219,13 @@ class ElementPath {
 			&& path[1] === PartFingerprint.OverlayWidgets
 		);
 	}
+
+	public static isChildOfOverflowingOverlayWidgets(path: Uint8Array): boolean {
+		return (
+			path.length >= 1
+			&& path[0] === PartFingerprint.OverflowingOverlayWidgets
+		);
+	}
 }
 
 export class HitTestContext {
@@ -490,7 +497,7 @@ export class MouseTargetFactory {
 		}
 
 		// Is it an overlay widget?
-		if (ElementPath.isChildOfOverlayWidgets(path)) {
+		if (ElementPath.isChildOfOverlayWidgets(path) || ElementPath.isChildOfOverflowingOverlayWidgets(path)) {
 			return true;
 		}
 
@@ -545,7 +552,7 @@ export class MouseTargetFactory {
 
 		let result: IMouseTarget | null = null;
 
-		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath)) {
+		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) && !ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			// We only render dom nodes inside the overflow guard or in the overflowing content widgets
 			result = result || request.fulfillUnknown();
 		}
@@ -579,7 +586,7 @@ export class MouseTargetFactory {
 
 	private static _hitTestOverlayWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
 		// Is it an overlay widget?
-		if (ElementPath.isChildOfOverlayWidgets(request.targetPath)) {
+		if (ElementPath.isChildOfOverlayWidgets(request.targetPath) || ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
 			if (widgetId) {
 				return request.fulfillOverlayWidget(widgetId);

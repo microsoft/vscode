@@ -328,11 +328,6 @@
 	opacity: 0.8;
 }
 
-.monaco-editor .inline-chat-lines-deleted-range-inline {
-	text-decoration: line-through;
-	background-color: var(--vscode-diffEditor-removedTextBackground);
-	opacity: 0.6;
-}
 .monaco-editor .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }

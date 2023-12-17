@@ -876,6 +876,7 @@ export class CommandCenter {
 		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
+			await this.model.openRepository(repositoryPath);
 			return;
 		}
 
@@ -960,6 +961,16 @@ export class CommandCenter {
 	@command('git.close', { repository: true })
 	async close(repository: Repository): Promise<void> {
 		this.model.close(repository);
+	}
+
+	@command('git.closeOtherRepositories', { repository: true })
+	async closeOtherRepositories(repository: Repository): Promise<void> {
+		for (const r of this.model.repositories) {
+			if (r === repository) {
+				continue;
+			}
+			this.model.close(r);
+		}
 	}
 
 	@command('git.openFile')

@@ -184,6 +184,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _usedShellIntegrationInjection: boolean = false;
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
+	private readonly _scopedContextKeyService: IContextKeyService;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -409,6 +410,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		const scopedContextKeyService = this._register(_contextKeyService.createScoped(this._wrapperElement));
+		this._scopedContextKeyService = scopedContextKeyService;
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, scopedContextKeyService]
 		));
@@ -2217,6 +2219,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	resetScrollbarVisibility(): void {
 		this._wrapperElement.classList.remove('force-scrollbar');
+	}
+
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
+		this._scopedContextKeyService.updateParent(parentContextKeyService);
 	}
 }
 
