@@ -2961,8 +2961,11 @@
     "configurationDefaults": {
       "[git-commit]": {
         "editor.rulers": [
+          50,
           72
         ],
+        "editor.wordWrap": "wordWrapColumn",
+        "editor.wordWrapColumn": 72,
         "workbench.editor.restoreViewState": false
       },
       "[git-rebase]": {
