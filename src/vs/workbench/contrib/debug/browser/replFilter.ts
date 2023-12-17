@@ -28,9 +28,14 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		if (query && query !== '') {
 			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (f.startsWith('!')) {
-					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
+				if (f.startsWith('\\!')) {
+					// If the string starts with '\!', it's an include filter with '!' as part of the query
+					this._parsedQueries.push({ type: 'include', query: f.slice(2) }); // Slice from 2 to keep the '!' and remove the backslash
+				} else if (f.startsWith('!')) {
+					// If the string starts with '!', it's an exclude filter
+					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) }); // Slice from 1 to remove the '!' for the exclude filter
 				} else {
+					// Any other string is an include filter
 					this._parsedQueries.push({ type: 'include', query: f });
 				}
 			}
