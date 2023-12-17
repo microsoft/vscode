@@ -1,8 +1,0 @@
-{
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {}
-}
