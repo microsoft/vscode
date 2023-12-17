@@ -2263,11 +2263,19 @@ class SCMInputWidget {
 	}
 
 	getContentHeight(): number {
-		const inputEditorMinHeight = this.getInputEditorMinHeight();
-		const editorContentHeight = Math.max(this.inputEditor.getContentHeight(), inputEditorMinHeight);
-		const editorContextHeightMax = this.getInputEditorMaxHeight();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
 
-		return Math.min(editorContentHeight, editorContextHeightMax);
+		const inputMinLinesConfig = this.configurationService.getValue('scm.inputMinLineCount');
+		const inputMinLines = typeof inputMinLinesConfig === 'number' ? clamp(inputMinLinesConfig, 1, 50) : 1;
+		const editorMinHeight = inputMinLines * lineHeight + top + bottom;
+
+		const inputMaxLinesConfig = this.configurationService.getValue('scm.inputMaxLineCount');
+		const inputMaxLines = typeof inputMaxLinesConfig === 'number' ? clamp(inputMaxLinesConfig, 1, 50) : 10;
+		const editorMaxHeight = inputMaxLines * lineHeight + top + bottom;
+
+		return clamp(this.inputEditor.getContentHeight(), editorMinHeight, editorMaxHeight);
 	}
 
 	layout(): void {
@@ -2402,34 +2410,6 @@ class SCMInputWidget {
 
 	private getInputEditorFontSize(): number {
 		return this.configurationService.getValue<number>('scm.inputFontSize');
-	}
-
-	private getInputEditorMaxLines(): number {
-		const inputMaxLines = this.configurationService.getValue('scm.inputMaxLines');
-		return typeof inputMaxLines === 'number' ? clamp(inputMaxLines, 1, 50) : 10;
-	}
-
-	private getInputEditorMinLines(): number {
-		const inputMinLines = this.configurationService.getValue('scm.inputMinLines');
-		return typeof inputMinLines === 'number' ? clamp(inputMinLines, 1, 50) : 1;
-	}
-
-	private getInputEditorMaxHeight(): number {
-		const maxLines = this.getInputEditorMaxLines();
-		const fontSize = this.getInputEditorFontSize();
-		const lineHeight = this.computeLineHeight(fontSize);
-		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
-
-		return maxLines * lineHeight + top + bottom;
-	}
-
-	private getInputEditorMinHeight(): number {
-		const minLines = this.getInputEditorMinLines();
-		const fontSize = this.getInputEditorFontSize();
-		const lineHeight = this.computeLineHeight(fontSize);
-		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
-
-		return minLines * lineHeight + top + bottom;
 	}
 
 	private getToolbarWidth(): number {
@@ -2667,7 +2647,9 @@ export class SCMViewPane extends ViewPane {
 						e.affectsConfiguration('scm.showActionButton') ||
 						e.affectsConfiguration('scm.alwaysShowRepositories') ||
 						e.affectsConfiguration('scm.showIncomingChanges') ||
-						e.affectsConfiguration('scm.showOutgoingChanges')) {
+						e.affectsConfiguration('scm.showOutgoingChanges') ||
+						e.affectsConfiguration('scm.inputMinLineCount') ||
+						e.affectsConfiguration('scm.inputMaxLineCount')) {
 						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
 						this._showIncomingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges');
