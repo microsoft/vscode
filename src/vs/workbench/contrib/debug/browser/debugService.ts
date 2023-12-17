@@ -1153,7 +1153,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true });
+		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true, excludeDependent: true });
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (!s.configuration.noDebug) {
 				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);

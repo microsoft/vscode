@@ -865,18 +865,6 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 
 		return result;
 	}
-
-	isHit(sessionId: string): boolean {
-		const data = this.sessionHitData.get(sessionId);
-		if (data) {
-			return data;
-		}
-		return false;
-	}
-
-	hit(sessionId: string): void {
-		this.sessionHitData.set(sessionId, true);
-	}
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
@@ -912,7 +900,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 			return this.data.verified && !this.textFileService.isDirty(this._uri);
 		}
 
-		return true;
+		return !this.waitFor;
 	}
 
 	get uri(): uri {
@@ -1404,7 +1392,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; dependentOnly?: boolean; excludeDependent?: boolean }): IBreakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri?.toString();
 			const originalUriStr = filter.originalUri?.toString();
@@ -1422,6 +1410,12 @@ export class DebugModel extends Disposable implements IDebugModel {
 					return false;
 				}
 				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
+					return false;
+				}
+				if (filter.dependentOnly && bp.waitFor === undefined) {
+					return false;
+				}
+				if (filter.excludeDependent && bp.waitFor !== undefined) {
 					return false;
 				}
 

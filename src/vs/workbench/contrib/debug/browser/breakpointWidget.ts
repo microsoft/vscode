@@ -223,7 +223,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		breakpoints.map(bp => <ISelectOptionItem>{ text: `${bp.uri.path} : ${bp.lineNumber}` })
 			.forEach(i => items.push(i));
 
-		const selectBreakpointBox = new SelectBox(items, select, this.contextViewService, undefined, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		const selectBreakpointBox = new SelectBox(items, select, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.waitForBreakpointInput = undefined;
@@ -232,7 +232,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			}
 			this.close(true);
 		});
-		this.toDispose.push(attachSelectBoxStyler(selectBreakpointBox, this.themeService));
+		this.toDispose.push(selectBreakpointBox);
 		this.selectBreakpointContainer = $('.select-breakpoint-container');
 		selectBreakpointBox.render(dom.append(container, this.selectBreakpointContainer));
 

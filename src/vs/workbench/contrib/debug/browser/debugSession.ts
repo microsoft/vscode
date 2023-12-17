@@ -1273,6 +1273,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 						return;
 					}
 
+					this.enableDependentBreakpoints(thread);
+
 					focus();
 
 					await promises.wholeCallStack;
@@ -1289,6 +1291,49 @@ export class DebugSession implements IDebugSession, IDisposable {
 				this._onDidChangeState.fire();
 			},
 		);
+	}
+
+	private enableDependentBreakpoints(thread: Thread) {
+		const frame = thread.getTopStackFrame();
+		if (frame === undefined) {
+			return;
+		}
+
+		if (thread.stoppedDetails && thread.stoppedDetails.reason !== 'breakpoint') {
+			return;
+		}
+
+		// find the current breakpoints
+		const breakpoints = this.model.getBreakpoints({ uri: frame?.source.uri }).filter(bp => {
+			if (bp.lineNumber < frame.range.startLineNumber || bp.lineNumber > frame.range.endLineNumber) {
+				return false;
+			}
+
+			if (bp.column && (bp.column < frame.range.startColumn || bp.column > frame.range.endColumn)) {
+				return false;
+			}
+			return true;
+		});
+
+		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
+		const uriBreakpoints = new Map<URI, IBreakpoint[]>();
+		this.model.getBreakpoints({ dependentOnly: true }).forEach(bp => {
+			breakpoints.forEach(cbp => {
+				if (bp.waitFor?.matches(cbp)) {
+					const uri = bp.uri;
+					if (!uriBreakpoints.has(uri)) {
+						uriBreakpoints.set(uri, []);
+					}
+					uriBreakpoints.get(uri)?.push(bp);
+				}
+			});
+		});
+
+		if (uriBreakpoints.size > 0) {
+			uriBreakpoints.forEach((bps, uri, _) => {
+				this.sendBreakpoints(uri, bps, false);
+			});
+		}
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {

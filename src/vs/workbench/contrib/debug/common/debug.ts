@@ -551,8 +551,6 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly message?: string;
 	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
-	isHit(sessionId: string): boolean;
-	hit(sessionId: string): void;
 }
 
 export interface IBreakpointReference {
