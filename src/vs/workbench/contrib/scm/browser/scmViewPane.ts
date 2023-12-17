@@ -2267,11 +2267,11 @@ class SCMInputWidget {
 		const lineHeight = this.computeLineHeight(fontSize);
 		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
 
-		const inputMinLinesConfig = this.configurationService.getValue('scm.inputMinLines');
+		const inputMinLinesConfig = this.configurationService.getValue('scm.inputMinLineCount');
 		const inputMinLines = typeof inputMinLinesConfig === 'number' ? clamp(inputMinLinesConfig, 1, 50) : 1;
 		const editorMinHeight = inputMinLines * lineHeight + top + bottom;
 
-		const inputMaxLinesConfig = this.configurationService.getValue('scm.inputMaxLines');
+		const inputMaxLinesConfig = this.configurationService.getValue('scm.inputMaxLineCount');
 		const inputMaxLines = typeof inputMaxLinesConfig === 'number' ? clamp(inputMaxLinesConfig, 1, 50) : 10;
 		const editorMaxHeight = inputMaxLines * lineHeight + top + bottom;
 
@@ -2648,8 +2648,8 @@ export class SCMViewPane extends ViewPane {
 						e.affectsConfiguration('scm.alwaysShowRepositories') ||
 						e.affectsConfiguration('scm.showIncomingChanges') ||
 						e.affectsConfiguration('scm.showOutgoingChanges') ||
-						e.affectsConfiguration('scm.inputMinLines') ||
-						e.affectsConfiguration('scm.inputMaxLines')) {
+						e.affectsConfiguration('scm.inputMinLineCount') ||
+						e.affectsConfiguration('scm.inputMaxLineCount')) {
 						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
 						this._showIncomingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges');
