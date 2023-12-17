@@ -592,7 +592,7 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				when: ContextKeyExpr.or(CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages), CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.Mixed)),
+				when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages),
 				group: '0_main',
 				order: 1
 			}

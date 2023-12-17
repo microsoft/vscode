@@ -1007,7 +1007,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+		const value = values.map(s => s.replaceAll(/[|\\,]/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;

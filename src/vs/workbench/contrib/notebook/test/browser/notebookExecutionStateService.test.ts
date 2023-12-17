@@ -34,6 +34,10 @@ suite('NotebookExecutionStateService', () => {
 	let disposables: DisposableStore;
 	let testNotebookModel: NotebookTextModel | undefined;
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
 	setup(function () {
 
 		disposables = new DisposableStore();
@@ -59,14 +63,10 @@ suite('NotebookExecutionStateService', () => {
 			}
 		});
 
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
-		instantiationService.set(INotebookExecutionService, instantiationService.createInstance(NotebookExecutionService));
-		instantiationService.set(INotebookExecutionStateService, instantiationService.createInstance(NotebookExecutionStateService));
-	});
-
-	teardown(() => {
-		disposables.dispose();
+		instantiationService.set(INotebookExecutionService, disposables.add(instantiationService.createInstance(NotebookExecutionService)));
+		instantiationService.set(INotebookExecutionStateService, disposables.add(instantiationService.createInstance(NotebookExecutionStateService)));
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {

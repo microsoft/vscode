@@ -70,6 +70,9 @@ export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessI
 	 * Enables to show a pick entry when no results are returned from a search.
 	 */
 	readonly noResultsPick?: T | ((filter: string) => T);
+
+	/** Whether to skip trimming the pick filter string */
+	readonly shouldSkipTrimPickFilter?: boolean;
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
@@ -138,7 +141,12 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
-			const picksFilter = picker.value.substr(this.prefix.length).trim();
+			let picksFilter = picker.value.substring(this.prefix.length);
+
+			if (!this.options?.shouldSkipTrimPickFilter) {
+				picksFilter = picksFilter.trim();
+			}
+
 			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken, runOptions);
 
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {
