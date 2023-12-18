@@ -579,7 +579,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 
 		const listener = this._session.textModelN.onDidChangeContent(async () => {
-			await this._showDiff(false, false);
+			await this._showDiff(false, false, false);
 		});
 
 		try {
@@ -629,7 +629,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({ description: 'inline-chat-modified-interacted-with', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges });
 
-	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean): Promise<Position | undefined> {
+	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean, revealWidget: boolean): Promise<Position | undefined> {
 
 		const diff = await this._computeDiff();
 
@@ -718,7 +718,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 						class: ThemeIcon.asClassName(Codicon.check),
 						run: () => {
 							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
-							return this._showDiff(true, true);
+							return this._showDiff(true, true, true);
 						}
 					}),
 					toAction({
@@ -732,7 +732,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 								edits.push(EditOperation.replace(innerChange.modifiedRange, originalValue));
 							}
 							this._session.textModelN.pushEditOperations(null, edits, () => null);
-							return this._showDiff(true, true);
+							return this._showDiff(true, true, true);
 						}
 					}),
 				];
@@ -757,7 +757,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 					: undefined;
 
 				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
-					this._showDiff(true, true);
+					this._showDiff(true, true, false);
 				}));
 
 				const zoneLineNumber = this._zone.position!.lineNumber;
@@ -774,7 +774,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 		if (widgetData) {
 			this._zone.widget.setExtraButtons(widgetData.actions);
 			this._zone.updatePositionAndHeight(widgetData.position);
-			this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			if (revealWidget) {
+				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			}
 
 			this._updateSummaryMessage(diff.changes, widgetData.index);
 
@@ -807,7 +809,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._previewZone.value.hide();
 		}
 
-		return await this._showDiff(true, false);
+		return await this._showDiff(true, false, true);
 	}
 
 	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[], index: number) {
