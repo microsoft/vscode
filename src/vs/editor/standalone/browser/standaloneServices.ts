@@ -310,7 +310,7 @@ export class StandaloneNotificationService implements INotificationService {
 
 	public _serviceBrand: undefined;
 
-	public doNotDisturbMode: boolean = false;
+	public isDoNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -348,6 +348,10 @@ export class StandaloneNotificationService implements INotificationService {
 
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
+	}
+
+	public setDoNotDisturbMode(mode: boolean): void {
+		this.isDoNotDisturbMode = mode;
 	}
 }
 

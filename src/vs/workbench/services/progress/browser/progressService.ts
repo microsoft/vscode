@@ -69,7 +69,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification:
-				return this.withNotificationProgress({ ...options, location, priority: this.notificationService.doNotDisturbMode ? NotificationPriority.SILENT : undefined }, task, onDidCancel);
+				return this.withNotificationProgress({ ...options, location, priority: this.notificationService.isDoNotDisturbMode ? NotificationPriority.SILENT : undefined }, task, onDidCancel);
 			case ProgressLocation.Window: {
 				const type = (options as IProgressWindowOptions).type;
 				if ((options as IProgressWindowOptions).command) {

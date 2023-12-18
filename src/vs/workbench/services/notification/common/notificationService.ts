@@ -24,9 +24,6 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidRemoveNotification = this._register(new Emitter<INotification>());
 	readonly onDidRemoveNotification = this._onDidRemoveNotification.event;
 
-	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<void>());
-	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
-
 	constructor(
 		@IStorageService private readonly storageService: IStorageService
 	) {
@@ -66,19 +63,19 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	static readonly DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
 
-	private _doNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
+	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<void>());
+	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
 
-	get doNotDisturbMode() {
-		return this._doNotDisturbMode;
-	}
+	private _isDoNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
+	get isDoNotDisturbMode() { return this._isDoNotDisturbMode; }
 
-	set doNotDisturbMode(enabled: boolean) {
-		if (this._doNotDisturbMode === enabled) {
+	setDoNotDisturbMode(enabled: boolean): void {
+		if (this._isDoNotDisturbMode === enabled) {
 			return; // no change
 		}
 
 		this.storageService.store(NotificationService.DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		this._doNotDisturbMode = enabled;
+		this._isDoNotDisturbMode = enabled;
 
 		// Toggle via filter
 		this.updateDoNotDisturbFilters();
@@ -88,21 +85,16 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	private updateDoNotDisturbFilters(): void {
-		let filter: NotificationsFilter;
-		if (this._doNotDisturbMode) {
-			filter = NotificationsFilter.ERROR;
-		} else {
-			filter = NotificationsFilter.OFF;
-		}
-
-		this.model.setFilter(filter);
+		this.model.setFilter(this._isDoNotDisturbMode ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
 	}
 
 	//#endregion
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
-			message.forEach(m => this.info(m));
+			for (const messageEntry of message) {
+				this.info(messageEntry);
+			}
 
 			return;
 		}
@@ -112,7 +104,9 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	warn(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
-			message.forEach(m => this.warn(m));
+			for (const messageEntry of message) {
+				this.warn(messageEntry);
+			}
 
 			return;
 		}
@@ -122,7 +116,9 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	error(message: NotificationMessage | NotificationMessage[]): void {
 		if (Array.isArray(message)) {
-			message.forEach(m => this.error(m));
+			for (const messageEntry of message) {
+				this.error(messageEntry);
+			}
 
 			return;
 		}

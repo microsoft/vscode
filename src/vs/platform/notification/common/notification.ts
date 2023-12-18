@@ -339,13 +339,6 @@ export interface INotificationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * The DND mode can be enabled or disabled
-	 * and will result in all info and warning
-	 * notifications to be silent.
-	 */
-	doNotDisturbMode: boolean;
-
-	/**
 	 * Emitted when a new notification is added.
 	 */
 	readonly onDidAddNotification: Event<INotification>;
@@ -359,6 +352,16 @@ export interface INotificationService {
 	 * Emitted when a do not disturb mode has changed.
 	 */
 	readonly onDidChangeDoNotDisturbMode: Event<void>;
+
+	/**
+	 * If enabled, only error messages will show as toasts.
+	 */
+	readonly isDoNotDisturbMode: boolean;
+
+	/**
+	 * Enables or disables the do not disturb mode.
+	 */
+	setDoNotDisturbMode(mode: boolean): void;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
