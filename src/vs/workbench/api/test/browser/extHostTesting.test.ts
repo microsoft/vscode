@@ -608,7 +608,7 @@ suite('ExtHost Testing', () => {
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
 			cts = new CancellationTokenSource();
-			c = new TestRunCoordinator(proxy);
+			c = new TestRunCoordinator(proxy, new NullLogService());
 
 			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), nullExtensionDescription, new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
@@ -893,6 +893,7 @@ suite('ExtHost Testing', () => {
 			const rpcProtocol = AnyCallRPCProtocol();
 			ctrl = ds.add(new TestExtHostTesting(
 				rpcProtocol,
+				new NullLogService(),
 				new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
 					override onExtensionError(): boolean {
 						return true;
