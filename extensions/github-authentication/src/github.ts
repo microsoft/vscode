@@ -251,7 +251,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
 						: userInfo?.accountName ?? '<unknown>',
-					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
+					id: session.account?.id ?? userInfo?.id ?? '<unknown>',
+					avatar: session?.account?.avatar
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
