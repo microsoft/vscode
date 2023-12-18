@@ -331,7 +331,7 @@ registerTerminalAction({
 		primary: KeyMod.CtrlCmd | KeyCode.End,
 		linux: { primary: KeyMod.Shift | KeyCode.End },
 		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
-		weight: KeybindingWeight.WorkbenchContrib + 10
+		weight: KeybindingWeight.WorkbenchContrib
 	},
 	run: (c) => {
 		const accessibleViewService = c.accessibleViewService;
@@ -351,7 +351,7 @@ registerTerminalAction({
 		primary: KeyMod.CtrlCmd | KeyCode.Home,
 		linux: { primary: KeyMod.Shift | KeyCode.Home },
 		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
-		weight: KeybindingWeight.WorkbenchContrib + 10
+		weight: KeybindingWeight.WorkbenchContrib
 	},
 	run: (c) => {
 		const accessibleViewService = c.accessibleViewService;
