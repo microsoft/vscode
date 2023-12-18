@@ -65,7 +65,7 @@
 			if (activeFrame) trackIframeFocus(activeFrame);
 			if (pendingFrame) trackIframeFocus(pendingFrame);
 
-			// Optional: Return a cleanup function to remove event listeners
+			//Return a cleanup function to remove event listeners
 			return () => {
 				window.removeEventListener('focus', handleFocus, true);
 				window.removeEventListener('blur', handleBlur, true);
