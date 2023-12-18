@@ -287,7 +287,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, accessor => {
 		const notificationService = accessor.get(INotificationService);
 
-		notificationService.setDoNotDisturbMode(!notificationService.isDoNotDisturbMode);
+		notificationService.setGlobalDoNotDisturbMode(!notificationService.isGlobalDoNotDisturbMode);
 	});
 
 	// Commands for Command Palette

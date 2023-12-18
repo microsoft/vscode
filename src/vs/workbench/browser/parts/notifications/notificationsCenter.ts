@@ -67,10 +67,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.onDidChangeDoNotDisturbMode()));
+		this._register(this.notificationService.onDidChangeGlobalDoNotDisturbMode(() => this.onDidChangeGlobalDoNotDisturbMode()));
 	}
 
-	private onDidChangeDoNotDisturbMode(): void {
+	private onDidChangeGlobalDoNotDisturbMode(): void {
 		this.hide(); // hide the notification center when do not disturb is toggled
 	}
 

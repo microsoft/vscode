@@ -17,7 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { INotification, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationService, INotificationSource, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createContext(ctx: any) {
@@ -142,10 +142,11 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				isDoNotDisturbMode: false,
+				isGlobalDoNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
-				onDidChangeDoNotDisturbMode: undefined!,
+				onDidChangeGlobalDoNotDisturbMode: undefined!,
+				onDidChangePerSourceDoNotDisturbMode: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -173,8 +174,14 @@ suite('AbstractKeybindingService', () => {
 						}
 					};
 				},
-				setDoNotDisturbMode(mode: boolean) {
+				setGlobalDoNotDisturbMode(mode: boolean) {
 					throw new Error('not implemented');
+				},
+				isSourceDoNotDisturb(source: INotificationSource): boolean {
+					throw new Error('Method not implemented.');
+				},
+				setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
+					throw new Error('Method not implemented.');
 				}
 			};
 
