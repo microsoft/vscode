@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationActions, INotificationProgress, NoOpNotification, Severity, NotificationMessage, IPromptChoice, IStatusMessageOptions, NotificationsFilter, INotificationProgressProperties, IPromptChoiceWithMenu, NotificationPriority, INotificationSource, isNotificationSource } from 'vs/platform/notification/common/notification';
 import { toErrorMessage, isErrorWithActions } from 'vs/base/common/errorMessage';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -495,7 +495,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		if (priority === NotificationPriority.DEFAULT && severity !== Severity.Error) {
 			if (filter.global === NotificationsFilter.ERROR) {
 				priority = NotificationPriority.SILENT; // filtered globally
-			} else if (notification.source && typeof notification.source !== 'string' && filter.sources.has(notification.source.id)) {
+			} else if (isNotificationSource(notification.source) && filter.sources.has(notification.source.id)) {
 				priority = NotificationPriority.SILENT; // filtered by source
 			}
 		}
@@ -537,7 +537,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		private _sticky: boolean | undefined,
 		private _priority: NotificationPriority,
 		private _message: INotificationMessage,
-		private _source: string | { label: string; id: string } | undefined,
+		private _source: string | INotificationSource | undefined,
 		progress: INotificationProgressProperties | undefined,
 		actions?: INotificationActions
 	) {

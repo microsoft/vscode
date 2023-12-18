@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+
+interface INotificationSourceDoNotDisturb extends INotificationSource {
+	readonly filter: NotificationsFilter;
+}
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -59,33 +63,77 @@ export class NotificationService extends Disposable implements INotificationServ
 		}));
 	}
 
-	//#region Do not disturb mode
+	//#region Do not disturb mode (global)
 
-	static readonly DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+	private static readonly GLOBAL_DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
 
-	private readonly _onDidChangeDoNotDisturbMode = this._register(new Emitter<void>());
-	readonly onDidChangeDoNotDisturbMode = this._onDidChangeDoNotDisturbMode.event;
+	private readonly _onDidChangeGlobalDoNotDisturbMode = this._register(new Emitter<void>());
+	readonly onDidChangeGlobalDoNotDisturbMode = this._onDidChangeGlobalDoNotDisturbMode.event;
 
-	private _isDoNotDisturbMode = this.storageService.getBoolean(NotificationService.DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
-	get isDoNotDisturbMode() { return this._isDoNotDisturbMode; }
+	private _isGlobalDoNotDisturbMode = this.storageService.getBoolean(NotificationService.GLOBAL_DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
+	get isGlobalDoNotDisturbMode() { return this._isGlobalDoNotDisturbMode; }
 
-	setDoNotDisturbMode(enabled: boolean): void {
-		if (this._isDoNotDisturbMode === enabled) {
+	setGlobalDoNotDisturbMode(enabled: boolean): void {
+		if (this._isGlobalDoNotDisturbMode === enabled) {
 			return; // no change
 		}
 
-		this.storageService.store(NotificationService.DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		this._isDoNotDisturbMode = enabled;
+		// Store into model and persist
+		this._isGlobalDoNotDisturbMode = enabled;
+		this.storageService.store(NotificationService.GLOBAL_DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		// Toggle via filter
+		// Update model
 		this.updateDoNotDisturbFilters();
 
 		// Events
-		this._onDidChangeDoNotDisturbMode.fire();
+		this._onDidChangeGlobalDoNotDisturbMode.fire();
+	}
+
+	//#endregion
+
+	//#region Do not disturb mode (per-source)
+
+	private static readonly PER_SOURCE_DND_SETTINGS_KEY = 'notifications.perSourceDoNotDisturbMode';
+
+	private readonly _onDidChangePerSourceDoNotDisturbMode = this._register(new Emitter<INotificationSource>());
+	readonly onDidChangePerSourceDoNotDisturbMode = this._onDidChangePerSourceDoNotDisturbMode.event;
+
+	private readonly mapSourceIdToDoNotDisturb: Map<string /** source id */, INotificationSourceDoNotDisturb> = (() => {
+		const map = new Map<string, INotificationSourceDoNotDisturb>();
+
+		for (const sourceFilter of this.storageService.getObject<INotificationSourceDoNotDisturb[]>(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, StorageScope.APPLICATION, Object.create(null))) {
+			map.set(sourceFilter.id, sourceFilter);
+		}
+
+		return map;
+	})();
+
+	isSourceDoNotDisturb(source: INotificationSource): boolean {
+		return this.mapSourceIdToDoNotDisturb.get(source.id)?.filter === NotificationsFilter.ERROR;
+	}
+
+	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
+		const existing = this.mapSourceIdToDoNotDisturb.get(source.id);
+		if (existing?.filter === (mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF)) {
+			return; // no change
+		}
+
+		// Store into model and persist
+		this.mapSourceIdToDoNotDisturb.set(source.id, { id: source.id, label: source.label, filter: mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
+		this.storageService.store(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, JSON.stringify([...this.mapSourceIdToDoNotDisturb.values()]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		// Update model
+		this.updateDoNotDisturbFilters();
+
+		// Events
+		this._onDidChangePerSourceDoNotDisturbMode.fire(source);
 	}
 
 	private updateDoNotDisturbFilters(): void {
-		this.model.setFilter({ global: this._isDoNotDisturbMode ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
+		this.model.setFilter({
+			global: this._isGlobalDoNotDisturbMode ? NotificationsFilter.ERROR : NotificationsFilter.OFF,
+			sources: new Map([...this.mapSourceIdToDoNotDisturb.values()].map(source => [source.id, source.filter]))
+		});
 	}
 
 	//#endregion

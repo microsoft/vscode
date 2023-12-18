@@ -39,7 +39,7 @@ export class NotificationsStatus extends Disposable {
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
-		this._register(this.notificationService.onDidChangeDoNotDisturbMode(() => this.updateNotificationsCenterStatusItem()));
+		this._register(this.notificationService.onDidChangeGlobalDoNotDisturbMode(() => this.updateNotificationsCenterStatusItem()));
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -83,7 +83,7 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		if (this.notificationService.isDoNotDisturbMode) {
+		if (this.notificationService.isGlobalDoNotDisturbMode) {
 			statusProperties = {
 				...statusProperties,
 				text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-slash-dot)' : '$(bell-slash)'}`,

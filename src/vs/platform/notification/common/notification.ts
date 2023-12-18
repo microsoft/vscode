@@ -97,6 +97,29 @@ export interface INeverShowAgainOptions {
 	readonly scope?: NeverShowAgainScope;
 }
 
+export interface INotificationSource {
+
+	/**
+	 * The id of the source.
+	 */
+	readonly id: string;
+
+	/**
+	 * The label of the source.
+	 */
+	readonly label: string;
+}
+
+export function isNotificationSource(thing: unknown): thing is INotificationSource {
+	if (thing) {
+		const candidate = thing as INotificationSource;
+
+		return typeof candidate.id === 'string' && typeof candidate.label === 'string';
+	}
+
+	return false;
+}
+
 export interface INotification extends INotificationProperties {
 
 	/**
@@ -120,7 +143,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string | { label: string; id: string };
+	readonly source?: string | INotificationSource;
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -343,19 +366,34 @@ export interface INotificationService {
 	readonly onDidRemoveNotification: Event<INotification>;
 
 	/**
-	 * Emitted when a do not disturb mode has changed.
+	 * Emitted when the global do not disturb mode has changed.
 	 */
-	readonly onDidChangeDoNotDisturbMode: Event<void>;
+	readonly onDidChangeGlobalDoNotDisturbMode: Event<void>;
 
 	/**
 	 * If enabled, only error messages will show as toasts.
 	 */
-	readonly isDoNotDisturbMode: boolean;
+	readonly isGlobalDoNotDisturbMode: boolean;
 
 	/**
-	 * Enables or disables the do not disturb mode.
+	 * Enables or disables the global do not disturb mode.
 	 */
-	setDoNotDisturbMode(mode: boolean): void;
+	setGlobalDoNotDisturbMode(mode: boolean): void;
+
+	/**
+	 * Emitted when the per-source do not disturb mode has changed.
+	 */
+	readonly onDidChangePerSourceDoNotDisturbMode: Event<INotificationSource>;
+
+	/**
+	 * Whether the provided source is configured as do not disturb.
+	 */
+	isSourceDoNotDisturb(source: INotificationSource): boolean;
+
+	/**
+	 * Enables or disables the per-source do not disturb mode.
+	 */
+	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void;
 
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
