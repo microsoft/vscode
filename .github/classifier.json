@@ -111,7 +111,7 @@
 		"interactive-window": {"assign": ["amunger", "rebornix"]},
 		"ipc": {"assign": ["joaomoreno"]},
 		"issue-bot": {"assign": ["chrmarti"]},
-		"issue-reporter": {"assign": ["TylerLeonhardt", "justschen"]},
+		"issue-reporter": {"assign": ["justschen"]},
 		"javascript": {"assign": ["mjbvz"]},
 		"json": {"assign": ["aeschli"]},
 		"json-sorting": {"assign": ["aiday-mar"]},
