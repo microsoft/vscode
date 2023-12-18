@@ -20,6 +20,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CommentsModel, ICommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -86,6 +87,7 @@ export interface ICommentService {
 	readonly onDidDeleteDataProvider: Event<string | undefined>;
 	readonly onDidChangeCommentingEnabled: Event<boolean>;
 	readonly isCommentingEnabled: boolean;
+	readonly commentsModel: ICommentsModel;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(owner: string): void;
@@ -162,6 +164,9 @@ export class CommentService extends Disposable implements ICommentService {
 	private _continueOnComments = new Map<string, PendingCommentThread[]>(); // owner -> PendingCommentThread[]
 	private _continueOnCommentProviders = new Set<IContinueOnCommentProvider>();
 
+	private readonly _commentsModel: CommentsModel = this._register(new CommentsModel());
+	public readonly commentsModel: ICommentsModel = this._commentsModel;
+
 	constructor(
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -200,7 +205,7 @@ export class CommentService extends Disposable implements ICommentService {
 					removed: [],
 					changed: []
 				};
-				this._onDidUpdateCommentThreads.fire(evt);
+				this.updateModelThreads(evt);
 			}
 		}));
 		this._register(storageService.onWillSaveState(() => {
@@ -272,20 +277,31 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 
+	private setModelThreads(ownerId: string, ownerLabel: string, commentThreads: CommentThread<IRange>[]) {
+		this._commentsModel.setCommentThreads(ownerId, ownerLabel, commentThreads);
+		this._onDidSetAllCommentThreads.fire({ ownerId, ownerLabel, commentThreads });
+	}
+
+	private updateModelThreads(event: ICommentThreadChangedEvent) {
+		this._commentsModel.updateCommentThreads(event);
+		this._onDidUpdateCommentThreads.fire(event);
+	}
+
 	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void {
+
 		if (commentsByResource.length) {
 			this._workspaceHasCommenting.set(true);
 		}
 		const control = this._commentControls.get(owner);
 		if (control) {
-			this._onDidSetAllCommentThreads.fire({ ownerId: owner, ownerLabel: control.label, commentThreads: commentsByResource });
+			this.setModelThreads(owner, control.label, commentsByResource);
 		}
 	}
 
 	removeWorkspaceComments(owner: string): void {
 		const control = this._commentControls.get(owner);
 		if (control) {
-			this._onDidSetAllCommentThreads.fire({ ownerId: owner, ownerLabel: control.label, commentThreads: [] });
+			this.setModelThreads(owner, control.label, []);
 		}
 	}
 
@@ -300,6 +316,7 @@ export class CommentService extends Disposable implements ICommentService {
 		} else {
 			this._commentControls.clear();
 		}
+		this._commentsModel.deleteCommentsByOwner(owner);
 		this._onDidDeleteDataProvider.fire(owner);
 	}
 
@@ -346,7 +363,7 @@ export class CommentService extends Disposable implements ICommentService {
 		const control = this._commentControls.get(ownerId);
 		if (control) {
 			const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId, ownerLabel: control.label });
-			this._onDidUpdateCommentThreads.fire(evt);
+			this.updateModelThreads(evt);
 		}
 	}
 
