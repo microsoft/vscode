@@ -164,7 +164,7 @@ export class CommentService extends Disposable implements ICommentService {
 	private _continueOnComments = new Map<string, PendingCommentThread[]>(); // owner -> PendingCommentThread[]
 	private _continueOnCommentProviders = new Set<IContinueOnCommentProvider>();
 
-	private readonly _commentsModel: CommentsModel = new CommentsModel();
+	private readonly _commentsModel: CommentsModel = this._register(new CommentsModel());
 	public readonly commentsModel: ICommentsModel = this._commentsModel;
 
 	constructor(
