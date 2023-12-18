@@ -808,7 +808,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		if (hint instanceof Repository) {
-			return this.openRepositories.filter(r => r.repository === hint || r.repository.rootRealPath === hint.rootRealPath)[0];
+			return this.openRepositories.filter(r => r.repository === hint)[0];
 		}
 
 		if (hint instanceof ApiRepository) {

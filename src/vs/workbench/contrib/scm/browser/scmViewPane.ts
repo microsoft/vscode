@@ -526,13 +526,14 @@ class RepositoryPaneActionRunner extends ActionRunner {
 
 		const selection = this.getSelectedResources();
 		const contextAsProvider = <ISCMProvider>context;
-		const contextIsSelected = selection.some(s => s === context || (<ISCMResourceGroup>s)?.id === contextAsProvider?.id);
+		const contextIsSelected = selection.some(s => s === context || (<ISCMResourceGroup>s)?.provider === contextAsProvider);
 		let actualContext = contextIsSelected ? selection : [context];
 		// When running the action on selected items and context is an `ISCMProvider`, convert the selection to providers as well.
 		if (contextIsSelected && contextAsProvider !== undefined) {
 			// Since some actions only target the `context` item and ignore the rest of the selection,
 			// this inserts the `context` item at the beginning and the rest of the selection afterwards.
-			actualContext = [context, ...selection.map(s => (<ISCMResourceGroup>s)?.provider).filter(p => p === undefined || p?.id === contextAsProvider.id)];
+			const selectedProvidersWithoutContext = selection.map(s => (<ISCMResourceGroup>s)?.provider).filter(p => p && p !== contextAsProvider);
+			actualContext = [context, ...selectedProvidersWithoutContext];
 		}
 		const args = actualContext.flatMap(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]);
 
