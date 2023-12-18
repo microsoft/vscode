@@ -729,7 +729,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (xterm, accessor) => {
+		run: (xterm) => {
 			xterm.scrollToBottom();
 		}
 	});
