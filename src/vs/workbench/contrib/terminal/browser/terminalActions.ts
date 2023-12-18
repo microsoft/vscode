@@ -64,7 +64,6 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -290,7 +289,6 @@ export interface ITerminalServicesCollection {
 	editorService: ITerminalEditorService;
 	profileService: ITerminalProfileService;
 	profileResolverService: ITerminalProfileResolverService;
-	accessibleViewService: IAccessibleViewService;
 }
 
 function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesCollection {
@@ -301,7 +299,6 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 		editorService: accessor.get(ITerminalEditorService),
 		profileService: accessor.get(ITerminalProfileService),
 		profileResolverService: accessor.get(ITerminalProfileResolverService),
-		accessibleViewService: accessor.get(IAccessibleViewService)
 	};
 }
 

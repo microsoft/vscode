@@ -333,8 +333,8 @@ registerTerminalAction({
 		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
 		weight: KeybindingWeight.WorkbenchContrib
 	},
-	run: (c) => {
-		const accessibleViewService = c.accessibleViewService;
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
 		const lastPosition = accessibleViewService.getLastPosition();
 		if (!lastPosition) {
 			return;
@@ -353,8 +353,8 @@ registerTerminalAction({
 		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
 		weight: KeybindingWeight.WorkbenchContrib
 	},
-	run: (c) => {
-		const accessibleViewService = c.accessibleViewService;
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
 		accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
 	}
 });
