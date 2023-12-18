@@ -649,9 +649,13 @@ export class LiveStrategy extends EditModeStrategy {
 			return undefined;
 		}
 
+		const enum HunkState {
+			Accepted = 1,
+			Rejected = 2,
+		}
 
 		type HunkDisplayData = {
-			acceptedOrRejected: boolean;
+			acceptedOrRejected: HunkState | undefined;
 			decorationIds: string[];
 
 			viewZoneId: string | undefined;
@@ -693,7 +697,7 @@ export class LiveStrategy extends EditModeStrategy {
 								class: ThemeIcon.asClassName(Codicon.check),
 								run: () => {
 									// ACCEPT: stop rendering this as inserted
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = true;
+									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
 									renderHunks();
 								}
 							}),
@@ -711,7 +715,7 @@ export class LiveStrategy extends EditModeStrategy {
 										edits.push(EditOperation.replace(modifiedRange, originalValue));
 									}
 									this._session.textModelN.pushEditOperations(null, edits, () => null);
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = true;
+									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
 									renderHunks();
 								}
 							}),
@@ -761,7 +765,7 @@ export class LiveStrategy extends EditModeStrategy {
 							: zoneLineNumber - modifiedRange.endLineNumber;
 
 						data = {
-							acceptedOrRejected: false,
+							acceptedOrRejected: undefined,
 							decorationIds,
 							viewZoneId: '',
 							viewZone: viewZoneData,
@@ -773,7 +777,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 						hunkDisplayData.set(hunk, data);
 
-					} else if (data.acceptedOrRejected) {
+					} else if (data.acceptedOrRejected !== undefined) {
 						// accepted or rejected -> remove decoration
 						for (const decorationId of data.decorationIds) {
 							decorationsAccessor.removeDecoration(decorationId);
@@ -815,8 +819,18 @@ export class LiveStrategy extends EditModeStrategy {
 
 			} else if (hunkDisplayData.size > 0) {
 				// everything accepted or rejected
-				// TODO@jrieken fire cancel instead?
-				this._onDidAccept.fire();
+				let oneAccepted = false;
+				for (const data of hunkDisplayData.values()) {
+					if (data.acceptedOrRejected === HunkState.Accepted) {
+						oneAccepted = true;
+						break;
+					}
+				}
+				if (oneAccepted) {
+					this._onDidAccept.fire();
+				} else {
+					this._onDidDiscard.fire();
+				}
 			}
 		};
 
