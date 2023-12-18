@@ -6,7 +6,7 @@
 import 'vs/css!./media/notificationsActions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -76,19 +76,6 @@ export class ToggleDoNotDisturbAction extends Action {
 	}
 }
 
-export class DoNotDisturbMenuAction extends Action {
-
-	static readonly ID = 'notifications.configureDoNotDisturb';
-	static readonly LABEL = localize('configureDoNotDisturb', "Configure Do Not Disturb");
-
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
-	}
-}
-
 export class HideNotificationsCenterAction extends Action {
 
 	static readonly ID = HIDE_NOTIFICATIONS_CENTER;
@@ -151,7 +138,20 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		readonly configurationActions: readonly IAction[]
+		readonly notification: INotificationViewItem
+	) {
+		super(id, label, ThemeIcon.asClassName(configureIcon));
+	}
+}
+
+export class ConfigureNotificationsAction extends Action {
+
+	static readonly ID = 'workbench.action.configureNotifications';
+	static readonly LABEL = localize('configureNotifications', "Configure Notifications...");
+
+	constructor(
+		id: string,
+		label: string
 	) {
 		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}
