@@ -346,7 +346,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				expand = { kind: 'code-action', action };
 			}
 			else if (action.fixName === fixNames.fixMissingFunctionDeclaration && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.missingFunctionDeclaration')) {
-				title += `Implement missing function declaration '${document.getText(diagnostic.range)}' using Copilot`;
+				title = `Implement missing function declaration '${document.getText(diagnostic.range)}' using Copilot`;
 				message = `Provide a reasonable implementation of the function ${document.getText(diagnostic.range)} given its type and the context it's called in.`;
 				expand = { kind: 'code-action', action };
 			}
