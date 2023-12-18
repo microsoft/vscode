@@ -1269,11 +1269,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 					};
 
 					await promises.topCallStack;
+
+					this.enableDependentBreakpoints(thread);
+
 					if (token.isCancellationRequested) {
 						return;
 					}
-
-					this.enableDependentBreakpoints(thread);
 
 					focus();
 
@@ -1304,20 +1305,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		// find the current breakpoints
-		const breakpoints = this.model.getBreakpoints({ uri: frame?.source.uri }).filter(bp => {
-			if (bp.lineNumber < frame.range.startLineNumber || bp.lineNumber > frame.range.endLineNumber) {
-				return false;
-			}
-
-			if (bp.column && (bp.column < frame.range.startColumn || bp.column > frame.range.endColumn)) {
-				return false;
-			}
-			return true;
-		});
+		const hitBreakpointIds = thread.stoppedDetails?.hitBreakpointIds?.map(id => id.toString());
+		const breakpoints = this.getBreakpoints(hitBreakpointIds) || this.getBreakpointsAtPosition(frame.source.uri, frame.range.startLineNumber, frame.range.endLineNumber, frame.range.startColumn, frame.range.endColumn);
 
 		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
 		const uriBreakpoints = new Map<URI, IBreakpoint[]>();
-		this.model.getBreakpoints({ dependentOnly: true }).forEach(bp => {
+		this.model.getBreakpoints({ dependentOnly: true, enabledOnly: true }).forEach(bp => {
 			breakpoints.forEach(cbp => {
 				if (bp.waitFor?.matches(cbp)) {
 					const uri = bp.uri;
@@ -1334,6 +1327,26 @@ export class DebugSession implements IDebugSession, IDisposable {
 				this.sendBreakpoints(uri, bps, false);
 			});
 		}
+	}
+
+	private getBreakpoints(ids?: string[]): IBreakpoint[] | undefined {
+		if (ids) {
+			return this.model.getBreakpoints().filter(bp => ids.includes(bp.getId()));
+		}
+		return undefined;
+	}
+
+	private getBreakpointsAtPosition(uri: URI, startLineNumber: number, endLineNumber: number, startColumn: number, endColumn: number): IBreakpoint[] {
+		return this.model.getBreakpoints({ uri: uri }).filter(bp => {
+			if (bp.lineNumber < startLineNumber || bp.lineNumber > endLineNumber) {
+				return false;
+			}
+
+			if (bp.column && (bp.column < startColumn || bp.column > endColumn)) {
+				return false;
+			}
+			return true;
+		});
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {
