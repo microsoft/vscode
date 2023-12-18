@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
 import { ISearchRange, ITextQuery, ITextSearchContext, QueryType } from 'vs/workbench/services/search/common/search';
@@ -11,6 +12,7 @@ import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } 
 
 suite('SearchHelpers', () => {
 	suite('editorMatchesToTextSearchResults', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
 		const mockTextModel: ITextModel = <ITextModel>{
 			getLineContent(lineNumber: number): string {
 				return '' + lineNumber;
@@ -72,6 +74,7 @@ suite('SearchHelpers', () => {
 	});
 
 	suite('addContextToEditorMatches', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
 		const MOCK_LINE_COUNT = 100;
 
 		const mockTextModel: ITextModel = <ITextModel>{

@@ -93,7 +93,7 @@ import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorOptions, IRulerOption } from 'vs/editor/common/config/editorOptions';
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -2142,7 +2142,8 @@ class SCMInputWidget {
 			overflowWidgetsDomNode,
 			formatOnType: true,
 			renderWhitespace: 'none',
-			dropIntoEditor: { enabled: true }
+			dropIntoEditor: { enabled: true },
+			...this.getInputEditorLanguageConfiguration(),
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -2208,7 +2209,9 @@ class SCMInputWidget {
 			'editor.fontFamily', // When `scm.inputFontFamily` is 'editor', we use it as an effective value
 			'scm.inputFontSize',
 			'editor.accessibilitySupport',
-			'editor.cursorBlinking'
+			'editor.cursorBlinking',
+			'editor.rulers',
+			'editor.wordWrap'
 		];
 
 		const onRelevantSettingChanged = Event.filter(
@@ -2235,7 +2238,8 @@ class SCMInputWidget {
 				fontSize: fontSize,
 				lineHeight: lineHeight,
 				accessibilitySupport,
-				cursorBlinking
+				cursorBlinking,
+				...this.getInputEditorLanguageConfiguration()
 			});
 
 			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
@@ -2263,10 +2267,19 @@ class SCMInputWidget {
 	}
 
 	getContentHeight(): number {
-		const editorContentHeight = this.inputEditor.getContentHeight();
-		const editorContextHeightMax = this.getInputEditorMaxHeight();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
 
-		return Math.min(editorContentHeight, editorContextHeightMax);
+		const inputMinLinesConfig = this.configurationService.getValue('scm.inputMinLineCount');
+		const inputMinLines = typeof inputMinLinesConfig === 'number' ? clamp(inputMinLinesConfig, 1, 50) : 1;
+		const editorMinHeight = inputMinLines * lineHeight + top + bottom;
+
+		const inputMaxLinesConfig = this.configurationService.getValue('scm.inputMaxLineCount');
+		const inputMaxLines = typeof inputMaxLinesConfig === 'number' ? clamp(inputMaxLinesConfig, 1, 50) : 10;
+		const editorMaxHeight = inputMaxLines * lineHeight + top + bottom;
+
+		return clamp(this.inputEditor.getContentHeight(), editorMinHeight, editorMaxHeight);
 	}
 
 	layout(): void {
@@ -2403,18 +2416,14 @@ class SCMInputWidget {
 		return this.configurationService.getValue<number>('scm.inputFontSize');
 	}
 
-	private getInputEditorMaxLines(): number {
-		const inputMaxLines = this.configurationService.getValue('scm.inputMaxLines');
-		return typeof inputMaxLines === 'number' ? clamp(inputMaxLines, 1, 50) : 10;
-	}
+	private getInputEditorLanguageConfiguration(): { rulers: (number | IRulerOption)[]; wordWrap: 'off' | 'on' | 'wordWrapColumn' | 'bounded' } {
+		const rulers = this.configurationService.inspect('editor.rulers', { overrideIdentifier: 'scminput' });
+		const wordWrap = this.configurationService.inspect('editor.wordWrap', { overrideIdentifier: 'scminput' });
 
-	private getInputEditorMaxHeight(): number {
-		const maxLines = this.getInputEditorMaxLines();
-		const fontSize = this.getInputEditorFontSize();
-		const lineHeight = this.computeLineHeight(fontSize);
-		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
-
-		return maxLines * lineHeight + top + bottom;
+		return {
+			rulers: rulers.overrideIdentifiers?.includes('scminput') ? EditorOptions.rulers.validate(rulers.value) : [],
+			wordWrap: wordWrap.overrideIdentifiers?.includes('scminput') ? EditorOptions.wordWrap.validate(wordWrap) : 'on'
+		};
 	}
 
 	private getToolbarWidth(): number {
@@ -2652,7 +2661,9 @@ export class SCMViewPane extends ViewPane {
 						e.affectsConfiguration('scm.showActionButton') ||
 						e.affectsConfiguration('scm.alwaysShowRepositories') ||
 						e.affectsConfiguration('scm.showIncomingChanges') ||
-						e.affectsConfiguration('scm.showOutgoingChanges')) {
+						e.affectsConfiguration('scm.showOutgoingChanges') ||
+						e.affectsConfiguration('scm.inputMinLineCount') ||
+						e.affectsConfiguration('scm.inputMaxLineCount')) {
 						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
 						this._showIncomingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges');
@@ -2854,6 +2865,12 @@ export class SCMViewPane extends ViewPane {
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri) {
+			return;
+		}
+
+		// Do not set focus/selection when the resource is already focused and selected
+		if (this.tree.getFocus().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri)) &&
+			this.tree.getSelection().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri))) {
 			return;
 		}
 
