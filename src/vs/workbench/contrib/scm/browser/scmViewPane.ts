@@ -2854,6 +2854,12 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		// Do not set focus/selection when the resource is already focused and selected
+		if (this.tree.getFocus().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri)) &&
+			this.tree.getSelection().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri))) {
+			return;
+		}
+
 		this.revealResourceThrottler.queue(
 			() => this.treeOperationSequencer.queue(
 				async () => {
