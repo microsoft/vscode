@@ -74,7 +74,9 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private onDidChangeGlobalDoNotDisturbMode(): void {
-		this.hide(); // hide the notification center when do not disturb is toggled
+		if (this.notificationService.isGlobalDoNotDisturbMode) {
+			this.hide(); // hide the notification center when do not disturb is toggled
+		}
 	}
 
 	get isVisible(): boolean {
