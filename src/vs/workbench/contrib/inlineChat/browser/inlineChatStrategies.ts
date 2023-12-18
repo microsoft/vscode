@@ -478,13 +478,18 @@ export class LiveStrategy extends EditModeStrategy {
 
 
 	private readonly _decoInsertedText = ModelDecorationOptions.register({
-		description: 'inline-modified',
+		description: 'inline-modified-line',
 		className: 'inline-chat-inserted-range-linehighlight',
 		isWholeLine: true,
 		overviewRuler: {
 			position: OverviewRulerLane.Full,
 			color: themeColorFromId(overviewRulerInlineChatDiffInserted),
 		}
+	});
+
+	private readonly _decoInsertedTextRange = ModelDecorationOptions.register({
+		description: 'inline-chat-inserted-range-linehighlight',
+		className: 'inline-chat-inserted-range',
 	});
 
 	private readonly _store: DisposableStore = new DisposableStore();
@@ -689,6 +694,12 @@ export class LiveStrategy extends EditModeStrategy {
 				options: this._decoInsertedText
 			});
 
+			for (const innerChange of innerChanges ?? []) {
+				newDecorations.push({
+					range: innerChange.modifiedRange,
+					options: this._decoInsertedTextRange
+				});
+			}
 
 			// original view zone
 			const source = new LineSource(
