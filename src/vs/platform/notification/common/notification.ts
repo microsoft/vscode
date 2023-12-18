@@ -346,6 +346,10 @@ export enum NotificationsFilter {
 	ERROR
 }
 
+export interface INotificationSourceFilter extends INotificationSource {
+	readonly filter: NotificationsFilter;
+}
+
 /**
  * A service to bring up notifications and non-modal prompts.
  *
@@ -395,6 +399,10 @@ export interface INotificationService {
 	 */
 	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void;
 
+	/**
+	 * Returns all sources do not disturb configuration.
+	 */
+	getSourcesDoNotDisturb(): INotificationSourceFilter[];
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
 	 * can be used to control the notification afterwards.

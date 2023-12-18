@@ -17,7 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { INotification, INotificationService, INotificationSource, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createContext(ctx: any) {
@@ -181,6 +181,9 @@ suite('AbstractKeybindingService', () => {
 					throw new Error('Method not implemented.');
 				},
 				setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
+					throw new Error('Method not implemented.');
+				},
+				getSourcesDoNotDisturb(): INotificationSourceFilter[] {
 					throw new Error('Method not implemented.');
 				}
 			};

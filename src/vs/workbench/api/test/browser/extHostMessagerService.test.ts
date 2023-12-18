@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService, IPrompt, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -57,6 +57,9 @@ const emptyNotificationService = new class implements INotificationService {
 	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
 		throw new Error('Method not implemented.');
 	}
+	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
+		throw new Error('Method not implemented.');
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
@@ -96,6 +99,9 @@ class EmptyNotificationService implements INotificationService {
 		throw new Error('Method not implemented.');
 	}
 	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
+		throw new Error('Method not implemented.');
+	}
+	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
 		throw new Error('Method not implemented.');
 	}
 }

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotification, INotificationHandle, INotificationService, INotificationSource, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, Severity } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, Severity } from 'vs/platform/notification/common/notification';
 
 export class TestNotificationService implements INotificationService {
 
@@ -56,4 +56,8 @@ export class TestNotificationService implements INotificationService {
 	}
 
 	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void { }
+
+	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
+		return [];
+	}
 }
