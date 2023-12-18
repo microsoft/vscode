@@ -49,6 +49,25 @@ export function format2(template: string, values: Record<string, unknown>): stri
 }
 
 /**
+ * Encodes the given value so that it can be used as literal value in html attributes.
+ *
+ * In other words, computes `$val`, such that `attr` in `<div attr="$val" />` has the runtime value `value`.
+ * This prevents XSS injection.
+ */
+export function htmlAttributeEncodeValue(value: string): string {
+	return value.replace(/[<>"'&]/g, ch => {
+		switch (ch) {
+			case '<': return '&lt;';
+			case '>': return '&gt;';
+			case '"': return '&quot;';
+			case '\'': return '&apos;';
+			case '&': return '&amp;';
+		}
+		return ch;
+	});
+}
+
+/**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
  */
