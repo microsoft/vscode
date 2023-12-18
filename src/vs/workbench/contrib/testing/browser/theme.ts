@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { contrastBorder, editorErrorForeground, editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorErrorForeground, editorForeground, editorInfoForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
@@ -64,12 +64,26 @@ export const testingPeekBorder = registerColor('testing.peekBorder', {
 	hcLight: contrastBorder
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
 
+export const testingMessagePeekBorder = registerColor('testing.messagePeekBorder', {
+	dark: editorInfoForeground,
+	light: editorInfoForeground,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('testing.messagePeekBorder', 'Color of the peek view borders and arrow when peeking a logged message.'));
+
 export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBackground', {
 	dark: transparent(editorErrorForeground, 0.1),
 	light: transparent(editorErrorForeground, 0.1),
 	hcDark: null,
 	hcLight: null
 }, localize('testing.peekBorder', 'Color of the peek view borders and arrow.'));
+
+export const testingPeekMessageHeaderBackground = registerColor('testing.messagePeekHeaderBackground', {
+	dark: transparent(editorInfoForeground, 0.1),
+	light: transparent(editorInfoForeground, 0.1),
+	hcDark: null,
+	hcLight: null
+}, localize('testing.messagePeekHeaderBackground', 'Color of the peek view borders and arrow when peeking a logged message.'));
 
 export const testMessageSeverityColors: {
 	[K in TestMessageType]: {

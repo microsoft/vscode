@@ -98,7 +98,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -168,6 +168,7 @@ import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/plat
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { mainWindow } from 'vs/base/browser/window';
+import { IMarkerService } from 'vs/platform/markers/common/markers';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -265,7 +266,8 @@ export function workbenchInstantiationService(
 		}
 	});
 	instantiationService.stub(IConfigurationService, configService);
-	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
+	const textResourceConfigurationService = new TestTextResourceConfigurationService(configService);
+	instantiationService.stub(ITextResourceConfigurationService, textResourceConfigurationService);
 	instantiationService.stub(IUntitledTextEditorService, disposables.add(instantiationService.createInstance(UntitledTextEditorService)));
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
@@ -293,7 +295,9 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IFileService, fileService);
 	const uriIdentityService = new UriIdentityService(fileService);
 	disposables.add(uriIdentityService);
-	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService, environmentService, uriIdentityService, fileService)));
+	const markerService = new TestMarkerService();
+	instantiationService.stub(IMarkerService, markerService);
+	instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(contextKeyService, configService, workspaceContextService, environmentService, uriIdentityService, fileService, markerService, textResourceConfigurationService)));
 	instantiationService.stub(IUriIdentityService, disposables.add(uriIdentityService));
 	const userDataProfilesService = instantiationService.stub(IUserDataProfilesService, disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, new NullLogService())));
 	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile)));
@@ -314,7 +318,7 @@ export function workbenchInstantiationService(
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>disposables.add(instantiationService.createInstance(LabelService)));
-	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
+	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : disposables.add(new TestEditorService(editorGroupService));
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(IWorkingCopyEditorService, disposables.add(instantiationService.createInstance(WorkingCopyEditorService)));
 	instantiationService.stub(IEditorResolverService, disposables.add(instantiationService.createInstance(EditorResolverService)));
@@ -593,6 +597,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerDimension: IDimension = { width: 800, height: 600 };
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	whenActiveContainerStylesLoaded = Promise.resolve();
 
 	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
@@ -984,7 +989,7 @@ export class TestEditorGroupAccessor implements IEditorGroupsView {
 	toggleExpandGroup(group: number | IEditorGroupView): void { throw new Error('Method not implemented.'); }
 }
 
-export class TestEditorService implements EditorServiceImpl {
+export class TestEditorService extends Disposable implements EditorServiceImpl {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -1013,7 +1018,9 @@ export class TestEditorService implements EditorServiceImpl {
 	visibleEditors: readonly EditorInput[] = [];
 	count = this.editors.length;
 
-	constructor(private editorGroupService?: IEditorGroupsService) { }
+	constructor(private editorGroupService?: IEditorGroupsService) {
+		super();
+	}
 	createScoped(editorGroupsContainer: IEditorGroupsContainer): IEditorService { return this; }
 	getEditors() { return []; }
 	findEditors() { return [] as any; }
@@ -1021,6 +1028,11 @@ export class TestEditorService implements EditorServiceImpl {
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
+		// openEditor takes ownership of the input, register it to the TestEditorService
+		// so it's not marked as leaked during tests.
+		if ('dispose' in editor) {
+			this._register(editor);
+		}
 		return undefined;
 	}
 	async closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void> { }
@@ -1506,7 +1518,7 @@ export class TestHostService implements IHostService {
 export class TestFilesConfigurationService extends FilesConfigurationService {
 
 	testOnFilesConfigurationChange(configuration: any): void {
-		super.onFilesConfigurationChange(configuration);
+		super.onFilesConfigurationChange(configuration, true);
 	}
 }
 

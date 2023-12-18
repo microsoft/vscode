@@ -13,7 +13,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -26,12 +26,11 @@ import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { localize } from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -40,7 +39,7 @@ import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWord
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export abstract class EditModeStrategy {
 
@@ -171,121 +170,41 @@ export class PreviewStrategy extends EditModeStrategy {
 }
 
 
-class InlineDiffDecorations {
-
-	private readonly _collection: IEditorDecorationsCollection;
-
-	private _data: { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions }[] = [];
-	private _visible: boolean = false;
-
-	constructor(editor: ICodeEditor, visible: boolean = false) {
-		this._collection = editor.createDecorationsCollection();
-		this._visible = visible;
-	}
-
-	get visible() {
-		return this._visible;
-	}
-
-	set visible(value: boolean) {
-		this._visible = value;
-		this.update();
-	}
-
-	clear() {
-		this._collection.clear();
-		this._data.length = 0;
-	}
-
-	collectEditOperation(op: IValidEditOperation) {
-		this._data.push(InlineDiffDecorations._asDecorationData(op));
-	}
-
-	update() {
-		this._collection.set(this._data.map(d => {
-			const res = { ...d.tracking };
-			if (this._visible) {
-				res.options = { ...res.options, ...d.decorating };
-			}
-			return res;
-		}));
-	}
-
-	private static _asDecorationData(edit: IValidEditOperation): { tracking: IModelDeltaDecoration; decorating: IModelDecorationOptions } {
-		let content = edit.text;
-		if (content.length > 12) {
-			content = content.substring(0, 12) + '…';
-		}
-		const tracking: IModelDeltaDecoration = {
-			range: edit.range,
-			options: {
-				description: 'inline-chat-inline-diff',
-			}
-		};
-
-		const decorating: IModelDecorationOptions = {
-			description: 'inline-chat-inline-diff',
-			className: !edit.range.isEmpty() ? 'inline-chat-lines-inserted-range' : undefined,
-			showIfCollapsed: true,
-			before: {
-				content,
-				inlineClassName: 'inline-chat-lines-deleted-range-inline',
-				attachedData: edit,
-			}
-		};
-
-		return { tracking, decorating };
-	}
-}
-
 export interface ProgressingEditsOptions {
 	duration: number;
 	token: CancellationToken;
 }
 
-export class LiveStrategy extends EditModeStrategy {
+export class LivePreviewStrategy extends EditModeStrategy {
 
-	protected _diffEnabled: boolean = false;
-
-	private readonly _inlineDiffDecorations: InlineDiffDecorations;
-	private readonly _store: DisposableStore = new DisposableStore();
-
+	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
+	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
+	private _currentLineRangeGroups: LineRangeMapping[][] = [];
 	private _editCount: number = 0;
 
 	constructor(
-		protected readonly _session: Session,
-		protected readonly _editor: ICodeEditor,
+		private readonly _session: Session,
+		private readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
-		@IConfigurationService configService: IConfigurationService,
-		@IStorageService protected _storageService: IStorageService,
-		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
-		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
-		@IInstantiationService protected readonly _instaService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IBulkEditService bulkEditService: IBulkEditService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super(zone);
-		this._diffEnabled = configService.getValue<boolean>('inlineChat.showDiff');
 
-		this._inlineDiffDecorations = new InlineDiffDecorations(this._editor, this._diffEnabled);
-		this._inlineDiffDecorations.visible = this._diffEnabled;
-
-		this._store.add(configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('inlineChat.showDiff')) {
-				this._diffEnabled = !this._diffEnabled;
-				this._doToggleDiff();
-			}
-		}));
+		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, _editor));
 	}
 
 	override dispose(): void {
+		for (const zone of this._diffZonePool) {
+			zone.hide();
+			zone.dispose();
+		}
+		this._previewZone.rawValue?.hide();
+		this._previewZone.rawValue?.dispose();
 		super.dispose();
-		this._inlineDiffDecorations.clear();
-		this._store.dispose();
 	}
-
-	protected _doToggleDiff(): void {
-		this._inlineDiffDecorations.visible = this._diffEnabled;
-	}
-
 	async start() {
 		// nothing to do
 	}
@@ -309,15 +228,13 @@ export class LiveStrategy extends EditModeStrategy {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		LiveStrategy._undoModelUntil(modelN, targetAltVersion);
+		await undoModelUntil(modelN, targetAltVersion);
 	}
-
 	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
 				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-				this._inlineDiffDecorations.collectEditOperation(edit);
 			}
 			return last && [Selection.fromPositions(last)];
 		};
@@ -331,7 +248,8 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override async undoChanges(altVersionId: number): Promise<void> {
 		const { textModelN } = this._session;
-		LiveStrategy._undoModelUntil(textModelN, altVersionId);
+		await undoModelUntil(textModelN, altVersionId);
+		await this._updateDiffZones();
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
@@ -341,6 +259,13 @@ export class LiveStrategy extends EditModeStrategy {
 			this._editor.pushUndoStop();
 		}
 
+		//add a listener that shows the diff zones as soon as the first edit is applied
+		let renderTask = Promise.resolve();
+		const changeListener = this._session.textModelN.onDidChangeContent(() => {
+			changeListener.dispose();
+			renderTask = this._updateDiffZones();
+		});
+
 		const durationInSec = opts.duration / 1000;
 		for (const edit of edits) {
 			const wordCount = countWords(edit.text ?? '');
@@ -348,23 +273,19 @@ export class LiveStrategy extends EditModeStrategy {
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
 			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed, opts.token));
 		}
+
+		await renderTask;
+		changeListener.dispose();
 	}
 
 	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		this._updateSummaryMessage(diff?.changes ?? []);
-		this._inlineDiffDecorations.update();
 
-		if (response.untitledTextModel) {
-			this._zone.widget.showCreatePreview(response.untitledTextModel);
+		await this._updateDiffZones();
+
+		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
+			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
 		} else {
-			this._zone.widget.hideCreatePreview();
-		}
-	}
-
-	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-			model.undo();
+			this._previewZone.value.hide();
 		}
 	}
 
@@ -386,42 +307,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override needsMargin(): boolean {
 		return true;
-	}
-
-	hasFocus(): boolean {
-		return this._zone.widget.hasFocus();
-	}
-}
-
-export class LivePreviewStrategy extends LiveStrategy {
-
-	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
-	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
-	private _currentLineRangeGroups: LineRangeMapping[][] = [];
-
-	constructor(
-		session: Session,
-		editor: ICodeEditor,
-		zone: InlineChatZoneWidget,
-		@IConfigurationService configService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IBulkEditService bulkEditService: IBulkEditService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
-		@IInstantiationService instaService: IInstantiationService,
-	) {
-		super(session, editor, zone, configService, storageService, bulkEditService, editorWorkerService, instaService);
-
-		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
-	}
-
-	override dispose(): void {
-		for (const zone of this._diffZonePool) {
-			zone.hide();
-			zone.dispose();
-		}
-		this._previewZone.rawValue?.hide();
-		this._previewZone.rawValue?.dispose();
-		super.dispose();
 	}
 
 
@@ -497,39 +382,10 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-
-		const changeTask = super.makeProgressiveChanges(edits, opts);
-
-		//add a listener that shows the diff zones as soon as the first edit is applied
-		let renderTask = Promise.resolve();
-		const changeListener = this._session.textModelN.onDidChangeContent(() => {
-			changeListener.dispose();
-			renderTask = this._updateDiffZones();
-		});
-		await changeTask;
-		await renderTask;
-		changeListener.dispose();
-	}
-
-	override async undoChanges(altVersionId: number): Promise<void> {
-		await super.undoChanges(altVersionId);
-		await this._updateDiffZones();
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-
-		await this._updateDiffZones();
-
-		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.getStartPosition().delta(-1), response.untitledTextModel);
-		} else {
-			this._previewZone.value.hide();
-		}
-	}
-
 	override hasFocus(): boolean {
-		return super.hasFocus() || Boolean(this._previewZone.rawValue?.hasFocus()) || this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
+		return this._zone.widget.hasFocus()
+			|| Boolean(this._previewZone.rawValue?.hasFocus())
+			|| this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
 	}
 }
 
@@ -613,7 +469,28 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 
 // ---
 
-export class LiveStrategy3 extends EditModeStrategy {
+export class LiveStrategy extends EditModeStrategy {
+
+	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({
+		description: 'inline-chat-modified-interacted-with',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	});
+
+
+	private readonly _decoInsertedText = ModelDecorationOptions.register({
+		description: 'inline-modified-line',
+		className: 'inline-chat-inserted-range-linehighlight',
+		isWholeLine: true,
+		overviewRuler: {
+			position: OverviewRulerLane.Full,
+			color: themeColorFromId(overviewRulerInlineChatDiffInserted),
+		}
+	});
+
+	private readonly _decoInsertedTextRange = ModelDecorationOptions.register({
+		description: 'inline-chat-inserted-range-linehighlight',
+		className: 'inline-chat-inserted-range',
+	});
 
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
@@ -687,7 +564,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 			return;
 		}
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		LiveStrategy3._undoModelUntil(modelN, targetAltVersion);
+		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
@@ -712,7 +589,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		this._modifiedRangesThatHaveBeenInteractedWith.length = 0;
 
 		const { textModelN } = this._session;
-		LiveStrategy3._undoModelUntil(textModelN, altVersionId);
+		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
@@ -723,7 +600,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 
 		const listener = this._session.textModelN.onDidChangeContent(async () => {
-			await this._showDiff(false, false);
+			await this._showDiff(false, false, false);
 		});
 
 		try {
@@ -771,9 +648,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 
-	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({ description: 'inline-chat-modified-interacted-with', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges });
 
-	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean): Promise<Position | undefined> {
+	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean, revealWidget: boolean): Promise<Position | undefined> {
 
 		const diff = await this._computeDiff();
 
@@ -812,24 +688,17 @@ export class LiveStrategy3 extends EditModeStrategy {
 				continue;
 			}
 
-			if (innerChanges) {
-				for (const { modifiedRange } of innerChanges) {
-					newDecorations.push({
-						range: modifiedRange,
-						options: {
-							description: 'inline-modified',
-							className: 'inline-chat-inserted-range',
-						}
-					});
-					newDecorations.push({
-						range: modifiedRange,
-						options: {
-							description: 'inline-modified',
-							className: 'inline-chat-inserted-range-linehighlight',
-							isWholeLine: true
-						}
-					});
-				}
+			// highlight modified lines
+			newDecorations.push({
+				range: modifiedRange,
+				options: this._decoInsertedText
+			});
+
+			for (const innerChange of innerChanges ?? []) {
+				newDecorations.push({
+					range: innerChange.modifiedRange,
+					options: this._decoInsertedTextRange
+				});
 			}
 
 			// original view zone
@@ -862,7 +731,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 						class: ThemeIcon.asClassName(Codicon.check),
 						run: () => {
 							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
-							return this._showDiff(true, true);
+							return this._showDiff(true, true, true);
 						}
 					}),
 					toAction({
@@ -876,7 +745,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 								edits.push(EditOperation.replace(innerChange.modifiedRange, originalValue));
 							}
 							this._session.textModelN.pushEditOperations(null, edits, () => null);
-							return this._showDiff(true, true);
+							return this._showDiff(true, true, true);
 						}
 					}),
 				];
@@ -900,6 +769,10 @@ export class LiveStrategy3 extends EditModeStrategy {
 					}
 					: undefined;
 
+				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
+					this._showDiff(true, true, false);
+				}));
+
 				const zoneLineNumber = this._zone.position!.lineNumber;
 				const myDistance = zoneLineNumber <= modifiedRange.startLineNumber
 					? modifiedRange.startLineNumber - zoneLineNumber
@@ -914,7 +787,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 		if (widgetData) {
 			this._zone.widget.setExtraButtons(widgetData.actions);
 			this._zone.updatePositionAndHeight(widgetData.position);
-			this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			if (revealWidget) {
+				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			}
 
 			this._updateSummaryMessage(diff.changes, widgetData.index);
 
@@ -947,13 +822,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._previewZone.value.hide();
 		}
 
-		return await this._showDiff(true, false);
-	}
-
-	private static _undoModelUntil(model: ITextModel, targetAltVersion: number): void {
-		while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-			model.undo();
-		}
+		return await this._showDiff(true, false, true);
 	}
 
 	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[], index: number) {
@@ -976,5 +845,12 @@ export class LiveStrategy3 extends EditModeStrategy {
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
+	}
+}
+
+
+async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
+	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+		await model.undo();
 	}
 }

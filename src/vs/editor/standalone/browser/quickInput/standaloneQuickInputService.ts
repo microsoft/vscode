@@ -50,6 +50,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 				get onDidLayoutContainer() { return Event.map(editor.onDidLayoutChange, dimension => ({ container: widget.getDomNode(), dimension })); },
 				get onDidChangeActiveContainer() { return Event.None; },
 				get onDidAddContainer() { return Event.None; },
+				get whenActiveContainerStylesLoaded() { return Promise.resolve(); },
 				get mainContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				get activeContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				focus: () => editor.focus()

@@ -27,7 +27,7 @@ suite('WorkingCopyEditorService', () => {
 	});
 
 	test('registry - basics', () => {
-		const service = disposables.add(new WorkingCopyEditorService(new TestEditorService()));
+		const service = disposables.add(new WorkingCopyEditorService(disposables.add(new TestEditorService())));
 
 		let handlerEvent: IWorkingCopyEditorHandler | undefined = undefined;
 		disposables.add(service.onDidRegisterHandler(handler => {

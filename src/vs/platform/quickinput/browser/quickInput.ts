@@ -508,7 +508,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _matchOnLabel = true;
 	private _matchOnLabelMode: 'fuzzy' | 'contiguous' = 'fuzzy';
 	private _sortByLabel = true;
-	private _autoFocusOnList = true;
 	private _keepScrollPosition = false;
 	private _itemActivation = ItemActivation.FIRST;
 	private _activeItems: T[] = [];
@@ -672,15 +671,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		this.update();
 	}
 
-	get autoFocusOnList() {
-		return this._autoFocusOnList;
-	}
-
-	set autoFocusOnList(autoFocusOnList: boolean) {
-		this._autoFocusOnList = autoFocusOnList;
-		this.update();
-	}
-
 	get keepScrollPosition() {
 		return this._keepScrollPosition;
 	}
@@ -814,10 +804,8 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	onDidTriggerSeparatorButton = this.onDidTriggerSeparatorButtonEmitter.event;
 
 	private trySelectFirst() {
-		if (this.autoFocusOnList) {
-			if (!this.canSelectMany) {
-				this.ui.list.focus(QuickInputListFocus.First);
-			}
+		if (!this.canSelectMany) {
+			this.ui.list.focus(QuickInputListFocus.First);
 		}
 	}
 
@@ -827,11 +815,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.ui.inputBox.onDidChange(value => {
 					this.doSetValue(value, true /* skip update since this originates from the UI */);
 				}));
-			this.visibleDisposables.add(this.ui.inputBox.onMouseDown(event => {
-				if (!this.autoFocusOnList) {
-					this.ui.list.clearFocus();
-				}
-			}));
 			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:

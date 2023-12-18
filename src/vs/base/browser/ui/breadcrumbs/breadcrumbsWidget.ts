@@ -14,7 +14,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
-	dispose(): void { }
+	abstract dispose(): void;
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
 }

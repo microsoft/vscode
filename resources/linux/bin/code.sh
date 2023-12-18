@@ -33,7 +33,7 @@ if [ "$(id -u)" = "0" ]; then
 	for i in "$@"
 	do
 		case "$i" in
-			--user-data-dir | --user-data-dir=* | --file-write )
+			--user-data-dir | --user-data-dir=* | --file-write | tunnel | serve-web )
 				CAN_LAUNCH_AS_ROOT=1
 			;;
 		esac

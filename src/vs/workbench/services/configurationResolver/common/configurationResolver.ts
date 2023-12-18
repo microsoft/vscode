@@ -107,7 +107,8 @@ export enum VariableKind {
 	FileDirnameBasename = 'fileDirnameBasename',
 	ExecPath = 'execPath',
 	ExecInstallFolder = 'execInstallFolder',
-	PathSeparator = 'pathSeparator'
+	PathSeparator = 'pathSeparator',
+	PathSeparatorAlias = '/'
 }
 
 export class VariableError extends Error {

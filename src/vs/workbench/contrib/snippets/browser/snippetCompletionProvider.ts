@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare, compareSubstring, firstNonWhitespaceIndex } from 'vs/base/common/strings';
+import { compare, compareSubstring } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
@@ -17,9 +17,9 @@ import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/sn
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { getWordAtText } from 'vs/editor/common/core/wordHelper';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 
 
 const markSnippetAsUsed = '_snippet.markAsUsed';
@@ -70,6 +70,12 @@ export class SnippetCompletion implements CompletionItem {
 	}
 }
 
+interface ISnippetPosition {
+	startColumn: number;
+	prefixLow: string;
+	isWord: boolean;
+}
+
 export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	readonly _debugDisplayName = 'snippetCompletions';
@@ -85,97 +91,100 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
 		const sw = new StopWatch();
+
+		// compute all snippet anchors: word starts and every non word character
+		const line = position.lineNumber;
+		const word = model.getWordAtPosition(position) ?? { startColumn: position.column, endColumn: position.column, word: '' };
+
+		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
+		const lineContentWithWordLow = lineContentLow.substring(0, word.startColumn + word.word.length - 1);
+		const anchors = this._computeSnippetPositions(model, line, word, lineContentWithWordLow);
+
+		// loop over possible snippets and match them against the anchors
+		const columnOffset = position.column - 1;
+		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
-
-		const lineContentLow = model.getLineContent(position.lineNumber).toLowerCase();
-		const wordUntil = model.getWordUntilPosition(position).word.toLowerCase();
-
 		const suggestions: SnippetCompletion[] = [];
-		const columnOffset = position.column - 1;
 
-		const triggerCharacterLow = context.triggerCharacter?.toLowerCase() ?? '';
-
-
-		snippet: for (const snippet of snippets) {
+		for (const snippet of snippets) {
 
 			if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && !snippet.prefixLow.startsWith(triggerCharacterLow)) {
 				// strict -> when having trigger characters they must prefix-match
-				continue snippet;
+				continue;
 			}
 
-			const word = getWordAtText(1, languageConfig.getWordDefinition(), snippet.prefixLow, 0);
+			let candidate: ISnippetPosition | undefined;
+			for (const anchor of anchors) {
 
-			if (wordUntil && word && !isPatternInWord(wordUntil, 0, wordUntil.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-				// when at a word the snippet prefix must match
-				continue snippet;
+				if (anchor.prefixLow.match(/^\s/) && !snippet.prefixLow.match(/^\s/)) {
+					// only allow whitespace anchor when snippet prefix starts with whitespace too
+					continue;
+				}
+
+				if (isPatternInWord(anchor.prefixLow, 0, anchor.prefixLow.length, snippet.prefixLow, 0, snippet.prefixLow.length)) {
+					candidate = anchor;
+					break;
+				}
 			}
 
-			// don't eat into leading whitespace unless the snippet prefix starts with whitespace
-			const minPos = firstNonWhitespaceIndex(snippet.prefixLow) === 0
-				? Math.max(0, model.getLineFirstNonWhitespaceColumn(position.lineNumber) - 1)
-				: 0;
-
-			column: for (let pos = Math.max(minPos, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
-
-				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
-					continue column;
-				}
-
-				const prefixRestLen = snippet.prefixLow.length - (columnOffset - pos);
-				const endsWithPrefixRest = compareSubstring(lineContentLow, snippet.prefixLow, columnOffset, columnOffset + prefixRestLen, columnOffset - pos);
-				const startPosition = position.with(undefined, pos + 1);
-
-				if (wordUntil && position.equals(startPosition)) {
-					// at word-end but no overlap
-					continue snippet;
-				}
-
-				let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
-
-				// First check if there is anything to the right of the cursor
-				if (columnOffset < lineContentLow.length) {
-					const autoClosingPairs = languageConfig.getAutoClosingPairs();
-					const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
-					// If the character to the right of the cursor is a closing character of an autoclosing pair
-					if (standardAutoClosingPairConditionals?.some(p =>
-						// and the start position is the opening character of an autoclosing pair
-						p.open === lineContentLow[startPosition.column - 1] &&
-						// and the snippet prefix contains the opening and closing pair at its edges
-						snippet.prefix.startsWith(p.open) &&
-						snippet.prefix[snippet.prefix.length - 1] === p.close)
-					) {
-						// Eat the character that was likely inserted because of auto-closing pairs
-						endColumn++;
-					}
-				}
-
-				const replace = Range.fromPositions(startPosition, { lineNumber: position.lineNumber, column: endColumn });
-				const insert = replace.setEndPosition(position.lineNumber, position.column);
-
-				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
-				snippets.delete(snippet);
-				break;
+			if (!candidate) {
+				continue;
 			}
+
+			const pos = candidate.startColumn - 1;
+
+			const prefixRestLen = snippet.prefixLow.length - (columnOffset - pos);
+			const endsWithPrefixRest = compareSubstring(lineContentLow, snippet.prefixLow, columnOffset, columnOffset + prefixRestLen, columnOffset - pos);
+			const startPosition = position.with(undefined, pos + 1);
+
+			let endColumn = endsWithPrefixRest === 0 ? position.column + prefixRestLen : position.column;
+
+			// First check if there is anything to the right of the cursor
+			if (columnOffset < lineContentLow.length) {
+				const autoClosingPairs = languageConfig.getAutoClosingPairs();
+				const standardAutoClosingPairConditionals = autoClosingPairs.autoClosingPairsCloseSingleChar.get(lineContentLow[columnOffset]);
+				// If the character to the right of the cursor is a closing character of an autoclosing pair
+				if (standardAutoClosingPairConditionals?.some(p =>
+					// and the start position is the opening character of an autoclosing pair
+					p.open === lineContentLow[startPosition.column - 1] &&
+					// and the snippet prefix contains the opening and closing pair at its edges
+					snippet.prefix.startsWith(p.open) &&
+					snippet.prefix[snippet.prefix.length - 1] === p.close)
+				) {
+					// Eat the character that was likely inserted because of auto-closing pairs
+					endColumn++;
+				}
+			}
+
+			const replace = Range.fromPositions({ lineNumber: line, column: candidate.startColumn }, { lineNumber: line, column: endColumn });
+			const insert = replace.setEndPosition(line, position.column);
+
+			suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
+			snippets.delete(snippet);
 		}
-
 
 		// add remaing snippets when the current prefix ends in whitespace or when line is empty
 		// and when not having a trigger character
-		if (!triggerCharacterLow) {
-			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
-			if (endsInWhitespace || !lineContentLow /*empty line*/) {
-				for (const snippet of snippets) {
-					const insert = Range.fromPositions(position);
-					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
-					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
-				}
+		if (!triggerCharacterLow && (/\s/.test(lineContentLow[position.column - 2]) /*end in whitespace */ || !lineContentLow /*empty line*/)) {
+			for (const snippet of snippets) {
+				const insert = Range.fromPositions(position);
+				const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
+				suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
 			}
 		}
 
-
 		// dismbiguate suggestions with same labels
+		this._disambiguateSnippets(suggestions);
+
+		return {
+			suggestions,
+			duration: sw.elapsed()
+		};
+	}
+
+	private _disambiguateSnippets(suggestions: SnippetCompletion[]) {
 		suggestions.sort(SnippetCompletion.compareByLabel);
 		for (let i = 0; i < suggestions.length; i++) {
 			const item = suggestions[i];
@@ -188,15 +197,43 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				i = to;
 			}
 		}
-
-		return {
-			suggestions,
-			duration: sw.elapsed()
-		};
 	}
 
 	resolveCompletionItem(item: CompletionItem): CompletionItem {
 		return (item instanceof SnippetCompletion) ? item.resolve() : item;
+	}
+
+	private _computeSnippetPositions(model: ITextModel, line: number, word: IWordAtPosition, lineContentWithWordLow: string): ISnippetPosition[] {
+		const result: ISnippetPosition[] = [];
+
+		for (let column = 1; column < word.startColumn; column++) {
+			const wordInfo = model.getWordAtPosition(new Position(line, column));
+			result.push({
+				startColumn: column,
+				prefixLow: lineContentWithWordLow.substring(column - 1),
+				isWord: Boolean(wordInfo)
+			});
+			if (wordInfo) {
+				column = wordInfo.endColumn;
+
+				// the character right after a word is an anchor, always
+				result.push({
+					startColumn: wordInfo.endColumn,
+					prefixLow: lineContentWithWordLow.substring(wordInfo.endColumn - 1),
+					isWord: false
+				});
+			}
+		}
+
+		if (word.word.length > 0 || result.length === 0) {
+			result.push({
+				startColumn: word.startColumn,
+				prefixLow: lineContentWithWordLow.substring(word.startColumn - 1),
+				isWord: true
+			});
+		}
+
+		return result;
 	}
 
 	private _getLanguageIdAtPosition(model: ITextModel, position: Position): string {

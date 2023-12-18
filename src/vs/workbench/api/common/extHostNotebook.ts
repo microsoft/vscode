@@ -28,7 +28,6 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
@@ -51,7 +50,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
 
-	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>({ onListenerError: onUnexpectedExternalError });
+	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
 	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
 	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
@@ -63,12 +62,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return this._visibleNotebookEditors.map(editor => editor.apiEditor);
 	}
 
-	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>({ onListenerError: onUnexpectedExternalError });
+	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
-	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>({ onListenerError: onUnexpectedExternalError });
+	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 
-	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>({ onListenerError: onUnexpectedExternalError });
+	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
 	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
 	private _statusBarCache = new Cache<IDisposable>('NotebookCellStatusBarCache');
@@ -403,8 +402,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			await Promise.all(includes.map(async include =>
 				await Promise.all(include.filenamePatterns.map(filePattern => {
 					const query: IFileQuery = {
-						...textQuery,
-						...{ type: QueryType.File, filePattern }
+						_reason: textQuery._reason,
+						folderQueries: textQuery.folderQueries,
+						includePattern: textQuery.includePattern,
+						excludePattern: textQuery.excludePattern,
+						maxResults: textQuery.maxResults,
+						type: QueryType.File,
+						filePattern
 					};
 
 					// use priority info to exclude info from other globs

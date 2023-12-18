@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
-import { ICommentService, CommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentService, CommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/contrib/comments/browser/commentService';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ctxCommentEditorFocused } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import * as strings from 'vs/base/common/strings';
@@ -16,12 +16,17 @@ import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions,
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { getActiveElement } from 'vs/base/browser/dom';
+import { Extensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { CommentThreadState } from 'vs/editor/common/languages';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
@@ -67,7 +72,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(ICommentService, CommentService, InstantiationType.Delayed);
-
 
 export namespace CommentAccessibilityHelpNLS {
 	export const intro = nls.localize('intro', "The editor contains commentable range(s). Some useful commands include:");
@@ -134,3 +138,51 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 		this._element?.focus();
 	}
 }
+
+export class UnresolvedCommentsBadge extends Disposable implements IWorkbenchContribution {
+	private readonly activity = this._register(new MutableDisposable<IDisposable>());
+	private totalUnresolved = 0;
+
+	constructor(
+		@ICommentService private readonly _commentService: ICommentService,
+		@IActivityService private readonly activityService: IActivityService) {
+		super();
+		this._register(this._commentService.onDidSetAllCommentThreads(this.onAllCommentsChanged, this));
+		this._register(this._commentService.onDidUpdateCommentThreads(this.onCommentsUpdated, this));
+
+	}
+
+	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {
+		let unresolved = 0;
+		for (const thread of e.commentThreads) {
+			if (thread.state === CommentThreadState.Unresolved) {
+				unresolved++;
+			}
+		}
+		this.updateBadge(unresolved);
+	}
+
+	private onCommentsUpdated(): void {
+		let unresolved = 0;
+		for (const resource of this._commentService.commentsModel.resourceCommentThreads) {
+			for (const thread of resource.commentThreads) {
+				if (thread.threadState === CommentThreadState.Unresolved) {
+					unresolved++;
+				}
+			}
+		}
+		this.updateBadge(unresolved);
+	}
+
+	private updateBadge(unresolved: number) {
+		if (unresolved === this.totalUnresolved) {
+			return;
+		}
+
+		this.totalUnresolved = unresolved;
+		const message = nls.localize('totalUnresolvedComments', '{0} Unresolved Comments', this.totalUnresolved);
+		this.activity.value = this.activityService.showViewActivity(COMMENTS_VIEW_ID, { badge: new NumberBadge(this.totalUnresolved, () => message) });
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(UnresolvedCommentsBadge, LifecyclePhase.Eventually);

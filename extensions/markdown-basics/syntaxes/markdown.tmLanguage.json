@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/0a4b23580308fdcfb4ab7b526e3e13ba17d436fb",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/0b36cbbf917fb0188e1a1bafc8287c7abf8b0b37",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2255,12 +2255,7 @@
 					]
 				}
 			},
-			"name": "markup.heading.markdown",
-			"patterns": [
-				{
-					"include": "#inline"
-				}
-			]
+			"name": "markup.heading.markdown"
 		},
 		"heading-setext": {
 			"patterns": [

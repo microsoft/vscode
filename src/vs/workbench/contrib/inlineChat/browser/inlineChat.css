@@ -93,7 +93,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor>.content .monaco-editor .inline-chat .progress .monaco-progress-container {
+.monaco-workbench .part.editor > .content .monaco-editor .inline-chat .progress .monaco-progress-container {
 	top: 0;
 }
 
@@ -316,7 +316,7 @@
 /* decoration styles */
 
 .monaco-editor .inline-chat-inserted-range {
-	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	background-color: var(--vscode-inlineChatDiff-inserted);
 }
 
 .monaco-editor .inline-chat-inserted-range-linehighlight {
@@ -328,11 +328,6 @@
 	opacity: 0.8;
 }
 
-.monaco-editor .inline-chat-lines-deleted-range-inline {
-	text-decoration: line-through;
-	background-color: var(--vscode-diffEditor-removedTextBackground);
-	opacity: 0.6;
-}
 .monaco-editor .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }

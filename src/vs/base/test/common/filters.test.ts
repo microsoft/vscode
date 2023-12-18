@@ -498,6 +498,11 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
 	});
 
+	test.skip('Bad completion ranking changes valid variable name to class name when pressing "." #187055', function () {
+		assertTopScore(fuzzyScore, 'a', 1, 'A', 'a');
+		assertTopScore(fuzzyScore, 'theme', 1, 'Theme', 'theme');
+	});
+
 	test('HTML closing tag proposal filtered out #38880', function () {
 		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', fuzzyScore, { patternPos: 0 });
 		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', fuzzyScore, { patternPos: 2 });

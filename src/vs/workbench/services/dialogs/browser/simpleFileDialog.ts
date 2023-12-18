@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as objects from 'vs/base/common/objects';
 import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
-import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPick, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -284,7 +284,6 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.busy = true;
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.sortByLabel = false;
-			this.filePickBox.autoFocusOnList = false;
 			this.filePickBox.ignoreFocusOut = true;
 			this.filePickBox.ok = true;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
@@ -314,7 +313,6 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.filePickBox.title = this.options.title;
 			this.filePickBox.value = this.pathFromUri(this.currentFolder, true);
 			this.filePickBox.valueSelection = [this.filePickBox.value.length, this.filePickBox.value.length];
-			this.filePickBox.items = [];
 
 			function doResolve(dialog: SimpleFileDialog, uri: URI | undefined) {
 				if (uri) {
@@ -780,7 +778,6 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 				}
 				this.filePickBox.show();
 				this.hidden = false;
-				this.filePickBox.items = this.filePickBox.items;
 				prompt.dispose();
 			});
 			prompt.onDidChangeValue(() => {
@@ -884,9 +881,8 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 					return false;
 				}
 
+				this.filePickBox.itemActivation = ItemActivation.NONE;
 				this.filePickBox.items = items;
-				this.filePickBox.activeItems = [<FileQuickPickItem>this.filePickBox.items[0]];
-				this.filePickBox.activeItems = [];
 
 				// the user might have continued typing while we were updating. Only update the input box if it doesn't match the directory.
 				if (!equalsIgnoreCase(this.filePickBox.value, newValue) && force) {

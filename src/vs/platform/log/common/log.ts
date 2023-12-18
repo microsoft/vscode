@@ -378,10 +378,6 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	override dispose(): void {
-		// noop
-	}
-
 	flush(): void {
 		// noop
 	}
@@ -445,9 +441,6 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	override dispose(): void {
-		// noop
-	}
 
 	flush(): void {
 		// noop
@@ -497,10 +490,6 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 		}
 
 		return toErrorMessage(msg, this.checkLogLevel(LogLevel.Trace));
-	}
-
-	override dispose(): void {
-		// noop
 	}
 
 	flush(): void {
@@ -564,6 +553,7 @@ export class MultiplexLogger extends AbstractLogger implements ILogger {
 		for (const logger of this.loggers) {
 			logger.dispose();
 		}
+		super.dispose();
 	}
 }
 
