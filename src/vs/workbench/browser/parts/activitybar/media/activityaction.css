@@ -73,6 +73,17 @@
 
 }
 
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.show-avatar:before {
+	content: "";
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label.show-avatar {
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	border-radius: 50%;
+}
+
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label:not(.codicon) {
 	font-size: 15px;
 	line-height: 40px;
@@ -123,7 +134,7 @@
 	border-left: none !important; /* no focus feedback when using mouse */
 }
 
-.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item .active-item-indicator:before{
+.monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item .active-item-indicator:before {
 	left: 0;
 }
 
