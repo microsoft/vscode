@@ -13,7 +13,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -26,7 +26,7 @@ import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -39,7 +39,7 @@ import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWord
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export abstract class EditModeStrategy {
 
@@ -469,7 +469,28 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 
 // ---
 
-export class LiveStrategy3 extends EditModeStrategy {
+export class LiveStrategy extends EditModeStrategy {
+
+	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({
+		description: 'inline-chat-modified-interacted-with',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	});
+
+
+	private readonly _decoInsertedText = ModelDecorationOptions.register({
+		description: 'inline-modified-line',
+		className: 'inline-chat-inserted-range-linehighlight',
+		isWholeLine: true,
+		overviewRuler: {
+			position: OverviewRulerLane.Full,
+			color: themeColorFromId(overviewRulerInlineChatDiffInserted),
+		}
+	});
+
+	private readonly _decoInsertedTextRange = ModelDecorationOptions.register({
+		description: 'inline-chat-inserted-range-linehighlight',
+		className: 'inline-chat-inserted-range',
+	});
 
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
@@ -579,7 +600,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 		}
 
 		const listener = this._session.textModelN.onDidChangeContent(async () => {
-			await this._showDiff(false, false);
+			await this._showDiff(false, false, false);
 		});
 
 		try {
@@ -627,9 +648,8 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 
-	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({ description: 'inline-chat-modified-interacted-with', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges });
 
-	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean): Promise<Position | undefined> {
+	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean, revealWidget: boolean): Promise<Position | undefined> {
 
 		const diff = await this._computeDiff();
 
@@ -668,24 +688,17 @@ export class LiveStrategy3 extends EditModeStrategy {
 				continue;
 			}
 
-			if (innerChanges) {
-				for (const { modifiedRange } of innerChanges) {
-					newDecorations.push({
-						range: modifiedRange,
-						options: {
-							description: 'inline-modified',
-							className: 'inline-chat-inserted-range',
-						}
-					});
-					newDecorations.push({
-						range: modifiedRange,
-						options: {
-							description: 'inline-modified',
-							className: 'inline-chat-inserted-range-linehighlight',
-							isWholeLine: true
-						}
-					});
-				}
+			// highlight modified lines
+			newDecorations.push({
+				range: modifiedRange,
+				options: this._decoInsertedText
+			});
+
+			for (const innerChange of innerChanges ?? []) {
+				newDecorations.push({
+					range: innerChange.modifiedRange,
+					options: this._decoInsertedTextRange
+				});
 			}
 
 			// original view zone
@@ -718,7 +731,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 						class: ThemeIcon.asClassName(Codicon.check),
 						run: () => {
 							this._modifiedRangesThatHaveBeenInteractedWith.push(id);
-							return this._showDiff(true, true);
+							return this._showDiff(true, true, true);
 						}
 					}),
 					toAction({
@@ -732,7 +745,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 								edits.push(EditOperation.replace(innerChange.modifiedRange, originalValue));
 							}
 							this._session.textModelN.pushEditOperations(null, edits, () => null);
-							return this._showDiff(true, true);
+							return this._showDiff(true, true, true);
 						}
 					}),
 				];
@@ -757,7 +770,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 					: undefined;
 
 				this._sessionStore.add(this._session.textModelN.onDidChangeContent(e => {
-					this._showDiff(true, true);
+					this._showDiff(true, true, false);
 				}));
 
 				const zoneLineNumber = this._zone.position!.lineNumber;
@@ -774,7 +787,9 @@ export class LiveStrategy3 extends EditModeStrategy {
 		if (widgetData) {
 			this._zone.widget.setExtraButtons(widgetData.actions);
 			this._zone.updatePositionAndHeight(widgetData.position);
-			this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			if (revealWidget) {
+				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			}
 
 			this._updateSummaryMessage(diff.changes, widgetData.index);
 
@@ -807,7 +822,7 @@ export class LiveStrategy3 extends EditModeStrategy {
 			this._previewZone.value.hide();
 		}
 
-		return await this._showDiff(true, false);
+		return await this._showDiff(true, false, true);
 	}
 
 	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[], index: number) {
