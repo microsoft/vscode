@@ -107,13 +107,24 @@ class BranchDeleteItem implements QuickPickItem {
 
 class MergeItem implements QuickPickItem {
 
-	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
+	private shortCommit: string;
 
-	constructor(protected ref: Ref) { }
+	get label(): string {
+		return this.ref.type === RefType.RemoteHead ?
+			`$(cloud) ${this.ref.name ?? this.shortCommit}` :
+			`${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name ?? this.shortCommit}`;
+	}
 
-	async run(repository: Repository): Promise<void> {
-		await repository.merge(this.ref.name! || this.ref.commit!);
+	get description(): string {
+		return this.ref.type === RefType.RemoteHead ? l10n.t('Remote branch at {0}', this.shortCommit) : this.shortCommit;
+	}
+
+	constructor(private readonly repository: Repository, private readonly ref: Ref) {
+		this.shortCommit = (this.ref.commit ?? '').substring(0, 8);
+	}
+
+	async run(): Promise<void> {
+		await this.repository.merge(this.ref.name ?? this.ref.commit!);
 	}
 }
 
@@ -454,7 +465,7 @@ export class CommandCenter {
 
 	@command('git.refresh', { repository: true })
 	async refresh(repository: Repository): Promise<void> {
-		await repository.status();
+		await repository.refresh();
 	}
 
 	@command('git.openResource')
@@ -865,6 +876,7 @@ export class CommandCenter {
 		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
+			await this.model.openRepository(repositoryPath);
 			return;
 		}
 
@@ -949,6 +961,16 @@ export class CommandCenter {
 	@command('git.close', { repository: true })
 	async close(repository: Repository): Promise<void> {
 		this.model.close(repository);
+	}
+
+	@command('git.closeOtherRepositories', { repository: true })
+	async closeOtherRepositories(repository: Repository): Promise<void> {
+		for (const r of this.model.repositories) {
+			if (r === repository) {
+				continue;
+			}
+			this.model.close(r);
+		}
 	}
 
 	@command('git.openFile')
@@ -2486,11 +2508,11 @@ export class CommandCenter {
 
 			const heads = refs.filter(ref => ref.type === RefType.Head)
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(repository, ref as Branch));
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(repository, ref as Branch));
 
 			return [...heads, ...remoteHeads];
 		};
@@ -2502,7 +2524,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await choice.run(repository);
+		await choice.run();
 	}
 
 	@command('git.mergeAbort', { repository: true })
@@ -2793,7 +2815,9 @@ export class CommandCenter {
 				return;
 			}
 
-			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
+			const useForcePushWithLease = config.get<boolean>('useForcePushWithLease') === true;
+			const useForcePushIfIncludes = config.get<boolean>('useForcePushIfIncludes') === true;
+			forcePushMode = useForcePushWithLease ? useForcePushIfIncludes ? ForcePushMode.ForceWithLeaseIfIncludes : ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
 				const message = l10n.t('You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?');
@@ -3262,18 +3286,21 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	async stash(repository: Repository): Promise<void> {
-		await this._stash(repository);
+	async stash(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository);
+		return result;
 	}
 
 	@command('git.stashStaged', { repository: true })
-	async stashStaged(repository: Repository): Promise<void> {
-		await this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, false, true);
+		return result;
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	async stashIncludeUntracked(repository: Repository): Promise<void> {
-		await this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, true);
+		return result;
 	}
 
 	@command('git.stashPop', { repository: true })
@@ -3421,6 +3448,54 @@ export class CommandCenter {
 			command: 'vscode.diff',
 			title: l10n.t('Open Comparison'),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
+		};
+	}
+
+	@command('git.timeline.openCommit', { repository: false })
+	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		console.log('timelineOpenCommit', item);
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		const cmd = await this._resolveTimelineOpenCommitCommand(
+			item, uri,
+			{
+				preserveFocus: true,
+				preview: true,
+				viewColumn: ViewColumn.Active
+			},
+		);
+		if (cmd === undefined) {
+			return undefined;
+		}
+
+		return commands.executeCommand(cmd.command, ...(cmd.arguments ?? []));
+	}
+
+	private async _resolveTimelineOpenCommitCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Promise<Command | undefined> {
+		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+			return undefined;
+		}
+
+		const repository = await this.model.getRepository(uri.fsPath);
+		if (!repository) {
+			return undefined;
+		}
+
+		const commit = await repository.getCommit(item.ref);
+		const commitFiles = await repository.getCommitFiles(item.ref);
+
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+		for (const commitFile of commitFiles) {
+			const commitFileUri = Uri.file(path.join(repository.root, commitFile));
+			args.push([commitFileUri, toGitUri(commitFileUri, item.previousRef), toGitUri(commitFileUri, item.ref)]);
+		}
+
+		return {
+			command: 'vscode.changes',
+			title: l10n.t('Open Commit'),
+			arguments: [`${item.shortRef} - ${commit.message}`, args, options]
 		};
 	}
 
@@ -3581,24 +3656,24 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.generateCommitMessage', { repository: true })
-	async generateCommitMessage(repository: Repository): Promise<void> {
-		if (!repository || !this.model.commitMessageProvider) {
-			return;
-		}
-
-		await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
-			await repository.generateCommitMessage();
-		});
+	@command('git.viewChanges', { repository: true })
+	viewChanges(repository: Repository): void {
+		this._viewChanges('Git: Changes', repository.workingTreeGroup.resourceStates);
 	}
 
-	@command('git.generateCommitMessageCancel', { repository: true })
-	generateCommitMessageCancel(repository: Repository): void {
-		if (!repository || !this.model.commitMessageProvider) {
-			return;
+	@command('git.viewStagedChanges', { repository: true })
+	viewStagedChanges(repository: Repository): void {
+		this._viewChanges('Git: Staged Changes', repository.indexGroup.resourceStates);
+	}
+
+	private _viewChanges(title: string, resources: Resource[]): void {
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+
+		for (const resource of resources) {
+			args.push([resource.resourceUri, resource.leftUri, resource.rightUri]);
 		}
 
-		repository.generateCommitMessageCancel();
+		commands.executeCommand('vscode.changes', title, args);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -3681,6 +3756,10 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.PushRejected:
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
+						break;
+					case GitErrorCodes.ForcePushWithLeaseRejected:
+					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
+						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');

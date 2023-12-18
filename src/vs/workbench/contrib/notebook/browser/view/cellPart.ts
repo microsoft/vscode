@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
@@ -32,7 +33,7 @@ export abstract class CellContentPart extends Disposable {
 	 */
 	renderCell(element: ICellViewModel): void {
 		this.currentCell = element;
-		this.didRenderCell(element);
+		safeInvokeNoArg(() => this.didRenderCell(element));
 	}
 
 	didRenderCell(element: ICellViewModel): void { }
@@ -122,51 +123,61 @@ export abstract class CellOverlayPart extends Disposable {
 	updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void { }
 }
 
+function safeInvokeNoArg<T>(func: () => T): T | null {
+	try {
+		return func();
+	} catch (e) {
+		onUnexpectedError(e);
+		return null;
+	}
+}
+
 export class CellPartsCollection extends Disposable {
 	private _scheduledOverlayRendering = this._register(new MutableDisposable());
 	private _scheduledOverlayUpdateState = this._register(new MutableDisposable());
 	private _scheduledOverlayUpdateExecutionState = this._register(new MutableDisposable());
 
 	constructor(
+		private readonly targetWindow: Window,
 		private readonly contentParts: readonly CellContentPart[],
 		private readonly overlayParts: readonly CellOverlayPart[]
 	) {
 		super();
 	}
 
-	concatContentPart(other: readonly CellContentPart[]): CellPartsCollection {
-		return new CellPartsCollection(this.contentParts.concat(other), this.overlayParts);
+	concatContentPart(other: readonly CellContentPart[], targetWindow: Window): CellPartsCollection {
+		return new CellPartsCollection(targetWindow, this.contentParts.concat(other), this.overlayParts);
 	}
 
-	concatOverlayPart(other: readonly CellOverlayPart[]): CellPartsCollection {
-		return new CellPartsCollection(this.contentParts, this.overlayParts.concat(other));
+	concatOverlayPart(other: readonly CellOverlayPart[], targetWindow: Window): CellPartsCollection {
+		return new CellPartsCollection(targetWindow, this.contentParts, this.overlayParts.concat(other));
 	}
 
 	scheduleRenderCell(element: ICellViewModel): void {
 		// prepare model
 		for (const part of this.contentParts) {
-			part.prepareRenderCell(element);
+			safeInvokeNoArg(() => part.prepareRenderCell(element));
 		}
 
 		for (const part of this.overlayParts) {
-			part.prepareRenderCell(element);
+			safeInvokeNoArg(() => part.prepareRenderCell(element));
 		}
 
 		// render content parts
 		for (const part of this.contentParts) {
-			part.renderCell(element);
+			safeInvokeNoArg(() => part.renderCell(element));
 		}
 
-		this._scheduledOverlayRendering.value = DOM.modify(() => {
+		this._scheduledOverlayRendering.value = DOM.modify(this.targetWindow, () => {
 			for (const part of this.overlayParts) {
-				part.renderCell(element);
+				safeInvokeNoArg(() => part.renderCell(element));
 			}
 		});
 	}
 
 	unrenderCell(element: ICellViewModel): void {
 		for (const part of this.contentParts) {
-			part.unrenderCell(element);
+			safeInvokeNoArg(() => part.unrenderCell(element));
 		}
 
 		this._scheduledOverlayRendering.value = undefined;
@@ -174,46 +185,46 @@ export class CellPartsCollection extends Disposable {
 		this._scheduledOverlayUpdateExecutionState.value = undefined;
 
 		for (const part of this.overlayParts) {
-			part.unrenderCell(element);
+			safeInvokeNoArg(() => part.unrenderCell(element));
 		}
 	}
 
 	updateInternalLayoutNow(viewCell: ICellViewModel) {
 		for (const part of this.contentParts) {
-			part.updateInternalLayoutNow(viewCell);
+			safeInvokeNoArg(() => part.updateInternalLayoutNow(viewCell));
 		}
 
 		for (const part of this.overlayParts) {
-			part.updateInternalLayoutNow(viewCell);
+			safeInvokeNoArg(() => part.updateInternalLayoutNow(viewCell));
 		}
 	}
 
 	prepareLayout() {
 		for (const part of this.contentParts) {
-			part.prepareLayout();
+			safeInvokeNoArg(() => part.prepareLayout());
 		}
 	}
 
 	updateState(viewCell: ICellViewModel, e: CellViewModelStateChangeEvent) {
 		for (const part of this.contentParts) {
-			part.updateState(viewCell, e);
+			safeInvokeNoArg(() => part.updateState(viewCell, e));
 		}
 
-		this._scheduledOverlayUpdateState.value = DOM.modify(() => {
+		this._scheduledOverlayUpdateState.value = DOM.modify(this.targetWindow, () => {
 			for (const part of this.overlayParts) {
-				part.updateState(viewCell, e);
+				safeInvokeNoArg(() => part.updateState(viewCell, e));
 			}
 		});
 	}
 
 	updateForExecutionState(viewCell: ICellViewModel, e: ICellExecutionStateChangedEvent) {
 		for (const part of this.contentParts) {
-			part.updateForExecutionState(viewCell, e);
+			safeInvokeNoArg(() => part.updateForExecutionState(viewCell, e));
 		}
 
-		this._scheduledOverlayUpdateExecutionState.value = DOM.modify(() => {
+		this._scheduledOverlayUpdateExecutionState.value = DOM.modify(this.targetWindow, () => {
 			for (const part of this.overlayParts) {
-				part.updateForExecutionState(viewCell, e);
+				safeInvokeNoArg(() => part.updateForExecutionState(viewCell, e));
 			}
 		});
 	}

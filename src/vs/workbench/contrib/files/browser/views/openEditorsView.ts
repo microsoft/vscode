@@ -39,7 +39,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -52,6 +52,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { mainWindow } from 'vs/base/browser/window';
 
 const $ = dom.$;
 
@@ -74,6 +75,7 @@ export class OpenEditorsView extends ViewPane {
 	private groupFocusedContext!: IContextKey<boolean>;
 	private dirtyEditorFocusedContext!: IContextKey<boolean>;
 	private readonlyEditorFocusedContext!: IContextKey<boolean>;
+	private blockFocusActiveEditorTracking = false;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -131,6 +133,7 @@ export class OpenEditorsView extends ViewPane {
 						this.focusActiveEditor();
 						break;
 					case GroupModelChangeKind.GROUP_INDEX:
+					case GroupModelChangeKind.GROUP_LABEL:
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
 						}
@@ -276,16 +279,24 @@ export class OpenEditorsView extends ViewPane {
 			}
 		}));
 		this._register(this.list.onDidOpen(e => {
-			if (!e.element) {
+			const element = e.element;
+			if (!element) {
 				return;
-			} else if (e.element instanceof OpenEditor) {
+			} else if (element instanceof OpenEditor) {
 				if (dom.isMouseEvent(e.browserEvent) && e.browserEvent.button === 1) {
 					return; // middle click already handled above: closes the editor
 				}
 
-				this.openEditor(e.element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
+				this.withActiveEditorFocusTrackingDisabled(() => {
+					this.openEditor(element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
+				});
 			} else {
-				this.editorGroupService.activateGroup(e.element);
+				this.withActiveEditorFocusTrackingDisabled(() => {
+					this.editorGroupService.activateGroup(element);
+					if (!e.editorOptions.preserveFocus) {
+						element.focus();
+					}
+				});
 			}
 		}));
 
@@ -397,8 +408,17 @@ export class OpenEditorsView extends ViewPane {
 		});
 	}
 
+	private withActiveEditorFocusTrackingDisabled(fn: () => void): void {
+		this.blockFocusActiveEditorTracking = true;
+		try {
+			fn();
+		} finally {
+			this.blockFocusActiveEditorTracking = false;
+		}
+	}
+
 	private focusActiveEditor(): void {
-		if (!this.list) {
+		if (!this.list || this.blockFocusActiveEditorTracking) {
 			return;
 		}
 
@@ -440,7 +460,7 @@ export class OpenEditorsView extends ViewPane {
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}
@@ -630,7 +650,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			italic: openedEditor.isPreview(),
 			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			title: editor.getTitle(Verbosity.LONG)
+			title: editor.getTitle(Verbosity.LONG),
+			icon: editor.getIcon()
 		});
 		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
 		if (!templateData.actionBar.hasAction(editorAction)) {
@@ -714,7 +735,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 			});
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), { index });
+			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index });
 		}
 	}
 
@@ -766,7 +787,7 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '4_flip',
+	group: '5_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: {

@@ -26,7 +26,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
 	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
-	private readonly _sessions: Set<DebugSessionUUID>;
+	private readonly _extHostKnownSessions: Set<DebugSessionUUID>;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -52,16 +52,22 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			}
 			store.add(session.onDidCustomEvent(event => this._proxy.$acceptDebugSessionCustomEvent(this.getSessionDto(session), event)));
 		}));
-		this._toDispose.add(debugService.onDidEndSession(session => {
+		this._toDispose.add(debugService.onDidEndSession(({ session, restart }) => {
 			this._proxy.$acceptDebugSessionTerminated(this.getSessionDto(session));
-			this._sessions.delete(session.getId());
+			this._extHostKnownSessions.delete(session.getId());
+
+			// keep the session listeners around since we still will get events after they restart
+			if (!restart) {
+				sessionListeners.deleteAndDispose(session);
+			}
+
+			// any restarted session will create a new DA, so always throw the old one away.
 			for (const [handle, value] of this._debugAdapters) {
 				if (value.session === session) {
 					this._debugAdapters.delete(handle);
 					// break;
 				}
 			}
-			sessionListeners.deleteAndDispose(session);
 		}));
 		this._toDispose.add(debugService.getViewModel().onDidFocusSession(session => {
 			this._proxy.$acceptDebugSessionActiveChanged(this.getSessionDto(session));
@@ -75,7 +81,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._debugAdapters = new Map();
 		this._debugConfigurationProviders = new Map();
 		this._debugAdapterDescriptorFactories = new Map();
-		this._sessions = new Set();
+		this._extHostKnownSessions = new Set();
 
 		this._toDispose.add(this.debugService.getViewModel().onDidFocusThread(({ thread, explicit, session }) => {
 			if (session) {
@@ -352,7 +358,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 	public $sessionCached(sessionID: string) {
 		// remember that the EH has cached the session and we do not have to send it again
-		this._sessions.add(sessionID);
+		this._extHostKnownSessions.add(sessionID);
 	}
 
 
@@ -362,7 +368,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined {
 		if (session) {
 			const sessionID = <DebugSessionUUID>session.getId();
-			if (this._sessions.has(sessionID)) {
+			if (this._extHostKnownSessions.has(sessionID)) {
 				return sessionID;
 			} else {
 				// this._sessions.add(sessionID); 	// #69534: see $sessionCached above

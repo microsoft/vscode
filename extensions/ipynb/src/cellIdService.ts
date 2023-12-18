@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExtensionContext, NotebookDocument, NotebookDocumentChangeEvent, NotebookEdit, workspace, WorkspaceEdit } from 'vscode';
-import { v4 as uuid } from 'uuid';
 import { getCellMetadata } from './serializers';
 import { CellMetadata } from './common';
 import { getNotebookMetadata } from './notebookSerializer';
@@ -57,7 +56,7 @@ function generateCellId(notebook: NotebookDocument) {
 	while (true) {
 		// Details of the id can be found here https://jupyter.org/enhancement-proposals/62-cell-id/cell-id.html#adding-an-id-field,
 		// & here https://jupyter.org/enhancement-proposals/62-cell-id/cell-id.html#updating-older-formats
-		const id = uuid().replace(/-/g, '').substring(0, 8);
+		const id = generateUuid().replace(/-/g, '').substring(0, 8);
 		let duplicate = false;
 		for (let index = 0; index < notebook.cellCount; index++) {
 			const cell = notebook.cellAt(index);
@@ -74,4 +73,57 @@ function generateCellId(notebook: NotebookDocument) {
 			return id;
 		}
 	}
+}
+
+
+/**
+ * Copied from src/vs/base/common/uuid.ts
+ */
+function generateUuid() {
+	// use `randomValues` if possible
+	function getRandomValues(bucket: Uint8Array): Uint8Array {
+		for (let i = 0; i < bucket.length; i++) {
+			bucket[i] = Math.floor(Math.random() * 256);
+		}
+		return bucket;
+	}
+
+	// prep-work
+	const _data = new Uint8Array(16);
+	const _hex: string[] = [];
+	for (let i = 0; i < 256; i++) {
+		_hex.push(i.toString(16).padStart(2, '0'));
+	}
+
+	// get data
+	getRandomValues(_data);
+
+	// set version bits
+	_data[6] = (_data[6] & 0x0f) | 0x40;
+	_data[8] = (_data[8] & 0x3f) | 0x80;
+
+	// print as string
+	let i = 0;
+	let result = '';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += '-';
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	result += _hex[_data[i++]];
+	return result;
 }

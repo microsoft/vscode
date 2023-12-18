@@ -17,6 +17,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { dispose, IReference } from 'vs/base/common/lifecycle';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -34,6 +37,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	private modelResolve: Promise<void> | undefined = undefined;
+	private cachedUntitledTextEditorModelReference: IReference<IUntitledTextEditorModel> | undefined = undefined;
 
 	constructor(
 		readonly model: IUntitledTextEditorModel,
@@ -43,9 +47,11 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IPathService private readonly pathService: IPathService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
-		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 
 		this.registerModelListeners(model);
 	}
@@ -120,10 +126,21 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override async resolve(): Promise<IUntitledTextEditorModel> {
 		if (!this.modelResolve) {
-			this.modelResolve = this.model.resolve();
+			this.modelResolve = (async () => {
+
+				// Acquire a model reference
+				this.cachedUntitledTextEditorModelReference = await this.textModelService.createModelReference(this.resource) as IReference<IUntitledTextEditorModel>;
+			})();
 		}
 
 		await this.modelResolve;
+
+		// It is possible that this input was disposed before the model
+		// finished resolving. As such, we need to make sure to dispose
+		// the model reference to not leak it.
+		if (this.isDisposed()) {
+			this.disposeModelReference();
+		}
 
 		return this.model;
 	}
@@ -176,8 +193,18 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override dispose(): void {
+
+		// Model
 		this.modelResolve = undefined;
 
+		// Model reference
+		this.disposeModelReference();
+
 		super.dispose();
+	}
+
+	private disposeModelReference(): void {
+		dispose(this.cachedUntitledTextEditorModelReference);
+		this.cachedUntitledTextEditorModelReference = undefined;
 	}
 }

@@ -192,6 +192,26 @@ declare module 'vscode' {
 		env(): Thenable<ExecEnvironment>;
 
 		/**
+		 * Kills a process with the given ID.
+		 *
+		 * @param processId process ID to kill.
+		 */
+		kill(processId: number): Thenable<void>;
+
+		/**
+		 * Connects to the given TCP host/port on the remote.
+		 *
+		 * @param host The hostname or IP to connect to
+		 * @param port The port number to connect to
+		 * @returns a duplex stream, and a promise the resolves when both sides
+		 * have closed.
+		 */
+		tcpConnect(
+			host: string,
+			port: number,
+		): Thenable<{ stream: WriteStream & ReadStream; done: Thenable<void> }>;
+
+		/**
 		 * Access to the file system of the remote.
 		 */
 		readonly fs: RemoteFileSystem;
@@ -272,6 +292,85 @@ declare module 'vscode' {
 		 * @throws an exception when `path` doesn't exist.
 		 */
 		stat(path: string): Thenable<FileStat>;
+
+		/**
+		 * Recursively creates the given directory on the remote.
+		 *
+		 * @param path The path of the folder to create
+		 * @throws an exception when `path` is a file, or other i/o operations happen
+		 */
+		mkdirp(path: string): Thenable<void>;
+
+		/**
+		 * Recursively deletes the given path on the remote.
+		 *
+		 * @param path The path of the file or folder to delete.
+		 * @throws if an i/o error happens during removal. It does not throw if
+		 * the path already does not exist.
+		 */
+		rm(path: string): Thenable<void>;
+
+		/**
+		 * Reads the given file from the remote.
+		 *
+		 * @param path The path of the file to read.
+		 * @throws if the path doesn't exist or can't be accessed
+		 * @returns a readable stream of the file data
+		 */
+		read(path: string): Thenable<ReadStream>;
+
+		/**
+		 * Writes the given file on the remote. Truncates the file if it exists.
+		 *
+		 * @param path The path of the file to write.
+		 * @throws if the path can't be accessed
+		 * @returns a writable `stream` that accepts data, and a `done` promise that
+		 * will resolve after `stream.end()` is called once the write is complete.
+		 */
+		write(path: string): Thenable<{ stream: WriteStream; done: Thenable<void> }>;
+
+		/**
+		 * Connects to the given unix socket or named pipe on the remote.
+		 *
+		 * @param path The path of the unix socket or named pipe
+		 * @throws if the path can't be accessed
+		 * @returns a duplex stream, and a promise the resolves when both sides
+		 * have closed.
+		 */
+		connect(path: string): Thenable<{ stream: WriteStream & ReadStream; done: Thenable<void> }>;
+
+		/**
+		 * Renames the file.
+		 *
+		 * @param fromPath The existing file path.
+		 * @param toPath The new file path.
+		 * @throws if the original path doesn't exist, or the toPath can't be accessed
+		 */
+		rename(fromPath: string, toPath: string): Thenable<void>;
+
+		/**
+		 * Reads the contents of a directory.
+		 *
+		 * @param path The path of the folder to read.
+		 * @throws if the folder doesn't exist
+		 * @returns a list of directory entries
+		 */
+		readdir(path: string): Thenable<DirectoryEntry[]>;
+	}
+
+	export interface DirectoryEntry {
+		/**
+		 * The type of the file, e.g. is a regular file, a directory, or symbolic link
+		 * to a file.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FileType.File | FileType.SymbolicLink`.
+		 */
+		type: FileType;
+
+		/**
+		 * Non-absolute name of the file in the directory.
+		 */
+		name: string;
 	}
 
 	export interface RemoteAuthorityResolver {

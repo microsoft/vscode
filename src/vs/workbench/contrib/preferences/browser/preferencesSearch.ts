@@ -20,6 +20,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { TfIdfCalculator, TfIdfDocument } from 'vs/base/common/tfIdf';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -113,9 +114,10 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
+		if (exactMatch) {
 			return Promise.resolve({
-				filterMatches: filterMatches.slice(0, 1),
+				filterMatches: [exactMatch],
 				exactMatch: true
 			});
 		} else {
@@ -207,7 +209,7 @@ export class SettingMatches {
 			for (const word of words) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					const descriptionMatches = matchesContiguousSubString(word, setting.description[lineIndex]);
 					if (descriptionMatches?.length) {
 						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
@@ -282,11 +284,17 @@ export class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		const descriptionRange = setting.descriptionRanges[lineIndex];
+		if (!descriptionRange) {
+			// This case occurs with added settings such as the
+			// manage extension setting.
+			return nullRange;
+		}
 		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
-			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
-			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+			startLineNumber: descriptionRange.startLineNumber,
+			startColumn: descriptionRange.startColumn + match.start,
+			endLineNumber: descriptionRange.endLineNumber,
+			endColumn: descriptionRange.startColumn + match.end
 		};
 	}
 
@@ -408,7 +416,8 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 }
 
 class TfIdfSearchProvider implements IRemoteSearchProvider {
-	private static readonly TF_IDF_THRESHOLD = 0.5;
+	private static readonly TF_IDF_PRE_NORMALIZE_THRESHOLD = 50;
+	private static readonly TF_IDF_POST_NORMALIZE_THRESHOLD = 0.7;
 	private static readonly TF_IDF_MAX_PICKS = 5;
 
 	private _currentPreferencesModel: ISettingsEditorModel | undefined;
@@ -436,7 +445,6 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 	settingItemToEmbeddingString(item: ISetting): string {
 		let result = `Setting Id: ${item.key}\n`;
 		result += `Label: ${this.keyToLabel(item.key)}\n`;
-		result += `Type: ${Array.isArray(item.type) ? item.type.join(', ') : item.type}\n`;
 		result += `Description: ${item.description}\n`;
 		return result;
 	}
@@ -472,7 +480,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		};
 	}
 
-	private async getTfIdfItems(token?: CancellationToken | undefined) {
+	private async getTfIdfItems(token?: CancellationToken | undefined): Promise<ISettingMatch[]> {
 		const filterMatches: ISettingMatch[] = [];
 		const tfIdfCalculator = new TfIdfCalculator();
 		tfIdfCalculator.updateDocuments(this._documents);
@@ -480,8 +488,13 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		tfIdfRankings.sort((a, b) => b.score - a.score);
 		const maxScore = tfIdfRankings[0].score;
 
+		if (maxScore < TfIdfSearchProvider.TF_IDF_PRE_NORMALIZE_THRESHOLD) {
+			// Reject all the matches.
+			return [];
+		}
+
 		for (const info of tfIdfRankings) {
-			if (info.score / maxScore < TfIdfSearchProvider.TF_IDF_THRESHOLD || filterMatches.length === TfIdfSearchProvider.TF_IDF_MAX_PICKS) {
+			if (info.score / maxScore < TfIdfSearchProvider.TF_IDF_POST_NORMALIZE_THRESHOLD || filterMatches.length === TfIdfSearchProvider.TF_IDF_MAX_PICKS) {
 				break;
 			}
 			const pick = info.key;

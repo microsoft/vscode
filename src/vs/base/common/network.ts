@@ -5,6 +5,7 @@
 
 import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
+import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
 export namespace Schemas {
@@ -107,6 +108,18 @@ export namespace Schemas {
 	 * Scheme used for the Source Control commit input's text document
 	 */
 	export const vscodeSourceControl = 'vscode-scm';
+}
+
+export function matchesScheme(target: URI | string, scheme: string): boolean {
+	if (URI.isUri(target)) {
+		return equalsIgnoreCase(target.scheme, scheme);
+	} else {
+		return startsWithIgnoreCase(target, scheme + ':');
+	}
+}
+
+export function matchesSomeScheme(target: URI | string, ...schemes: string[]): boolean {
+	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
 export const connectionTokenCookieName = 'vscode-tkn';
@@ -229,7 +242,7 @@ class FileAccessImpl {
 				// ...and we run in native environments
 				platform.isNative ||
 				// ...or web worker extensions on desktop
-				(platform.isWebWorker && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				(platform.webWorkerOrigin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
 		) {
 			return uri.with({

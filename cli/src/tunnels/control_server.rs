@@ -32,6 +32,7 @@ use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
+use tokio::net::TcpStream;
 use tokio::pin;
 use tokio::process::{ChildStderr, ChildStdin};
 use tokio_util::codec::Decoder;
@@ -55,9 +56,9 @@ use super::protocol::{
 	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams,
 	ForwardResult, FsReadDirEntry, FsReadDirResponse, FsRenameRequest, FsSinglePathRequest,
 	FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
-	ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult, SysKillRequest,
-	SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
-	METHOD_CHALLENGE_VERIFY,
+	NetConnectRequest, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
+	SysKillRequest, SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
+	VersionResponse, METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -339,6 +340,14 @@ fn make_socket_rpc(
 		move |mut streams, p: FsSinglePathRequest, c| async move {
 			ensure_auth(&c.auth_state)?;
 			handle_fs_connect(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"net_connect",
+		1,
+		move |mut streams, n: NetConnectRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_net_connect(streams.remove(0), n).await
 		},
 	);
 	rpc.register_async("fs_rm", move |p: FsSinglePathRequest, c| async move {
@@ -896,6 +905,20 @@ async fn handle_fs_write(mut input: DuplexStream, path: String) -> Result<EmptyO
 	Ok(EmptyObject {})
 }
 
+async fn handle_net_connect(
+	mut stream: DuplexStream,
+	req: NetConnectRequest,
+) -> Result<EmptyObject, AnyError> {
+	let mut s = TcpStream::connect((req.host, req.port))
+		.await
+		.map_err(|e| wrap(e, "could not connect to address"))?;
+
+	tokio::io::copy_bidirectional(&mut stream, &mut s)
+		.await
+		.map_err(|e| wrap(e, "error copying stream data"))?;
+
+	Ok(EmptyObject {})
+}
 async fn handle_fs_connect(
 	mut stream: DuplexStream,
 	path: String,
@@ -1153,18 +1176,19 @@ where
 
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
 
-	let futs = FuturesUnordered::new();
+	let block_futs = FuturesUnordered::new();
+	let poll_futs = FuturesUnordered::new();
 	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		block_futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 	if let (Some(mut a), Some(mut b)) = (p.stderr.take(), stderr) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		block_futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 	if let (Some(mut b), Some(mut a)) = (p.stdin.take(), stdin) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		poll_futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
 	}
 
-	wait_for_process_exit(log, &params.command, p, futs).await
+	wait_for_process_exit(log, &params.command, p, block_futs, poll_futs).await
 }
 
 async fn handle_spawn_cli(
@@ -1212,23 +1236,42 @@ async fn handle_spawn_cli(
 	}
 
 	debug!(log, "cli authenticated, attaching stdio");
-	let futs = FuturesUnordered::new();
-	futs.push(async move { tokio::io::copy(&mut protocol_in, &mut stdin).await }.boxed());
-	futs.push(async move { tokio::io::copy(&mut stderr, &mut protocol_out).await }.boxed());
-	futs.push(async move { log_pump.await.unwrap() }.boxed());
+	let block_futs = FuturesUnordered::new();
+	let poll_futs = FuturesUnordered::new();
+	poll_futs.push(async move { tokio::io::copy(&mut protocol_in, &mut stdin).await }.boxed());
+	block_futs.push(async move { tokio::io::copy(&mut stderr, &mut protocol_out).await }.boxed());
+	block_futs.push(async move { log_pump.await.unwrap() }.boxed());
 
-	wait_for_process_exit(log, &params.command, p, futs).await
+	wait_for_process_exit(log, &params.command, p, block_futs, poll_futs).await
 }
 
 type TokioCopyFuture = dyn futures::Future<Output = Result<u64, std::io::Error>> + Send;
 
+async fn get_joined_result(
+	mut process: tokio::process::Child,
+	block_futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+) -> Result<std::process::ExitStatus, std::io::Error> {
+	let (_, r) = tokio::join!(futures::future::join_all(block_futs), process.wait());
+	r
+}
+
+/// Wait for the process to exit and sends the spawn result. Waits until the
+/// `block_futs` and the process have exited, and polls the `poll_futs` while
+/// doing so.
 async fn wait_for_process_exit(
 	log: &log::Logger,
 	command: &str,
-	mut process: tokio::process::Child,
-	futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+	process: tokio::process::Child,
+	block_futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
+	poll_futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
 ) -> Result<SpawnResult, AnyError> {
-	let (_, r) = tokio::join!(futures::future::join_all(futs), process.wait());
+	let joined = get_joined_result(process, block_futs);
+	pin!(joined);
+
+	let r = tokio::select! {
+		_ = futures::future::join_all(poll_futs) => joined.await,
+		r = &mut joined => r,
+	};
 
 	let r = match r {
 		Ok(e) => SpawnResult {

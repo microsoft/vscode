@@ -24,7 +24,7 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
-    "scmInputBoxActionButton"
+    "contribSourceControlInputBoxMenu"
   ],
   "categories": [
     "Other"
@@ -95,6 +95,12 @@
       {
         "command": "git.close",
         "title": "%command.close%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.closeOtherRepositories",
+        "title": "%command.closeOtherRepositories%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -695,6 +701,12 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.openCommit",
+        "title": "%command.timelineOpenCommit%",
+        "icon": "$(diff-multiple)",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git",
@@ -753,6 +765,18 @@
         "command": "git.openRepositoriesInParentFolders",
         "title": "%command.openRepositoriesInParentFolders%",
         "category": "Git"
+      },
+      {
+        "command": "git.viewChanges",
+        "title": "%command.viewChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git"
+      },
+      {
+        "command": "git.viewStagedChanges",
+        "title": "%command.viewStagedChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git"
       }
     ],
     "continueEditSession": [
@@ -808,6 +832,10 @@
         {
           "command": "git.close",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.closeOtherRepositories",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.refresh",
@@ -1198,6 +1226,10 @@
           "when": "false"
         },
         {
+          "command": "git.timeline.openCommit",
+          "when": "false"
+        },
+        {
           "command": "git.closeAllDiffEditors",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1224,6 +1256,14 @@
         {
           "command": "git.openRepositoriesInParentFolders",
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1306,8 +1346,13 @@
       "scm/sourceControl": [
         {
           "command": "git.close",
-          "group": "navigation",
+          "group": "navigation@1",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.closeOtherRepositories",
+          "group": "navigation@2",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
         }
       ],
       "scm/resourceGroup/context": [
@@ -1390,6 +1435,16 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "scmProvider == git && scmResourceGroup == index && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1768,9 +1823,19 @@
       ],
       "timeline/item/context": [
         {
+          "command": "git.timeline.openCommit",
+          "group": "inline",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection && config.multiDiffEditor.experimental.enabled"
+        },
+        {
           "command": "git.timeline.openDiff",
-          "group": "1_actions",
+          "group": "1_actions@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.openCommit",
+          "group": "1_actions@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection && config.multiDiffEditor.experimental.enabled"
         },
         {
           "command": "git.timeline.compareWithSelected",
@@ -2453,7 +2518,7 @@
             "warn",
             "off"
           ],
-          "default": "warn",
+          "default": "off",
           "description": "%config.inputValidation%"
         },
         "git.inputValidationLength": {
@@ -2568,6 +2633,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.useForcePushWithLease%"
+        },
+        "git.useForcePushIfIncludes": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.useForcePushIfIncludes%"
         },
         "git.confirmForcePush": {
           "type": "boolean",
@@ -2891,8 +2961,11 @@
     "configurationDefaults": {
       "[git-commit]": {
         "editor.rulers": [
+          50,
           72
         ],
+        "editor.wordWrap": "wordWrapColumn",
+        "editor.wordWrapColumn": 72,
         "workbench.editor.restoreViewState": false
       },
       "[git-rebase]": {
@@ -3007,7 +3080,7 @@
   },
   "dependencies": {
     "@joaomoreno/unique-names-generator": "^5.1.0",
-    "@vscode/extension-telemetry": "^0.8.5",
+    "@vscode/extension-telemetry": "^0.9.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "byline": "^5.0.0",
     "file-type": "16.5.4",

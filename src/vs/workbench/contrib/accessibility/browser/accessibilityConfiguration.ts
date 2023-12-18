@@ -24,7 +24,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
 export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
 	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
-	HideAccessibleView = 'accessibility.hideAccessibleView'
+	HideAccessibleView = 'accessibility.hideAccessibleView',
+	AccessibleViewCloseOnKeyPress = 'accessibility.accessibleView.closeOnKeyPress'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -32,6 +33,11 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Minimum = 0.2,
 	Maximum = 1
 }
+
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+}
+export const SpeechTimeoutDefault = 1200;
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -97,7 +103,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineCompletions]: {
-			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view.'),
+			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and Accessible View.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
@@ -109,11 +115,11 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Hover]: {
-			description: localize('verbosity.hover', 'Provide information about how to open the hover in an accessible view.'),
+			description: localize('verbosity.hover', 'Provide information about how to open the hover in an Accessible View.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Notification]: {
-			description: localize('verbosity.notification', 'Provide information about how to open the notification in an accessible view.'),
+			description: localize('verbosity.notification', 'Provide information about how to open the notification in an Accessible View.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
@@ -148,6 +154,18 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
+		[AccessibilityVoiceSettingId.SpeechTimeout]: {
+			'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a chat session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+			'type': 'number',
+			'default': SpeechTimeoutDefault,
+			'minimum': 0,
+			'tags': ['accessibility']
+		},
+		[AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress]: {
+			markdownDescription: localize('terminal.integrated.accessibleView.closeOnKeyPress', "On keypress, close the Accessible View and focus the element from which it was invoked."),
+			type: 'boolean',
+			default: true
+		},
 	}
 };
 
@@ -175,7 +193,7 @@ export function registerAccessibilityConfiguration() {
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[AccessibilityWorkbenchSettingId.HideAccessibleView]: {
-				description: localize('terminal.integrated.hideAccessibleView', "Controls whether the terminal's accessible view is hidden."),
+				description: localize('accessibility.hideAccessibleView', "Controls whether the Accessible View is hidden."),
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']

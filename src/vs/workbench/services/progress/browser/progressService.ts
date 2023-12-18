@@ -546,7 +546,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			dialog = new Dialog(
-				this.layoutService.container,
+				this.layoutService.activeContainer,
 				message,
 				buttons,
 				{
@@ -556,7 +556,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableCloseAction: options.sticky,
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
-						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
+						const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
 						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);

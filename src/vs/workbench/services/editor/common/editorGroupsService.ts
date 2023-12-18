@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { IRectangle } from 'vs/platform/window/common/window';
+import { IMenuChangeEvent } from 'vs/platform/actions/common/actions';
+import { DeepPartial } from 'vs/base/common/types';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -300,16 +302,6 @@ export interface IEditorGroupsContainer {
 	getLayout(): EditorGroupLayout;
 
 	/**
-	 * Enable or disable centered editor layout.
-	 */
-	centerLayout(active: boolean): void;
-
-	/**
-	 * Find out if the editor layout is currently centered.
-	 */
-	isLayoutCentered(): boolean;
-
-	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
 	 */
 	setGroupOrientation(orientation: GroupOrientation): void;
@@ -369,9 +361,9 @@ export interface IEditorGroupsContainer {
 	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
 
 	/**
-	 * Merge all editor groups into the active one.
+	 * Merge all editor groups into the target one.
 	 */
-	mergeAllGroups(): IEditorGroup;
+	mergeAllGroups(target: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
 	 * Copy a group to a new group in the container.
@@ -391,11 +383,6 @@ export interface IEditorGroupsContainer {
 	 * An event that notifies when editor part options change.
 	 */
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
-
-	/**
-	 * Enforce editor part options temporarily.
-	 */
-	enforcePartOptions(options: IEditorPartOptions): IDisposable;
 
 	/**
 	 * Allows to register a drag and drop target for editors
@@ -460,14 +447,41 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * from a previous session.
 	 */
 	readonly hasRestorableState: boolean;
+
+	/**
+	 * Enable or disable centered editor layout.
+	 */
+	centerLayout(active: boolean): void;
+
+	/**
+	 * Find out if the editor layout is currently centered.
+	 */
+	isLayoutCentered(): boolean;
+
+	/**
+	 * Enforce editor part options temporarily.
+	 */
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
-	 * Close this auxiliary editor part and free up associated resources.
+	 * The identifier of the window the auxiliary editor part is contained in.
 	 */
-	close(): Promise<void>;
+	readonly windowId: number;
+
+	/**
+	 * Close this auxiliary editor part after moving all
+	 * editors of all groups back to the main editor part.
+	 */
+	close(): void;
+}
+
+export interface IAuxiliaryEditorPartCreateEvent {
+	readonly part: IAuxiliaryEditorPart;
+	readonly instantiationService: IInstantiationService;
+	readonly disposables: DisposableStore;
 }
 
 /**
@@ -476,6 +490,11 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event for when a new auxiliary editor part is created.
+	 */
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
 
 	/**
 	 * Provides access to the currently active editor part.
@@ -488,21 +507,36 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly mainPart: IEditorPart;
 
 	/**
+	 * Provides access to all editor parts.
+	 */
+	readonly parts: ReadonlyArray<IEditorPart>;
+
+	/**
 	 * Get the editor part that contains the group with the provided identifier.
 	 */
 	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 
 	/**
-	 * Opens a new window with a full editor part instantiated
-	 * in there at the optional position on screen.
+	 * Get the editor part that is rooted in the provided container.
 	 */
-	createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart>;
+	getPart(container: unknown /* HTMLElement */): IEditorPart;
+
+	/**
+	 * Opens a new window with a full editor part instantiated
+	 * in there at the optional position and size on screen.
+	 */
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 }
 
 export const enum OpenEditorContext {
 	NEW_EDITOR = 1,
 	MOVE_EDITOR = 2,
 	COPY_EDITOR = 3
+}
+
+export interface IActiveEditorActions {
+	readonly actions: IToolbarActions;
+	readonly onDidChange: Event<IMenuChangeEvent | void>;
 }
 
 export interface IEditorGroup {
@@ -805,6 +839,11 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
+
+	/**
+	 * Create the editor actions for the current active editor.
+	 */
+	createEditorActions(disposables: DisposableStore): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

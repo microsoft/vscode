@@ -72,6 +72,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['diffEditor.*']
 				},
 				{
+					id: 'editor/multiDiffEditor',
+					label: localize('multiDiffEditor', "Multi-File Diff Editor"),
+					settings: ['multiDiffEditor.*']
+				},
+				{
 					id: 'editor/minimap',
 					label: localize('minimap', "Minimap"),
 					settings: ['editor.minimap.*']

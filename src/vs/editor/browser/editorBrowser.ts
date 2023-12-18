@@ -225,6 +225,22 @@ export const enum OverlayWidgetPositionPreference {
 	 */
 	TOP_CENTER
 }
+
+
+/**
+ * Represents editor-relative coordinates of an overlay widget.
+ */
+export interface IOverlayWidgetPositionCoordinates {
+	/**
+	 * The top position for the overlay widget, relative to the editor.
+	 */
+	top: number;
+	/**
+	 * The left position for the overlay widget, relative to the editor.
+	 */
+	left: number;
+}
+
 /**
  * A position for rendering overlay widgets.
  */
@@ -232,12 +248,16 @@ export interface IOverlayWidgetPosition {
 	/**
 	 * The position preference for the overlay widget.
 	 */
-	preference: OverlayWidgetPositionPreference | null;
+	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 }
 /**
  * An overlay widgets renders on top of the text.
  */
 export interface IOverlayWidget {
+	/**
+	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
+	 */
+	allowEditorOverflow?: boolean;
 	/**
 	 * Get a unique identifier of the overlay widget.
 	 */
@@ -1264,18 +1284,21 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	setBoundarySashes(sashes: IBoundarySashes): void;
 
 	/**
-	 * @internal
+	 * Jumps to the next or previous diff.
 	 */
 	goToDiff(target: 'next' | 'previous'): void;
 
 	/**
-	 * @internal
+	 * Scrolls to the first diff.
+	 * (Waits until the diff computation finished.)
 	 */
 	revealFirstDiff(): unknown;
 
 	accessibleDiffViewerNext(): void;
 
 	accessibleDiffViewerPrev(): void;
+
+	handleInitialized(): void;
 }
 
 /**

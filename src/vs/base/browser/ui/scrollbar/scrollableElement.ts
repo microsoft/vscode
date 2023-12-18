@@ -576,7 +576,7 @@ export class ScrollableElement extends AbstractScrollableElement {
 		const scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 0,
-			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(callback)
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});
 		super(element, options, scrollable);
 		this._register(scrollable);
@@ -621,7 +621,7 @@ export class DomScrollableElement extends AbstractScrollableElement {
 		const scrollable = new Scrollable({
 			forceIntegerValues: false, // See https://github.com/microsoft/vscode/issues/139877
 			smoothScrollDuration: 0,
-			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(callback)
+			scheduleAtNextAnimationFrame: (callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(element), callback)
 		});
 		super(element, options, scrollable);
 		this._register(scrollable);

@@ -134,8 +134,9 @@ import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExport
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
 
-// Themes Support
+// Themes
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+import 'vs/workbench/services/themes/electron-sandbox/themes.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
@@ -164,6 +165,9 @@ import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribu
 
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
+
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
 
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';

@@ -4,84 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, WebContents } from 'electron';
-import { Emitter, Event } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStateService } from 'vs/platform/state/node/state';
+import { IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
-export interface IAuxiliaryWindow {
-
-	readonly onDidClose: Event<void>;
-
-	readonly id: number;
-	readonly win: BrowserWindow | null;
-
-	readonly lastFocusTime: number;
-
-	focus(options?: { force: boolean }): void;
+export interface IAuxiliaryWindow extends IBaseWindow {
+	readonly parentId: number;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	readonly id = this.contents.id;
+	parentId = -1;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
-
-	private _win: BrowserWindow | null = null;
-	get win() {
-		if (!this._win) {
-			const window = BrowserWindow.fromWebContents(this.contents);
-			if (window) {
-				this._win = window;
-				this.registerWindowListeners(window);
-			}
+	override get win() {
+		if (!super.win) {
+			this.tryClaimWindow();
 		}
 
-		return this._win;
+		return super.win;
 	}
-
-	protected getWin(): BrowserWindow | null {
-		return this.win;
-	}
-
-	private _lastFocusTime = Date.now(); // window is shown on creation so take current time
-	get lastFocusTime(): number { return this._lastFocusTime; }
 
 	constructor(
 		private readonly contents: WebContents,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStateService stateService: IStateService
 	) {
-		super();
+		super(configurationService, stateService, environmentMainService);
 
-		this.create();
+		contents.removeAllListeners('devtools-reload-page'); // remove built in listener as aux windows have no reload
+
+		// Try to claim window
+		this.tryClaimWindow();
 	}
 
-	private create(): void {
-
-		// Handle devtools argument
-		if (this.environmentMainService.args['open-devtools'] === true) {
-			this.contents.openDevTools({ mode: 'bottom' });
+	tryClaimWindow(): void {
+		if (this._win) {
+			return; // already claimed
 		}
-	}
 
-	private registerWindowListeners(window: BrowserWindow): void {
+		if (this._store.isDisposed || this.contents.isDestroyed()) {
+			return; // already disposed
+		}
 
-		// Window Close
-		window.on('closed', () => {
-			this._onDidClose.fire();
+		const window = BrowserWindow.fromWebContents(this.contents);
+		if (window) {
+			this.logService.trace('[aux window] Claimed browser window instance');
 
-			this.dispose();
-		});
+			// Remember
+			this.setWin(window);
 
-		// Window Focus
-		window.on('focus', () => {
-			this._lastFocusTime = Date.now();
-		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this._win = null!; // Important to dereference the window object to allow for GC
+			// Disable Menu
+			window.setMenu(null);
+		}
 	}
 }

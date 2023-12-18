@@ -14,7 +14,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
-	dispose(): void { }
+	abstract dispose(): void;
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
 }
@@ -123,7 +123,7 @@ export class BreadcrumbsWidget {
 
 	private _updateDimensions(dim: dom.Dimension): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(dom.modify(() => {
+		disposables.add(dom.modify(dom.getWindow(this._domNode), () => {
 			this._dimension = dim;
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
@@ -133,8 +133,8 @@ export class BreadcrumbsWidget {
 	}
 
 	private _updateScrollbar(): IDisposable {
-		return dom.measure(() => {
-			dom.measure(() => { // double RAF
+		return dom.measure(dom.getWindow(this._domNode), () => {
+			dom.measure(dom.getWindow(this._domNode), () => { // double RAF
 				this._scrollable.setRevealOnScroll(false);
 				this._scrollable.scanDomNode();
 				this._scrollable.setRevealOnScroll(true);

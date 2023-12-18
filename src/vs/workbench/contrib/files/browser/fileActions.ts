@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extname, basename } from 'vs/base/common/path';
+import { extname, basename, isAbsolute } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -649,16 +649,16 @@ export class ShowActiveFileInExplorer extends Action2 {
 	}
 }
 
-export class ShowOpenedFileInNewWindow extends Action2 {
+export class OpenActiveFileInEmptyWorkspace extends Action2 {
 
 	static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+	static readonly LABEL = nls.localize('openFileInEmptyWorkspace', "Open Active File in New Empty Workspace");
 
 	constructor(
 	) {
 		super({
-			id: ShowOpenedFileInNewWindow.ID,
-			title: { value: ShowOpenedFileInNewWindow.LABEL, original: 'Open Active File in New Window' },
+			id: OpenActiveFileInEmptyWorkspace.ID,
+			title: { value: OpenActiveFileInEmptyWorkspace.LABEL, original: 'Open Active File in New Empty Workspace' },
 			f1: true,
 			category: Categories.File,
 			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
@@ -1082,7 +1082,7 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
-export const pasteFileHandler = async (accessor: ServicesAccessor) => {
+export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
@@ -1093,9 +1093,42 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const dialogService = accessor.get(IDialogService);
 
 	const context = explorerService.getContext(true);
-	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
+	const hasNativeFilesToPaste = fileList && fileList.length > 0;
+	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
+
+	const toPaste = await getFilesToPaste(fileList, clipboardService);
+
+	if (confirmPasteNative) {
+		const message = toPaste.length > 1 ?
+			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.length) :
+			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));
+		const detail = toPaste.length > 1 ? getFileNamesMessage(toPaste) : undefined;
+		const confirmation = await dialogService.confirm({
+			message,
+			detail,
+			checkbox: {
+				label: nls.localize('doNotAskAgain', "Do not ask me again")
+			},
+			primaryButton: nls.localize({ key: 'pasteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Paste")
+		});
+
+		if (!confirmation.confirmed) {
+			return;
+		}
+
+		// Check for confirmation checkbox
+		if (confirmation.checkboxChecked === true) {
+			await configurationService.updateValue('explorer.confirmPasteNative', false);
+		}
+	}
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
+
+	const editableItem = explorerService.getEditable();
+	// If it's an editable item, just do nothing
+	if (editableItem) {
+		return;
+	}
 
 	try {
 		// Check if target is ancestor of pasted folder
@@ -1174,6 +1207,16 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 		}
 	}
 };
+
+async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> {
+	if (fileList && fileList.length > 0) {
+		// with a `fileList` we support natively pasting files from clipboard
+		return [...fileList].filter(file => !!file.path && isAbsolute(file.path)).map(file => URI.file(file.path));
+	} else {
+		// otherwise we fallback to reading resources from our clipboard service
+		return resources.distinctParents(await clipboardService.readResources(), resource => resource);
+	}
+}
 
 export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);

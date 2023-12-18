@@ -7,54 +7,58 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryItemGroupDetails, ISCMHistoryItemGroupEntry, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ResourceTree } from 'vs/base/common/resourceTree';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { Codicon } from 'vs/base/common/codicons';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename } from 'vs/base/common/resources';
 
-function getSCMInputBoxActionButtonIcon(actionButton: SCMInputActionButtonDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
-	if (!actionButton.icon) {
+function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
+	if (iconDto === undefined) {
 		return undefined;
-	} else if (URI.isUri(actionButton.icon)) {
-		return URI.revive(actionButton.icon);
-	} else if (ThemeIcon.isThemeIcon(actionButton.icon)) {
-		return actionButton.icon;
+	} else if (URI.isUri(iconDto)) {
+		return URI.revive(iconDto);
+	} else if (ThemeIcon.isThemeIcon(iconDto)) {
+		return iconDto;
 	} else {
-		const icon = actionButton.icon as { light: UriComponents; dark: UriComponents };
-		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
-	}
-}
-
-function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
-	if (!historyItem.icon) {
-		return undefined;
-	} else if (URI.isUri(historyItem.icon)) {
-		return URI.revive(historyItem.icon);
-	} else if (ThemeIcon.isThemeIcon(historyItem.icon)) {
-		return historyItem.icon;
-	} else {
-		const icon = historyItem.icon as { light: UriComponents; dark: UriComponents };
+		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 	}
 }
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
-	readonly elements: ISCMResource[] = [];
+	readonly resources: ISCMResource[] = [];
 
-	private readonly _onDidSplice = new Emitter<ISplice<ISCMResource>>();
-	readonly onDidSplice = this._onDidSplice.event;
+	private _resourceTree: ResourceTree<ISCMResource, ISCMResourceGroup> | undefined;
+	get resourceTree(): ResourceTree<ISCMResource, ISCMResourceGroup> {
+		if (!this._resourceTree) {
+			const rootUri = this.provider.rootUri ?? URI.file('/');
+			this._resourceTree = new ResourceTree<ISCMResource, ISCMResourceGroup>(this, rootUri, this._uriIdentService.extUri);
+			for (const resource of this.resources) {
+				this._resourceTree.add(resource.sourceUri, resource);
+			}
+		}
 
-	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
+		return this._resourceTree;
+	}
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly _onDidChangeResources = new Emitter<void>();
+	readonly onDidChangeResources = this._onDidChangeResources.event;
+
+	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
 	constructor(
 		private readonly sourceControlHandle: number,
@@ -62,7 +66,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public id: string
+		public id: string,
+		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
 	toJSON(): any {
@@ -74,8 +79,10 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	}
 
 	splice(start: number, deleteCount: number, toInsert: ISCMResource[]) {
-		this.elements.splice(start, deleteCount, ...toInsert);
-		this._onDidSplice.fire({ start, deleteCount, toInsert });
+		this.resources.splice(start, deleteCount, ...toInsert);
+		this._resourceTree = undefined;
+
+		this._onDidChangeResources.fire();
 	}
 
 	$updateGroup(features: SCMGroupFeatures): void {
@@ -119,18 +126,8 @@ class MainThreadSCMResource implements ISCMResource {
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
-	private _onDidChangeActionButton = new Emitter<void>();
-	readonly onDidChangeActionButton = this._onDidChangeActionButton.event;
-
 	private _onDidChangeCurrentHistoryItemGroup = new Emitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup = this._onDidChangeCurrentHistoryItemGroup.event;
-
-	private _actionButton: ISCMActionButtonDescriptor | undefined;
-	get actionButton(): ISCMActionButtonDescriptor | undefined { return this._actionButton; }
-	set actionButton(actionButton: ISCMActionButtonDescriptor | undefined) {
-		this._actionButton = actionButton;
-		this._onDidChangeActionButton.fire();
-	}
 
 	private _currentHistoryItemGroup: ISCMHistoryItemGroup | undefined;
 	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
@@ -140,6 +137,38 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
+
+	async resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
+		// History item group base
+		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
+
+		// Common ancestor, ahead, behind
+		const ancestor = historyItemGroupBase ?
+			await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id) : undefined;
+
+		// Incoming
+		let incoming: ISCMHistoryItemGroupEntry | undefined;
+		if (historyItemGroupBase) {
+			incoming = {
+				id: historyItemGroupBase.id,
+				label: historyItemGroupBase.label,
+				icon: Codicon.arrowCircleDown,
+				ancestor: ancestor?.id,
+				count: ancestor?.behind ?? 0,
+			};
+		}
+
+		// Outgoing
+		const outgoing: ISCMHistoryItemGroupEntry = {
+			id: historyItemGroup.id,
+			label: historyItemGroup.label,
+			icon: Codicon.arrowCircleUp,
+			ancestor: ancestor?.id,
+			count: ancestor?.ahead ?? 0,
+		};
+
+		return { incoming, outgoing };
+	}
 
 	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined> {
 		return this.proxy.$resolveHistoryItemGroupBase(this.handle, historyItemGroupId, CancellationToken.None);
@@ -151,7 +180,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
-		return historyItems?.map(historyItem => ({ ...historyItem, icon: getSCMHistoryItemIcon(historyItem), }));
+		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
 	}
 
 	async provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined> {
@@ -172,7 +201,13 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
 	get id(): string { return this._id; }
 
-	readonly groups = new Sequence<MainThreadSCMResourceGroup>();
+	readonly groups: MainThreadSCMResourceGroup[] = [];
+	private readonly _onDidChangeResourceGroups = new Emitter<void>();
+	readonly onDidChangeResourceGroups = this._onDidChangeResourceGroups.event;
+
+	private readonly _onDidChangeResources = new Emitter<void>();
+	readonly onDidChangeResources = this._onDidChangeResources.event;
+
 	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup } = Object.create(null);
 
 	// get groups(): ISequence<ISCMResourceGroup> {
@@ -185,8 +220,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	// 	// 	.filter(g => g.resources.elements.length > 0 || !g.features.hideWhenEmpty);
 	// }
 
-	private readonly _onDidChangeResources = new Emitter<void>();
-	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	private features: SCMProviderFeatures = {};
 
@@ -194,7 +227,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
-	get contextValue(): string { return this._contextValue; }
+	get contextValue(): string { return this._providerId; }
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
@@ -202,6 +235,9 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
+
+	private readonly _name: string | undefined;
+	get name(): string { return this._name ?? this._label; }
 
 	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
@@ -223,12 +259,23 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
 		private readonly _handle: number,
-		private readonly _contextValue: string,
+		private readonly _providerId: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _inputBoxDocumentUri: URI,
-		private readonly _quickDiffService: IQuickDiffService
-	) { }
+		private readonly _quickDiffService: IQuickDiffService,
+		private readonly _uriIdentService: IUriIdentityService,
+		private readonly _workspaceContextService: IWorkspaceContextService
+	) {
+		if (_rootUri) {
+			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);
+			if (folder?.uri.toString() === _rootUri.toString()) {
+				this._name = folder.name;
+			} else if (_rootUri.path !== '/') {
+				this._name = basename(_rootUri);
+			}
+		}
+	}
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
 		this.features = { ...this.features, ...features };
@@ -271,14 +318,16 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				this,
 				features,
 				label,
-				id
+				id,
+				this._uriIdentService
 			);
 
 			this._groupsByHandle[handle] = group;
 			return group;
 		});
 
-		this.groups.splice(this.groups.elements.length, 0, groups);
+		this.groups.splice(this.groups.length, 0, ...groups);
+		this._onDidChangeResourceGroups.fire();
 	}
 
 	$updateGroup(handle: number, features: SCMGroupFeatures): void {
@@ -357,8 +406,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		delete this._groupsByHandle[handle];
-		this.groups.splice(this.groups.elements.indexOf(group), 1);
-		this._onDidChangeResources.fire();
+		this.groups.splice(this.groups.indexOf(group), 1);
+		this._onDidChangeResourceGroups.fire();
 	}
 
 	async getOriginalResource(uri: URI): Promise<URI | null> {
@@ -368,14 +417,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 		const result = await this.proxy.$provideOriginalResource(this.handle, uri, CancellationToken.None);
 		return result && URI.revive(result);
-	}
-
-	$onDidChangeHistoryProviderActionButton(actionButton?: SCMActionButtonDto | null): void {
-		if (!this._historyProvider) {
-			return;
-		}
-
-		this._historyProvider.actionButton = actionButton ?? undefined;
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(currentHistoryItemGroup?: SCMHistoryItemGroupDto): void {
@@ -410,7 +451,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		extHostContext: IExtHostContext,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
+		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -426,7 +469,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
@@ -567,16 +610,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		repository.input.visible = visible;
 	}
 
-	$setInputBoxActionButton(sourceControlHandle: number, actionButton?: SCMInputActionButtonDto | null | undefined): void {
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		repository.input.actionButton = actionButton ? { ...actionButton, icon: getSCMInputBoxActionButtonIcon(actionButton) } : undefined;
-	}
-
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType) {
 		const repository = this._repositories.get(sourceControlHandle);
 		if (!repository) {
@@ -601,17 +634,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		} else {
 			repository.input.validateInput = async () => undefined;
 		}
-	}
-
-	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null | undefined): void {
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$onDidChangeHistoryProviderActionButton(actionButton);
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void {

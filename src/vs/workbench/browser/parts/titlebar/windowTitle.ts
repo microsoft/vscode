@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { dirname, basename } from 'vs/base/common/resources';
-import { ITitleProperties } from 'vs/workbench/services/title/common/titleService';
+import { ITitleProperties } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -47,6 +47,15 @@ export class WindowTitle extends Disposable {
 
 	get value() { return this.title ?? ''; }
 	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+	get fileName() {
+		const activeEditor = this.editorService.activeEditor;
+		if (!activeEditor) {
+			return undefined;
+		}
+		const fileName = activeEditor.getTitle(Verbosity.SHORT);
+		const dirty = activeEditor?.isDirty() && !activeEditor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
+		return `${dirty}${fileName}`;
+	}
 
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;
@@ -54,7 +63,7 @@ export class WindowTitle extends Disposable {
 	private readonly editorService: IEditorService;
 
 	constructor(
-		private readonly targetWindow: Window & typeof globalThis,
+		private readonly targetWindow: Window,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,

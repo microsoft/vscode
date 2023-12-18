@@ -93,7 +93,7 @@
 }
 
 /* UGLY - fighting against workbench styles */
-.monaco-workbench .part.editor>.content .monaco-editor .inline-chat .progress .monaco-progress-container {
+.monaco-workbench .part.editor > .content .monaco-editor .inline-chat .progress .monaco-progress-container {
 	top: 0;
 }
 
@@ -119,7 +119,7 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
 	align-self: baseline;
-	display: flex;
+	display: inline-flex;
 }
 
 .monaco-editor .inline-chat .status .label.hidden {
@@ -141,7 +141,6 @@
 	padding-left: 10px;
 	padding-right: 4px;
 	margin-left: auto;
-	align-self: center;
 }
 
 .monaco-editor .inline-chat .status .label .slash-command-pill CODE {
@@ -152,15 +151,7 @@
 }
 
 
-.monaco-editor .inline-chat .markdownMessage {
-	padding: 10px 5px;
-}
-
-.monaco-editor .inline-chat .markdownMessage.hidden {
-	display: none;
-}
-
-.monaco-editor .inline-chat .markdownMessage .message * {
+/* .monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;
 }
 
@@ -171,13 +162,10 @@
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
-}
+} */
 
-.monaco-editor .inline-chat .markdownMessage .message .interactive-result-code-block {
-	margin: 16px 0;
-}
 
-.monaco-editor .inline-chat .markdownMessage .message {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent .value {
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;
 	overflow: hidden;
@@ -186,12 +174,38 @@
 	user-select: text;
 }
 
-.monaco-editor .inline-chat .markdownMessage .message[state="cropped"] {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="cropped"] .value {
 	-webkit-line-clamp: var(--vscode-inline-chat-cropped, 3);
 }
 
-.monaco-editor .inline-chat .markdownMessage .message[state="expanded"] {
+.monaco-editor .inline-chat .chatMessage .chatMessageContent[state="expanded"] .value {
 	-webkit-line-clamp: var(--vscode-inline-chat-expanded, 10);
+}
+
+.monaco-editor .inline-chat .followUps {
+	padding: 5px 5px;
+}
+
+.monaco-editor .inline-chat .followUps .interactive-session-followups .monaco-button {
+	display: block;
+	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
+}
+
+.monaco-editor .inline-chat .followUps.hidden {
+	display: none;
+}
+
+.monaco-editor .inline-chat .chatMessage {
+	padding: 8px 3px;
+}
+
+.monaco-editor .inline-chat .chatMessage .chatMessageContent {
+	padding: 2px 2px;
+}
+
+.monaco-editor .inline-chat .chatMessage.hidden {
+	display: none;
 }
 
 .monaco-editor .inline-chat .status .label A {
@@ -285,13 +299,35 @@
 	display: none;
 }
 
+.monaco-editor .inline-chat-toolbar {
+	display: flex;
+}
+
+.monaco-editor .inline-chat-toolbar > .monaco-button{
+	margin-right: 6px;
+}
+
+.monaco-editor .inline-chat-toolbar .action-label.checked {
+	color: var(--vscode-inputOption-activeForeground);
+	background-color: var(--vscode-inputOption-activeBackground);
+	outline: 1px solid var(--vscode-inputOption-activeBorder);
+}
+
 /* decoration styles */
 
-.monaco-editor .inline-chat-lines-deleted-range-inline {
-	text-decoration: line-through;
-	background-color: var(--vscode-diffEditor-removedTextBackground);
-	opacity: 0.6;
+.monaco-editor .inline-chat-inserted-range {
+	background-color: var(--vscode-inlineChatDiff-inserted);
 }
+
+.monaco-editor .inline-chat-inserted-range-linehighlight {
+	background-color: var(--vscode-diffEditor-insertedLineBackground);
+}
+
+.monaco-editor .inline-chat-original-zone2 {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	opacity: 0.8;
+}
+
 .monaco-editor .inline-chat-lines-inserted-range {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
 }
@@ -318,7 +354,6 @@
 /* create zone */
 
 .monaco-editor .inline-chat-newfile-widget {
-	padding: 3px 0 6px 0;
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
@@ -326,19 +361,42 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 3px 6px 3px 0;
+}
+
+.monaco-editor .inline-chat-newfile-widget .title .detail {
+	margin-left: 4px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget {
+	display: flex;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
+	display: inline-flex;
+	white-space: nowrap;
+	margin-left: 4px;
 }
 
 /* gutter decoration */
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
 	display: block;
 	cursor: pointer;
-	opacity: 0.5;
 	transition: opacity .2s ease-in-out;
 }
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat:hover {
-	opacity: 1;
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
+	opacity: 0.5;
 }
 
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	opacity: 0;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
+	opacity: 1;
+}

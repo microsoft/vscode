@@ -8,28 +8,20 @@
  */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-	content: "\ec12";
+	content: "\ec1c";
 }
 
 /*
- * Clear animation styles when hovering or when reduced motion is enabled.
+ * Clear animation styles when reduced motion is enabled.
  */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover {
-	animation: none;
-}
 .monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
 .monaco-workbench.reduce-motion .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
 	animation: none;
 }
 
 /*
- * Replace with "stop" icon when hovering or when reduced motion is enabled.
+ * Replace with "stop" icon when reduced motion is enabled.
  */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before {
-	content: "\ead7";
-}
 .monaco-workbench.reduce-motion .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
 .monaco-workbench.reduce-motion .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 	content: "\ead7";
