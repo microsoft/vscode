@@ -54,7 +54,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			let source: string | INotificationSource | undefined;
 			if (options.source) {
 				source = {
-					label: nls.localize('extensionSource', "{0} (Extension)", options.source.label),
+					label: options.source.label,
 					id: options.source.identifier.value
 				};
 			}

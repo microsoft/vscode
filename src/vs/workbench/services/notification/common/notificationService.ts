@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter, isNotificationSource } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -38,10 +38,12 @@ export class NotificationService extends Disposable implements INotificationServ
 			switch (e.kind) {
 				case NotificationChangeType.ADD:
 				case NotificationChangeType.REMOVE: {
+					const source = typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source;
+
 					const notification: INotification = {
 						message: e.item.message.original,
 						severity: e.item.severity,
-						source: typeof e.item.sourceId === 'string' && typeof e.item.source === 'string' ? { id: e.item.sourceId, label: e.item.source } : e.item.source,
+						source,
 						priority: e.item.priority
 					};
 
@@ -49,9 +51,12 @@ export class NotificationService extends Disposable implements INotificationServ
 
 						// Make sure to track sources for notifications by registering
 						// them with our do not disturb system which is backed by storage
-						if (typeof e.item.sourceId === 'string' && typeof e.item.source === 'string') {
-							if (!this.mapSourceIdToDoNotDisturb.has(e.item.sourceId)) {
-								this.setSourceDoNotDisturb({ id: e.item.sourceId, label: e.item.source }, false);
+
+						if (isNotificationSource(source)) {
+							if (!this.mapSourceIdToDoNotDisturb.has(source.id)) {
+								this.setSourceDoNotDisturb(source, false);
+							} else {
+								this.updateSourceDoNotDisturb(source);
 							}
 						}
 
@@ -119,19 +124,36 @@ export class NotificationService extends Disposable implements INotificationServ
 
 	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
 		const existing = this.mapSourceIdToDoNotDisturb.get(source.id);
-		if (existing?.filter === (mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF)) {
+		if (existing?.filter === (mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF) && existing.label === source.label) {
 			return; // no change
 		}
 
 		// Store into model and persist
 		this.mapSourceIdToDoNotDisturb.set(source.id, { id: source.id, label: source.label, filter: mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
-		this.storageService.store(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, JSON.stringify([...this.mapSourceIdToDoNotDisturb.values()]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this.saveSourceDoNotDisturb();
 
 		// Update model
 		this.updateDoNotDisturbFilters();
 
 		// Events
 		this._onDidChangePerSourceDoNotDisturbMode.fire(source);
+	}
+
+	private updateSourceDoNotDisturb(source: INotificationSource): void {
+		const existing = this.mapSourceIdToDoNotDisturb.get(source.id);
+		if (!existing) {
+			return; // nothing to do
+		}
+
+		// Store into model and persist
+		if (existing.label !== source.label) {
+			this.mapSourceIdToDoNotDisturb.set(source.id, { id: source.id, label: source.label, filter: existing.filter });
+			this.saveSourceDoNotDisturb();
+		}
+	}
+
+	private saveSourceDoNotDisturb(): void {
+		this.storageService.store(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, JSON.stringify([...this.mapSourceIdToDoNotDisturb.values()]), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
 	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
