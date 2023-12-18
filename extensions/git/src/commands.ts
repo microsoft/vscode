@@ -216,7 +216,6 @@ class RepositoryItem implements QuickPickItem {
 
 interface ScmCommandOptions {
 	repository?: boolean;
-	selectedRepositories?: boolean;
 	diff?: boolean;
 }
 
@@ -959,11 +958,28 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.close', { repository: true, selectedRepositories: true })
-	async close(...repositories: Repository[]): Promise<void> {
-		for (const repository of repositories) {
-			this.model.close(repository);
+	@command('git.close')
+	async close(...args: any[]): Promise<void> {
+		let repositoriesPromise: Promise<Repository[] | undefined>;
+		const repositories = args.map(arg => this.model.getRepository(arg)).filter(r => r !== undefined) as Repository[];
+
+		if (repositories?.length >= 1) {
+			repositoriesPromise = Promise.resolve(repositories);
+		} else if (this.model.repositories.length === 1) {
+			repositoriesPromise = Promise.resolve(this.model.repositories);
+		} else {
+			repositoriesPromise = this.model.pickRepository().then(r => r ? [r] : []);
 		}
+
+		repositoriesPromise.then(repositories => {
+			if (!repositories) {
+				return;
+			}
+
+			for (const repository of repositories) {
+				this.model.close(repository);
+			}
+		});
 	}
 
 	@command('git.closeOtherRepositories', { repository: true })
@@ -3683,32 +3699,28 @@ export class CommandCenter {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
 
-			if (!options.repository && !options.selectedRepositories) {
+			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
-				const repositories = args.map(arg => this.model.getRepository(arg)).filter(r => r !== undefined);
+				// try to guess the repository based on the first argument
+				const repository = this.model.getRepository(args[0]);
+				let repositoryPromise: Promise<Repository | undefined>;
 
-				if (options.selectedRepositories && repositories?.length >= 1) {
-					result = Promise.resolve(method.apply(this, repositories));
+				if (repository) {
+					repositoryPromise = Promise.resolve(repository);
+				} else if (this.model.repositories.length === 1) {
+					repositoryPromise = Promise.resolve(this.model.repositories[0]);
 				} else {
-					let repositoryPromise: Promise<Repository | undefined>;
+					repositoryPromise = this.model.pickRepository();
+				}
 
-					if (repositories?.length >= 1) {
-						repositoryPromise = Promise.resolve(repositories[0]);
-					} else if (this.model.repositories.length === 1) {
-						repositoryPromise = Promise.resolve(this.model.repositories[0]);
-					} else {
-						repositoryPromise = this.model.pickRepository();
+				result = repositoryPromise.then(repository => {
+					if (!repository) {
+						return Promise.resolve();
 					}
 
-					result = repositoryPromise.then(repository => {
-						if (!repository) {
-							return Promise.resolve();
-						}
-
-						return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
-					});
-				}
+					return Promise.resolve(method.apply(this, [repository, ...args.slice(1)]));
+				});
 			}
 
 			/* __GDPR__
