@@ -298,7 +298,7 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 		instanceService: accessor.get(ITerminalInstanceService),
 		editorService: accessor.get(ITerminalEditorService),
 		profileService: accessor.get(ITerminalProfileService),
-		profileResolverService: accessor.get(ITerminalProfileResolverService),
+		profileResolverService: accessor.get(ITerminalProfileResolverService)
 	};
 }
 
@@ -729,9 +729,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (xterm) => {
-			xterm.scrollToBottom();
-		}
+		run: (xterm) => xterm.scrollToBottom()
 	});
 
 	registerActiveXtermAction({
@@ -772,9 +770,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (xterm) => {
-			xterm.scrollToTop();
-		}
+		run: (xterm) => xterm.scrollToTop()
 	});
 
 	registerActiveXtermAction({
