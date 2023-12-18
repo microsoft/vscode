@@ -61,7 +61,7 @@ import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
 import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { getActiveElement, isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
+import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
@@ -734,9 +734,10 @@ export function registerTerminalActions() {
 		run: (xterm, accessor) => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const contextKeyService = accessor.get(IContextKeyService);
+			const terminalAccessibleViewShown = accessibleViewCurrentProviderId.getValue(contextKeyService) === AccessibleViewProviderId.Terminal;
 			if (xterm.isFocused) {
 				xterm.scrollToBottom();
-			} else if (accessibleViewIsShown.evaluate(contextKeyService.getContext(getActiveElement()))) {
+			} else if (terminalAccessibleViewShown) {
 				const lastPosition = accessibleViewService.getLastPosition();
 				if (!lastPosition) {
 					return;
@@ -787,9 +788,10 @@ export function registerTerminalActions() {
 		run: (xterm, accessor) => {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const contextKeyService = accessor.get(IContextKeyService);
+			const terminalAccessibleViewShown = accessibleViewCurrentProviderId.getValue(contextKeyService) === AccessibleViewProviderId.Terminal;
 			if (xterm.isFocused) {
 				xterm.scrollToTop();
-			} else if (accessibleViewIsShown.evaluate(contextKeyService.getContext(getActiveElement()))) {
+			} else if (terminalAccessibleViewShown) {
 				accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
 			}
 		}
