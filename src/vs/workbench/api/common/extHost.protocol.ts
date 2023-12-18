@@ -55,7 +55,7 @@ import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } fr
 import { IChatAsyncContent, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -1219,7 +1219,7 @@ export interface MainThreadInlineChatShape extends IDisposable {
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
-export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineChatBulkEditResponse, 'edits'> & { edits: IWorkspaceEditDto } | IInlineChatMessageResponse>;
+export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineChatBulkEditResponse, 'edits'> & { edits: IWorkspaceEditDto }>;
 
 export interface ExtHostInlineChatShape {
 	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;

@@ -32,8 +32,8 @@ export class SurroundWithSnippetEditorAction extends SnippetEditorAction {
 	static readonly options = {
 		id: 'editor.action.surroundWithSnippet',
 		title: {
-			value: localize('label', 'Surround With Snippet...'),
-			original: 'Surround With Snippet...'
+			value: localize('label', 'More...'),
+			original: 'More...'
 		}
 	};
 

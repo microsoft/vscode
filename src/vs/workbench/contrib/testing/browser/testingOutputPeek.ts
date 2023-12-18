@@ -57,7 +57,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -73,7 +73,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -85,7 +85,7 @@ import { getXtermScaledDimensions } from 'vs/workbench/contrib/terminal/browser/
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { testingPeekBorder, testingPeekHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
+import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
@@ -252,7 +252,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 			messageIndex: candidate.index,
 			resultId: result.id,
 			testExtId: test.item.extId,
-		}, undefined, { selection: candidate.location.range, ...options });
+		}, undefined, { selection: candidate.location.range, selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport, ...options });
 		return true;
 	}
 
@@ -941,7 +941,7 @@ class TestResultsPeek extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		@IThemeService themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IPeekViewService peekViewService: IPeekViewService,
 		@ITestingPeekOpener private readonly testingPeek: ITestingPeekOpener,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -953,13 +953,14 @@ class TestResultsPeek extends PeekViewWidget {
 
 		this._disposables.add(themeService.onDidColorThemeChange(this.applyTheme, this));
 		this._disposables.add(this.onDidClose(() => this.visibilityChange.fire(false)));
-		this.applyTheme(themeService.getColorTheme());
 		peekViewService.addExclusiveWidget(editor, this);
 	}
 
-	private applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(testingPeekBorder) || Color.transparent;
-		const headerBg = theme.getColor(testingPeekHeaderBackground) || Color.transparent;
+	private applyTheme() {
+		const theme = this.themeService.getColorTheme();
+		const isError = this.current instanceof MessageSubject && this.current.message.type === TestMessageType.Error;
+		const borderColor = (isError ? theme.getColor(testingPeekBorder) : theme.getColor(testingMessagePeekBorder)) || Color.transparent;
+		const headerBg = (isError ? theme.getColor(testingPeekHeaderBackground) : theme.getColor(testingPeekMessageHeaderBackground)) || Color.transparent;
 		const editorBg = theme.getColor(editorBackground);
 		this.style({
 			arrowColor: borderColor,
@@ -1022,7 +1023,8 @@ class TestResultsPeek extends PeekViewWidget {
 		}
 
 		this.show(subject.revealLocation.range, TestResultsPeek.lastHeightInLines || hintMessagePeekHeight(message));
-		this.editor.revealPositionNearTop(subject.revealLocation.range.getStartPosition(), ScrollType.Smooth);
+		const startPosition = subject.revealLocation.range.getStartPosition();
+		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(startPosition), ScrollType.Smooth);
 
 		return this.showInPlace(subject);
 	}
@@ -1038,6 +1040,7 @@ class TestResultsPeek extends PeekViewWidget {
 		} else {
 			this.setTitle(localize('testOutputTitle', 'Test Output'));
 		}
+		this.applyTheme();
 		await this.content.reveal({ subject: subject, preserveFocus: false });
 	}
 
