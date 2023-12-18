@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { AcceptGhostText, JumpToGhostText, RejectGhostText, ShowMultiGhostText } from 'vs/editor/contrib/multiGhostText/browser/commands';
+import { AcceptGhostText, JumpToGhostText, RejectGhostText } from 'vs/editor/contrib/multiGhostText/browser/commands';
 import { MultiGhostTextController } from 'vs/editor/contrib/multiGhostText/browser/multiGhostTextController';
 
-registerEditorAction(ShowMultiGhostText);
 registerEditorAction(AcceptGhostText);
 registerEditorAction(RejectGhostText);
 registerEditorAction(JumpToGhostText);

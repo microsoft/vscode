@@ -4332,3 +4332,20 @@ export enum KeywordRecognitionStatus {
 }
 
 //#endregion
+
+//#region InlineEdit
+
+export class InlineEdit implements vscode.InlineEdit {
+	constructor(
+		public readonly position: Position,
+		public readonly text: string,
+		public readonly replaceRange?: Range,
+	) { }
+}
+
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}
+
+//#endregion

@@ -780,3 +780,27 @@ export interface PastePayload {
 	multicursorText: string[] | null;
 	mode: string | null;
 }
+
+/**
+ * @internal
+ */
+export interface IInlineEdit {
+	position: IPosition;
+	text: string;
+	replaceRange?: IRange;
+}
+
+/**
+ * @internal
+ */
+export interface IInlineEditContext {
+	triggerKind: InlineEditTriggerKind;
+}
+
+/**
+ * @internal
+ */
+export enum InlineEditTriggerKind {
+	Invoke = 0,
+	Automatic = 1,
+}

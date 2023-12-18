@@ -7,9 +7,9 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { constObservable } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { IEditorDecorationsCollection, IInlineEdit, IInlineEditContext, InlineEditTriggerKind } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
@@ -18,11 +18,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Color } from 'vs/base/common/color';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 
-export type GhostTextData = {
-	readonly position: IPosition;
-	readonly text: string;
-	readonly removeRange?: IRange;
-};
 
 export class MultiGhostTextController extends Disposable {
 	static ID = 'editor.contrib.multiGhostTextController';
@@ -37,7 +32,7 @@ export class MultiGhostTextController extends Disposable {
 		return editor.getContribution<MultiGhostTextController>(MultiGhostTextController.ID);
 	}
 
-	private _currentWidget: [GhostTextWidget, GhostTextData] | undefined;
+	private _currentWidget: [GhostTextWidget, IInlineEdit] | undefined;
 
 	private readonly _rulerDecorations: IEditorDecorationsCollection;
 	private readonly _rulerDecoration: ModelDecorationOptions;
@@ -82,7 +77,7 @@ export class MultiGhostTextController extends Disposable {
 		}));
 	}
 
-	private showSingleGhostText(gt: GhostTextData) {
+	private showSingleGhostText(gt: IInlineEdit) {
 		if (this._currentWidget) {
 			this._currentWidget[0].dispose();
 			this._currentWidget = undefined;
@@ -93,14 +88,14 @@ export class MultiGhostTextController extends Disposable {
 			ghostText: constObservable(ghostText),
 			minReservedLineCount: constObservable(0),
 			targetTextModel: constObservable(this.editor.getModel() ?? undefined),
-			removeRange: constObservable(gt.removeRange)
+			removeRange: constObservable(gt.replaceRange)
 		});
 
 		this._isVisibleContext.set(true);
 		this._currentWidget = [instance, gt];
 	}
 
-	private showRulerDecoration(ghostText: GhostTextData | undefined) {
+	private showRulerDecoration(ghostText: IInlineEdit | undefined) {
 		if (!ghostText) {
 			this._rulerDecorations.set([]);
 			return;
@@ -119,8 +114,8 @@ export class MultiGhostTextController extends Disposable {
 		this._rulerDecorations.set([decoration]);
 	}
 
-	public showGhostText(ghostText: GhostTextData, auto: boolean): void {
-		if (this._currentWidget && auto) {
+	public showGhostText(ghostText: IInlineEdit, context: IInlineEditContext): void {
+		if (this._currentWidget && context.triggerKind === InlineEditTriggerKind.Automatic) {
 			//ignore auto requests if we're displaying suggestions
 			return;
 		}
@@ -141,8 +136,8 @@ export class MultiGhostTextController extends Disposable {
 			text = data.text.substring(1);
 		}
 		this.editor.pushUndoStop();
-		if (data.removeRange) {
-			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.removeRange), text)]);
+		if (data.replaceRange) {
+			this.editor.executeEdits('acceptCurrent', [EditOperation.replace(Range.lift(data.replaceRange), text)]);
 		}
 		else {
 			this.editor.executeEdits('acceptCurrent', [EditOperation.insert(Position.lift(data.position), text)]);
