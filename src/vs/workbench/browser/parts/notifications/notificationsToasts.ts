@@ -108,9 +108,15 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		});
 
 		// Filter
-		this._register(this.model.onDidChangeFilter(filter => {
-			if (filter === NotificationsFilter.SILENT || filter === NotificationsFilter.ERROR) {
+		this._register(this.model.onDidChangeFilter(({ global, sources }) => {
+			if (global === NotificationsFilter.ERROR) {
 				this.hide();
+			} else if (sources) {
+				for (const [toast, notification] of this.mapNotificationToToast) {
+					if (typeof notification.item.sourceId === 'string' && sources.has(notification.item.sourceId)) {
+						this.removeToast(toast);
+					}
+				}
 			}
 		}));
 	}
