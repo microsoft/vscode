@@ -37,27 +37,49 @@
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
-		 * Use polling to track focus of main webview and iframes within the webview
+		 * Track focus of main webview and iframes within the webview using event listeners.
 		 *
 		 * @param {Object} handlers
 		 * @param {() => void} handlers.onFocus
 		 * @param {() => void} handlers.onBlur
 		 */
 		const trackFocus = ({ onFocus, onBlur }) => {
-			const interval = 250;
-			let isFocused = document.hasFocus();
-			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
-				if (isCurrentlyFocused === isFocused) {
-					return;
+			const handleFocus = () => { onFocus(); };
+			const handleBlur = () => { onBlur(); };
+
+			// Add event listeners to the window
+			window.addEventListener('focus', handleFocus, true);
+			window.addEventListener('blur', handleBlur, true);
+
+			// Track focus for iframes
+			const trackIframeFocus = (iframe) => {
+				if (iframe.contentWindow) {
+					iframe.contentWindow.addEventListener('focus', handleFocus, true);
+					iframe.contentWindow.addEventListener('blur', handleBlur, true);
 				}
-				isFocused = isCurrentlyFocused;
-				if (isCurrentlyFocused) {
-					onFocus();
-				} else {
-					onBlur();
+			};
+
+			// Get current iframes and attach listeners
+			const activeFrame = getActiveFrame();
+			const pendingFrame = getPendingFrame();
+			if (activeFrame) trackIframeFocus(activeFrame);
+			if (pendingFrame) trackIframeFocus(pendingFrame);
+
+			// Optional: Return a cleanup function to remove event listeners
+			return () => {
+				window.removeEventListener('focus', handleFocus, true);
+				window.removeEventListener('blur', handleBlur, true);
+
+				// Cleanup for iframes
+				if (activeFrame && activeFrame.contentWindow) {
+					activeFrame.contentWindow.removeEventListener('focus', handleFocus, true);
+					activeFrame.contentWindow.removeEventListener('blur', handleBlur, true);
 				}
-			}, interval);
+				if (pendingFrame && pendingFrame.contentWindow) {
+					pendingFrame.contentWindow.removeEventListener('focus', handleFocus, true);
+					pendingFrame.contentWindow.removeEventListener('blur', handleBlur, true);
+				}
+			};
 		};
 
 		const getActiveFrame = () => {
