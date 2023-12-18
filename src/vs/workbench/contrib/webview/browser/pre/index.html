@@ -37,48 +37,77 @@
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 		/**
-		 * Track focus of main webview and iframes within the webview using event listeners.
+		 * Track focus of the main webview and iframes within the webview using event listeners.
 		 *
 		 * @param {Object} handlers
-		 * @param {() => void} handlers.onFocus
-		 * @param {() => void} handlers.onBlur
+		 * @param {() => void} handlers.onFocus - Function to call when focus is gained.
+		 * @param {() => void} handlers.onBlur - Function to call when focus is lost.
 		 */
 		const trackFocus = ({ onFocus, onBlur }) => {
-			const handleFocus = () => { onFocus(); };
-			const handleBlur = () => { onBlur(); };
+			// Flag to track the current focus state.
+			let isFocused = false;
 
-			// Add event listeners to the window
-			window.addEventListener('focus', handleFocus, true);
-			window.addEventListener('blur', handleBlur, true);
-
-			// Track focus for iframes
-			const trackIframeFocus = (iframe) => {
-				if (iframe.contentWindow) {
-					iframe.contentWindow.addEventListener('focus', handleFocus, true);
-					iframe.contentWindow.addEventListener('blur', handleBlur, true);
+			// Function to update the focus state and call the appropriate handler.
+			const updateFocus = (focused) => {
+				if (isFocused !== focused) {
+					isFocused = focused;
+					if (focused) {
+						onFocus();
+					} else {
+						onBlur();
+					}
 				}
 			};
 
-			// Get current iframes and attach listeners
-			const activeFrame = getActiveFrame();
-			const pendingFrame = getPendingFrame();
-			if (activeFrame) trackIframeFocus(activeFrame);
-			if (pendingFrame) trackIframeFocus(pendingFrame);
+			// Handler for focus events on the main window.
+			const handleWindowFocus = () => updateFocus(true);
 
-			//Return a cleanup function to remove event listeners
+			// Handler for blur events on the main window.
+			const handleWindowBlur = () => updateFocus(false);
+
+			// Add event listeners for focus and blur on the main window.
+			window.addEventListener('focus', handleWindowFocus, true);
+			window.addEventListener('blur', handleWindowBlur, true);
+
+			// Function to attach focus and blur event listeners to an iframe's content window.
+			const attachListenersToIframe = (iframe) => {
+				if (iframe.contentWindow) {
+					iframe.contentWindow.addEventListener('focus', handleWindowFocus, true);
+					iframe.contentWindow.addEventListener('blur', handleWindowBlur, true);
+				}
+			};
+
+			// Attach listeners to existing iframes in the document.
+			const iframes = document.querySelectorAll('iframe');
+			iframes.forEach(attachListenersToIframe);
+
+			// Use MutationObserver to monitor the DOM for added iframes and attach listeners to them.
+			const observer = new MutationObserver((mutations) => {
+				mutations.forEach((mutation) => {
+					if (mutation.type === 'childList') {
+						mutation.addedNodes.forEach((node) => {
+							if (node.nodeName === 'IFRAME') {
+								attachListenersToIframe(node);
+							}
+						});
+					}
+				});
+			});
+
+			// Start observing the document body for changes in child elements.
+			observer.observe(document.body, { childList: true, subtree: true });
+
+			// Cleanup function to remove event listeners and disconnect the observer.
 			return () => {
-				window.removeEventListener('focus', handleFocus, true);
-				window.removeEventListener('blur', handleBlur, true);
-
-				// Cleanup for iframes
-				if (activeFrame && activeFrame.contentWindow) {
-					activeFrame.contentWindow.removeEventListener('focus', handleFocus, true);
-					activeFrame.contentWindow.removeEventListener('blur', handleBlur, true);
-				}
-				if (pendingFrame && pendingFrame.contentWindow) {
-					pendingFrame.contentWindow.removeEventListener('focus', handleFocus, true);
-					pendingFrame.contentWindow.removeEventListener('blur', handleBlur, true);
-				}
+				window.removeEventListener('focus', handleWindowFocus, true);
+				window.removeEventListener('blur', handleWindowBlur, true);
+				iframes.forEach((iframe) => {
+					if (iframe.contentWindow) {
+						iframe.contentWindow.removeEventListener('focus', handleWindowFocus, true);
+						iframe.contentWindow.removeEventListener('blur', handleWindowBlur, true);
+					}
+				});
+				observer.disconnect();
 			};
 		};
 
