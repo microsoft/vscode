@@ -1047,7 +1047,7 @@ const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.delete
 
 class DirtyDiffDecorator extends Disposable {
 
-	static createDecoration(className: string, options: { gutter: boolean; overview: { active: boolean; color: string }; minimap: { active: boolean; color: string }; isWholeLine: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, tooltip: string | null, options: { gutter: boolean; overview: { active: boolean; color: string }; minimap: { active: boolean; color: string }; isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
 			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
@@ -1055,6 +1055,7 @@ class DirtyDiffDecorator extends Disposable {
 
 		if (options.gutter) {
 			decorationOptions.linesDecorationsClassName = `dirty-diff-glyph ${className}`;
+			decorationOptions.linesDecorationsTooltip = tooltip;
 		}
 
 		if (options.overview.active) {
@@ -1096,31 +1097,33 @@ class DirtyDiffDecorator extends Disposable {
 		const overview = decorations === 'all' || decorations === 'overview';
 		const minimap = decorations === 'all' || decorations === 'minimap';
 
-		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', {
+		const diffAdded = nls.localize('diffAdded', 'Added lines');
+		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', diffAdded, {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
 		});
-		this.addedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added-pattern', {
+		this.addedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added-pattern', diffAdded, {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
 		});
-		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', {
+		const diffModified = nls.localize('diffModified', 'Changed lines');
+		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', diffModified, {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		});
-		this.modifiedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified-pattern', {
+		this.modifiedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified-pattern', diffModified, {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		});
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', {
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', nls.localize('diffDeleted', 'Removed lines'), {
 			gutter,
 			overview: { active: overview, color: overviewRulerDeletedForeground },
 			minimap: { active: minimap, color: minimapGutterDeletedBackground },

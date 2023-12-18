@@ -134,8 +134,9 @@ import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExport
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
 
-// Themes Support
+// Themes
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+import 'vs/workbench/services/themes/electron-sandbox/themes.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
