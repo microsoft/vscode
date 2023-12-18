@@ -9,7 +9,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
+import { CommentNode, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,6 +31,7 @@ import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
