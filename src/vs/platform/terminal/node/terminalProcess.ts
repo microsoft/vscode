@@ -437,17 +437,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	input(data: string, isBinary?: boolean): void {
+	input(data: string, isBinary: boolean = false): void {
 		if (this._store.isDisposed || !this._ptyProcess) {
 			return;
 		}
-		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
-			const obj = {
-				isBinary: isBinary || false,
-				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
-			};
-			this._writeQueue.push(obj);
-		}
+		this._writeQueue.push(...chunkInput(data).map(e => {
+			return { isBinary, data: e };
+		}));
 		this._startWrite();
 	}
 
@@ -648,4 +644,31 @@ class DelayedResizer extends Disposable {
 		}, 1000);
 		this._register(toDisposable(() => clearTimeout(this._timeout)));
 	}
+}
+
+/**
+ * Splits incoming pty data into chunks to try prevent data corruption that could occur when pasting
+ * large amounts of data.
+ */
+export function chunkInput(data: string): string[] {
+	const chunks: string[] = [];
+	let nextChunkStartIndex = 0;
+	for (let i = 0; i < data.length - 1; i++) {
+		if (
+			// If the max chunk size is reached
+			i - nextChunkStartIndex + 1 >= Constants.WriteMaxChunkSize ||
+			// If the next character is ESC, send the pending data to avoid splitting the escape
+			// sequence.
+			data[i + 1] === '\x1b'
+		) {
+			chunks.push(data.substring(nextChunkStartIndex, i + 1));
+			nextChunkStartIndex = i + 1;
+			i++;
+		}
+	}
+	// Push final chunk
+	if (nextChunkStartIndex !== data.length) {
+		chunks.push(data.substring(nextChunkStartIndex));
+	}
+	return chunks;
 }
