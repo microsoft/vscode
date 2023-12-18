@@ -469,7 +469,7 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 
 // ---
 
-export class LiveStrategy3 extends EditModeStrategy {
+export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({
 		description: 'inline-chat-modified-interacted-with',
