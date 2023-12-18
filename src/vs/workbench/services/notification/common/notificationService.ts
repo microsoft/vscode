@@ -4,17 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter, INeverShowAgainOptions, INotificationSource, INotificationSourceFilter } from 'vs/platform/notification/common/notification';
 import { NotificationsModel, ChoiceAction, NotificationChangeType } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-
-interface INotificationSourceDoNotDisturb extends INotificationSource {
-	readonly filter: NotificationsFilter;
-}
 
 export class NotificationService extends Disposable implements INotificationService {
 
@@ -50,6 +46,15 @@ export class NotificationService extends Disposable implements INotificationServ
 					};
 
 					if (e.kind === NotificationChangeType.ADD) {
+
+						// Make sure to track sources for notifications by registering
+						// them with our do not disturb system which is backed by storage
+						if (typeof e.item.sourceId === 'string' && typeof e.item.source === 'string') {
+							if (!this.mapSourceIdToDoNotDisturb.has(e.item.sourceId)) {
+								this.setSourceDoNotDisturb({ id: e.item.sourceId, label: e.item.source }, false);
+							}
+						}
+
 						this._onDidAddNotification.fire(notification);
 					}
 
@@ -98,10 +103,10 @@ export class NotificationService extends Disposable implements INotificationServ
 	private readonly _onDidChangePerSourceDoNotDisturbMode = this._register(new Emitter<INotificationSource>());
 	readonly onDidChangePerSourceDoNotDisturbMode = this._onDidChangePerSourceDoNotDisturbMode.event;
 
-	private readonly mapSourceIdToDoNotDisturb: Map<string /** source id */, INotificationSourceDoNotDisturb> = (() => {
-		const map = new Map<string, INotificationSourceDoNotDisturb>();
+	private readonly mapSourceIdToDoNotDisturb: Map<string /** source id */, INotificationSourceFilter> = (() => {
+		const map = new Map<string, INotificationSourceFilter>();
 
-		for (const sourceFilter of this.storageService.getObject<INotificationSourceDoNotDisturb[]>(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, StorageScope.APPLICATION, Object.create(null))) {
+		for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
 			map.set(sourceFilter.id, sourceFilter);
 		}
 
@@ -127,6 +132,10 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Events
 		this._onDidChangePerSourceDoNotDisturbMode.fire(source);
+	}
+
+	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
+		return [...this.mapSourceIdToDoNotDisturb.values()];
 	}
 
 	private updateDoNotDisturbFilters(): void {
