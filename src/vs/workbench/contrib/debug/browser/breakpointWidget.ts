@@ -363,7 +363,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
 			let logMessage = this.breakpoint && this.breakpoint.logMessage;
 			let waitFor = this.breakpoint && this.breakpoint.waitFor &&
-				this.debugService.getModel().getBreakpoints().filter(b => { return this.breakpoint?.waitFor?.matches(b); })[0];
+				this.debugService.getModel().getBreakpoints().find(b => this.breakpoint!.waitFor!.matches(b));
 
 			this.rememberInput();
 
