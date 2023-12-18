@@ -1061,7 +1061,7 @@ const uploadFileHandler = async (accessor: ServicesAccessor) => {
 	const notificationService = accessor.get(INotificationService);
 	const instantiationService = accessor.get(IInstantiationService);
 
-	const context = explorerService.getContext(true);
+	const context = explorerService.getContext(false);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
 	try {
@@ -1092,7 +1092,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const dialogService = accessor.get(IDialogService);
 
-	const context = explorerService.getContext(true);
+	const context = explorerService.getContext(false);
 	const hasNativeFilesToPaste = fileList && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
