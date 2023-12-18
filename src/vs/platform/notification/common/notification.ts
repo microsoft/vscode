@@ -318,12 +318,6 @@ export enum NotificationsFilter {
 	OFF,
 
 	/**
-	 * All notifications are configured as silent. See
-	 * `INotificationProperties.silent` for more info.
-	 */
-	SILENT,
-
-	/**
 	 * All notifications are silent except error notifications.
 	*/
 	ERROR

@@ -85,7 +85,7 @@ export class NotificationService extends Disposable implements INotificationServ
 	}
 
 	private updateDoNotDisturbFilters(): void {
-		this.model.setFilter(this._isDoNotDisturbMode ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
+		this.model.setFilter({ global: this._isDoNotDisturbMode ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
 	}
 
 	//#endregion
