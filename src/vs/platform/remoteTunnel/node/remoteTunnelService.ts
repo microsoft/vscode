@@ -209,20 +209,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess = undefined;
 		}
 
-		if (!this._mode.active) {
-			return;
-		}
+		if (this._mode.active) {
+			// Be careful to only uninstall the service if we're the ones who installed it:
+			const needsServiceUninstall = this._mode.asService;
+			this.setMode(INACTIVE_TUNNEL_MODE);
 
-		// Be careful to only uninstall the service if we're the ones who installed it:
-		const needsServiceUninstall = this._mode.asService;
-		this.setMode(INACTIVE_TUNNEL_MODE);
-
-		try {
-			if (needsServiceUninstall) {
-				this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+			try {
+				if (needsServiceUninstall) {
+					this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+				}
+			} catch (e) {
+				this._logger.error(e);
 			}
-		} catch (e) {
-			this._logger.error(e);
 		}
 
 		try {

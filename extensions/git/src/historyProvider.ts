@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n, LogOutputChannel } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, filterEvent } from './util';
 import { toGitUri } from './uri';
@@ -33,7 +33,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private disposables: Disposable[] = [];
 
-	constructor(protected readonly repository: Repository) {
+	constructor(protected readonly repository: Repository, private readonly logger: LogOutputChannel) {
 		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
 		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this._onDidChangeCurrentHistoryItemGroup.fire()));
 
@@ -157,19 +157,24 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		// Branch base
-		const branchBase = await this.repository.getBranchBase(historyItemGroupId);
+		try {
+			const branchBase = await this.repository.getBranchBase(historyItemGroupId);
 
-		if (branchBase?.name && branchBase?.type === RefType.Head) {
-			return {
-				id: `refs/heads/${branchBase.name}`,
-				label: branchBase.name
-			};
+			if (branchBase?.name && branchBase?.type === RefType.Head) {
+				return {
+					id: `refs/heads/${branchBase.name}`,
+					label: branchBase.name
+				};
+			}
+			if (branchBase?.name && branchBase.remote && branchBase?.type === RefType.RemoteHead) {
+				return {
+					id: `refs/remotes/${branchBase.remote}/${branchBase.name}`,
+					label: `${branchBase.remote}/${branchBase.name}`
+				};
+			}
 		}
-		if (branchBase?.name && branchBase.remote && branchBase?.type === RefType.RemoteHead) {
-			return {
-				id: `refs/remotes/${branchBase.remote}/${branchBase.name}`,
-				label: `${branchBase.remote}/${branchBase.name}`
-			};
+		catch (err) {
+			this.logger.error(`Failed to get branch base for '${historyItemGroupId}': ${err.message}`);
 		}
 
 		return undefined;
