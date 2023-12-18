@@ -76,6 +76,19 @@ export class ToggleDoNotDisturbAction extends Action {
 	}
 }
 
+export class DoNotDisturbMenuAction extends Action {
+
+	static readonly ID = 'notifications.configureDoNotDisturb';
+	static readonly LABEL = localize('configureDoNotDisturb', "Configure Do Not Disturb");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
+	}
+}
+
 export class HideNotificationsCenterAction extends Action {
 
 	static readonly ID = HIDE_NOTIFICATIONS_CENTER;
