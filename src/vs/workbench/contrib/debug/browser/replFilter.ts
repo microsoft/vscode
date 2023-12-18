@@ -30,7 +30,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 			for (const f of filters) {
 				if (f.startsWith('\\!')) {
 					// If the string starts with '\!', it's an include filter with '!' as part of the query
-					this._parsedQueries.push({ type: 'include', query: f.slice(1) }); // Slice from 2 to keep the '!' and remove the backslash
+					this._parsedQueries.push({ type: 'include', query: f.slice(1) }); // Slice from 1 to keep the '!' and remove the backslash
 				} else if (f.startsWith('!')) {
 					// If the string starts with '!', it's an exclude filter
 					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) }); // Slice from 1 to remove the '!' for the exclude filter
