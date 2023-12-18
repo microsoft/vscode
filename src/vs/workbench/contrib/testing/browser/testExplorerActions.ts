@@ -147,19 +147,25 @@ const testItemInlineAndInContext = (order: ActionOrder, when?: ContextKeyExpress
 	}
 ];
 
-export class DebugAction extends Action2 {
+export class DebugAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
 			id: TestCommandId.DebugAction,
 			title: localize('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
+			viewId: Testing.ExplorerViewId,
 		});
 	}
 
-	public override run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
-		return acessor.get(ITestService).runTests({
-			tests: elements.map(e => e.test),
+	/**
+	 * @override
+	 */
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView, ...elements: TestItemTreeElement[]): Promise<unknown> {
+		const { include, exclude } = view.getTreeIncludeExclude(elements.map(e => e.test));
+		return accessor.get(ITestService).runTests({
+			tests: include,
+			exclude,
 			group: TestRunProfileBitset.Debug,
 		});
 	}
@@ -201,22 +207,25 @@ export class RunUsingProfileAction extends Action2 {
 	}
 }
 
-export class RunAction extends Action2 {
+export class RunAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
 			id: TestCommandId.RunAction,
 			title: localize('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Run, TestingContextKeys.hasRunnableTests.isEqualTo(true)),
+			viewId: Testing.ExplorerViewId,
 		});
 	}
 
 	/**
 	 * @override
 	 */
-	public override run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
-		return acessor.get(ITestService).runTests({
-			tests: elements.map(e => e.test),
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView, ...elements: TestItemTreeElement[]): Promise<unknown> {
+		const { include, exclude } = view.getTreeIncludeExclude(elements.map(e => e.test));
+		return accessor.get(ITestService).runTests({
+			tests: include,
+			exclude,
 			group: TestRunProfileBitset.Run,
 		});
 	}
@@ -547,7 +556,7 @@ export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public override runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		const { include, exclude } = view.getTreeIncludeExclude(undefined, 'selected');
+		const { include, exclude } = view.getTreeIncludeExclude(undefined, undefined, 'selected');
 		const mapper = (i: InternalTestItem) => i.item.extId;
 		return { include: include.map(mapper), exclude: exclude.map(mapper) };
 	}
