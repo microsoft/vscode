@@ -19,7 +19,7 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -61,9 +61,11 @@ import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
 import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
+import { getActiveElement, isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { Position } from 'vs/editor/common/core/position';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -725,11 +727,23 @@ export function registerTerminalActions() {
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.End,
 			linux: { primary: KeyMod.Shift | KeyCode.End },
-			when: sharedWhenClause.focusInAny_and_normalBuffer,
+			when: ContextKeyExpr.or(sharedWhenClause.focusInAny_and_normalBuffer, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (xterm) => xterm.scrollToBottom()
+		run: (xterm, accessor) => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const contextKeyService = accessor.get(IContextKeyService);
+			if (xterm.isFocused) {
+				xterm.scrollToBottom();
+			} else if (accessibleViewIsShown.evaluate(contextKeyService.getContext(getActiveElement()))) {
+				const lastPosition = accessibleViewService.getLastPosition();
+				if (!lastPosition) {
+					return;
+				}
+				accessibleViewService.setPosition(lastPosition, true);
+			}
+		}
 	});
 
 	registerActiveXtermAction({
@@ -766,11 +780,19 @@ export function registerTerminalActions() {
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.Home,
 			linux: { primary: KeyMod.Shift | KeyCode.Home },
-			when: sharedWhenClause.focusInAny_and_normalBuffer,
+			when: ContextKeyExpr.or(sharedWhenClause.focusInAny_and_normalBuffer, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)),
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (xterm) => xterm.scrollToTop()
+		run: (xterm, accessor) => {
+			const accessibleViewService = accessor.get(IAccessibleViewService);
+			const contextKeyService = accessor.get(IContextKeyService);
+			if (xterm.isFocused) {
+				xterm.scrollToTop();
+			} else if (accessibleViewIsShown.evaluate(contextKeyService.getContext(getActiveElement()))) {
+				accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
+			}
+		}
 	});
 
 	registerActiveXtermAction({
