@@ -13,7 +13,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/base/common/themables';
+import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
@@ -26,7 +26,7 @@ import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -39,7 +39,7 @@ import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWord
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
 import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export abstract class EditModeStrategy {
 
@@ -471,6 +471,22 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 
 export class LiveStrategy3 extends EditModeStrategy {
 
+	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({
+		description: 'inline-chat-modified-interacted-with',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+	});
+
+
+	private readonly _decoInsertedText = ModelDecorationOptions.register({
+		description: 'inline-modified',
+		className: 'inline-chat-inserted-range-linehighlight',
+		isWholeLine: true,
+		overviewRuler: {
+			position: OverviewRulerLane.Full,
+			color: themeColorFromId(overviewRulerInlineChatDiffInserted),
+		}
+	});
+
 	private readonly _store: DisposableStore = new DisposableStore();
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
@@ -627,7 +643,6 @@ export class LiveStrategy3 extends EditModeStrategy {
 	}
 
 
-	private readonly _decoModifiedInteractedWith = ModelDecorationOptions.register({ description: 'inline-chat-modified-interacted-with', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges });
 
 	private async _showDiff(isFinalChanges: boolean, isAfterManualInteraction: boolean, revealWidget: boolean): Promise<Position | undefined> {
 
@@ -668,25 +683,12 @@ export class LiveStrategy3 extends EditModeStrategy {
 				continue;
 			}
 
-			if (innerChanges) {
-				for (const { modifiedRange } of innerChanges) {
-					newDecorations.push({
-						range: modifiedRange,
-						options: {
-							description: 'inline-modified',
-							className: 'inline-chat-inserted-range',
-						}
-					});
-					newDecorations.push({
-						range: modifiedRange,
-						options: {
-							description: 'inline-modified',
-							className: 'inline-chat-inserted-range-linehighlight',
-							isWholeLine: true
-						}
-					});
-				}
-			}
+			// highlight modified lines
+			newDecorations.push({
+				range: modifiedRange,
+				options: this._decoInsertedText
+			});
+
 
 			// original view zone
 			const source = new LineSource(
