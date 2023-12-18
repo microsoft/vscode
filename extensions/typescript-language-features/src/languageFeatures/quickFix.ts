@@ -321,10 +321,20 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		action: Proto.CodeFixAction
 	): VsCodeCodeAction[] {
 		const actions: VsCodeCodeAction[] = [];
-		let message: string | undefined;
-		let expand: Expand | undefined;
-		let title = action.description;
+		const codeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
+		codeAction.edit = getEditForCodeAction(this.client, action);
+		codeAction.diagnostics = [diagnostic];
+		codeAction.command = {
+			command: ApplyCodeActionCommand.ID,
+			arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
+			title: ''
+		};
+		actions.push(codeAction);
+
 		if (vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions')) {
+			let message: string | undefined;
+			let expand: Expand | undefined;
+			let title = action.description;
 			if (action.fixName === fixNames.classIncorrectlyImplementsInterface && vscode.workspace.getConfiguration('typescript').get('experimental.aiCodeActions.classIncorrectlyImplementsInterface')) {
 				title += ' with Copilot';
 				message = `Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`;
@@ -365,32 +375,31 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 					pos: diagnostic.range.start
 				};
 			}
-		}
-		const codeAction = new VsCodeCodeAction(action, title, vscode.CodeActionKind.QuickFix);
-		codeAction.edit = getEditForCodeAction(this.client, action);
-		codeAction.diagnostics = [diagnostic];
-		codeAction.command = {
-			command: ApplyCodeActionCommand.ID,
-			arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
-			title: ''
-		};
-		if (expand && message !== undefined) {
-			codeAction.command = {
-				command: CompositeCommand.ID,
-				title: '',
-				arguments: [codeAction.command, {
-					command: EditorChatFollowUp.ID,
+			if (expand && message !== undefined) {
+				const aiCodeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
+				aiCodeAction.edit = getEditForCodeAction(this.client, action);
+				aiCodeAction.diagnostics = [diagnostic];
+				aiCodeAction.command = {
+					command: CompositeCommand.ID,
 					title: '',
 					arguments: [{
-						message,
-						expand,
-						document,
-						action: { type: 'quickfix', quickfix: action }
-					} satisfies EditorChatFollowUp_Args],
-				}],
-			};
+						command: ApplyCodeActionCommand.ID,
+						arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
+						title: ''
+					}, {
+						command: EditorChatFollowUp.ID,
+						title: '',
+						arguments: [{
+							message,
+							expand,
+							document,
+							action: { type: 'quickfix', quickfix: action }
+						} satisfies EditorChatFollowUp_Args],
+					}],
+				};
+				actions.push(aiCodeAction);
+			}
 		}
-		actions.push(codeAction);
 		return actions;
 	}
 
