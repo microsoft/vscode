@@ -443,7 +443,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
-	static create(notification: INotification, filter: NotificationsFilter = NotificationsFilter.OFF): INotificationViewItem | undefined {
+	static create(notification: INotification, filter = NotificationsFilter.OFF): INotificationViewItem | undefined {
 		if (!notification || !notification.message || isCancellationError(notification.message)) {
 			return undefined; // we need a message to show
 		}

@@ -142,7 +142,7 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				doNotDisturbMode: false,
+				isDoNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
 				onDidChangeDoNotDisturbMode: undefined!,
@@ -172,6 +172,9 @@ suite('AbstractKeybindingService', () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
+				},
+				setDoNotDisturbMode(mode: boolean) {
+					throw new Error('not implemented');
 				}
 			};
 

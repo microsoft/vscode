@@ -83,7 +83,7 @@ export class NotificationsStatus extends Disposable {
 			showBeak: this.isNotificationsCenterVisible
 		};
 
-		if (this.notificationService.doNotDisturbMode) {
+		if (this.notificationService.isDoNotDisturbMode) {
 			statusProperties = {
 				...statusProperties,
 				text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-slash-dot)' : '$(bell-slash)'}`,

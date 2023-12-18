@@ -17,7 +17,7 @@ export class TestNotificationService implements INotificationService {
 
 	declare readonly _serviceBrand: undefined;
 
-	doNotDisturbMode: boolean = false;
+	isDoNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -43,5 +43,9 @@ export class TestNotificationService implements INotificationService {
 
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
+	}
+
+	setDoNotDisturbMode(mode: boolean): void {
+		this.isDoNotDisturbMode = mode;
 	}
 }

@@ -25,7 +25,7 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	doNotDisturbMode: boolean = false;
+	isDoNotDisturbMode: boolean = false;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
 	onDidChangeDoNotDisturbMode: Event<void> = Event.None;
@@ -47,11 +47,14 @@ const emptyNotificationService = new class implements INotificationService {
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+	setDoNotDisturbMode(mode: boolean): void {
+		throw new Error('not implemented');
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	doNotDisturbMode: boolean = false;
+	isDoNotDisturbMode: boolean = false;
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
@@ -77,6 +80,9 @@ class EmptyNotificationService implements INotificationService {
 	}
 	status(message: string, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
+	}
+	setDoNotDisturbMode(mode: boolean): void {
+		throw new Error('Method not implemented.');
 	}
 }
 
