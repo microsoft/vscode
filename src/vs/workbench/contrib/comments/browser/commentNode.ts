@@ -459,7 +459,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 					}
 					this.notificationService.error(error);
 				}
-			}, reaction.iconPath, reaction.count);
+			}, reaction.reactors, reaction.iconPath, reaction.count);
 
 			this._reactionsActionBar?.push(action, { label: true, icon: true });
 		});
