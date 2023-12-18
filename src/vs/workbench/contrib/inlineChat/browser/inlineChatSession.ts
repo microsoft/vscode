@@ -156,6 +156,7 @@ export class Session {
 			extension: provider.debugName,
 			startTime: this._startTime.toISOString(),
 			edits: false,
+			finishedByEdit: false,
 			rounds: '',
 			undos: '',
 			editMode
