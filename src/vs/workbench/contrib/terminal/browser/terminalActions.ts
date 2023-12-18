@@ -19,7 +19,7 @@ import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/co
 import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -65,7 +65,6 @@ import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/d
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { Position } from 'vs/editor/common/core/position';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -291,6 +290,7 @@ export interface ITerminalServicesCollection {
 	editorService: ITerminalEditorService;
 	profileService: ITerminalProfileService;
 	profileResolverService: ITerminalProfileResolverService;
+	accessibleViewService: IAccessibleViewService;
 }
 
 function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesCollection {
@@ -300,7 +300,8 @@ function getTerminalServices(accessor: ServicesAccessor): ITerminalServicesColle
 		instanceService: accessor.get(ITerminalInstanceService),
 		editorService: accessor.get(ITerminalEditorService),
 		profileService: accessor.get(ITerminalProfileService),
-		profileResolverService: accessor.get(ITerminalProfileResolverService)
+		profileResolverService: accessor.get(ITerminalProfileResolverService),
+		accessibleViewService: accessor.get(IAccessibleViewService)
 	};
 }
 
@@ -727,23 +728,12 @@ export function registerTerminalActions() {
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.End,
 			linux: { primary: KeyMod.Shift | KeyCode.End },
-			when: ContextKeyExpr.or(sharedWhenClause.focusInAny_and_normalBuffer, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
 		run: (xterm, accessor) => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const contextKeyService = accessor.get(IContextKeyService);
-			const terminalAccessibleViewShown = accessibleViewCurrentProviderId.getValue(contextKeyService) === AccessibleViewProviderId.Terminal;
-			if (xterm.isFocused) {
-				xterm.scrollToBottom();
-			} else if (terminalAccessibleViewShown) {
-				const lastPosition = accessibleViewService.getLastPosition();
-				if (!lastPosition) {
-					return;
-				}
-				accessibleViewService.setPosition(lastPosition, true);
-			}
+			xterm.scrollToBottom();
 		}
 	});
 
@@ -781,19 +771,12 @@ export function registerTerminalActions() {
 		keybinding: {
 			primary: KeyMod.CtrlCmd | KeyCode.Home,
 			linux: { primary: KeyMod.Shift | KeyCode.Home },
-			when: ContextKeyExpr.or(sharedWhenClause.focusInAny_and_normalBuffer, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)),
+			when: sharedWhenClause.focusInAny_and_normalBuffer,
 			weight: KeybindingWeight.WorkbenchContrib
 		},
 		precondition: sharedWhenClause.terminalAvailable,
-		run: (xterm, accessor) => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const contextKeyService = accessor.get(IContextKeyService);
-			const terminalAccessibleViewShown = accessibleViewCurrentProviderId.getValue(contextKeyService) === AccessibleViewProviderId.Terminal;
-			if (xterm.isFocused) {
-				xterm.scrollToTop();
-			} else if (terminalAccessibleViewShown) {
-				accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
-			}
+		run: (xterm) => {
+			xterm.scrollToTop();
 		}
 	});
 
