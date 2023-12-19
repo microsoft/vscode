@@ -17,7 +17,7 @@ import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
-import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { AbstractTree, TreeFindMatchType, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
 import { isActiveElement } from 'vs/base/browser/dom';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
@@ -706,6 +706,18 @@ CommandsRegistry.registerCommand({
 		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
 			const tree = widget;
 			tree.findMode = tree.findMode === TreeFindMode.Filter ? TreeFindMode.Highlight : TreeFindMode.Filter;
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'list.toggleFindMatchType',
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (widget instanceof AbstractTree || widget instanceof AsyncDataTree) {
+			const tree = widget;
+			tree.findMatchType = tree.findMatchType === TreeFindMatchType.Contiguous ? TreeFindMatchType.Fuzzy : TreeFindMatchType.Contiguous;
 		}
 	}
 });
