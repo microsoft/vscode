@@ -19,6 +19,7 @@ import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -62,7 +63,8 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super(layoutService, dialogService, configurationService, telemetryService);
 	}
@@ -94,6 +96,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
 		auxiliaryWindow.focus = function () {
+			if (that.environmentService.extensionTestsLocationURI) {
+				return; // no focus when we are running tests from CLI
+			}
+
 			originalWindowFocus();
 
 			if (!auxiliaryWindow.document.hasFocus()) {
