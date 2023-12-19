@@ -495,7 +495,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		if (priority === NotificationPriority.DEFAULT && severity !== Severity.Error) {
 			if (filter.global === NotificationsFilter.ERROR) {
 				priority = NotificationPriority.SILENT; // filtered globally
-			} else if (isNotificationSource(notification.source) && filter.sources.has(notification.source.id)) {
+			} else if (isNotificationSource(notification.source) && filter.sources.get(notification.source.id) === NotificationsFilter.ERROR) {
 				priority = NotificationPriority.SILENT; // filtered by source
 			}
 		}

@@ -246,11 +246,8 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
 									actions.push(toAction({
 										id: source.id,
-										label: localize('notifyForSource', "Notify for '{0}'", source.label),
-										checked: !isSourceFiltered,
-										run: () => {
-											that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR });
-										}
+										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Notifications from '{0}'", source.label),
+										run: () => that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR })
 									}));
 
 									if (action.notification.actions?.secondary?.length) {

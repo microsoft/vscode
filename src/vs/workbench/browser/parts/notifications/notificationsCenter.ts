@@ -177,8 +177,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 						getActions() {
 							const actions = [toAction({
 								id: ToggleDoNotDisturbAction.ID,
-								label: localize('doNotDisturb', "Do Not Disturb"),
-								checked: that.notificationService.getFilter() === NotificationsFilter.ERROR,
+								label: that.notificationService.getFilter() === NotificationsFilter.OFF ? localize('turnOnNotifications', "Enable Do Not Disturb Mode") : localize('turnOffNotifications', "Disable Do Not Disturb Mode"),
 								run: () => that.notificationService.setFilter(that.notificationService.getFilter() === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR)
 							})];
 
