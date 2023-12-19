@@ -210,6 +210,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
 					this.setup(environment);
+				} else if (e.affectsConfiguration(PORT_AUTO_FALLBACK_SETTING) && !this.portListener) {
+					this.listenForPorts();
 				}
 			}));
 		});
