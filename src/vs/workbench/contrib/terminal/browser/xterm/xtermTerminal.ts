@@ -424,7 +424,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _shouldLoadWebgl(): boolean {
-		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
+		return !isSafari && (
+			(this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) ||
+			this._configHelper.config.gpuAcceleration === 'on' ||
+			(this._configHelper.config.gpuAcceleration === 'auto' && !process.argv.includes('--disable-gpu'))
+		);
 	}
 
 	private _shouldLoadCanvas(): boolean {
