@@ -11,6 +11,7 @@ import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
@@ -812,7 +813,8 @@ export class LiveStrategy extends EditModeStrategy {
 				this._zone.updatePositionAndHeight(widgetData.position);
 				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
-				this._updateSummaryMessage(hunks.length);
+				const remainingHunks = Iterable.reduce(hunkDisplayData.values(), (p, c) => { return p + (c.acceptedOrRejected ? 0 : 1); }, 0);
+				this._updateSummaryMessage(remainingHunks);
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;
