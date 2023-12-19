@@ -44,7 +44,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_STASHED_SESSION, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -211,7 +211,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getMode(): EditMode {
-		const editMode = this._configurationService.inspect<EditMode>('inlineChat.mode');
+		const editMode = this._configurationService.inspect<EditMode>(InlineChatConfigKeys.Mode);
 		let editModeValue = editMode.value;
 		if (this._accessibilityService.isScreenReaderOptimized() && editModeValue === editMode.defaultValue) {
 			// By default, use preview mode for screen reader users
@@ -432,14 +432,16 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 			const wholeRange = this._activeSession!.wholeRange;
-			let editIsOutsideOfWholeRange = false;
-			for (const { range } of e.changes) {
-				editIsOutsideOfWholeRange = !Range.areIntersectingOrTouching(range, wholeRange.value);
+			let shouldFinishSession = false;
+			if (this._configurationService.getValue<boolean>(InlineChatConfigKeys.FinishOnType)) {
+				for (const { range } of e.changes) {
+					shouldFinishSession = !Range.areIntersectingOrTouching(range, wholeRange.value);
+				}
 			}
 
-			this._activeSession!.recordExternalEditOccurred(editIsOutsideOfWholeRange);
+			this._activeSession!.recordExternalEditOccurred(shouldFinishSession);
 
-			if (editIsOutsideOfWholeRange) {
+			if (shouldFinishSession) {
 				this._log('text changed outside of whole range, FINISH session');
 				this.finishExistingSession();
 			}
