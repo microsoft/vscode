@@ -316,7 +316,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		const action = instantiationService.createInstance(CompositeBarAction, {
 			id: ACCOUNTS_ACTIVITY_ID,
 			name: localize('accounts', "Accounts"),
-			classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON) // this has to change, based on avatar / no avatar
+			classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON)
 		});
 		super(MenuId.AccountsContext, action, options, contextMenuActionsProvider, anchorAlignment, anchorAxisAlignment, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
 		this._register(action);
@@ -426,11 +426,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 						useAsAvatarAction.checked = !useAsAvatarAction.checked;
 						this.accountForAvatar = useAsAvatarAction.checked ? account : undefined;
 						this.storageService.store(AccountsActivityActionViewItem.AVATAR_STORAGE_KEY, this.accountForAvatar ? this.accountForAvatar.id : 'none', StorageScope.PROFILE, StorageTarget.USER);
-						const classNames = this.accountForAvatar ? ['show-avatar'] : ThemeIcon.asClassNameArray(this.userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(this.userDataProfileService.currentProfile.icon) : DEFAULT_ICON);
-						(this.action as CompositeBarAction).compositeBarActionItem = {
-							...(this.action as CompositeBarAction).compositeBarActionItem,
-							classNames
-						};
+						this.updateActionItem();
 					}));
 					useAsAvatarAction.checked = this.accountForAvatar?.id === account.id;
 					providerSubMenuActions.push(useAsAvatarAction);
@@ -513,8 +509,10 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 
 		const avatarId = this.storageService.get(AccountsActivityActionViewItem.AVATAR_STORAGE_KEY, StorageScope.PROFILE);
-		if (account.id === avatarId || (avatarId === undefined && providerId === 'github')) {
+		// account.id is sometimes a number and sometimes a string so we need to convert to string
+		if (account.id.toString() === avatarId || (avatarId === undefined && providerId === 'github')) {
 			this.accountForAvatar = account;
+			this.updateActionItem();
 		}
 	}
 
@@ -533,8 +531,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		if (accounts.length === 0) {
 			this.groupedAccounts.delete(providerId);
 		}
-		if (this.accountForAvatar?.id === account.id) {
+		if (this.accountForAvatar?.id === account.id.toString()) {
 			this.accountForAvatar = undefined;
+			this.updateActionItem();
 		}
 	}
 
@@ -556,6 +555,16 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 	}
 
+	private updateActionItem(): void {
+		const classNames = ThemeIcon.asClassNameArray(this.userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(this.userDataProfileService.currentProfile.icon) : GlobalCompositeBar.ACCOUNTS_ICON);
+		if (this.accountForAvatar) {
+			classNames.push('show-avatar');
+		}
+		(this.action as CompositeBarAction).compositeBarActionItem = {
+			...(this.action as CompositeBarAction).compositeBarActionItem,
+			classNames
+		};
+	}
 	//#endregion
 }
 
