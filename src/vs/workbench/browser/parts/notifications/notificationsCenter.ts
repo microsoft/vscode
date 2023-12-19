@@ -178,7 +178,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 							const actions = [toAction({
 								id: ToggleDoNotDisturbAction.ID,
 								label: that.notificationService.getFilter() === NotificationsFilter.OFF ? localize('turnOnNotifications', "Enable Do Not Disturb Mode") : localize('turnOffNotifications', "Disable Do Not Disturb Mode"),
-								run: () => that.notificationService.setFilter(that.notificationService.getFilter() === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR)
+								run: () => that.notificationService.setFilter(that.notificationService.getFilter() === NotificationsFilter.OFF ? NotificationsFilter.ERROR : NotificationsFilter.OFF)
 							})];
 
 							for (const source of that.notificationService.getFilters().sort((a, b) => a.label.localeCompare(b.label))) {
@@ -201,7 +201,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 						},
 					}, this.contextMenuService, {
 						actionRunner,
-						classNames: action.class
+						classNames: action.class,
+						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
 					}));
 				}
 

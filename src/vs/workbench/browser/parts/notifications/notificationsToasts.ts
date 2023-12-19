@@ -112,8 +112,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			if (global === NotificationsFilter.ERROR) {
 				this.hide();
 			} else if (sources) {
-				for (const [notification, toast] of this.mapNotificationToToast) {
-					if (typeof toast.item.sourceId === 'string' && sources.has(toast.item.sourceId)) {
+				for (const [notification] of this.mapNotificationToToast) {
+					if (typeof notification.sourceId === 'string' && sources.get(notification.sourceId) === NotificationsFilter.ERROR && notification.severity !== Severity.Error && notification.priority !== NotificationPriority.URGENT) {
 						this.removeToast(notification);
 					}
 				}
