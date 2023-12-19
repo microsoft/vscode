@@ -16728,11 +16728,6 @@ declare module 'vscode' {
 		 * The human-readable name of the account.
 		 */
 		readonly label: string;
-
-		/**
-		 * URI to the avatar image of the authentication session. Will be rendered in the activity bar.
-		 */
-		readonly avatar?: Uri;
 	}
 
 	/**
