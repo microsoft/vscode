@@ -99,7 +99,7 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 	}
 
 	if (result.singleLine) {
-		return { modifiedText: text.replaceAll(/\r?\n/, '') };
+		return { modifiedText: text.replace(/\r?\n/g, '') };
 	}
 
 	return result.confirmed;
