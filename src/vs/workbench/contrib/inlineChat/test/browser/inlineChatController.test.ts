@@ -181,7 +181,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(ctrl.getWidgetPosition() === undefined);
 	});
 
-	test('wholeRange expands to whole lines, editor selection default', async function () {
+	test('wholeRange does not expand to whole lines, editor selection default', async function () {
 
 		editor.setSelection(new Range(1, 1, 1, 3));
 		ctrl = instaService.createInstance(TestController, editor);
@@ -204,7 +204,7 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 3));
 
 		await ctrl.cancelSession();
 		d.dispose();
@@ -234,7 +234,7 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 3));
 
 		await ctrl.cancelSession();
 		d.dispose();
@@ -252,7 +252,7 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });
@@ -294,13 +294,13 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3));
 
 		ctrl.acceptInput();
 
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
-		assert.deepStrictEqual(session.wholeRange.value, new Range(4, 1, 4, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(4, 1, 4, 3));
 
 		await ctrl.cancelSession();
 		await r;
