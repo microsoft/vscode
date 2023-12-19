@@ -16,7 +16,6 @@ import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/b
 import { ResourceMap } from 'vs/base/common/map';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isDefined } from 'vs/base/common/types';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
