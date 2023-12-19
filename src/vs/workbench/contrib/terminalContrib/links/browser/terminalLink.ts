@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
+import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from '@xterm/xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -61,14 +61,16 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	hover(event: MouseEvent, text: string): void {
+		const w = dom.getWindow(event);
+		const d = w.document;
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
 		this._hoverListeners = new DisposableStore();
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keydown', e => {
+		this._hoverListeners.add(dom.addDisposableListener(d, 'keydown', e => {
 			if (!e.repeat && this._isModifierDown(e)) {
 				this._enableDecorations();
 			}
 		}));
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keyup', e => {
+		this._hoverListeners.add(dom.addDisposableListener(d, 'keyup', e => {
 			if (!e.repeat && !this._isModifierDown(e)) {
 				this._disableDecorations();
 			}
@@ -101,7 +103,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}
 
 		const origin = { x: event.pageX, y: event.pageY };
-		this._hoverListeners.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+		this._hoverListeners.add(dom.addDisposableListener(d, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._isModifierDown(e)) {
 				this._enableDecorations();
@@ -110,7 +112,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			}
 
 			// Reset the scheduler if the mouse moves too much
-			if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
+			if (Math.abs(e.pageX - origin.x) > w.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > w.devicePixelRatio * 2) {
 				origin.x = e.pageX;
 				origin.y = e.pageY;
 				this._tooltipScheduler?.schedule();

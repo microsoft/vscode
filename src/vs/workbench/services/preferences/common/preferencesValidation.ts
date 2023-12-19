@@ -116,7 +116,7 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 	const uriRegex = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 	let patternRegex: RegExp | undefined;
 	if (typeof prop.pattern === 'string') {
-		patternRegex = new RegExp(prop.pattern);
+		patternRegex = new RegExp(prop.pattern, 'u');
 	}
 
 	return [
@@ -272,7 +272,7 @@ function getArrayValidator(prop: IConfigurationPropertySchema): ((value: any) =>
 					}
 
 					if (typeof propItems.pattern === 'string') {
-						const patternRegex = new RegExp(propItems.pattern);
+						const patternRegex = new RegExp(propItems.pattern, 'u');
 						arrayValue.forEach(v => {
 							if (!patternRegex.test(v)) {
 								message +=

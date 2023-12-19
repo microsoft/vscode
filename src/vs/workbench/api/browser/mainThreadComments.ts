@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -26,7 +25,6 @@ import { localize } from 'vs/nls';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Schemas } from 'vs/base/common/network';
-
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -287,13 +285,15 @@ export class MainThreadCommentController implements ICommentController {
 			this._commentService.updateComments(this._uniqueId, {
 				added: [thread],
 				removed: [],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		} else {
 			this._commentService.updateNotebookComments(this._uniqueId, {
 				added: [thread as MainThreadCommentThread<ICellRange>],
 				removed: [],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		}
 
@@ -311,13 +311,15 @@ export class MainThreadCommentController implements ICommentController {
 			this._commentService.updateComments(this._uniqueId, {
 				added: [],
 				removed: [],
-				changed: [thread]
+				changed: [thread],
+				pending: []
 			});
 		} else {
 			this._commentService.updateNotebookComments(this._uniqueId, {
 				added: [],
 				removed: [],
-				changed: [thread as MainThreadCommentThread<ICellRange>]
+				changed: [thread as MainThreadCommentThread<ICellRange>],
+				pending: []
 			});
 		}
 
@@ -332,13 +334,15 @@ export class MainThreadCommentController implements ICommentController {
 			this._commentService.updateComments(this._uniqueId, {
 				added: [],
 				removed: [thread],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		} else {
 			this._commentService.updateNotebookComments(this._uniqueId, {
 				added: [],
 				removed: [thread as MainThreadCommentThread<ICellRange>],
-				changed: []
+				changed: [],
+				pending: []
 			});
 		}
 	}
@@ -446,8 +450,8 @@ export class MainThreadCommentController implements ICommentController {
 		return ret;
 	}
 
-	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): void {
-		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
+		return this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
 	}
 
 	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
@@ -502,8 +506,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}));
 	}
 
-	$registerCommentController(handle: number, id: string, label: string): void {
-		const providerId = generateUuid();
+	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void {
+		const providerId = `${id}-${extensionId}`;
 		this._handlers.set(handle, providerId);
 
 		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});

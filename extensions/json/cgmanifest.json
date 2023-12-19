@@ -11,6 +11,18 @@
 			},
 			"license": "MIT",
 			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-snippet-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-snippet-syntax",
+					"commitHash": "2b1bb124cb2b9c75c3c80eae1b8f3a043841d654"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.2"
 		}
 	],
 	"version": 1

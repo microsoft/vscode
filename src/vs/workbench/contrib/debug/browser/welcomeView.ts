@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -25,6 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -33,7 +34,7 @@ const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>(
 export class WelcomeView extends ViewPane {
 
 	static readonly ID = 'workbench.debug.welcome';
-	static readonly LABEL = localize('run', "Run");
+	static readonly LABEL: ILocalizedString = localize2('run', "Run");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
@@ -123,16 +124,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize(
-		{
-			key: 'runAndDebugAction',
-			comment: [
-				'{0} will be replaced with a keybinding',
-				'Please do not translate the word "command", it is part of our internal syntax which must not change',
-				'{Locked="](command:{1})"}'
-			]
-		},
-		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, DEBUG_START_COMMAND_ID),
+	content: `[${localize('runAndDebugAction', "Run and Debug")}${debugKeybindingLabel}](command:${DEBUG_START_COMMAND_ID})`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
 	// Allow inserting more buttons directly after this one (by setting order to 1).
@@ -140,16 +132,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize(
-		{
-			key: 'detectThenRunAndDebug',
-			comment: [
-				'Please do not translate the word "command", it is part of our internal syntax which must not change',
-				'{Locked="](command:{0})"}',
-
-			]
-		},
-		"[Show all automatic debug configurations](command:{0}).", SELECT_AND_START_ID),
+	content: `[${localize('detectThenRunAndDebug', "Show all automatic debug configurations")}](command:${SELECT_AND_START_ID}).`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
 	order: 10

@@ -118,7 +118,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 				});
 		}
 
-		cancellationToken.onCancellationRequested(() => {
+		const listener = cancellationToken.onCancellationRequested(() => {
 			if (!page.cts) {
 				return;
 			}
@@ -132,7 +132,8 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 		page.promiseIndexes.add(index);
 
-		return page.promise.then(() => page.elements[indexInPage]);
+		return page.promise.then(() => page.elements[indexInPage])
+			.finally(() => listener.dispose());
 	}
 }
 

@@ -72,55 +72,55 @@ export interface IRemoteConnectionLatencyMeasurement {
 
 export const remoteConnectionLatencyMeasurer = new class {
 
-	readonly #maxSampleCount = 5;
-	readonly #sampleDelay = 2000;
+	readonly maxSampleCount = 5;
+	readonly sampleDelay = 2000;
 
-	readonly #initial: number[] = [];
-	readonly #maxInitialCount = 3;
+	readonly initial: number[] = [];
+	readonly maxInitialCount = 3;
 
-	readonly #average: number[] = [];
-	readonly #maxAverageCount = 100;
+	readonly average: number[] = [];
+	readonly maxAverageCount = 100;
 
-	readonly #highLatencyMultiple = 2;
-	readonly #highLatencyMinThreshold = 500;
-	readonly #highLatencyMaxThreshold = 1500;
+	readonly highLatencyMultiple = 2;
+	readonly highLatencyMinThreshold = 500;
+	readonly highLatencyMaxThreshold = 1500;
 
-	#lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
-	get latency() { return this.#lastMeasurement; }
+	lastMeasurement: IRemoteConnectionLatencyMeasurement | undefined = undefined;
+	get latency() { return this.lastMeasurement; }
 
 	async measure(remoteAgentService: IRemoteAgentService): Promise<IRemoteConnectionLatencyMeasurement | undefined> {
 		let currentLatency = Infinity;
 
 		// Measure up to samples count
-		for (let i = 0; i < this.#maxSampleCount; i++) {
+		for (let i = 0; i < this.maxSampleCount; i++) {
 			const rtt = await remoteAgentService.getRoundTripTime();
 			if (rtt === undefined) {
 				return undefined;
 			}
 
 			currentLatency = Math.min(currentLatency, rtt / 2 /* we want just one way, not round trip time */);
-			await timeout(this.#sampleDelay);
+			await timeout(this.sampleDelay);
 		}
 
 		// Keep track of average latency
-		this.#average.push(currentLatency);
-		if (this.#average.length > this.#maxAverageCount) {
-			this.#average.shift();
+		this.average.push(currentLatency);
+		if (this.average.length > this.maxAverageCount) {
+			this.average.shift();
 		}
 
 		// Keep track of initial latency
 		let initialLatency: number | undefined = undefined;
-		if (this.#initial.length < this.#maxInitialCount) {
-			this.#initial.push(currentLatency);
+		if (this.initial.length < this.maxInitialCount) {
+			this.initial.push(currentLatency);
 		} else {
-			initialLatency = this.#initial.reduce((sum, value) => sum + value, 0) / this.#initial.length;
+			initialLatency = this.initial.reduce((sum, value) => sum + value, 0) / this.initial.length;
 		}
 
 		// Remember as last measurement
-		this.#lastMeasurement = {
+		this.lastMeasurement = {
 			initial: initialLatency,
 			current: currentLatency,
-			average: this.#average.reduce((sum, value) => sum + value, 0) / this.#average.length,
+			average: this.average.reduce((sum, value) => sum + value, 0) / this.average.length,
 			high: (() => {
 
 				// based on the initial, average and current latency, try to decide
@@ -135,11 +135,11 @@ export const remoteConnectionLatencyMeasurer = new class {
 					return false;
 				}
 
-				if (currentLatency > this.#highLatencyMaxThreshold) {
+				if (currentLatency > this.highLatencyMaxThreshold) {
 					return true;
 				}
 
-				if (currentLatency > this.#highLatencyMinThreshold && currentLatency > initialLatency * this.#highLatencyMultiple) {
+				if (currentLatency > this.highLatencyMinThreshold && currentLatency > initialLatency * this.highLatencyMultiple) {
 					return true;
 				}
 
@@ -147,7 +147,6 @@ export const remoteConnectionLatencyMeasurer = new class {
 			})()
 		};
 
-		return this.#lastMeasurement;
+		return this.lastMeasurement;
 	}
 };
-

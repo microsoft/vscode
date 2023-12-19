@@ -74,6 +74,10 @@ class RenameSkeleton {
 			return res;
 		}
 
+		// we are here when no provider prepared a location which means we can
+		// just rely on the word under cursor and start with the first provider
+		this._providerRenameIdx = 0;
+
 		const word = this.model.getWordAtPosition(this.position);
 		if (!word) {
 			return {

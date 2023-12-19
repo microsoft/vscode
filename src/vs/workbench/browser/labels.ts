@@ -22,10 +22,13 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { IRange } from 'vs/editor/common/core/range';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
 	name?: string | string[];
+	range?: IRange;
 	description?: string;
 }
 
@@ -57,11 +60,17 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * Uses the provided icon instead of deriving a resource icon.
+	 */
+	readonly icon?: ThemeIcon;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
+	range?: IRange;
 }
 
 export interface IResourceLabel extends IDisposable {
@@ -413,7 +422,7 @@ class ResourceLabelWidget extends IconLabel {
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 		}
 
-		this.setResource({ resource, name, description }, options);
+		this.setResource({ resource, name, description, range: options?.range }, options);
 	}
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
@@ -459,6 +468,7 @@ class ResourceLabelWidget extends IconLabel {
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);
+		const hasIconChanged = this.hasIconChanged(options);
 
 		this.label = label;
 		this.options = options;
@@ -472,7 +482,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.render({
-			updateIcon: hasResourceChanged || hasFileKindChanged,
+			updateIcon: hasResourceChanged || hasFileKindChanged || hasIconChanged,
 			updateDecoration: hasResourceChanged || hasFileKindChanged
 		});
 	}
@@ -503,6 +513,10 @@ class ResourceLabelWidget extends IconLabel {
 		const newResource = toResource(newLabel);
 
 		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
+	}
+
+	private hasIconChanged(newOptions?: IResourceLabelOptions): boolean {
+		return this.options?.icon !== newOptions?.icon;
 	}
 
 	clear(): void {
@@ -546,7 +560,6 @@ class ResourceLabelWidget extends IconLabel {
 		};
 
 		const resource = toResource(this.label);
-		const label = this.label.name;
 
 		if (this.options?.title !== undefined) {
 			iconLabelOptions.title = this.options.title;
@@ -571,7 +584,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind);
+				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
@@ -612,7 +625,13 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		this.setLabel(label || '', this.label.description, iconLabelOptions);
+		if (this.label.range) {
+			iconLabelOptions.suffix = this.label.range.startLineNumber !== this.label.range.endLineNumber ?
+				`:${this.label.range.startLineNumber}-${this.label.range.endLineNumber}` :
+				`:${this.label.range.startLineNumber}`;
+		}
+
+		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 

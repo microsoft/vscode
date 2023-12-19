@@ -9,8 +9,8 @@
 	},
 	"diffs": [
 		{
-			"originalRange": "[26,33)",
-			"modifiedRange": "[26,43)",
+			"originalRange": "[26,32)",
+			"modifiedRange": "[26,42)",
 			"innerChanges": [
 				{
 					"originalRange": "[26,10 -> 26,10]",
@@ -38,11 +38,7 @@
 				},
 				{
 					"originalRange": "[32,1 -> 32,1]",
-					"modifiedRange": "[41,1 -> 41,2]"
-				},
-				{
-					"originalRange": "[33,1 -> 33,1]",
-					"modifiedRange": "[42,1 -> 43,1]"
+					"modifiedRange": "[41,1 -> 42,1]"
 				}
 			]
 		}

@@ -12,6 +12,6 @@ export interface ITextDocument {
 	readonly uri: vscode.Uri;
 	readonly version: number;
 
-	getText(): string;
+	getText(range?: vscode.Range): string;
 }
 

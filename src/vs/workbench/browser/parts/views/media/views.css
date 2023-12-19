@@ -46,6 +46,10 @@
 	padding-left: 24px;
 }
 
+.monaco-workbench .tree-explorer-viewlet-tree-view .message a {
+	color: var(--vscode-textLink-foreground);
+}
+
 .monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }

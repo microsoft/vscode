@@ -49,6 +49,8 @@ export interface IStorageDatabase {
 	getItems(): Promise<Map<string, string>>;
 	updateItems(request: IUpdateRequest): Promise<void>;
 
+	optimize(): Promise<void>;
+
 	close(recovery?: () => Map<string, string>): Promise<void>;
 }
 
@@ -99,6 +101,8 @@ export interface IStorage extends IDisposable {
 	flush(delay?: number): Promise<void>;
 	whenFlushed(): Promise<void>;
 
+	optimize(): Promise<void>;
+
 	close(): Promise<void>;
 }
 
@@ -119,7 +123,7 @@ export class Storage extends Disposable implements IStorage {
 
 	private cache = new Map<string, string>();
 
-	private readonly flushDelayer = new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY);
+	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY));
 
 	private pendingDeletes = new Set<string>();
 	private pendingInserts = new Map<string, string>();
@@ -312,6 +316,18 @@ export class Storage extends Disposable implements IStorage {
 		return this.doFlush();
 	}
 
+	async optimize(): Promise<void> {
+		if (this.state === StorageState.Closed) {
+			return; // Return early if we are already closed
+		}
+
+		// Await pending data to be flushed to the DB
+		// before attempting to optimize the DB
+		await this.flush(0);
+
+		return this.database.optimize();
+	}
+
 	async close(): Promise<void> {
 		if (!this.pendingClose) {
 			this.pendingClose = this.doClose();
@@ -376,6 +392,10 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	private async doFlush(delay?: number): Promise<void> {
+		if (this.options.hint === StorageHint.STORAGE_IN_MEMORY) {
+			return this.flushPending(); // return early if in-memory
+		}
+
 		return this.flushDelayer.trigger(() => this.flushPending(), delay);
 	}
 
@@ -389,12 +409,6 @@ export class Storage extends Disposable implements IStorage {
 
 	isInMemory(): boolean {
 		return this.options.hint === StorageHint.STORAGE_IN_MEMORY;
-	}
-
-	override dispose(): void {
-		this.flushDelayer.dispose();
-
-		super.dispose();
 	}
 }
 
@@ -414,5 +428,6 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 		request.delete?.forEach(key => this.items.delete(key));
 	}
 
+	async optimize(): Promise<void> { }
 	async close(): Promise<void> { }
 }

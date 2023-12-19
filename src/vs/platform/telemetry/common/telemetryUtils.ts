@@ -31,6 +31,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	readonly telemetryLevel = TelemetryLevel.NONE;
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	publicLog() { }
@@ -122,7 +123,7 @@ export function supportsTelemetry(productService: IProductService, environmentSe
 	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
 		return true;
 	}
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
 }
 
 /**
@@ -133,6 +134,10 @@ export function supportsTelemetry(productService: IProductService, environmentSe
  * @returns True if telemetry is actually disabled and we're only logging for debug purposes
  */
 export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If we're testing an extension, log telemetry for debug purposes
+	if (environmentService.extensionTestsLocationURI) {
+		return true;
+	}
 	// Logging only mode is only for OSS
 	if (environmentService.isBuilt) {
 		return false;
@@ -355,6 +360,7 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 	const userDataRegexes = [
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
+		{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
 		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
 		{ label: 'Email', regex: /@[a-zA-Z0-9-]+\.[a-zA-Z0-9-]+/ } // Regex which matches @*.site
 	];

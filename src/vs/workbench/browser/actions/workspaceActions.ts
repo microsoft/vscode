@@ -36,8 +36,8 @@ export class OpenFileAction extends Action2 {
 			title: { value: localize('openFile', "Open File..."), original: 'Open File...' },
 			category: Categories.File,
 			f1: true,
-			precondition: IsMacNativeContext.toNegated(),
 			keybinding: {
+				when: IsMacNativeContext.toNegated(),
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyO
 			}

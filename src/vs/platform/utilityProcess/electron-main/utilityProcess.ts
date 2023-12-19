@@ -156,6 +156,9 @@ export class UtilityProcess extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<unknown>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onSpawn = this._register(new Emitter<number | undefined>());
+	readonly onSpawn = this._onSpawn.event;
+
 	private readonly _onExit = this._register(new Emitter<IUtilityProcessExitEvent>());
 	readonly onExit = this._onExit.event;
 
@@ -303,6 +306,7 @@ export class UtilityProcess extends Disposable {
 			}
 
 			this.log('successfully created', Severity.Info);
+			this._onSpawn.fire(process.pid);
 		}));
 
 		// Exit

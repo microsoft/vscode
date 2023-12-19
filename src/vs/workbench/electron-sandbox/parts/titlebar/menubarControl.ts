@@ -19,7 +19,6 @@ import { IOpenRecentAction, MenubarControl } from 'vs/workbench/browser/parts/ti
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -197,13 +196,13 @@ export class NativeMenubarControl extends MenubarControl {
 		// first try to resolve a native accelerator
 		const electronAccelerator = binding.getElectronAccelerator();
 		if (electronAccelerator) {
-			return { label: electronAccelerator, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
+			return { label: electronAccelerator, userSettingsLabel: binding.getUserSettingsLabel() ?? undefined };
 		}
 
 		// we need this fallback to support keybindings that cannot show in electron menus (e.g. chords)
 		const acceleratorLabel = binding.getLabel();
 		if (acceleratorLabel) {
-			return { label: acceleratorLabel, isNative: false, userSettingsLabel: withNullAsUndefined(binding.getUserSettingsLabel()) };
+			return { label: acceleratorLabel, isNative: false, userSettingsLabel: binding.getUserSettingsLabel() ?? undefined };
 		}
 
 		return undefined;

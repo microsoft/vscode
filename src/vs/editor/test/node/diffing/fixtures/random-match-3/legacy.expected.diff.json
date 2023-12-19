@@ -21,8 +21,8 @@
 					"modifiedRange": "[2,5 -> 2,18]"
 				},
 				{
-					"originalRange": "[1,98 -> 1,98]",
-					"modifiedRange": "[2,71 -> 3,39]"
+					"originalRange": "[1,98 -> 1,98 EOL]",
+					"modifiedRange": "[2,71 -> 3,39 EOL]"
 				}
 			]
 		}

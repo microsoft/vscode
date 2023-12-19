@@ -3,33 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import * as assert from 'assert';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
+import { IFileQuery, ISearchService } from 'vs/workbench/services/search/common/search';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('MainThreadWorkspace', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let disposables: DisposableStore;
 	let configService: TestConfigurationService;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables) as TestInstantiationService;
 
 		configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration('search', {});
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('simple', () => {
@@ -45,7 +40,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
 		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
 	});
 
@@ -67,7 +62,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
 		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
 	});
 
@@ -88,7 +83,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
 		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
 	});
 
@@ -102,7 +97,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
 		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
 	});
 });

@@ -157,6 +157,10 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
+	getDiff(): Promise<string[]> {
+		return this.repository.getDiff();
+	}
+
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -177,6 +181,10 @@ export class ApiRepository implements Repository {
 		return this.repository.getBranches(query, cancellationToken);
 	}
 
+	getBranchBase(name: string): Promise<Branch | undefined> {
+		return this.repository.getBranchBase(name);
+	}
+
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this.repository.setBranchUpstream(name, upstream);
 	}
@@ -185,7 +193,7 @@ export class ApiRepository implements Repository {
 		return this.repository.getRefs(query, cancellationToken);
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.repository.getMergeBase(ref1, ref2);
 	}
 
@@ -363,6 +371,7 @@ function getStatus(status: Status): string {
 		case Status.IGNORED: return 'IGNORED';
 		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
 		case Status.INTENT_TO_RENAME: return 'INTENT_TO_RENAME';
+		case Status.TYPE_CHANGED: return 'TYPE_CHANGED';
 		case Status.ADDED_BY_US: return 'ADDED_BY_US';
 		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
 		case Status.DELETED_BY_US: return 'DELETED_BY_US';

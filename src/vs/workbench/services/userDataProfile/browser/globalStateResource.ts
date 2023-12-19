@@ -9,11 +9,12 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IGlobalState {
 	storage: IStringDictionary<string>;
@@ -97,13 +98,19 @@ export abstract class GlobalStateResourceTreeItem implements IProfileResourceTre
 	readonly collapsibleState = TreeItemCollapsibleState.Collapsed;
 	checkbox: ITreeItemCheckboxState | undefined;
 
-	constructor(private readonly resource: URI) { }
+	constructor(
+		private readonly resource: URI,
+		private readonly uriIdentityService: IUriIdentityService
+	) { }
 
 	async getChildren(): Promise<IProfileResourceChildTreeItem[]> {
 		return [{
 			handle: this.resource.toString(),
 			resourceUri: this.resource,
 			collapsibleState: TreeItemCollapsibleState.None,
+			accessibilityInformation: {
+				label: this.uriIdentityService.extUri.basename(this.resource)
+			},
 			parent: this,
 			command: {
 				id: API_OPEN_EDITOR_COMMAND_ID,
@@ -114,6 +121,7 @@ export abstract class GlobalStateResourceTreeItem implements IProfileResourceTre
 	}
 
 	abstract getContent(): Promise<string>;
+	abstract isFromDefaultProfile(): boolean;
 }
 
 export class GlobalStateResourceExportTreeItem extends GlobalStateResourceTreeItem {
@@ -121,9 +129,10 @@ export class GlobalStateResourceExportTreeItem extends GlobalStateResourceTreeIt
 	constructor(
 		private readonly profile: IUserDataProfile,
 		resource: URI,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(resource);
+		super(resource, uriIdentityService);
 	}
 
 	async hasContent(): Promise<boolean> {
@@ -135,6 +144,10 @@ export class GlobalStateResourceExportTreeItem extends GlobalStateResourceTreeIt
 		return this.instantiationService.createInstance(GlobalStateResource).getContent(this.profile);
 	}
 
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.globalState;
+	}
+
 }
 
 export class GlobalStateResourceImportTreeItem extends GlobalStateResourceTreeItem {
@@ -142,12 +155,17 @@ export class GlobalStateResourceImportTreeItem extends GlobalStateResourceTreeIt
 	constructor(
 		private readonly content: string,
 		resource: URI,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(resource);
+		super(resource, uriIdentityService);
 	}
 
 	async getContent(): Promise<string> {
 		return this.content;
+	}
+
+	isFromDefaultProfile(): boolean {
+		return false;
 	}
 
 }

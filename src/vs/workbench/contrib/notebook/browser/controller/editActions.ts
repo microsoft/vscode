@@ -37,7 +37,7 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
-const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 
 registerAction2(class EditCellAction extends NotebookCellAction {
 	constructor() {
@@ -349,7 +349,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
-			description: {
+			metadata: {
 				description: localize('changeLanguage', 'Change Cell Language'),
 				args: [
 					{

@@ -21,8 +21,12 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Sticky Scroll Tests', () => {
+
+	const disposables = new DisposableStore();
 
 	const serviceCollection = new ServiceCollection(
 		[ILanguageFeaturesService, new LanguageFeaturesService()],
@@ -52,6 +56,15 @@ suite('Sticky Scroll Tests', () => {
 		'function bar() { function insideBar() {}',
 		'}'
 	].join('\n');
+
+	setup(() => {
+		disposables.clear();
+	});
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function documentSymbolProviderForTestModel() {
 		return {
@@ -128,7 +141,7 @@ suite('Sticky Scroll Tests', () => {
 			}, async (editor, _viewModel, instantiationService) => {
 				const languageService = instantiationService.get(ILanguageFeaturesService);
 				const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-				languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+				disposables.add(languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel()));
 				const provider: StickyLineCandidateProvider = new StickyLineCandidateProvider(editor, languageService, languageConfigurationService);
 				await provider.update();
 				assert.deepStrictEqual(provider.getCandidateStickyLinesIntersecting({ startLineNumber: 1, endLineNumber: 4 }), [new StickyLineCandidate(1, 2, 1)]);
@@ -155,33 +168,33 @@ suite('Sticky Scroll Tests', () => {
 				const stickyScrollController: StickyScrollController = editor.registerAndInstantiateContribution(StickyScrollController.ID, StickyScrollController);
 				const lineHeight: number = editor.getOption(EditorOption.lineHeight);
 				const languageService: ILanguageFeaturesService = instantiationService.get(ILanguageFeaturesService);
-				languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+				disposables.add(languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel()));
 				await stickyScrollController.stickyScrollCandidateProvider.update();
 				let state;
 
 				editor.setScrollTop(1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(4 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				editor.setScrollTop(8 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				assert.deepStrictEqual(state.startLineNumbers, [7, 9]);
 
 				editor.setScrollTop(9 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				assert.deepStrictEqual(state.startLineNumbers, [7, 9]);
 
 				editor.setScrollTop(10 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7]);
+				assert.deepStrictEqual(state.startLineNumbers, [7]);
 
 				stickyScrollController.dispose();
 				stickyScrollController.stickyScrollCandidateProvider.dispose();
@@ -205,30 +218,30 @@ suite('Sticky Scroll Tests', () => {
 				const lineHeight = editor.getOption(EditorOption.lineHeight);
 
 				const languageService = instantiationService.get(ILanguageFeaturesService);
-				languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel());
+				disposables.add(languageService.documentSymbolProvider.register('*', documentSymbolProviderForTestModel()));
 				await stickyScrollController.stickyScrollCandidateProvider.update();
 				editor.setHiddenAreas([{ startLineNumber: 2, endLineNumber: 2, startColumn: 1, endColumn: 1 }, { startLineNumber: 10, endLineNumber: 11, startColumn: 1, endColumn: 1 }]);
 				let state;
 
 				editor.setScrollTop(1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				editor.setScrollTop(6 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7, 9]);
+				assert.deepStrictEqual(state.startLineNumbers, [7, 9]);
 
 				editor.setScrollTop(7 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [7]);
+				assert.deepStrictEqual(state.startLineNumbers, [7]);
 
 				editor.setScrollTop(10 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				stickyScrollController.dispose();
 				stickyScrollController.stickyScrollCandidateProvider.dispose();
@@ -300,29 +313,29 @@ suite('Sticky Scroll Tests', () => {
 				const lineHeight = editor.getOption(EditorOption.lineHeight);
 
 				const languageService = instantiationService.get(ILanguageFeaturesService);
-				languageService.documentSymbolProvider.register('*', documentSymbolProviderForSecondTestModel());
+				disposables.add(languageService.documentSymbolProvider.register('*', documentSymbolProviderForSecondTestModel()));
 				await stickyScrollController.stickyScrollCandidateProvider.update();
 				let state;
 
 				editor.setScrollTop(1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+				assert.deepStrictEqual(state.startLineNumbers, [1, 2]);
 
 				editor.setScrollTop(lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1, 2]);
+				assert.deepStrictEqual(state.startLineNumbers, [1, 2]);
 
 				editor.setScrollTop(2 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(3 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, [1]);
+				assert.deepStrictEqual(state.startLineNumbers, [1]);
 
 				editor.setScrollTop(4 * lineHeight + 1);
 				state = stickyScrollController.findScrollWidgetState();
-				assert.deepStrictEqual(state.lineNumbers, []);
+				assert.deepStrictEqual(state.startLineNumbers, []);
 
 				stickyScrollController.dispose();
 				stickyScrollController.stickyScrollCandidateProvider.dispose();

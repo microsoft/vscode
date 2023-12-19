@@ -1,0 +1,12 @@
+[
+  {
+    resolvedContent: {  },
+    content: "text",
+    kind: "asyncContent"
+  },
+  {
+    resolvedContent: {  },
+    content: "text2",
+    kind: "asyncContent"
+  }
+]

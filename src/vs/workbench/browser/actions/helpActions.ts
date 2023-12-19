@@ -177,18 +177,18 @@ class OpenNewsletterSignupUrlAction extends Action2 {
 	}
 }
 
-class OpenTwitterUrlAction extends Action2 {
+class OpenYouTubeUrlAction extends Action2 {
 
-	static readonly ID = 'workbench.action.openTwitterUrl';
-	static readonly AVAILABLE = !!product.twitterUrl;
+	static readonly ID = 'workbench.action.openYouTubeUrl';
+	static readonly AVAILABLE = !!product.youTubeUrl;
 
 	constructor() {
 		super({
-			id: OpenTwitterUrlAction.ID,
+			id: OpenYouTubeUrlAction.ID,
 			title: {
-				value: localize('openTwitterUrl', "Join Us on Twitter"),
-				mnemonicTitle: localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join Us on Twitter"),
-				original: 'Join Us on Twitter'
+				value: localize('openYouTubeUrl', "Join Us on YouTube"),
+				mnemonicTitle: localize({ key: 'miYouTube', comment: ['&& denotes a mnemonic'] }, "&&Join Us on YouTube"),
+				original: 'Join Us on YouTube'
 			},
 			category: Categories.Help,
 			f1: true,
@@ -204,8 +204,8 @@ class OpenTwitterUrlAction extends Action2 {
 		const productService = accessor.get(IProductService);
 		const openerService = accessor.get(IOpenerService);
 
-		if (productService.twitterUrl) {
-			openerService.open(URI.parse(productService.twitterUrl));
+		if (productService.youTubeUrl) {
+			openerService.open(URI.parse(productService.youTubeUrl));
 		}
 	}
 }
@@ -337,8 +337,8 @@ if (OpenNewsletterSignupUrlAction.AVAILABLE) {
 	registerAction2(OpenNewsletterSignupUrlAction);
 }
 
-if (OpenTwitterUrlAction.AVAILABLE) {
-	registerAction2(OpenTwitterUrlAction);
+if (OpenYouTubeUrlAction.AVAILABLE) {
+	registerAction2(OpenYouTubeUrlAction);
 }
 
 if (OpenRequestFeatureUrlAction.AVAILABLE) {

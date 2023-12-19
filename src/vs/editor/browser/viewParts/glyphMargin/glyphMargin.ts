@@ -20,17 +20,17 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
  * This can end up producing multiple `LineDecorationToRender`.
  */
 export class DecorationToRender {
-	_decorationToRenderBrand: void = undefined;
+	public readonly _decorationToRenderBrand: void = undefined;
 
-	public startLineNumber: number;
-	public endLineNumber: number;
-	public className: string;
 	public readonly zIndex: number;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex: number | undefined) {
-		this.startLineNumber = +startLineNumber;
-		this.endLineNumber = +endLineNumber;
-		this.className = String(className);
+	constructor(
+		public readonly startLineNumber: number,
+		public readonly endLineNumber: number,
+		public readonly className: string,
+		public readonly tooltip: string | null,
+		zIndex: number | undefined,
+	) {
 		this.zIndex = zIndex ?? 0;
 	}
 }
@@ -42,6 +42,7 @@ export class LineDecorationToRender {
 	constructor(
 		public readonly className: string,
 		public readonly zIndex: number,
+		public readonly tooltip: string | null,
 	) { }
 }
 
@@ -108,7 +109,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(new LineDecorationToRender(className, zIndex));
+				output[i].add(new LineDecorationToRender(className, zIndex, d.tooltip));
 			}
 		}
 
@@ -275,13 +276,14 @@ export class GlyphMarginWidgets extends ViewPart {
 
 		for (const widget of Object.values(this._widgets)) {
 			const range = widget.preference.range;
-			if (range.endLineNumber < visibleStartLineNumber || range.startLineNumber > visibleEndLineNumber) {
+			const { startLineNumber, endLineNumber } = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(Range.lift(range));
+			if (!startLineNumber || !endLineNumber || endLineNumber < visibleStartLineNumber || startLineNumber > visibleEndLineNumber) {
 				// The widget is not in the viewport
 				continue;
 			}
 
 			// The widget is in the viewport, find a good line for it
-			const widgetLineNumber = Math.max(range.startLineNumber, visibleStartLineNumber);
+			const widgetLineNumber = Math.max(startLineNumber, visibleStartLineNumber);
 			const lane = Math.min(widget.preference.lane, this._glyphMarginDecorationLaneCount);
 			requests.push(new WidgetBasedGlyphRenderRequest(widgetLineNumber, lane, widget.preference.zIndex, widget));
 		}
