@@ -602,7 +602,7 @@ export class InlineChatController implements IEditorContribution {
 			prompt: this._activeSession.lastInput.value,
 			attempt: this._activeSession.lastInput.attempt,
 			selection: this._editor.getSelection(),
-			wholeRange: this._activeSession.wholeRange.value,
+			wholeRange: this._activeSession.wholeRange.trackedInitialRange,
 			live: this._activeSession.editMode !== EditMode.Preview // TODO@jrieken let extension know what document is used for previewing
 		};
 
