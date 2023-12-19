@@ -104,7 +104,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusNextMatchDown',
+	id: 'list.focusAnyDown',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
 	primary: KeyMod.Alt | KeyCode.DownArrow,
@@ -114,14 +114,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusNext(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusNext(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
 		});
 	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusNextMatchUp',
+	id: 'list.focusAnyUp',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
 	primary: KeyMod.Alt | KeyCode.UpArrow,
@@ -131,8 +131,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	handler: (accessor, arg2) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusPrevious(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusPrevious(typeof arg2 === 'number' ? arg2 : 1, false, fakeKeyboardEvent);
 		});
 	}
 });
@@ -190,27 +190,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusFirstMatch',
+	id: 'list.focusAnyFirst',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
 	primary: KeyMod.Alt | KeyCode.Home,
 	handler: (accessor) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusFirst(fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusFirst(fakeKeyboardEvent);
 		});
 	}
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'list.focusLastMatch',
+	id: 'list.focusAnyLast',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
 	primary: KeyMod.Alt | KeyCode.End,
 	handler: (accessor) => {
 		navigate(accessor.get(IListService).lastFocusedList, async widget => {
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			await widget.focusLast(fakeKeyboardEvent, node => !FuzzyScore.isDefault(node.filterData as any as FuzzyScore));
+			const fakeKeyboardEvent = new KeyboardEvent('keydown', { altKey: true });
+			await widget.focusLast(fakeKeyboardEvent);
 		});
 	}
 });
