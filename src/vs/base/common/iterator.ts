@@ -140,4 +140,12 @@ export namespace Iterable {
 
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
 	}
+
+	export async function asyncToArray<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+		const result: T[] = [];
+		for await (const item of iterable) {
+			result.push(item);
+		}
+		return Promise.resolve(result);
+	}
 }

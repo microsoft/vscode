@@ -316,7 +316,7 @@
 /* decoration styles */
 
 .monaco-editor .inline-chat-inserted-range {
-	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	background-color: var(--vscode-inlineChatDiff-inserted);
 }
 
 .monaco-editor .inline-chat-inserted-range-linehighlight {

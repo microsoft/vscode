@@ -850,7 +850,7 @@ export class Repository implements Disposable {
 
 		this._sourceControl.quickDiffProvider = this;
 
-		const historyProvider = new GitHistoryProvider(this);
+		const historyProvider = new GitHistoryProvider(this, logger);
 		this._sourceControl.historyProvider = historyProvider;
 		this.disposables.push(historyProvider);
 

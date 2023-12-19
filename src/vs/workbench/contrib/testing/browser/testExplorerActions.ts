@@ -5,8 +5,10 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,7 +22,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { widgetClose } from 'vs/platform/theme/common/iconRegistry';
@@ -40,7 +42,7 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestCollection, IMainThreadTestController, ITestService, expandAndGetTestById, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestCollection, IMainThreadTestController, ITestService, expandAndGetTestById, testsInFile, testsUnderUri } from 'vs/workbench/contrib/testing/common/testService';
 import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
@@ -71,6 +73,9 @@ const enum ActionOrder {
 }
 
 const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
+
+const LABEL_RUN_TESTS = { value: localize('runSelectedTests', 'Run Tests'), original: 'Run Tests' };
+const LABEL_DEBUG_TESTS = { value: localize('debugSelectedTests', 'Debug Tests'), original: 'Debug Tests' };
 
 export class HideTestAction extends Action2 {
 	constructor() {
@@ -147,19 +152,25 @@ const testItemInlineAndInContext = (order: ActionOrder, when?: ContextKeyExpress
 	}
 ];
 
-export class DebugAction extends Action2 {
+export class DebugAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
 			id: TestCommandId.DebugAction,
 			title: localize('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
+			viewId: Testing.ExplorerViewId,
 		});
 	}
 
-	public override run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
-		return acessor.get(ITestService).runTests({
-			tests: elements.map(e => e.test),
+	/**
+	 * @override
+	 */
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView, ...elements: TestItemTreeElement[]): Promise<unknown> {
+		const { include, exclude } = view.getTreeIncludeExclude(elements.map(e => e.test));
+		return accessor.get(ITestService).runTests({
+			tests: include,
+			exclude,
 			group: TestRunProfileBitset.Debug,
 		});
 	}
@@ -201,22 +212,25 @@ export class RunUsingProfileAction extends Action2 {
 	}
 }
 
-export class RunAction extends Action2 {
+export class RunAction extends ViewAction<TestingExplorerView> {
 	constructor() {
 		super({
 			id: TestCommandId.RunAction,
 			title: localize('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Run, TestingContextKeys.hasRunnableTests.isEqualTo(true)),
+			viewId: Testing.ExplorerViewId,
 		});
 	}
 
 	/**
 	 * @override
 	 */
-	public override run(acessor: ServicesAccessor, ...elements: TestItemTreeElement[]): Promise<any> {
-		return acessor.get(ITestService).runTests({
-			tests: elements.map(e => e.test),
+	public runInView(accessor: ServicesAccessor, view: TestingExplorerView, ...elements: TestItemTreeElement[]): Promise<unknown> {
+		const { include, exclude } = view.getTreeIncludeExclude(elements.map(e => e.test));
+		return accessor.get(ITestService).runTests({
+			tests: include,
+			exclude,
 			group: TestRunProfileBitset.Run,
 		});
 	}
@@ -547,7 +561,7 @@ export class GetExplorerSelection extends ViewAction<TestingExplorerView> {
 	 * @override
 	 */
 	public override runInView(_accessor: ServicesAccessor, view: TestingExplorerView) {
-		const { include, exclude } = view.getTreeIncludeExclude(undefined, 'selected');
+		const { include, exclude } = view.getTreeIncludeExclude(undefined, undefined, 'selected');
 		const mapper = (i: InternalTestItem) => i.item.extId;
 		return { include: include.map(mapper), exclude: exclude.map(mapper) };
 	}
@@ -557,7 +571,7 @@ export class RunSelectedAction extends ExecuteSelectedAction {
 	constructor() {
 		super({
 			id: TestCommandId.RunSelectedAction,
-			title: localize('runSelectedTests', 'Run Tests'),
+			title: LABEL_RUN_TESTS,
 			icon: icons.testingRunAllIcon,
 		}, TestRunProfileBitset.Run);
 	}
@@ -567,7 +581,7 @@ export class DebugSelectedAction extends ExecuteSelectedAction {
 	constructor() {
 		super({
 			id: TestCommandId.DebugSelectedAction,
-			title: localize('debugSelectedTests', 'Debug Tests'),
+			title: LABEL_DEBUG_TESTS,
 			icon: icons.testingDebugAllIcon,
 		}, TestRunProfileBitset.Debug);
 	}
@@ -1046,6 +1060,57 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 	}
 }
 
+abstract class ExecuteTestsUnderUriAction extends Action2 {
+	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
+		super({
+			...options,
+			menu: [{
+				id: MenuId.ExplorerContext,
+				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
+				group: '6.5_testing',
+				order: (group === TestRunProfileBitset.Run ? ActionOrder.Run : ActionOrder.Debug) + 0.1,
+			}],
+		});
+	}
+
+	public override async run(accessor: ServicesAccessor, uri: URI): Promise<unknown> {
+		const testService = accessor.get(ITestService);
+		const notificationService = accessor.get(INotificationService);
+		const tests = await Iterable.asyncToArray(testsUnderUri(
+			testService,
+			accessor.get(IUriIdentityService),
+			uri
+		));
+
+		if (!tests.length) {
+			notificationService.notify({ message: localize('noTests', 'No tests found in the selected file or folder'), severity: Severity.Info });
+			return;
+		}
+
+		return testService.runTests({ tests, group: this.group });
+	}
+}
+
+class RunTestsUnderUri extends ExecuteTestsUnderUriAction {
+	constructor() {
+		super({
+			id: TestCommandId.RunByUri,
+			title: LABEL_RUN_TESTS,
+			category,
+		}, TestRunProfileBitset.Run);
+	}
+}
+
+class DebugTestsUnderUri extends ExecuteTestsUnderUriAction {
+	constructor() {
+		super({
+			id: TestCommandId.DebugByUri,
+			title: LABEL_DEBUG_TESTS,
+			category,
+		}, TestRunProfileBitset.Debug);
+	}
+}
+
 abstract class ExecuteTestsInCurrentFile extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
@@ -1485,9 +1550,10 @@ export const allTestActions = [
 	DebugFailedTests,
 	DebugLastRun,
 	DebugSelectedAction,
-	GoToTest,
+	DebugTestsUnderUri,
 	GetExplorerSelection,
 	GetSelectedProfiles,
+	GoToTest,
 	HideTestAction,
 	OpenOutputPeek,
 	RefreshTestsAction,
@@ -1498,6 +1564,7 @@ export const allTestActions = [
 	RunAtCursor,
 	RunCurrentFile,
 	RunSelectedAction,
+	RunTestsUnderUri,
 	RunUsingProfileAction,
 	SearchForTestExtension,
 	SelectDefaultTestProfiles,

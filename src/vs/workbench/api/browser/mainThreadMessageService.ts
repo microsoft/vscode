@@ -9,7 +9,7 @@ import { IAction, toAction } from 'vs/base/common/actions';
 import { MainThreadMessageServiceShape, MainContext, MainThreadMessageOptions } from '../common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationSource } from 'vs/platform/notification/common/notification';
 import { Event } from 'vs/base/common/event';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -51,10 +51,10 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				}
 			}));
 
-			let source: string | { label: string; id: string } | undefined;
+			let source: string | INotificationSource | undefined;
 			if (options.source) {
 				source = {
-					label: nls.localize('extensionSource', "{0} (Extension)", options.source.label),
+					label: options.source.label,
 					id: options.source.identifier.value
 				};
 			}

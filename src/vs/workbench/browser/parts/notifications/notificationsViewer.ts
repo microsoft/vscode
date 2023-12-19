@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ButtonBar, IButtonOptions } from 'vs/base/browser/ui/button/button';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
+import { ActionRunner, IAction, IActionRunner, Separator, toAction } from 'vs/base/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { dispose, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -18,7 +18,7 @@ import { INotificationViewItem, NotificationViewItem, NotificationViewItemConten
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -198,7 +198,8 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 	constructor(
 		private actionRunner: IActionRunner,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 	}
 
@@ -227,6 +228,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 		data.message.classList.add('notification-list-item-message');
 
 		// Toolbar
+		const that = this;
 		const toolbarContainer = document.createElement('div');
 		toolbarContainer.classList.add('notification-list-item-toolbar-container');
 		data.toolbar = new ActionBar(
@@ -234,11 +236,35 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 			{
 				ariaLabel: localize('notificationActions', "Notification Actions"),
 				actionViewItemProvider: action => {
-					if (action && action instanceof ConfigureNotificationAction) {
-						const item = new DropdownMenuActionViewItem(action, action.configurationActions, this.contextMenuService, { actionRunner: this.actionRunner, classNames: action.class });
-						data.toDispose.add(item);
+					if (action instanceof ConfigureNotificationAction) {
+						return data.toDispose.add(new DropdownMenuActionViewItem(action, {
+							getActions() {
+								const actions: IAction[] = [];
 
-						return item;
+								const source = { id: action.notification.sourceId, label: action.notification.source };
+								if (isNotificationSource(source)) {
+									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
+									actions.push(toAction({
+										id: source.id,
+										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Notifications from '{0}'", source.label),
+										run: () => that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR })
+									}));
+
+									if (action.notification.actions?.secondary?.length) {
+										actions.push(new Separator());
+									}
+								}
+
+								if (Array.isArray(action.notification.actions?.secondary)) {
+									actions.push(...action.notification.actions.secondary);
+								}
+
+								return actions;
+							},
+						}, this.contextMenuService, {
+							actionRunner: this.actionRunner,
+							classNames: action.class
+						}));
 					}
 
 					return undefined;
@@ -412,9 +438,8 @@ export class NotificationTemplateRenderer extends Disposable {
 		const actions: IAction[] = [];
 
 		// Secondary Actions
-		const secondaryActions = notification.actions ? notification.actions.secondary : undefined;
-		if (isNonEmptyArray(secondaryActions)) {
-			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, secondaryActions);
+		if (isNonEmptyArray(notification.actions?.secondary)) {
+			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification);
 			actions.push(configureNotificationAction);
 			this.inputDisposables.add(configureNotificationAction);
 		}

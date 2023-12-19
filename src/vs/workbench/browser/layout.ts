@@ -31,7 +31,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { coalesce } from 'vs/base/common/arrays';
 import { assertIsDefined } from 'vs/base/common/types';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/common/theme';
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -1338,7 +1338,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (!restoring) {
 				zenModeExitInfo.transitionedToFullScreen = toggleFullScreen;
 				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
-				zenModeExitInfo.handleNotificationsDoNotDisturbMode = !this.notificationService.doNotDisturbMode;
+				zenModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
 				zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
 				zenModeExitInfo.wasVisible.panel = this.isVisible(Parts.PANEL_PART);
 				zenModeExitInfo.wasVisible.auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
@@ -1367,7 +1367,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
-				this.notificationService.doNotDisturbMode = true;
+				this.notificationService.setFilter(NotificationsFilter.ERROR);
 			}
 
 			if (config.centerLayout) {
@@ -1404,7 +1404,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				if (e.affectsConfiguration(ZenModeSettings.SILENT_NOTIFICATIONS)) {
 					const zenModeSilentNotifications = !!this.configurationService.getValue(ZenModeSettings.SILENT_NOTIFICATIONS);
 					if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
-						this.notificationService.doNotDisturbMode = zenModeSilentNotifications;
+						this.notificationService.setFilter(zenModeSilentNotifications ? NotificationsFilter.ERROR : NotificationsFilter.OFF);
 					}
 				}
 
@@ -1444,7 +1444,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			if (zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
-				this.notificationService.doNotDisturbMode = false;
+				this.notificationService.setFilter(NotificationsFilter.OFF);
 			}
 
 			setLineNumbers();

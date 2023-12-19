@@ -402,8 +402,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			await Promise.all(includes.map(async include =>
 				await Promise.all(include.filenamePatterns.map(filePattern => {
 					const query: IFileQuery = {
-						...textQuery,
-						...{ type: QueryType.File, filePattern }
+						_reason: textQuery._reason,
+						folderQueries: textQuery.folderQueries,
+						includePattern: textQuery.includePattern,
+						excludePattern: textQuery.excludePattern,
+						maxResults: textQuery.maxResults,
+						type: QueryType.File,
+						filePattern
 					};
 
 					// use priority info to exclude info from other globs

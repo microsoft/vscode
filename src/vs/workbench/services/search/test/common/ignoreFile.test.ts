@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 
 function runAssert(input: string, ignoreFile: string, ignoreFileLocation: string, shouldMatch: boolean, traverse: boolean) {
@@ -62,6 +63,7 @@ function assertNoIgnoreMatch(ignoreFile: string, ignoreFileLocation: string, inp
 }
 
 suite('Parsing .gitignore files', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('paths with trailing slashes do not match files', () => {
 		const i = 'node_modules/\n';

@@ -1817,6 +1817,7 @@ export const basicMarkupHtmlTags = Object.freeze([
 	'hr',
 	'i',
 	'img',
+	'input',
 	'ins',
 	'kbd',
 	'label',

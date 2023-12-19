@@ -1778,6 +1778,7 @@ export interface CommentReaction {
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
+	readonly reactors?: readonly string[];
 }
 
 /**

@@ -14,7 +14,7 @@ import { IListService, WorkbenchList } from 'vs/platform/list/browser/listServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NotificationMetrics, NotificationMetricsClassification, notificationToMetrics } from 'vs/workbench/browser/parts/notifications/notificationsTelemetry';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
-import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { hash } from 'vs/base/common/hash';
@@ -287,7 +287,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	CommandsRegistry.registerCommand(TOGGLE_DO_NOT_DISTURB_MODE, accessor => {
 		const notificationService = accessor.get(INotificationService);
 
-		notificationService.doNotDisturbMode = !notificationService.doNotDisturbMode;
+		notificationService.setFilter(notificationService.getFilter() === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR);
 	});
 
 	// Commands for Command Palette

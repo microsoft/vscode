@@ -322,3 +322,39 @@ registerTerminalAction({
 		await TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
 	}
 });
+
+registerTerminalAction({
+	id: TerminalCommandId.ScrollToBottom,
+	title: { value: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"), original: 'Scroll to Bottom' },
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.End,
+		linux: { primary: KeyMod.Shift | KeyCode.End },
+		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const lastPosition = accessibleViewService.getLastPosition();
+		if (!lastPosition) {
+			return;
+		}
+		accessibleViewService.setPosition(lastPosition, true);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.ScrollToTop,
+	title: { value: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"), original: 'Scroll to Top' },
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.Home,
+		linux: { primary: KeyMod.Shift | KeyCode.Home },
+		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
+	}
+});
