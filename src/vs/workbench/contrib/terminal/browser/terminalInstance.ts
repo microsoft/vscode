@@ -1216,7 +1216,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidInputData.fire(this);
 		this._onDidSendText.fire(text);
 		this.xterm?.scrollToBottom();
-		this._onDidRunText.fire();
+		if (shouldExecute) {
+			this._onDidRunText.fire();
+		}
 	}
 
 	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
