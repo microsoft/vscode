@@ -5,7 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { chunkInput } from 'vs/platform/terminal/node/terminalProcess';
+import { chunkInput } from 'vs/platform/terminal/common/terminalProcess';
 
 suite('platform - terminalProcess', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
