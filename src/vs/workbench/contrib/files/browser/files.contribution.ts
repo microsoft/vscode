@@ -591,7 +591,7 @@ configurationRegistry.registerConfiguration({
 				'*.jsx': '${capture}.js',
 				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
-				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml',
+				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb',
 			}
 		}
 	}

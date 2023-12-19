@@ -84,6 +84,10 @@
 	gap: 4px;
 }
 
+.monaco-editor .inline-chat .body > .widget-toolbar {
+	padding-left: 4px;
+}
+
 /* progress bit */
 
 .monaco-editor .inline-chat .progress {
@@ -316,7 +320,7 @@
 /* decoration styles */
 
 .monaco-editor .inline-chat-inserted-range {
-	background-color: var(--vscode-diffEditor-insertedTextBackground);
+	background-color: var(--vscode-inlineChatDiff-inserted);
 }
 
 .monaco-editor .inline-chat-inserted-range-linehighlight {

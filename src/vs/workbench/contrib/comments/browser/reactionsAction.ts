@@ -66,27 +66,46 @@ export class ReactionActionViewItem extends ActionViewItem {
 					'This is a tooltip for an emoji button so that the current user can toggle their reaction to a comment.',
 					'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is the name of the reaction.']
 			}, "{0}{1} reaction", toggleMessage, action.label);
-		} else if (action.count === 1) {
-			return nls.localize({
-				key: 'comment.reactionLabelOne', comment: [
-					'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is 1.',
-					'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
-					'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is the name of the reaction.']
-			}, "{0}1 reaction with {1}", toggleMessage, action.label);
-		} else if (action.count > 1) {
-			return nls.localize({
-				key: 'comment.reactionLabelMany', comment: [
-					'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is greater than 1.',
-					'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
-					'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is number of users who have reacted with that reaction, and the third is the name of the reaction.']
-			}, "{0}{1} reactions with {2}", toggleMessage, action.count, action.label);
+		} else if (action.reactors === undefined || action.reactors.length === 0) {
+			if (action.count === 1) {
+				return nls.localize({
+					key: 'comment.reactionLabelOne', comment: [
+						'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is 1.',
+						'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
+						'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is the name of the reaction.']
+				}, "{0}1 reaction with {1}", toggleMessage, action.label);
+			} else if (action.count > 1) {
+				return nls.localize({
+					key: 'comment.reactionLabelMany', comment: [
+						'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is greater than 1.',
+						'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
+						'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second is number of users who have reacted with that reaction, and the third is the name of the reaction.']
+				}, "{0}{1} reactions with {2}", toggleMessage, action.count, action.label);
+			}
+		} else {
+			if (action.reactors.length <= 10 && action.reactors.length === action.count) {
+				return nls.localize({
+					key: 'comment.reactionLessThanTen', comment: [
+						'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is less than or equal to 10.',
+						'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
+						'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second iis a list of the reactors, and the third is the name of the reaction.']
+				}, "{0}{1} reacted with {2}", toggleMessage, action.reactors.join(', '), action.label);
+			} else if (action.count > 1) {
+				const displayedReactors = action.reactors.slice(0, 10);
+				return nls.localize({
+					key: 'comment.reactionMoreThanTen', comment: [
+						'This is a tooltip for an emoji that is a "reaction" to a comment where the count of the reactions is less than or equal to 10.',
+						'The emoji is also a button so that the current user can also toggle their own emoji reaction.',
+						'The first arg is localized message "Toggle reaction" or empty if the user doesn\'t have permission to toggle the reaction, the second iis a list of the reactors, and the third is the name of the reaction.']
+				}, "{0}{1} and {2} more reacted with {3}", toggleMessage, displayedReactors.join(', '), action.count - displayedReactors.length, action.label);
+			}
 		}
 		return undefined;
 	}
 }
 export class ReactionAction extends Action {
 	static readonly ID = 'toolbar.toggle.reaction';
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>, public icon?: UriComponents, public count?: number) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>, public readonly reactors?: readonly string[], public icon?: UriComponents, public count?: number) {
 		super(ReactionAction.ID, label, cssClass, enabled, actionCallback);
 	}
 }

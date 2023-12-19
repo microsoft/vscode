@@ -706,7 +706,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active one last
 		if (activeEditor) {
-			this.doCloseEditor(activeEditor, true);
+			this.doCloseEditor(activeEditor);
 		}
 	}
 
