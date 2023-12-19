@@ -115,7 +115,7 @@ class SessionWholeRange {
 	}
 
 	get trackedInitialRange(): Range {
-		const [first] = this._decorationIds[0];
+		const [first] = this._decorationIds;
 		return this._textModel.getDecorationRange(first) ?? new Range(1, 1, 1, 1);
 	}
 
