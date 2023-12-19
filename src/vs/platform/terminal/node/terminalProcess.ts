@@ -663,6 +663,7 @@ export function chunkInput(data: string): string[] {
 		) {
 			chunks.push(data.substring(nextChunkStartIndex, i + 1));
 			nextChunkStartIndex = i + 1;
+			// Skip the next character as the chunk would be a single character
 			i++;
 		}
 	}
