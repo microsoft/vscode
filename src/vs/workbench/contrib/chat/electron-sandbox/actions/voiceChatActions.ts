@@ -18,7 +18,7 @@ import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -474,7 +474,7 @@ export class StartVoiceChatAction extends Action2 {
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MENU_INLINE_CHAT_WIDGET,
+				id: MENU_INLINE_CHAT_INPUT,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
@@ -654,7 +654,7 @@ export class StopListeningInInlineChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 			icon: spinningLoading,
 			menu: [{
-				id: MENU_INLINE_CHAT_WIDGET,
+				id: MENU_INLINE_CHAT_INPUT,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 				group: 'main',
 				order: -1

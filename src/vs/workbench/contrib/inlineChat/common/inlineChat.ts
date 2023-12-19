@@ -155,6 +155,7 @@ export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
 // --- menus
 
+export const MENU_INLINE_CHAT_INPUT = MenuId.for('inlineChatInput');
 export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
 export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWidget.markdownMessage');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
