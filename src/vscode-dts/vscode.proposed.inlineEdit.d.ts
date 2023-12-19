@@ -20,6 +20,23 @@ declare module 'vscode' {
 		 */
 		replaceRange?: Range;
 
+		/**
+		 * An optional command that will be executed after applying the inline edit.
+		 */
+		accepted?: Command;
+
+		/**
+		 * An optional command that will be executed after rejecting the inline edit.
+		 */
+		rejected?: Command;
+
+		/**
+		 * Creates a new inline edit.
+		 *
+		 * @param position The position of the edit.
+		 * @param text The new text for this edit.
+		 * @param replaceRange An optional range that will be replaced by the text of the inline edit.
+		 */
 		constructor(position: Position, text: string, replaceRange?: Range);
 	}
 
