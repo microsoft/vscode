@@ -1188,10 +1188,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const currentText: string = value;
+		let currentText = value;
 		const shouldPasteText = await this._scopedInstantiationService.invokeFunction(shouldPasteTerminalText, currentText, this.xterm?.raw.modes.bracketedPasteMode);
 		if (!shouldPasteText) {
 			return;
+		}
+
+		if (typeof shouldPasteText === 'object') {
+			currentText = shouldPasteText.modifiedText;
 		}
 
 		this.focus();
