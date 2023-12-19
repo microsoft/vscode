@@ -5,7 +5,6 @@
 
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Barrier, Queue, raceCancellation, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -25,7 +24,6 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
@@ -97,13 +95,6 @@ export class InlineChatController implements IEditorContribution {
 	static get(editor: ICodeEditor) {
 		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
 	}
-
-	private static _decoBlock = ModelDecorationOptions.register({
-		description: 'inline-chat',
-		showIfCollapsed: false,
-		isWholeLine: true,
-		className: 'inline-chat-block-selection',
-	});
 
 	private static _storageKey = 'inline-chat-history';
 	private static _promptHistory: string[] = [];
@@ -386,10 +377,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 		const updateWholeRangeDecoration = () => {
-
-			const ranges = [this._activeSession!.wholeRange.value];//this._activeSession!.wholeRange.values;
-			const newDecorations = ranges.map(range => range.isEmpty() ? undefined : ({ range, options: InlineChatController._decoBlock }));
-			coalesceInPlace(newDecorations);
+			const newDecorations = this._strategy?.getWholeRangeDecoration() ?? [];
 			wholeRangeDecoration.set(newDecorations);
 		};
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
