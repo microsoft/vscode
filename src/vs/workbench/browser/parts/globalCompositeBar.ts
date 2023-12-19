@@ -422,7 +422,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				const providerSubMenuActions: Action[] = [manageExtensionsAction];
 
 				if (account.avatar) {
-					const useAsAvatarAction = disposables.add(new Action('useAsAvatar', localize('useAsAvatar', "Use as Avatar"), undefined, true, async () => {
+					const useAsAvatarAction = disposables.add(new Action('showAvatar', localize('showAvatar', "Show Avatar"), undefined, true, async () => {
 						useAsAvatarAction.checked = !useAsAvatarAction.checked;
 						this.accountForAvatar = useAsAvatarAction.checked ? account : undefined;
 						this.storageService.store(AccountsActivityActionViewItem.AVATAR_STORAGE_KEY, this.accountForAvatar ? this.accountForAvatar.id : 'none', StorageScope.PROFILE, StorageTarget.USER);
