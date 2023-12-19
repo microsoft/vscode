@@ -110,12 +110,12 @@ export class NotificationService extends Disposable implements INotificationServ
 			this._onDidChangeFilter.fire();
 		} else {
 			const existing = this.mapSourceToFilter.get(filter.id);
-			if (existing?.filter === (filter.filter ? NotificationsFilter.ERROR : NotificationsFilter.OFF) && existing.label === filter.label) {
+			if (existing?.filter === filter.filter && existing.label === filter.label) {
 				return; // no change
 			}
 
 			// Store into model and persist
-			this.mapSourceToFilter.set(filter.id, { id: filter.id, label: filter.label, filter: filter.filter ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
+			this.mapSourceToFilter.set(filter.id, { id: filter.id, label: filter.label, filter: filter.filter });
 			this.saveSourceFilters();
 
 			// Update model
