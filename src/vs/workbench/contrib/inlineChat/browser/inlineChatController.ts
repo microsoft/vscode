@@ -270,7 +270,6 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
 		}
 
-		let needsMargin = false;
 		if (initialRender) {
 			this._zone.value.setContainerMargins();
 		}
@@ -281,11 +280,8 @@ export class InlineChatController implements IEditorContribution {
 		if (this._activeSession) {
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
-		if (this._strategy) {
-			needsMargin = this._strategy.needsMargin();
-		}
 		if (!this._zone.value.position) {
-			this._zone.value.setWidgetMargins(widgetPosition, !needsMargin ? 0 : undefined);
+			this._zone.value.setWidgetMargins(widgetPosition);
 			this._zone.value.show(widgetPosition);
 		} else {
 			this._zone.value.updatePositionAndHeight(widgetPosition);

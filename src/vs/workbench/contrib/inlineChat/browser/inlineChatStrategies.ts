@@ -87,8 +87,6 @@ export abstract class EditModeStrategy {
 
 	abstract hasFocus(): boolean;
 
-	abstract needsMargin(): boolean;
-
 	getWholeRangeDecoration(): IModelDeltaDecoration[] {
 		const ranges = [this._session.wholeRange.value];
 		const newDecorations = ranges.map(range => range.isEmpty() ? undefined : ({ range, options: EditModeStrategy._decoBlock }));
@@ -182,10 +180,6 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
-	}
-
-	needsMargin(): boolean {
-		return true;
 	}
 }
 
@@ -324,11 +318,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		}
 		this._zone.widget.updateStatus(message);
 	}
-
-	override needsMargin(): boolean {
-		return true;
-	}
-
 
 	private async _updateDiffZones() {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
@@ -915,10 +904,6 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('lines.NM', "{0} changes", hunkCount);
 		}
 		this._zone.widget.updateStatus(message);
-	}
-
-	override needsMargin(): boolean {
-		return true;
 	}
 
 	hasFocus(): boolean {
