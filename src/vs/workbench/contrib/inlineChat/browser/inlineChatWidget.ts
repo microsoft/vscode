@@ -1042,10 +1042,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 	}
 
-	setWidgetMargins(position: Position, indentationWidth?: number): void {
-		if (indentationWidth === undefined) {
-			indentationWidth = this._calculateIndentationWidth(position);
-		}
+	setWidgetMargins(position: Position): void {
+		const indentationWidth = this._calculateIndentationWidth(position);
 		if (this._indentationWidth === indentationWidth) {
 			return;
 		}
