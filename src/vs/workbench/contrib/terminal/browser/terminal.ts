@@ -660,7 +660,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
-	onDidRunText: Event<void>;
+	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
 

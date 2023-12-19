@@ -327,7 +327,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidRunText = this._register(new Emitter<void>());
-	readonly onDidRunText = this._onDidRunText.event;
+	readonly onDidExecuteText = this._onDidRunText.event;
 	private readonly _onDidChangeTarget = this._register(new Emitter<TerminalLocation | undefined>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 	private readonly _onDidSendText = this._register(new Emitter<string>());
