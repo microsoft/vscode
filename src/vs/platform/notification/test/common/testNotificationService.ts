@@ -53,4 +53,5 @@ export class TestNotificationService implements INotificationService {
 		return [];
 	}
 
+	removeFilter(sourceId: string): void { }
 }

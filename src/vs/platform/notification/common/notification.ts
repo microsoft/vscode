@@ -392,6 +392,11 @@ export interface INotificationService {
 	getFilters(): INotificationSourceFilter[];
 
 	/**
+	 * Removes a filter for a specific source.
+	 */
+	removeFilter(sourceId: string): void;
+
+	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
 	 * can be used to control the notification afterwards.
 	 *

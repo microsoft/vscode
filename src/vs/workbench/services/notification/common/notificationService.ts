@@ -159,6 +159,17 @@ export class NotificationService extends Disposable implements INotificationServ
 		});
 	}
 
+	removeFilter(sourceId: string): void {
+		if (this.mapSourceToFilter.delete(sourceId)) {
+
+			// Persist
+			this.saveSourceFilters();
+
+			// Update model
+			this.updateFilters();
+		}
+	}
+
 	//#endregion
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
