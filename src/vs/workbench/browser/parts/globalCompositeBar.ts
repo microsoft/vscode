@@ -531,7 +531,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		if (accounts.length === 0) {
 			this.groupedAccounts.delete(providerId);
 		}
-		if (this.accountForAvatar?.id === account.id.toString()) {
+		if (this.accountForAvatar?.id === account.id) {
 			this.accountForAvatar = undefined;
 			this.updateActionItem();
 		}
