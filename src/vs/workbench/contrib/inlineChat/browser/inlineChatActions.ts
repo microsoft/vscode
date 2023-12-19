@@ -29,6 +29,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
@@ -470,13 +471,17 @@ export class ReportIssueForBugCommand extends AbstractInlineChatAction {
 			id: 'inlineChat.reportIssueForBug',
 			title: localize('feedback.reportIssueForBug', 'Report Issue'),
 			icon: Codicon.report,
-			precondition: CTX_INLINE_CHAT_VISIBLE,
-			menu: {
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
+			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
 				group: '2_feedback',
 				order: 3
-			}
+			}, {
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'config',
+				order: 3
+			}]
 		});
 	}
 
@@ -566,6 +571,26 @@ export class CloseAction extends AbstractInlineChatAction {
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		ctrl.finishExistingSession();
+	}
+}
+
+export class ConfigureInlineChatAction extends AbstractInlineChatAction {
+	constructor() {
+		super({
+			id: 'inlineChat.configure',
+			title: localize('configure', 'Configure '),
+			icon: Codicon.settingsGear,
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'config',
+				order: 1,
+			}
+		});
+	}
+
+	async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+		accessor.get(IPreferencesService).openSettings({ query: 'inlineChat' });
 	}
 }
 
