@@ -70,12 +70,12 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private registerListeners(): void {
 		this._register(this.model.onDidChangeNotification(e => this.onDidChangeNotification(e)));
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
-		this._register(this.notificationService.onDidChangeGlobalDoNotDisturbMode(() => this.onDidChangeGlobalDoNotDisturbMode()));
+		this._register(this.notificationService.onDidChangeFilter(() => this.onDidChangeFilter()));
 	}
 
-	private onDidChangeGlobalDoNotDisturbMode(): void {
-		if (this.notificationService.isGlobalDoNotDisturbMode) {
-			this.hide(); // hide the notification center when do not disturb is toggled
+	private onDidChangeFilter(): void {
+		if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
+			this.hide(); // hide the notification center when we have a error filter enabled
 		}
 	}
 
@@ -178,11 +178,11 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 							const actions = [toAction({
 								id: ToggleDoNotDisturbAction.ID,
 								label: localize('doNotDisturb', "Do Not Disturb"),
-								checked: that.notificationService.isGlobalDoNotDisturbMode,
-								run: () => that.notificationService.setGlobalDoNotDisturbMode(!that.notificationService.isGlobalDoNotDisturbMode)
+								checked: that.notificationService.getFilter() === NotificationsFilter.ERROR,
+								run: () => that.notificationService.setFilter(that.notificationService.getFilter() === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR)
 							})];
 
-							for (const source of that.notificationService.getSourcesDoNotDisturb().sort((a, b) => a.label.localeCompare(b.label))) {
+							for (const source of that.notificationService.getFilters().sort((a, b) => a.label.localeCompare(b.label))) {
 								if (actions.length === 1) {
 									actions.push(new Separator());
 								}
@@ -191,7 +191,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 									id: `${ToggleDoNotDisturbAction.ID}.${source.id}`,
 									label: source.label,
 									checked: source.filter !== NotificationsFilter.ERROR,
-									run: () => that.notificationService.setSourceDoNotDisturb(source, source.filter === NotificationsFilter.ERROR ? false : true)
+									run: () => that.notificationService.setFilter({
+										...source,
+										filter: source.filter === NotificationsFilter.ERROR ? NotificationsFilter.OFF : NotificationsFilter.ERROR
+									})
 								}));
 							}
 

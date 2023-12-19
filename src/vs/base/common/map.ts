@@ -791,7 +791,7 @@ export class SetMap<K, V> {
 	}
 }
 
-export function mapsStrictEqual(a: Map<unknown, unknown>, b: Map<unknown, unknown>): boolean {
+export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unknown, unknown>): boolean {
 	if (a === b) {
 		return true;
 	}

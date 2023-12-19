@@ -29,7 +29,7 @@ export class NotificationService extends Disposable implements INotificationServ
 	) {
 		super();
 
-		this.updateDoNotDisturbFilters();
+		this.updateFilters();
 		this.registerListeners();
 	}
 
@@ -53,10 +53,10 @@ export class NotificationService extends Disposable implements INotificationServ
 						// them with our do not disturb system which is backed by storage
 
 						if (isNotificationSource(source)) {
-							if (!this.mapSourceIdToDoNotDisturb.has(source.id)) {
-								this.setSourceDoNotDisturb(source, false);
+							if (!this.mapSourceToFilter.has(source.id)) {
+								this.setFilter({ ...source, filter: NotificationsFilter.OFF });
 							} else {
-								this.updateSourceDoNotDisturb(source);
+								this.updateSourceFilter(source);
 							}
 						}
 
@@ -73,97 +73,89 @@ export class NotificationService extends Disposable implements INotificationServ
 		}));
 	}
 
-	//#region Do not disturb mode (global)
+	//#region Filters
 
-	private static readonly GLOBAL_DND_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+	private static readonly GLOBAL_FILTER_SETTINGS_KEY = 'notifications.doNotDisturbMode';
+	private static readonly PER_SOURCE_FILTER_SETTINGS_KEY = 'notifications.perSourceDoNotDisturbMode';
 
-	private readonly _onDidChangeGlobalDoNotDisturbMode = this._register(new Emitter<void>());
-	readonly onDidChangeGlobalDoNotDisturbMode = this._onDidChangeGlobalDoNotDisturbMode.event;
+	private readonly _onDidChangeFilter = this._register(new Emitter<void>());
+	readonly onDidChangeFilter = this._onDidChangeFilter.event;
 
-	private _isGlobalDoNotDisturbMode = this.storageService.getBoolean(NotificationService.GLOBAL_DND_SETTINGS_KEY, StorageScope.APPLICATION, false);
-	get isGlobalDoNotDisturbMode() { return this._isGlobalDoNotDisturbMode; }
+	private globalFilterEnabled = this.storageService.getBoolean(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, false);
 
-	setGlobalDoNotDisturbMode(enabled: boolean): void {
-		if (this._isGlobalDoNotDisturbMode === enabled) {
-			return; // no change
-		}
-
-		// Store into model and persist
-		this._isGlobalDoNotDisturbMode = enabled;
-		this.storageService.store(NotificationService.GLOBAL_DND_SETTINGS_KEY, enabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		// Update model
-		this.updateDoNotDisturbFilters();
-
-		// Events
-		this._onDidChangeGlobalDoNotDisturbMode.fire();
-	}
-
-	//#endregion
-
-	//#region Do not disturb mode (per-source)
-
-	private static readonly PER_SOURCE_DND_SETTINGS_KEY = 'notifications.perSourceDoNotDisturbMode';
-
-	private readonly _onDidChangePerSourceDoNotDisturbMode = this._register(new Emitter<INotificationSource>());
-	readonly onDidChangePerSourceDoNotDisturbMode = this._onDidChangePerSourceDoNotDisturbMode.event;
-
-	private readonly mapSourceIdToDoNotDisturb: Map<string /** source id */, INotificationSourceFilter> = (() => {
+	private readonly mapSourceToFilter: Map<string /** source id */, INotificationSourceFilter> = (() => {
 		const map = new Map<string, INotificationSourceFilter>();
 
-		for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
+		for (const sourceFilter of this.storageService.getObject<INotificationSourceFilter[]>(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, StorageScope.APPLICATION, [])) {
 			map.set(sourceFilter.id, sourceFilter);
 		}
 
 		return map;
 	})();
 
-	isSourceDoNotDisturb(source: INotificationSource): boolean {
-		return this.mapSourceIdToDoNotDisturb.get(source.id)?.filter === NotificationsFilter.ERROR;
+	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void {
+		if (typeof filter === 'number') {
+			if (this.globalFilterEnabled === (filter === NotificationsFilter.ERROR)) {
+				return; // no change
+			}
+
+			// Store into model and persist
+			this.globalFilterEnabled = filter === NotificationsFilter.ERROR;
+			this.storageService.store(NotificationService.GLOBAL_FILTER_SETTINGS_KEY, this.globalFilterEnabled, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+			// Update model
+			this.updateFilters();
+
+			// Events
+			this._onDidChangeFilter.fire();
+		} else {
+			const existing = this.mapSourceToFilter.get(filter.id);
+			if (existing?.filter === (filter.filter ? NotificationsFilter.ERROR : NotificationsFilter.OFF) && existing.label === filter.label) {
+				return; // no change
+			}
+
+			// Store into model and persist
+			this.mapSourceToFilter.set(filter.id, { id: filter.id, label: filter.label, filter: filter.filter ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
+			this.saveSourceFilters();
+
+			// Update model
+			this.updateFilters();
+		}
 	}
 
-	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
-		const existing = this.mapSourceIdToDoNotDisturb.get(source.id);
-		if (existing?.filter === (mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF) && existing.label === source.label) {
-			return; // no change
+	getFilter(source?: INotificationSource): NotificationsFilter {
+		if (source) {
+			return this.mapSourceToFilter.get(source.id)?.filter ?? NotificationsFilter.OFF;
 		}
 
-		// Store into model and persist
-		this.mapSourceIdToDoNotDisturb.set(source.id, { id: source.id, label: source.label, filter: mode ? NotificationsFilter.ERROR : NotificationsFilter.OFF });
-		this.saveSourceDoNotDisturb();
-
-		// Update model
-		this.updateDoNotDisturbFilters();
-
-		// Events
-		this._onDidChangePerSourceDoNotDisturbMode.fire(source);
+		return this.globalFilterEnabled ? NotificationsFilter.ERROR : NotificationsFilter.OFF;
 	}
 
-	private updateSourceDoNotDisturb(source: INotificationSource): void {
-		const existing = this.mapSourceIdToDoNotDisturb.get(source.id);
+	private updateSourceFilter(source: INotificationSource): void {
+		const existing = this.mapSourceToFilter.get(source.id);
 		if (!existing) {
 			return; // nothing to do
 		}
 
 		// Store into model and persist
 		if (existing.label !== source.label) {
-			this.mapSourceIdToDoNotDisturb.set(source.id, { id: source.id, label: source.label, filter: existing.filter });
-			this.saveSourceDoNotDisturb();
+			this.mapSourceToFilter.set(source.id, { id: source.id, label: source.label, filter: existing.filter });
+			this.saveSourceFilters();
 		}
 	}
 
-	private saveSourceDoNotDisturb(): void {
-		this.storageService.store(NotificationService.PER_SOURCE_DND_SETTINGS_KEY, JSON.stringify([...this.mapSourceIdToDoNotDisturb.values()]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+	private saveSourceFilters(): void {
+		this.storageService.store(NotificationService.PER_SOURCE_FILTER_SETTINGS_KEY, JSON.stringify([...this.mapSourceToFilter.values()]), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
-		return [...this.mapSourceIdToDoNotDisturb.values()];
+	getFilters(): INotificationSourceFilter[] {
+		return [...this.mapSourceToFilter.values()];
 	}
 
-	private updateDoNotDisturbFilters(): void {
+	private updateFilters(): void {
 		this.model.setFilter({
-			global: this._isGlobalDoNotDisturbMode ? NotificationsFilter.ERROR : NotificationsFilter.OFF,
-			sources: new Map([...this.mapSourceIdToDoNotDisturb.values()].map(source => [source.id, source.filter]))
+			global: this.globalFilterEnabled ? NotificationsFilter.ERROR : NotificationsFilter.OFF,
+			sources: new Map([...this.mapSourceToFilter.values()].map(source => [source.id, source.filter]))
 		});
 	}
 

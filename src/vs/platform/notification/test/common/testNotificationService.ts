@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, Severity } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NotificationsFilter, Severity } from 'vs/platform/notification/common/notification';
 
 export class TestNotificationService implements INotificationService {
 
@@ -13,13 +13,9 @@ export class TestNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
-	readonly onDidChangeGlobalDoNotDisturbMode: Event<void> = Event.None;
-
-	readonly onDidChangePerSourceDoNotDisturbMode = Event.None;
+	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	declare readonly _serviceBrand: undefined;
-
-	isGlobalDoNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -47,17 +43,14 @@ export class TestNotificationService implements INotificationService {
 		return Disposable.None;
 	}
 
-	setGlobalDoNotDisturbMode(mode: boolean): void {
-		this.isGlobalDoNotDisturbMode = mode;
+	setFilter(): void { }
+
+	getFilter(source?: INotificationSource | undefined): NotificationsFilter {
+		return NotificationsFilter.OFF;
 	}
 
-	isSourceDoNotDisturb(source: INotificationSource): boolean {
-		return false;
-	}
-
-	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void { }
-
-	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
+	getFilters(): INotificationSourceFilter[] {
 		return [];
 	}
+
 }

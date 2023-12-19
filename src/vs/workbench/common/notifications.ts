@@ -11,7 +11,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
-import { mapsStrictEqual } from 'vs/base/common/map';
+import { mapsStrictEqualIgnoreOrder } from 'vs/base/common/map';
 
 export interface INotificationsModel {
 
@@ -199,7 +199,7 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 
 		let sourcesChanged = false;
 		if (filter.sources) {
-			sourcesChanged = !mapsStrictEqual(this.filter.sources, filter.sources);
+			sourcesChanged = !mapsStrictEqualIgnoreOrder(this.filter.sources, filter.sources);
 			this.filter.sources = filter.sources;
 		}
 
