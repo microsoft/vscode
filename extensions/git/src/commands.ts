@@ -2431,6 +2431,52 @@ export class CommandCenter {
 		await repository.branch(branchName, true, target);
 	}
 
+	private async promptForBranchDescription(repository: Repository, defaultValue?: string, initialValue?: string): Promise<string> {
+		let rawDescription = defaultValue;
+
+		if (!rawDescription) {
+			if (!initialValue) {
+				//TODO Add template?
+				initialValue = `# Please edit the description for the branch\n#\n# Lines starting with '#' will be stripped.\n`;
+			}
+
+			rawDescription = await window.showInputBox({
+				placeHolder: l10n.t('Branch description'),
+				prompt: l10n.t('Please provide a new branch description'),
+				value: initialValue,
+				ignoreFocusOut: true
+			});
+		}
+
+		return rawDescription || '';
+	}
+
+	@command('git.editBranchDescription', { repository: true })
+	async editBranchDescription(repository: Repository): Promise<void> {
+		const currentHead = repository.HEAD && repository.HEAD.name;
+		if (!currentHead) {
+			return;
+		}
+		const currentDescription = await repository.getBranchDescription(currentHead);
+		const branchDescription = await this.promptForBranchDescription(repository, undefined, currentDescription);
+
+		if (!branchDescription) {
+			return;
+		}
+
+		try {
+			await repository.editBranchDescription(branchDescription);
+		} catch (err) {
+			switch (err.gitErrorCode) {
+				case GitErrorCodes.InvalidBranchName:
+					window.showErrorMessage(l10n.t('Invalid branch name'));
+					return;
+				default:
+					throw err;
+			}
+		}
+	}
+
 	@command('git.deleteBranch', { repository: true })
 	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;

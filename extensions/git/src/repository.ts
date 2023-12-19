@@ -1422,6 +1422,26 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
+	async getBranchDescription(name: string): Promise<string> {
+		const descriptionConfigKey = `branch.${name}.description`;
+		// Git config
+		try {
+			const description = await this.getConfig(descriptionConfigKey);
+			return description;
+		} catch (err) { }
+		return '';
+	}
+
+	async editBranchDescription(description: string): Promise<void> {
+		if (!this.HEAD || !this.HEAD.name) {
+			//TODO throw error
+			//new GitError()
+			return;
+		}
+		const name = this.HEAD.name;
+		await this.run(Operation.EditBranchDescription, () => this.repository.editBranchDescription(name, description));
+	}
+
 	@throttle
 	async fastForwardBranch(name: string): Promise<void> {
 		// Get branch details

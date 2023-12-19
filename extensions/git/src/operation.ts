@@ -22,6 +22,7 @@ export const enum OperationKind {
 	DeleteRemoteTag = 'DeleteRemoteTag',
 	DeleteTag = 'DeleteTag',
 	Diff = 'Diff',
+	EditBranchDescription = 'EditBranchDescription',
 	Fetch = 'Fetch',
 	FindTrackingBranches = 'GetTracking',
 	GetBranch = 'GetBranch',
@@ -64,13 +65,13 @@ export const enum OperationKind {
 
 export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchOperation | CheckIgnoreOperation | CherryPickOperation |
 	CheckoutOperation | CheckoutTrackingOperation | CleanOperation | CommitOperation | ConfigOperation | DeleteBranchOperation |
-	DeleteRefOperation | DeleteRemoteTagOperation | DeleteTagOperation | DiffOperation | FetchOperation | FindTrackingBranchesOperation |
-	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
-	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
-	MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation |
-	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation | RevertFilesOperation | RevListOperation |
-	RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation |
-	SyncOperation | TagOperation;
+	DeleteRefOperation | DeleteRemoteTagOperation | DeleteTagOperation | DiffOperation | EditBranchDescriptionOperation | FetchOperation |
+	FindTrackingBranchesOperation | GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation |
+	GetRefsOperation | GetRemoteRefsOperation | HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation |
+	MergeAbortOperation | MergeBaseOperation | MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation |
+	RenameBranchOperation | RemoveOperation | ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RefreshOperation |
+	RevertFilesOperation | RevListOperation | RevParseOperation | SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation |
+	StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -89,6 +90,7 @@ export type DeleteRefOperation = BaseOperation & { kind: OperationKind.DeleteRef
 export type DeleteRemoteTagOperation = BaseOperation & { kind: OperationKind.DeleteRemoteTag };
 export type DeleteTagOperation = BaseOperation & { kind: OperationKind.DeleteTag };
 export type DiffOperation = BaseOperation & { kind: OperationKind.Diff };
+export type EditBranchDescriptionOperation = BaseOperation & { kind: OperationKind.EditBranchDescription };
 export type FetchOperation = BaseOperation & { kind: OperationKind.Fetch };
 export type FindTrackingBranchesOperation = BaseOperation & { kind: OperationKind.FindTrackingBranches };
 export type GetBranchOperation = BaseOperation & { kind: OperationKind.GetBranch };
@@ -145,6 +147,7 @@ export const Operation = {
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,
 	DeleteTag: { kind: OperationKind.DeleteTag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteTagOperation,
 	Diff: { kind: OperationKind.Diff, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as DiffOperation,
+	EditBranchDescription: { kind: OperationKind.EditBranchDescription, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as EditBranchDescriptionOperation,
 	Fetch: (showProgress: boolean) => ({ kind: OperationKind.Fetch, blocking: false, readOnly: false, remote: true, retry: true, showProgress } as FetchOperation),
 	FindTrackingBranches: { kind: OperationKind.FindTrackingBranches, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as FindTrackingBranchesOperation,
 	GetBranch: { kind: OperationKind.GetBranch, blocking: false, readOnly: true, remote: false, retry: false, showProgress: true } as GetBranchOperation,

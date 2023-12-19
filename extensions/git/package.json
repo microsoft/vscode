@@ -428,6 +428,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.editBranchDescription",
+        "title": "%command.editBranchDescription%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.deleteBranch",
         "title": "%command.deleteBranch%",
         "category": "Git",
@@ -1051,6 +1057,10 @@
         },
         {
           "command": "git.branchFrom",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.editBranchDescription",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -2040,6 +2050,10 @@
         {
           "command": "git.deleteBranch",
           "group": "3_modify@2"
+        },
+        {
+          "command": "git.editBranchDescription",
+          "group": "3_modify@3"
         },
         {
           "command": "git.publish",

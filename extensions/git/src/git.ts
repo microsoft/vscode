@@ -1685,6 +1685,12 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async editBranchDescription(name: string, description: string): Promise<void> {
+		// const args = ['branch', '--edit-description', description];
+		const args = ['config', `branch.${name}.description`, description];
+		await this.exec(args);
+	}
+
 	async move(from: string, to: string): Promise<void> {
 		const args = ['mv', from, to];
 		await this.exec(args);
