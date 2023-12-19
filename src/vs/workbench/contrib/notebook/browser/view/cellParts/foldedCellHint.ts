@@ -33,8 +33,8 @@ export class FoldedCellHint extends CellContentPart {
 		if (element.isInputCollapsed || element.getEditState() === CellEditState.Editing) {
 			DOM.hide(this._container);
 		} else if (element.foldingState === CellFoldingState.Collapsed) {
-			const idx = this._notebookEditor._getViewModel().getCellIndex(element);
-			const length = this._notebookEditor._getViewModel().getFoldedLength(idx);
+			const idx = this._notebookEditor.getViewModel().getCellIndex(element);
+			const length = this._notebookEditor.getViewModel().getFoldedLength(idx);
 			DOM.reset(this._container, this.getHiddenCellsLabel(length), this.getHiddenCellHintButton(element));
 			DOM.show(this._container);
 

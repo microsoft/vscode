@@ -9,7 +9,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
 import { QuickInputService as BaseQuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -68,11 +68,23 @@ class QuickInputHoverDelegate implements IHoverDelegate {
 	) { }
 
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+		// Only show the hover hint if the content is of a decent size
+		const showHoverHint = (
+			options.content instanceof HTMLElement
+				? options.content.textContent ?? ''
+				: typeof options.content === 'string'
+					? options.content
+					: options.content.value
+		).length > 20;
 		return this.hoverService.showHover({
 			...options,
-			showHoverHint: true,
-			hideOnKeyDown: false,
-			skipFadeInAnimation: true,
+			persistence: {
+				hideOnKeyDown: false,
+			},
+			appearance: {
+				showHoverHint,
+				skipFadeInAnimation: true,
+			},
 		}, focus);
 	}
 

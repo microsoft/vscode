@@ -798,13 +798,13 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 
 CommandsRegistry.registerCommand({
 	id: 'editor.action.goToLocations',
-	description: {
+	metadata: {
 		description: 'Go to locations from a position in a file',
 		args: [
 			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
 			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
 			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
+			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto`' },
 			{ name: 'noResultsMessage', description: 'Human readable message that shows when locations is empty.' },
 		]
 	},
@@ -841,13 +841,13 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'editor.action.peekLocations',
-	description: {
+	metadata: {
 		description: 'Peek locations from a position in a file',
 		args: [
 			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
 			{ name: 'position', description: 'The position at which to start', constraint: corePosition.Position.isIPosition },
 			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto' },
+			{ name: 'multiple', description: 'Define what to do when having multiple results, either `peek`, `gotoAndPeek`, or `goto`' },
 		]
 	},
 	handler: async (accessor: ServicesAccessor, resource: any, position: any, references: any, multiple?: any) => {

@@ -18,7 +18,7 @@ import { IWriteFileOptions, IFileStatWithMetadata } from 'vs/platform/files/comm
 import { IRevertOptions, ISaveOptions, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileWorkingCopyModelConfiguration } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
@@ -108,6 +108,14 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		}
 	}
 
+	get hasErrorState(): boolean {
+		if (this._workingCopy && 'hasState' in this._workingCopy) {
+			return this._workingCopy.hasState(StoredFileWorkingCopyState.ERROR);
+		}
+
+		return false;
+	}
+
 	revert(options?: IRevertOptions): Promise<void> {
 		assertType(this.isResolved());
 		return this._workingCopy!.revert(options);
@@ -128,12 +136,15 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				}
 				this._workingCopy.onDidRevert(() => this._onDidRevertUntitled.fire());
 			} else {
-				this._workingCopy = await this._workingCopyManager.resolve(this.resource, options?.forceReadFromFile ? { reload: { async: false, force: true } } : undefined);
+				this._workingCopy = await this._workingCopyManager.resolve(this.resource, {
+					limits: options?.limits,
+					reload: options?.forceReadFromFile ? { async: false, force: true } : undefined
+				});
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(e => this._onDidSave.fire(e)));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
 				this._workingCopyListeners.add(this._workingCopy.onDidChangeReadonly(() => this._onDidChangeReadonly.fire()));
 			}
-			this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined, this._workingCopyListeners);
+			this._workingCopyListeners.add(this._workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(), undefined));
 
 			this._workingCopyListeners.add(this._workingCopy.onWillDispose(() => {
 				this._workingCopyListeners.clear();
@@ -144,7 +155,8 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 				reload: {
 					async: !options?.forceReadFromFile,
 					force: options?.forceReadFromFile
-				}
+				},
+				limits: options?.limits
 			});
 		}
 
@@ -215,7 +227,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 			};
 
 			// Override save behavior to avoid transferring the buffer across the wire 3 times
-			if (this._configurationService.getValue('notebook.experimental.remoteSave')) {
+			if (this._configurationService.getValue(NotebookSetting.remoteSaving)) {
 				this.save = async (options: IWriteFileOptions, token: CancellationToken) => {
 					const serializer = await this.getNotebookSerializer();
 
@@ -300,7 +312,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel> {
 
 	constructor(
 		private readonly _viewType: string,

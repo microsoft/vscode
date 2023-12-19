@@ -30,6 +30,7 @@ after(async function () {
 	await browser.close();
 });
 
+const pageErrors: any[] = [];
 beforeEach(async function () {
 	this.timeout(20 * 1000);
 	page = await browser.newPage({
@@ -38,34 +39,23 @@ beforeEach(async function () {
 			height: 600
 		}
 	});
+
+	pageErrors.length = 0;
+	page.on('pageerror', (e) => {
+		console.log(e);
+		pageErrors.push(e);
+	});
+	page.on('pageerror', (e) => {
+		console.log(e);
+		pageErrors.push(e);
+	});
 });
 
 afterEach(async () => {
 	await page.close();
-});
-
-describe('Basic loading', function (): void {
-	this.timeout(20000);
-
-	it('should fail because page has an error', async () => {
-		const pageErrors: any[] = [];
-		page.on('pageerror', (e) => {
-			console.log(e);
-			pageErrors.push(e);
-		});
-
-		page.on('pageerror', (e) => {
-			console.log(e);
-			pageErrors.push(e);
-		});
-
-		await page.goto(APP);
-		this.timeout(20000);
-
-		for (const e of pageErrors) {
-			throw e;
-		}
-	});
+	for (const e of pageErrors) {
+		throw e;
+	}
 });
 
 describe('API Integration Tests', function (): void {

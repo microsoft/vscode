@@ -11,7 +11,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncBackupStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceProviderService, ISyncUserDataProfile, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { ISyncData, ISyncResourceHandle, IUserData, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceProviderService, ISyncUserDataProfile, CONFIG_SYNC_KEYBINDINGS_PER_PLATFORM, IUserDataSyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { isSyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { parseSnippets } from 'vs/platform/userDataSync/common/snippetsSync';
@@ -24,6 +24,8 @@ import { LocalGlobalStateProvider, stringify as stringifyGlobalState } from 'vs/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { parseUserDataProfilesManifest, stringifyLocalProfiles } from 'vs/platform/userDataSync/common/userDataProfilesManifestSync';
 import { toFormattedString } from 'vs/base/common/jsonFormatter';
+import { trim } from 'vs/base/common/strings';
+import { IMachinesData, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 interface ISyncResourceUriInfo {
 	readonly remote: boolean;
@@ -32,6 +34,7 @@ interface ISyncResourceUriInfo {
 	readonly collection: string | undefined;
 	readonly ref: string | undefined;
 	readonly node: string | undefined;
+	readonly location: URI | undefined;
 }
 
 export class UserDataSyncResourceProviderService implements IUserDataSyncResourceProviderService {
@@ -46,7 +49,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 
 	constructor(
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncBackupStoreService private readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -68,7 +71,31 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		return [];
 	}
 
-	async getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]> {
+	async getLocalSyncedProfiles(location?: URI): Promise<ISyncUserDataProfile[]> {
+		const refs = await this.userDataSyncLocalStoreService.getAllResourceRefs(SyncResource.Profiles, undefined, location);
+		if (refs.length) {
+			const content = await this.userDataSyncLocalStoreService.resolveResourceContent(SyncResource.Profiles, refs[0].ref, undefined, location);
+			if (content) {
+				const syncData = this.parseSyncData(content, SyncResource.Profiles);
+				return parseUserDataProfilesManifest(syncData);
+			}
+		}
+		return [];
+	}
+
+	async getLocalSyncedMachines(location?: URI): Promise<IUserDataSyncMachine[]> {
+		const refs = await this.userDataSyncLocalStoreService.getAllResourceRefs('machines', undefined, location);
+		if (refs.length) {
+			const content = await this.userDataSyncLocalStoreService.resolveResourceContent('machines', refs[0].ref, undefined, location);
+			if (content) {
+				const machinesData: IMachinesData = JSON.parse(content);
+				return machinesData.machines.map(m => ({ ...m, isCurrent: false }));
+			}
+		}
+		return [];
+	}
+
+	async getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]> {
 		const handles = await this.userDataSyncStoreService.getAllResourceRefs(syncResource, profile?.collection);
 		return handles.map(({ created, ref }) => ({
 			created,
@@ -76,6 +103,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 				remote: true,
 				syncResource,
 				profile: profile?.id ?? this.userDataProfilesService.defaultProfile.id,
+				location: undefined,
 				collection: profile?.collection,
 				ref,
 				node: undefined,
@@ -83,17 +111,18 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		}));
 	}
 
-	async getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]> {
-		const handles = await this.userDataSyncBackupStoreService.getAllRefs(profile, syncResource);
+	async getLocalSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile, location?: URI): Promise<ISyncResourceHandle[]> {
+		const handles = await this.userDataSyncLocalStoreService.getAllResourceRefs(syncResource, profile?.collection, location);
 		return handles.map(({ created, ref }) => ({
 			created,
 			uri: this.toUri({
 				remote: false,
 				syncResource,
-				profile: profile.id,
-				collection: undefined,
+				profile: profile?.id ?? this.userDataProfilesService.defaultProfile.id,
+				collection: profile?.collection,
 				ref,
 				node: undefined,
+				location,
 			})
 		}));
 	}
@@ -138,6 +167,18 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			}
 			return undefined;
 		}
+
+		if (resolved.location) {
+			if (resolved.ref) {
+				const content = await this.userDataSyncLocalStoreService.resolveResourceContent(resolved.syncResource, resolved.ref, resolved.collection, resolved.location);
+				if (content) {
+					const syncData = this.parseSyncData(content, resolved.syncResource);
+					return syncData?.machineId;
+				}
+			}
+			return undefined;
+		}
+
 		return getServiceMachineId(this.environmentService, this.fileService, this.storageService);
 	}
 
@@ -152,7 +193,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		}
 
 		if (resolved.ref) {
-			const content = await this.getContentFromStore(resolved.remote, resolved.syncResource, resolved.profile, resolved.collection, resolved.ref);
+			const content = await this.getContentFromStore(resolved.remote, resolved.syncResource, resolved.collection, resolved.ref, resolved.location);
 			if (resolved.node && content) {
 				return this.resolveNodeContent(resolved.syncResource, content, resolved.node);
 			}
@@ -166,16 +207,12 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		return null;
 	}
 
-	private async getContentFromStore(remote: boolean, syncResource: SyncResource, profileId: string, collection: string | undefined, ref: string): Promise<string | null> {
+	private async getContentFromStore(remote: boolean, syncResource: SyncResource, collection: string | undefined, ref: string, location?: URI): Promise<string | null> {
 		if (remote) {
 			const { content } = await this.getUserData(syncResource, ref, collection);
 			return content;
 		}
-		const profile = this.userDataProfilesService.profiles.find(p => p.id === profileId);
-		if (profile) {
-			return this.userDataSyncBackupStoreService.resolveContent(profile, syncResource, ref);
-		}
-		return null;
+		return this.userDataSyncLocalStoreService.resolveResourceContent(syncResource, ref, collection, location);
 	}
 
 	private resolveNodeContent(syncResource: SyncResource, content: string, node: string): string | null {
@@ -280,6 +317,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 				remote: false,
 				syncResource: SyncResource.Extensions,
 				profile: profile.id,
+				location: undefined,
 				collection: undefined,
 				ref: undefined,
 				node: undefined,
@@ -308,6 +346,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 				remote: false,
 				syncResource: SyncResource.GlobalState,
 				profile: profile.id,
+				location: undefined,
 				collection: undefined,
 				ref: undefined,
 				node: undefined,
@@ -335,6 +374,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			remote: false,
 			syncResource: SyncResource.Profiles,
 			profile: this.userDataProfilesService.defaultProfile.id,
+			location: undefined,
 			collection: undefined,
 			ref: undefined,
 			node: undefined,
@@ -356,10 +396,14 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 
 	private toUri(syncResourceUriInfo: ISyncResourceUriInfo): URI {
 		const authority = syncResourceUriInfo.remote ? UserDataSyncResourceProviderService.REMOTE_BACKUP_AUTHORITY : UserDataSyncResourceProviderService.LOCAL_BACKUP_AUTHORITY;
-		const paths = [
-			syncResourceUriInfo.syncResource,
-			syncResourceUriInfo.profile,
-		];
+		const paths = [];
+		if (syncResourceUriInfo.location) {
+			paths.push(`scheme:${syncResourceUriInfo.location.scheme}`);
+			paths.push(`authority:${syncResourceUriInfo.location.authority}`);
+			paths.push(trim(syncResourceUriInfo.location.path, '/'));
+		}
+		paths.push(`syncResource:${syncResourceUriInfo.syncResource}`);
+		paths.push(`profile:${syncResourceUriInfo.profile}`);
 		if (syncResourceUriInfo.collection) {
 			paths.push(`collection:${syncResourceUriInfo.collection}`);
 		}
@@ -369,14 +413,11 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 		if (syncResourceUriInfo.node) {
 			paths.push(syncResourceUriInfo.node);
 		}
-		return this.extUri.joinPath(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority, path: `/` }), ...paths);
+		return this.extUri.joinPath(URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority, path: `/`, query: syncResourceUriInfo.location?.query, fragment: syncResourceUriInfo.location?.fragment }), ...paths);
 	}
 
 	private resolveUri(uri: URI): ISyncResourceUriInfo | undefined {
 		if (uri.scheme !== USER_DATA_SYNC_SCHEME) {
-			return undefined;
-		}
-		if (uri.authority !== UserDataSyncResourceProviderService.LOCAL_BACKUP_AUTHORITY && uri.authority !== UserDataSyncResourceProviderService.REMOTE_BACKUP_AUTHORITY) {
 			return undefined;
 		}
 		const paths: string[] = [];
@@ -388,28 +429,42 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			return undefined;
 		}
 		const remote = uri.authority === UserDataSyncResourceProviderService.REMOTE_BACKUP_AUTHORITY;
-		const syncResource = paths.shift()! as SyncResource;
-		const profile = paths.shift()!;
+		let scheme: string | undefined;
+		let authority: string | undefined;
+		const locationPaths: string[] = [];
+		let syncResource: SyncResource | undefined;
+		let profile: string | undefined;
 		let collection: string | undefined;
 		let ref: string | undefined;
 		let node: string | undefined;
 		while (paths.length) {
 			const path = paths.shift()!;
-			if (path.startsWith('collection:')) {
+			if (path.startsWith('scheme:')) {
+				scheme = path.substring('scheme:'.length);
+			} else if (path.startsWith('authority:')) {
+				authority = path.substring('authority:'.length);
+			} else if (path.startsWith('syncResource:')) {
+				syncResource = path.substring('syncResource:'.length) as SyncResource;
+			} else if (path.startsWith('profile:')) {
+				profile = path.substring('profile:'.length);
+			} else if (path.startsWith('collection:')) {
 				collection = path.substring('collection:'.length);
 			} else if (path.startsWith('ref:')) {
 				ref = path.substring('ref:'.length);
+			} else if (!syncResource) {
+				locationPaths.push(path);
 			} else {
 				node = path;
 			}
 		}
 		return {
 			remote,
-			syncResource,
-			profile,
+			syncResource: syncResource!,
+			profile: profile!,
 			collection,
 			ref,
 			node,
+			location: scheme && authority !== undefined ? this.extUri.joinPath(URI.from({ scheme, authority, query: uri.query, fragment: uri.fragment, path: '/' }), ...locationPaths) : undefined
 		};
 	}
 

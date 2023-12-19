@@ -14,7 +14,7 @@ export interface IPtyHostConnection {
 }
 
 export interface IPtyHostStarter extends IDisposable {
-	onBeforeWindowConnection?: Event<void>;
+	onRequestConnection?: Event<void>;
 	onWillShutdown?: Event<void>;
 
 	/**

@@ -6,11 +6,11 @@
 /* eslint-disable local/code-no-native-private */
 
 import { validateConstraint } from 'vs/base/common/types';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto, MainThreadTelemetryShape } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandMetadataDto, MainThreadTelemetryShape } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as languages from 'vs/editor/common/languages';
 import type * as vscode from 'vscode';
@@ -31,11 +31,12 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface CommandHandler {
 	callback: Function;
 	thisArg: any;
-	description?: ICommandHandlerDescription;
+	metadata?: ICommandMetadata;
 	extension?: IExtensionDescription;
 }
 
@@ -123,7 +124,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			const internalArgs = apiCommand.args.map((arg, i) => {
 				if (!arg.validate(apiArgs[i])) {
-					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${apiArgs[i]}`);
+					throw new Error(`Invalid argument '${arg.name}' when running '${apiCommand.id}', received: ${typeof apiArgs[i] === 'object' ? JSON.stringify(apiArgs[i], null, '\t') : apiArgs[i]} `);
 				}
 				return arg.convert(apiArgs[i]);
 			});
@@ -144,7 +145,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription, extension?: IExtensionDescription): extHostTypes.Disposable {
+	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, metadata?: ICommandMetadata, extension?: IExtensionDescription): extHostTypes.Disposable {
 		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
@@ -155,7 +156,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			throw new Error(`command '${id}' already exists`);
 		}
 
-		this._commands.set(id, { callback, thisArg, description, extension });
+		this._commands.set(id, { callback, thisArg, metadata, extension });
 		if (global) {
 			this.#proxy.$registerCommand(id);
 		}
@@ -232,13 +233,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command) {
 			throw new Error('Unknown command');
 		}
-		const { callback, thisArg, description } = command;
-		if (description) {
-			for (let i = 0; i < description.args.length; i++) {
+		const { callback, thisArg, metadata } = command;
+		if (metadata?.args) {
+			for (let i = 0; i < metadata.args.length; i++) {
 				try {
-					validateConstraint(args[i], description.args[i].constraint);
+					validateConstraint(args[i], metadata.args[i].constraint);
 				} catch (err) {
-					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`);
+					throw new Error(`Running the contributed command: '${id}' failed. Illegal argument '${metadata.args[i].name}' - ${metadata.args[i].description}`);
 				}
 			}
 		}
@@ -325,12 +326,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }> {
-		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
+	$getContributedCommandMetadata(): Promise<{ [id: string]: string | ICommandMetadataDto }> {
+		const result: { [id: string]: string | ICommandMetadata } = Object.create(null);
 		for (const [id, command] of this._commands) {
-			const { description } = command;
-			if (description) {
-				result[id] = description;
+			const { metadata } = command;
+			if (metadata) {
+				result[id] = metadata;
 			}
 		}
 		return Promise.resolve(result);
@@ -342,7 +343,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
-	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)}`;
+	readonly delegatingCommandId: string = `__vsc${generateUuid()}`;
 	private readonly _cache = new Map<string, vscode.Command>();
 	private _cachIdPool = 0;
 
@@ -387,7 +388,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
-			const id = `${command.command}/${++this._cachIdPool}`;
+			const id = `${command.command} /${++this._cachIdPool}`;
 			this._cache.set(id, command);
 			disposables.add(toDisposable(() => {
 				this._cache.delete(id);
@@ -444,6 +445,16 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
+	static readonly StringArray = ApiCommandArgument.Arr(ApiCommandArgument.String);
+
+	static Arr<T, K = T>(element: ApiCommandArgument<T, K>) {
+		return new ApiCommandArgument(
+			`${element.name}_array`,
+			`Array of ${element.name}, ${element.description}`,
+			(v: unknown) => Array.isArray(v) && v.every(e => element.validate(e)),
+			(v: T[]) => v.map(e => element.convert(e))
+		);
+	}
 
 	static readonly CallHierarchyItem = new ApiCommandArgument('item', 'A call hierarchy item', v => v instanceof extHostTypes.CallHierarchyItem, extHostTypeConverter.CallHierarchyItem.from);
 	static readonly TypeHierarchyItem = new ApiCommandArgument('item', 'A type hierarchy item', v => v instanceof extHostTypes.TypeHierarchyItem, extHostTypeConverter.TypeHierarchyItem.from);

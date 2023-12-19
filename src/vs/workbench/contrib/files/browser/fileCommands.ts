@@ -51,6 +51,7 @@ import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMP
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
+import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -326,13 +327,18 @@ CommandsRegistry.registerCommand({
 		const explorerService = accessor.get(IExplorerService);
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
-
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = await viewService.openView(VIEW_ID, false);
+			const explorerView = viewService.getViewWithId<ExplorerView>(VIEW_ID);
 			if (explorerView) {
+				const oldAutoReveal = explorerView.autoReveal;
+				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
+				// Fixes #197268
+				explorerView.autoReveal = false;
+				await viewService.openView<ExplorerView>(VIEW_ID, false);
 				explorerView.setExpanded(true);
 				await explorerService.select(uri, 'force');
 				explorerView.focus();
+				explorerView.autoReveal = oldAutoReveal;
 			}
 		} else {
 			const openEditorsView = await viewService.openView(OpenEditorsView.ID, false);
@@ -377,11 +383,16 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// has 2 sides, we consider both, to support saving both sides.
 			// We only allow this when saving, not for "Save As" and not if any
 			// editor is untitled which would bring up a "Save As" dialog too.
+			// In addition, we require the secondary side to be modified to not
+			// trigger a touch operation unexpectedly.
+			//
 			// See also https://github.com/microsoft/vscode/issues/4180
 			// See also https://github.com/microsoft/vscode/issues/106330
+			// See also https://github.com/microsoft/vscode/issues/190210
 			if (
 				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
+				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
+				activeGroup.activeEditor.secondary.isModified()
 			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
@@ -658,7 +669,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyCode.KeyN,
 	secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyN] : undefined,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	description: {
+	metadata: {
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{

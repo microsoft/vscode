@@ -26,7 +26,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { AbstractProgressScope, ScopedProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -322,7 +322,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		const keybinding = this.keybindingService.lookupKeybinding(compositeId);
 
-		this.titleLabel.updateTitle(compositeId, compositeTitle, withNullAsUndefined(keybinding?.getLabel()));
+		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding?.getLabel() ?? undefined);
 
 		const toolBar = assertIsDefined(this.toolBar);
 		toolBar.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));

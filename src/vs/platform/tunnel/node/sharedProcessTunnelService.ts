@@ -75,7 +75,7 @@ export class SharedProcessTunnelService extends Disposable implements ISharedPro
 		const tunnelData = new TunnelData();
 
 		const tunnel = await Promise.resolve(this._tunnelService.openTunnel(authority, tunnelData, tunnelRemoteHost, tunnelRemotePort, tunnelLocalHost, tunnelLocalPort, elevateIfNeeded));
-		if (!tunnel) {
+		if (!tunnel || (typeof tunnel === 'string')) {
 			this._logService.info(`[SharedProcessTunnelService] Could not create a tunnel to ${tunnelRemoteHost}:${tunnelRemotePort} (remote).`);
 			tunnelData.dispose();
 			throw new Error(`Could not create tunnel`);

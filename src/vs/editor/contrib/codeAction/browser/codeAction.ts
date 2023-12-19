@@ -48,6 +48,11 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	}
 
 	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+		if (a.isAI && !b.isAI) {
+			return 1;
+		} else if (!a.isAI && b.isAI) {
+			return -1;
+		}
 		if (isNonEmptyArray(a.diagnostics)) {
 			return isNonEmptyArray(b.diagnostics) ? ManagedCodeActionSet.codeActionsPreferredComparator(a, b) : -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
@@ -76,6 +81,14 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	public get hasAutoFix() {
 		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
 	}
+
+	public get hasAIFix() {
+		return this.validActions.some(({ action: fix }) => !!fix.isAI);
+	}
+
+	public get allAIFixes() {
+		return this.validActions.every(({ action: fix }) => !!fix.isAI);
+	}
 }
 
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
@@ -89,6 +102,10 @@ export async function getCodeActions(
 	token: CancellationToken,
 ): Promise<CodeActionSet> {
 	const filter = trigger.filter || {};
+	const notebookFilter: CodeActionFilter = {
+		...filter,
+		excludes: [...(filter.excludes || []), CodeActionKind.Notebook],
+	};
 
 	const codeActionContext: languages.CodeActionContext = {
 		only: filter.include?.value,
@@ -96,7 +113,9 @@ export async function getCodeActions(
 	};
 
 	const cts = new TextModelCancellationTokenSource(model, token);
-	const providers = getCodeActionProviders(registry, model, filter);
+	// if the trigger is auto (autosave, lightbulb, etc), we should exclude notebook codeActions
+	const excludeNotebookCodeActions = (trigger.type === languages.CodeActionTriggerType.Auto);
+	const providers = getCodeActionProviders(registry, model, (excludeNotebookCodeActions) ? notebookFilter : filter);
 
 	const disposables = new DisposableStore();
 	const promises = providers.map(async provider => {

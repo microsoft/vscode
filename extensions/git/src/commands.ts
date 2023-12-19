@@ -107,13 +107,24 @@ class BranchDeleteItem implements QuickPickItem {
 
 class MergeItem implements QuickPickItem {
 
-	get label(): string { return this.ref.name || ''; }
-	get description(): string { return this.ref.name || ''; }
+	private shortCommit: string;
 
-	constructor(protected ref: Ref) { }
+	get label(): string {
+		return this.ref.type === RefType.RemoteHead ?
+			`$(cloud) ${this.ref.name ?? this.shortCommit}` :
+			`${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name ?? this.shortCommit}`;
+	}
 
-	async run(repository: Repository): Promise<void> {
-		await repository.merge(this.ref.name! || this.ref.commit!);
+	get description(): string {
+		return this.ref.type === RefType.RemoteHead ? l10n.t('Remote branch at {0}', this.shortCommit) : this.shortCommit;
+	}
+
+	constructor(private readonly repository: Repository, private readonly ref: Ref) {
+		this.shortCommit = (this.ref.commit ?? '').substring(0, 8);
+	}
+
+	async run(): Promise<void> {
+		await this.repository.merge(this.ref.name ?? this.ref.commit!);
 	}
 }
 
@@ -277,6 +288,10 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as CheckoutProcessor[];
 
 	for (const ref of refs) {
+		if (!detached && ref.name === 'origin/HEAD') {
+			continue;
+		}
+
 		for (const processor of processors) {
 			processor.onRef(ref);
 		}
@@ -450,7 +465,7 @@ export class CommandCenter {
 
 	@command('git.refresh', { repository: true })
 	async refresh(repository: Repository): Promise<void> {
-		await repository.status();
+		await repository.refresh();
 	}
 
 	@command('git.openResource')
@@ -749,16 +764,29 @@ export class CommandCenter {
 		const ref = selection.repository.HEAD?.upstream?.name;
 
 		if (uri !== undefined) {
-			// Launch desktop client if currently in web
-			if (env.uiKind === UIKind.Web) {
-				let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+			let target = `${env.uriScheme}://vscode.git/clone?url=${encodeURIComponent(uri)}`;
+			const isWeb = env.uiKind === UIKind.Web;
+			const isRemote = env.remoteName !== undefined;
+
+			if (isWeb || isRemote) {
 				if (ref !== undefined) {
 					target += `&ref=${encodeURIComponent(ref)}`;
 				}
-				return Uri.parse(target);
+
+				if (isWeb) {
+					// Launch desktop client if currently in web
+					return Uri.parse(target);
+				}
+
+				if (isRemote) {
+					// If already in desktop client but in a remote window, we need to force a new window
+					// so that the git extension can access the local filesystem for cloning
+					target += `&windowId=_blank`;
+					return Uri.parse(target);
+				}
 			}
 
-			// If already in desktop client, directly clone
+			// Otherwise, directly clone
 			void this.clone(uri, undefined, { ref: ref });
 		}
 	}
@@ -848,6 +876,7 @@ export class CommandCenter {
 		const choices = [open, openNewWindow];
 
 		if (!askToOpen) {
+			await this.model.openRepository(repositoryPath);
 			return;
 		}
 
@@ -932,6 +961,16 @@ export class CommandCenter {
 	@command('git.close', { repository: true })
 	async close(repository: Repository): Promise<void> {
 		this.model.close(repository);
+	}
+
+	@command('git.closeOtherRepositories', { repository: true })
+	async closeOtherRepositories(repository: Repository): Promise<void> {
+		for (const r of this.model.repositories) {
+			if (r === repository) {
+				continue;
+			}
+			this.model.close(r);
+		}
 	}
 
 	@command('git.openFile')
@@ -1770,12 +1809,17 @@ export class CommandCenter {
 				const message = documents.length === 1
 					? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
 					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
-				const saveAndCommit = l10n.t('Save All & Commit');
-				const commit = l10n.t('Commit Staged Changes');
+				const saveAndCommit = l10n.t('Save All & Commit Changes');
+				const commit = l10n.t('Commit Changes');
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
 					await Promise.all(documents.map(d => d.save()));
+
+					// After saving the dirty documents, if there are any documents that are part of the
+					// index group we have to add them back in order for the saved changes to be committed
+					documents = documents
+						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
 					await repository.add(documents.map(d => d.uri));
 
 					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
@@ -1966,6 +2010,16 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { postCommitCommand });
 	}
 
+	@command('git.commitAmend', { repository: true })
+	async commitAmend(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true });
+	}
+
+	@command('git.commitSigned', { repository: true })
+	async commitSigned(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true });
+	}
+
 	@command('git.commitStaged', { repository: true })
 	async commitStaged(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false });
@@ -2082,6 +2136,16 @@ export class CommandCenter {
 	@command('git.commitStagedSignedNoVerify', { repository: true })
 	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
 		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitAmendNoVerify', { repository: true })
+	async commitAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { amend: true, noVerify: true });
+	}
+
+	@command('git.commitSignedNoVerify', { repository: true })
+	async commitSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { signoff: true, noVerify: true });
 	}
 
 	@command('git.commitStagedAmendNoVerify', { repository: true })
@@ -2444,11 +2508,11 @@ export class CommandCenter {
 
 			const heads = refs.filter(ref => ref.type === RefType.Head)
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(repository, ref as Branch));
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref as Branch));
+				.map(ref => new MergeItem(repository, ref as Branch));
 
 			return [...heads, ...remoteHeads];
 		};
@@ -2460,7 +2524,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await choice.run(repository);
+		await choice.run();
 	}
 
 	@command('git.mergeAbort', { repository: true })
@@ -2751,7 +2815,9 @@ export class CommandCenter {
 				return;
 			}
 
-			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
+			const useForcePushWithLease = config.get<boolean>('useForcePushWithLease') === true;
+			const useForcePushIfIncludes = config.get<boolean>('useForcePushIfIncludes') === true;
+			forcePushMode = useForcePushWithLease ? useForcePushIfIncludes ? ForcePushMode.ForceWithLeaseIfIncludes : ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
 				const message = l10n.t('You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?');
@@ -3220,18 +3286,21 @@ export class CommandCenter {
 	}
 
 	@command('git.stash', { repository: true })
-	async stash(repository: Repository): Promise<void> {
-		await this._stash(repository);
+	async stash(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository);
+		return result;
 	}
 
 	@command('git.stashStaged', { repository: true })
-	async stashStaged(repository: Repository): Promise<void> {
-		await this._stash(repository, false, true);
+	async stashStaged(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, false, true);
+		return result;
 	}
 
 	@command('git.stashIncludeUntracked', { repository: true })
-	async stashIncludeUntracked(repository: Repository): Promise<void> {
-		await this._stash(repository, true);
+	async stashIncludeUntracked(repository: Repository): Promise<boolean> {
+		const result = await this._stash(repository, true);
+		return result;
 	}
 
 	@command('git.stashPop', { repository: true })
@@ -3379,6 +3448,54 @@ export class CommandCenter {
 			command: 'vscode.diff',
 			title: l10n.t('Open Comparison'),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
+		};
+	}
+
+	@command('git.timeline.openCommit', { repository: false })
+	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		console.log('timelineOpenCommit', item);
+		if (!GitTimelineItem.is(item)) {
+			return;
+		}
+
+		const cmd = await this._resolveTimelineOpenCommitCommand(
+			item, uri,
+			{
+				preserveFocus: true,
+				preview: true,
+				viewColumn: ViewColumn.Active
+			},
+		);
+		if (cmd === undefined) {
+			return undefined;
+		}
+
+		return commands.executeCommand(cmd.command, ...(cmd.arguments ?? []));
+	}
+
+	private async _resolveTimelineOpenCommitCommand(item: TimelineItem, uri: Uri | undefined, options?: TextDocumentShowOptions): Promise<Command | undefined> {
+		if (uri === undefined || uri === null || !GitTimelineItem.is(item)) {
+			return undefined;
+		}
+
+		const repository = await this.model.getRepository(uri.fsPath);
+		if (!repository) {
+			return undefined;
+		}
+
+		const commit = await repository.getCommit(item.ref);
+		const commitFiles = await repository.getCommitFiles(item.ref);
+
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+		for (const commitFile of commitFiles) {
+			const commitFileUri = Uri.file(path.join(repository.root, commitFile));
+			args.push([commitFileUri, toGitUri(commitFileUri, item.previousRef), toGitUri(commitFileUri, item.ref)]);
+		}
+
+		return {
+			command: 'vscode.changes',
+			title: l10n.t('Open Commit'),
+			arguments: [`${item.shortRef} - ${commit.message}`, args, options]
 		};
 	}
 
@@ -3539,6 +3656,26 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.viewChanges', { repository: true })
+	viewChanges(repository: Repository): void {
+		this._viewChanges('Git: Changes', repository.workingTreeGroup.resourceStates);
+	}
+
+	@command('git.viewStagedChanges', { repository: true })
+	viewStagedChanges(repository: Repository): void {
+		this._viewChanges('Git: Staged Changes', repository.indexGroup.resourceStates);
+	}
+
+	private _viewChanges(title: string, resources: Resource[]): void {
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+
+		for (const resource of resources) {
+			args.push([resource.resourceUri, resource.leftUri, resource.rightUri]);
+		}
+
+		commands.executeCommand('vscode.changes', title, args);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
@@ -3619,6 +3756,10 @@ export class CommandCenter {
 						break;
 					case GitErrorCodes.PushRejected:
 						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
+						break;
+					case GitErrorCodes.ForcePushWithLeaseRejected:
+					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
+						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
 						break;
 					case GitErrorCodes.Conflict:
 						message = l10n.t('There are merge conflicts. Resolve them before committing.');

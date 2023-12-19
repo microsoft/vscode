@@ -5,7 +5,7 @@
 
 import { decodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { Codicon } from 'vs/base/common/codicons';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -38,7 +38,7 @@ export interface IEditSessionsStorageService {
 	lastReadResources: Map<SyncResource, { ref: string; content: string }>;
 	lastWrittenResources: Map<SyncResource, { ref: string; content: string }>;
 
-	initialize(silent?: boolean): Promise<boolean>;
+	initialize(reason: 'read' | 'write', silent?: boolean): Promise<boolean>;
 	read(resource: SyncResource, ref: string | undefined): Promise<{ ref: string; content: string } | undefined>;
 	write(resource: SyncResource, content: string | EditSession): Promise<string>;
 	delete(resource: SyncResource, ref: string | null): Promise<void>;
@@ -98,7 +98,7 @@ export const EDIT_SESSIONS_PENDING = new RawContextKey<boolean>(EDIT_SESSIONS_PE
 
 export const EDIT_SESSIONS_CONTAINER_ID = 'workbench.view.editSessions';
 export const EDIT_SESSIONS_DATA_VIEW_ID = 'workbench.views.editSessions.data';
-export const EDIT_SESSIONS_TITLE = localize('cloud changes', 'Cloud Changes');
+export const EDIT_SESSIONS_TITLE: ILocalizedString = localize2('cloud changes', 'Cloud Changes');
 
 export const EDIT_SESSIONS_VIEW_ICON = registerIcon('edit-sessions-view-icon', Codicon.cloudDownload, localize('editSessionViewIcon', 'View icon of the cloud changes view.'));
 

@@ -135,6 +135,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		let capabilities = EditorInputCapabilities.None;
 
 		capabilities |= EditorInputCapabilities.CanDropIntoEditor;
+		capabilities |= EditorInputCapabilities.AuxWindowUnsupported;
 
 		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
 			capabilities |= EditorInputCapabilities.Singleton;

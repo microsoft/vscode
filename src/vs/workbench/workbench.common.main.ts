@@ -25,6 +25,7 @@ import 'vs/workbench/browser/actions/windowActions';
 import 'vs/workbench/browser/actions/workspaceActions';
 import 'vs/workbench/browser/actions/workspaceCommands';
 import 'vs/workbench/browser/actions/quickAccessActions';
+import 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 //#endregion
 
@@ -41,8 +42,8 @@ import 'vs/workbench/api/browser/viewsExtensionPoint';
 //#region --- workbench parts
 
 import 'vs/workbench/browser/parts/editor/editor.contribution';
-import 'vs/workbench/browser/parts/editor/editorPart';
-import 'vs/workbench/browser/parts/paneCompositePart';
+import 'vs/workbench/browser/parts/editor/editorParts';
+import 'vs/workbench/browser/parts/paneCompositePartService';
 import 'vs/workbench/browser/parts/banner/bannerPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import 'vs/workbench/browser/parts/views/viewsService';
@@ -67,6 +68,8 @@ import 'vs/workbench/services/configuration/common/jsonEditingService';
 import 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import 'vs/workbench/services/editor/browser/editorService';
 import 'vs/workbench/services/editor/browser/editorResolverService';
+import 'vs/workbench/services/aiEmbeddingVector/common/aiEmbeddingVectorService';
+import 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformationService';
 import 'vs/workbench/services/history/browser/historyService';
 import 'vs/workbench/services/activity/browser/activityService';
 import 'vs/workbench/services/keybinding/browser/keybindingService';
@@ -174,6 +177,10 @@ import 'vs/workbench/contrib/contextmenu/browser/contextmenu.contribution';
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
 
+// Speech
+import 'vs/workbench/contrib/speech/common/speech.contribution';
+
+// Chat
 import 'vs/workbench/contrib/chat/browser/chat.contribution';
 import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
 
@@ -224,6 +231,12 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/browser/mergeEditor.contribution';
+
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
+
+// Mapped Edits
+import 'vs/workbench/contrib/mappedEdits/common/mappedEdits.contribution';
 
 // Commands
 import 'vs/workbench/contrib/commands/common/commands.contribution';
@@ -325,9 +338,6 @@ import 'vs/workbench/contrib/languageDetection/browser/languageDetection.contrib
 // Language Status
 import 'vs/workbench/contrib/languageStatus/browser/languageStatus.contribution';
 
-// Send a Smile
-import 'vs/workbench/contrib/feedback/browser/feedback.contribution';
-
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/browser/userDataSync.contribution';
 
@@ -369,5 +379,8 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
+
+// Account Entitlements
+import 'vs/workbench/contrib/accountEntitlements/browser/accountsEntitlements.contribution';
 
 //#endregion

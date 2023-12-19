@@ -18,7 +18,6 @@ import * as env from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -55,6 +54,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
 	glyphMargin: { position: GlyphMarginLane.Right },
+	glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointHelper', "Click to add a breakpoint.")),
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -95,7 +95,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 			if (message) {
 				if (!langId) {
 					// Lazily compute this, only if needed for some debug adapter
-					langId = withNullAsUndefined(languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri));
+					langId = languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri) ?? undefined;
 				}
 				return langId && dbg.interestedInLanguage(langId) ? message : undefined;
 			}
@@ -475,7 +475,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold') || clz.includes('codicon-inline-chat'))) {
 					return false;
 				}
 			}
@@ -727,11 +727,10 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
-			const event = new StandardMouseEvent(e);
-			const anchor = { x: event.posx, y: event.posy };
+			const event = new StandardMouseEvent(dom.getWindow(this.domNode), e);
 			const actions = this.getContextMenuActions();
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				getActionsContext: () => this.breakpoint,
 				onHide: () => disposeIfDisposable(actions)

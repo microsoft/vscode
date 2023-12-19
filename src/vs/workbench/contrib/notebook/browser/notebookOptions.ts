@@ -32,6 +32,33 @@ export function getEditorTopPadding() {
 
 export const OutputInnerContainerTopPadding = 4;
 
+export interface NotebookDisplayOptions {
+	showCellStatusBar: ShowCellStatusBarType;
+	cellToolbarLocation: string | { [key: string]: string };
+	cellToolbarInteraction: string;
+	compactView: boolean;
+	focusIndicator: 'border' | 'gutter';
+	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
+	insertToolbarAlignment: 'left' | 'center';
+	globalToolbar: boolean;
+	stickyScroll: boolean;
+	consolidatedOutputButton: boolean;
+	consolidatedRunButton: boolean;
+	showFoldingControls: 'always' | 'never' | 'mouseover';
+	dragAndDropEnabled: boolean;
+	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
+	outputScrolling: boolean;
+	outputWordWrap: boolean;
+	outputLineLimit: number;
+	outputLinkifyFilePaths: boolean;
+	fontSize: number;
+	outputFontSize: number;
+	outputFontFamily: string;
+	outputLineHeight: number;
+	markupFontSize: number;
+	editorOptionsCustomizations: any | undefined;
+}
+
 export interface NotebookLayoutConfiguration {
 	cellRightMargin: number;
 	cellRunGutter: number;
@@ -45,38 +72,14 @@ export interface NotebookLayoutConfiguration {
 	markdownCellBottomMargin: number;
 	markdownPreviewPadding: number;
 	markdownFoldHintHeight: number;
-	// bottomToolbarGap: number;
-	// bottomToolbarHeight: number;
 	editorToolbarHeight: number;
 	editorTopPadding: number;
 	editorBottomPadding: number;
 	editorBottomPaddingWithoutStatusBar: number;
 	collapsedIndicatorHeight: number;
-	showCellStatusBar: ShowCellStatusBarType;
 	cellStatusBarHeight: number;
-	cellToolbarLocation: string | { [key: string]: string };
-	cellToolbarInteraction: string;
-	compactView: boolean;
-	focusIndicator: 'border' | 'gutter';
-	insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden';
-	insertToolbarAlignment: 'left' | 'center';
-	globalToolbar: boolean;
-	consolidatedOutputButton: boolean;
-	consolidatedRunButton: boolean;
-	showFoldingControls: 'always' | 'never' | 'mouseover';
-	dragAndDropEnabled: boolean;
-	fontSize: number;
-	outputFontSize: number;
-	outputFontFamily: string;
-	outputLineHeight: number;
-	markupFontSize: number;
 	focusIndicatorLeftMargin: number;
-	editorOptionsCustomizations: any | undefined;
 	focusIndicatorGap: number;
-	interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells;
-	outputScrolling: boolean;
-	outputWordWrap: boolean;
-	outputLineLimit: number;
 }
 
 export interface NotebookOptionsChangeEvent {
@@ -89,6 +92,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly insertToolbarPosition?: boolean;
 	readonly insertToolbarAlignment?: boolean;
 	readonly globalToolbar?: boolean;
+	readonly stickyScroll?: boolean;
 	readonly showFoldingControls?: boolean;
 	readonly consolidatedOutputButton?: boolean;
 	readonly consolidatedRunButton?: boolean;
@@ -103,6 +107,7 @@ export interface NotebookOptionsChangeEvent {
 	readonly outputLineHeight?: boolean;
 	readonly outputWordWrap?: boolean;
 	readonly outputScrolling?: boolean;
+	readonly outputLinkifyFilePaths?: boolean;
 }
 
 const defaultConfigConstants = Object.freeze({
@@ -126,7 +131,7 @@ const compactConfigConstants = Object.freeze({
 });
 
 export class NotebookOptions extends Disposable {
-	private _layoutConfiguration: NotebookLayoutConfiguration;
+	private _layoutConfiguration: NotebookLayoutConfiguration & NotebookDisplayOptions;
 	protected readonly _onDidChangeOptions = this._register(new Emitter<NotebookOptionsChangeEvent>());
 	readonly onDidChangeOptions = this._onDidChangeOptions.event;
 
@@ -134,11 +139,12 @@ export class NotebookOptions extends Disposable {
 		private readonly configurationService: IConfigurationService,
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		private isReadonly: boolean,
-		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; dragAndDropEnabled: boolean }
+		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScroll: boolean; dragAndDropEnabled: boolean }
 	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);
 		const globalToolbar = overrides?.globalToolbar ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.globalToolbar) ?? true;
+		const stickyScroll = overrides?.stickyScroll ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.stickyScroll) ?? false;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(NotebookSetting.consolidatedRunButton) ?? false;
 		const dragAndDropEnabled = overrides?.dragAndDropEnabled ?? this.configurationService.getValue<boolean | undefined>(NotebookSetting.dragAndDropEnabled) ?? true;
@@ -195,6 +201,7 @@ export class NotebookOptions extends Disposable {
 		const outputLineHeight = this._computeOutputLineHeight(outputLineHeightSettingValue, outputFontSize);
 		const outputWordWrap = this.configurationService.getValue<boolean>(NotebookSetting.outputWordWrap);
 		const outputLineLimit = this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30;
+		const linkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths) ?? true;
 
 		this._layoutConfiguration = {
 			...(compactView ? compactConfigConstants : defaultConfigConstants),
@@ -213,6 +220,7 @@ export class NotebookOptions extends Disposable {
 			collapsedIndicatorHeight: 28,
 			showCellStatusBar,
 			globalToolbar,
+			stickyScroll,
 			consolidatedOutputButton,
 			consolidatedRunButton,
 			dragAndDropEnabled,
@@ -234,7 +242,8 @@ export class NotebookOptions extends Disposable {
 			markdownFoldHintHeight: 22,
 			outputScrolling: outputScrolling,
 			outputWordWrap: outputWordWrap,
-			outputLineLimit: outputLineLimit
+			outputLineLimit: outputLineLimit,
+			outputLinkifyFilePaths: linkifyFilePaths
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -300,7 +309,7 @@ export class NotebookOptions extends Disposable {
 	}
 
 	private _computeOutputLineHeight(lineHeight: number, outputFontSize: number): number {
-		const minimumLineHeight = 8;
+		const minimumLineHeight = 9;
 
 		if (lineHeight === 0) {
 			// use editor line height
@@ -335,6 +344,7 @@ export class NotebookOptions extends Disposable {
 		const insertToolbarPosition = e.affectsConfiguration(NotebookSetting.insertToolbarLocation);
 		const insertToolbarAlignment = e.affectsConfiguration(NotebookSetting.experimentalInsertToolbarAlignment);
 		const globalToolbar = e.affectsConfiguration(NotebookSetting.globalToolbar);
+		const stickyScroll = e.affectsConfiguration(NotebookSetting.stickyScroll);
 		const consolidatedOutputButton = e.affectsConfiguration(NotebookSetting.consolidatedOutputButton);
 		const consolidatedRunButton = e.affectsConfiguration(NotebookSetting.consolidatedRunButton);
 		const showFoldingControls = e.affectsConfiguration(NotebookSetting.showFoldingControls);
@@ -349,6 +359,7 @@ export class NotebookOptions extends Disposable {
 		const outputLineHeight = e.affectsConfiguration(NotebookSetting.outputLineHeight);
 		const outputScrolling = e.affectsConfiguration(NotebookSetting.outputScrolling);
 		const outputWordWrap = e.affectsConfiguration(NotebookSetting.outputWordWrap);
+		const outputLinkifyFilePaths = e.affectsConfiguration(NotebookSetting.LinkifyOutputFilePaths);
 
 		if (
 			!cellStatusBarVisibility
@@ -359,6 +370,7 @@ export class NotebookOptions extends Disposable {
 			&& !insertToolbarPosition
 			&& !insertToolbarAlignment
 			&& !globalToolbar
+			&& !stickyScroll
 			&& !consolidatedOutputButton
 			&& !consolidatedRunButton
 			&& !showFoldingControls
@@ -372,7 +384,8 @@ export class NotebookOptions extends Disposable {
 			&& !interactiveWindowCollapseCodeCells
 			&& !outputLineHeight
 			&& !outputScrolling
-			&& !outputWordWrap) {
+			&& !outputWordWrap
+			&& !outputLinkifyFilePaths) {
 			return;
 		}
 
@@ -414,6 +427,10 @@ export class NotebookOptions extends Disposable {
 			configuration.globalToolbar = this.configurationService.getValue<boolean>(NotebookSetting.globalToolbar) ?? true;
 		}
 
+		if (stickyScroll && this.overrides?.stickyScroll === undefined) {
+			configuration.stickyScroll = this.configurationService.getValue<boolean>(NotebookSetting.stickyScroll) ?? false;
+		}
+
 		if (consolidatedOutputButton) {
 			configuration.consolidatedOutputButton = this.configurationService.getValue<boolean>(NotebookSetting.consolidatedOutputButton) ?? true;
 		}
@@ -434,7 +451,7 @@ export class NotebookOptions extends Disposable {
 			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		}
 
-		if (outputFontSize) {
+		if (outputFontSize || fontSize) {
 			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || configuration.fontSize;
 		}
 
@@ -467,6 +484,10 @@ export class NotebookOptions extends Disposable {
 			configuration.outputScrolling = this.configurationService.getValue<boolean>(NotebookSetting.outputScrolling);
 		}
 
+		if (outputLinkifyFilePaths) {
+			configuration.outputLinkifyFilePaths = this.configurationService.getValue<boolean>(NotebookSetting.LinkifyOutputFilePaths);
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -479,6 +500,7 @@ export class NotebookOptions extends Disposable {
 			insertToolbarPosition,
 			insertToolbarAlignment,
 			globalToolbar,
+			stickyScroll,
 			showFoldingControls,
 			consolidatedOutputButton,
 			consolidatedRunButton,
@@ -492,7 +514,8 @@ export class NotebookOptions extends Disposable {
 			interactiveWindowCollapseCodeCells,
 			outputLineHeight,
 			outputScrolling,
-			outputWordWrap
+			outputWordWrap,
+			outputLinkifyFilePaths: outputLinkifyFilePaths
 		});
 	}
 
@@ -525,8 +548,20 @@ export class NotebookOptions extends Disposable {
 			};
 	}
 
-	getLayoutConfiguration(): NotebookLayoutConfiguration {
+	getLayoutConfiguration(): NotebookLayoutConfiguration & NotebookDisplayOptions {
 		return this._layoutConfiguration;
+	}
+
+	getDisplayOptions(): NotebookDisplayOptions {
+		return this._layoutConfiguration;
+	}
+
+	getCellEditorContainerLeftMargin() {
+		const {
+			codeCellLeftMargin,
+			cellRunGutter
+		} = this._layoutConfiguration;
+		return codeCellLeftMargin + cellRunGutter;
 	}
 
 	computeCollapsedMarkdownCellHeight(viewType: string): number {
@@ -689,6 +724,7 @@ export class NotebookOptions extends Disposable {
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
+			outputLinkifyFilePaths: this._layoutConfiguration.outputLinkifyFilePaths,
 		};
 	}
 
@@ -710,6 +746,7 @@ export class NotebookOptions extends Disposable {
 			outputScrolling: this._layoutConfiguration.outputScrolling,
 			outputWordWrap: this._layoutConfiguration.outputWordWrap,
 			outputLineLimit: this._layoutConfiguration.outputLineLimit,
+			outputLinkifyFilePaths: false
 		};
 	}
 

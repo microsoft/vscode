@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { HistoryNavigator, HistoryNavigator2 } from 'vs/base/common/history';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('History Navigator', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('create reduces the input to limit', () => {
 		const testObject = new HistoryNavigator(['1', '2', '3', '4'], 2);
@@ -181,6 +184,8 @@ suite('History Navigator', () => {
 
 suite('History Navigator 2', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('constructor', () => {
 		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
 
@@ -267,6 +272,23 @@ suite('History Navigator 2', () => {
 
 		assert.strictEqual(testObject.previous(), '3');
 		assert.strictEqual(testObject.previous(), '1');
+	});
+
+	test('prepend', () => {
+		const testObject = new HistoryNavigator2(['1', '2', '3', '4']);
+		assert.strictEqual(testObject.current(), '4');
+		assert.ok(testObject.isAtEnd());
+		assert.deepStrictEqual(Array.from(testObject), ['1', '2', '3', '4']);
+
+		testObject.prepend('0');
+		assert.strictEqual(testObject.current(), '4');
+		assert.ok(testObject.isAtEnd());
+		assert.deepStrictEqual(Array.from(testObject), ['0', '1', '2', '3', '4']);
+
+		testObject.prepend('2');
+		assert.strictEqual(testObject.current(), '4');
+		assert.ok(testObject.isAtEnd());
+		assert.deepStrictEqual(Array.from(testObject), ['0', '1', '2', '3', '4']);
 	});
 
 });

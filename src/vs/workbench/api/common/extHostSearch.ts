@@ -14,10 +14,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
+	doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats>;
 }
 
 export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
@@ -86,6 +88,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		} else {
 			throw new Error('unknown provider: ' + handle);
 		}
+	}
+
+	async doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats> {
+		return { messages: [] };
 	}
 
 	$clearCache(cacheKey: string): Promise<void> {

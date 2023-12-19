@@ -7,12 +7,17 @@ import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
 import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('TextAreaInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface OutgoingType {
 		type: 'type';
@@ -87,6 +92,8 @@ suite('TextAreaInput', () => {
 
 			private _state: IRecordedTextareaState;
 			private _currDispatchingEvent: IRecordedEvent | null;
+
+			public ownerDocument = document;
 
 			constructor() {
 				super();
@@ -198,7 +205,7 @@ suite('TextAreaInput', () => {
 
 			public hasFocus(): boolean { return true; }
 		});
-		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser));
+		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
 
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();
@@ -228,6 +235,8 @@ suite('TextAreaInput', () => {
 			wrapper._dispatchRecordedEvent(event);
 			await yieldNow();
 		}
+
+		disposables.dispose();
 
 		return outgoingEvents;
 	}

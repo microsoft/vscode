@@ -35,7 +35,7 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 	private readonly _disposables = new DisposableStore();
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _delayer = new ThrottledDelayer(1000);
-	private _renderDisposables = new DisposableStore();
+	private readonly _renderDisposables = new DisposableStore();
 
 	constructor(
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,

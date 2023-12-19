@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike } from 'vs/base/browser/dom';
+import { $, append, createStyleSheet, EventHelper, EventLike, getWindow } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
@@ -173,16 +173,18 @@ interface IPointerEventFactory {
 
 class MouseEventFactory implements IPointerEventFactory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
+
+	constructor(private el: HTMLElement) { }
 
 	@memoize
 	get onPointerMove(): Event<PointerEvent> {
-		return this.disposables.add(new DomEmitter(window, 'mousemove')).event;
+		return this.disposables.add(new DomEmitter(getWindow(this.el), 'mousemove')).event;
 	}
 
 	@memoize
 	get onPointerUp(): Event<PointerEvent> {
-		return this.disposables.add(new DomEmitter(window, 'mouseup')).event;
+		return this.disposables.add(new DomEmitter(getWindow(this.el), 'mouseup')).event;
 	}
 
 	dispose(): void {
@@ -192,7 +194,7 @@ class MouseEventFactory implements IPointerEventFactory {
 
 class GestureEventFactory implements IPointerEventFactory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	@memoize
 	get onPointerMove(): Event<PointerEvent> {
@@ -425,7 +427,7 @@ export class Sash extends Disposable {
 		}
 
 		const onMouseDown = this._register(new DomEmitter(this.el, 'mousedown')).event;
-		this._register(onMouseDown(e => this.onPointerStart(e, new MouseEventFactory()), this));
+		this._register(onMouseDown(e => this.onPointerStart(e, new MouseEventFactory(container)), this));
 		const onMouseDoubleClick = this._register(new DomEmitter(this.el, 'dblclick')).event;
 		this._register(onMouseDoubleClick(this.onPointerDoublePress, this));
 		const onMouseEnter = this._register(new DomEmitter(this.el, 'mouseenter')).event;
@@ -514,7 +516,7 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		const iframes = document.getElementsByTagName('iframe');
+		const iframes = this.el.ownerDocument.getElementsByTagName('iframe');
 		for (const iframe of iframes) {
 			iframe.classList.add(PointerEventsDisabledCssClass); // disable mouse events on iframes as long as we drag the sash
 		}

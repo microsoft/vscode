@@ -18,13 +18,14 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { Emitter } from 'vs/base/common/event';
 import { deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Schemas } from 'vs/base/common/network';
 
 export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarter {
 
 	private utilityProcess: UtilityProcess | undefined = undefined;
 
-	private readonly _onBeforeWindowConnection = new Emitter<void>();
-	readonly onBeforeWindowConnection = this._onBeforeWindowConnection.event;
+	private readonly _onRequestConnection = new Emitter<void>();
+	readonly onRequestConnection = this._onRequestConnection.event;
 	private readonly _onWillShutdown = new Emitter<void>();
 	readonly onWillShutdown = this._onWillShutdown.event;
 
@@ -58,7 +59,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 			type: 'ptyHost',
 			entryPoint: 'vs/platform/terminal/node/ptyHostMain',
 			execArgv,
-			args: ['--logsPath', this._environmentMainService.logsHome.fsPath],
+			args: ['--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath],
 			env: this._createPtyHostConfiguration()
 		});
 
@@ -104,7 +105,7 @@ export class ElectronPtyHostStarter extends Disposable implements IPtyHostStarte
 	}
 
 	private _onWindowConnection(e: IpcMainEvent, nonce: string) {
-		this._onBeforeWindowConnection.fire();
+		this._onRequestConnection.fire();
 
 		const port = this.utilityProcess!.connect();
 

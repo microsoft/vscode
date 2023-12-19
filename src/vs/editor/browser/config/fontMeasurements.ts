@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
+import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
@@ -50,7 +51,7 @@ export class FontMeasurementsImpl extends Disposable {
 
 	public override dispose(): void {
 		if (this._evictUntrustedReadingsTimeout !== -1) {
-			window.clearTimeout(this._evictUntrustedReadingsTimeout);
+			clearTimeout(this._evictUntrustedReadingsTimeout);
 			this._evictUntrustedReadingsTimeout = -1;
 		}
 		super.dispose();
@@ -69,7 +70,7 @@ export class FontMeasurementsImpl extends Disposable {
 
 		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
 			// Try reading again after some time
-			this._evictUntrustedReadingsTimeout = window.setTimeout(() => {
+			this._evictUntrustedReadingsTimeout = mainWindow.setTimeout(() => {
 				this._evictUntrustedReadingsTimeout = -1;
 				this._evictUntrustedReadings();
 			}, 5000);

@@ -191,6 +191,8 @@ export function getVscodeDevHost(): string {
 }
 
 export async function ensurePublished(repository: Repository, file: vscode.Uri) {
+	await repository.status();
+
 	if ((repository.state.HEAD?.type === RefType.Head || repository.state.HEAD?.type === RefType.Tag)
 		// If HEAD is not published, make sure it is
 		&& !repository?.state.HEAD?.upstream

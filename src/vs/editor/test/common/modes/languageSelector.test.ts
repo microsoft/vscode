@@ -5,9 +5,12 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
 
 suite('LanguageSelector', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const model = {
 		language: 'farboo',

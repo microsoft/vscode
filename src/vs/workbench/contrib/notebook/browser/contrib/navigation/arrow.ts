@@ -110,7 +110,13 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 					),
 					primary: KeyCode.DownArrow,
 					weight: KeybindingWeight.EditorCore
-				}
+				},
+				{
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			]
 		});
 	}
@@ -181,7 +187,13 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 					),
 					primary: KeyCode.UpArrow,
 					weight: KeybindingWeight.WorkbenchContrib, // markdown keybinding, focus on list: higher weight to override list.focusDown
-				}
+				},
+				{
+					when: NOTEBOOK_EDITOR_FOCUSED,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			],
 		});
 	}
@@ -431,7 +443,7 @@ registerAction2(class extends NotebookCellAction {
 
 function getPageSize(context: INotebookCellActionContext) {
 	const editor = context.notebookEditor;
-	const layoutInfo = editor._getViewModel().layoutInfo;
+	const layoutInfo = editor.getViewModel().layoutInfo;
 	const lineHeight = layoutInfo?.fontInfo.lineHeight || 17;
 	return Math.max(1, Math.floor((layoutInfo?.height || 0) / lineHeight) - 2);
 }

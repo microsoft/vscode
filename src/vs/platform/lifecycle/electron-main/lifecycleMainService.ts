@@ -68,6 +68,20 @@ export interface ShutdownEvent {
 	join(id: string, promise: Promise<void>): void;
 }
 
+export interface IRelaunchHandler {
+
+	/**
+	 * Allows a handler to deal with relaunching the application. The return
+	 * value indicates if the relaunch is handled or not.
+	 */
+	handleRelaunch(options?: IRelaunchOptions): boolean;
+}
+
+export interface IRelaunchOptions {
+	readonly addArgs?: string[];
+	readonly removeArgs?: string[];
+}
+
 export interface ILifecycleMainService {
 
 	readonly _serviceBrand: undefined;
@@ -130,7 +144,12 @@ export interface ILifecycleMainService {
 	/**
 	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
 	 */
-	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
+	relaunch(options?: IRelaunchOptions): Promise<void>;
+
+	/**
+	 * Sets a custom handler for relaunching the application.
+	 */
+	setRelaunchHandler(handler: IRelaunchHandler): void;
 
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
@@ -223,6 +242,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	private readonly mapWindowIdToPendingUnload = new Map<number, Promise<boolean>>();
 
 	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
+
+	private relaunchHandler: IRelaunchHandler | undefined = undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -553,6 +574,29 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	quit(willRestart?: boolean): Promise<boolean /* veto */> {
+		return this.doQuit(willRestart).then(veto => {
+			if (!veto && willRestart) {
+				// Windows: we are about to restart and as such we need to restore the original
+				// current working directory we had on startup to get the exact same startup
+				// behaviour. As such, we briefly change back to that directory and then when
+				// Code starts it will set it back to the installation directory again.
+				try {
+					if (isWindows) {
+						const currentWorkingDir = cwd();
+						if (currentWorkingDir !== process.cwd()) {
+							process.chdir(currentWorkingDir);
+						}
+					}
+				} catch (err) {
+					this.logService.error(err);
+				}
+			}
+
+			return veto;
+		});
+	}
+
+	private doQuit(willRestart?: boolean): Promise<boolean /* veto */> {
 		this.trace(`Lifecycle#quit() - begin (willRestart: ${willRestart})`);
 
 		if (this.pendingQuitPromise) {
@@ -588,7 +632,11 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 	}
 
-	async relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
+	setRelaunchHandler(handler: IRelaunchHandler): void {
+		this.relaunchHandler = handler;
+	}
+
+	async relaunch(options?: IRelaunchOptions): Promise<void> {
 		this.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);
@@ -606,24 +654,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 
 		const quitListener = () => {
-			// Windows: we are about to restart and as such we need to restore the original
-			// current working directory we had on startup to get the exact same startup
-			// behaviour. As such, we briefly change back to that directory and then when
-			// Code starts it will set it back to the installation directory again.
-			try {
-				if (isWindows) {
-					const currentWorkingDir = cwd();
-					if (currentWorkingDir !== process.cwd()) {
-						process.chdir(currentWorkingDir);
-					}
-				}
-			} catch (err) {
-				this.logService.error(err);
+			if (!this.relaunchHandler?.handleRelaunch(options)) {
+				this.trace('Lifecycle#relaunch() - calling app.relaunch()');
+				app.relaunch({ args });
 			}
-
-			// relaunch after we are sure there is no veto
-			this.trace('Lifecycle#relaunch() - calling app.relaunch()');
-			app.relaunch({ args });
 		};
 		app.once('quit', quitListener);
 

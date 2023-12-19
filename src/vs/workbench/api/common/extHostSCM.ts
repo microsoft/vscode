@@ -11,7 +11,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { asPromise } from 'vs/base/common/async';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemGroupDto } from './extHost.protocol';
 import { sortedDiff, equals } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import type * as vscode from 'vscode';
@@ -26,10 +26,23 @@ import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
 
 type ProviderHandle = number;
 type GroupHandle = number;
 type ResourceStateHandle = number;
+
+function isUri(thing: any): thing is vscode.Uri {
+	return thing instanceof URI;
+}
+
+function uriEquals(a: vscode.Uri, b: vscode.Uri): boolean {
+	if (a.scheme === Schemas.file && b.scheme === Schemas.file && isLinux) {
+		return a.toString() === b.toString();
+	}
+
+	return a.toString().toLowerCase() === b.toString().toLowerCase();
+}
 
 function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): UriComponents | ThemeIcon | undefined {
 	if (!decorations) {
@@ -42,6 +55,19 @@ function getIconResource(decorations?: vscode.SourceControlResourceThemableDecor
 		return decorations.iconPath;
 	} else {
 		return undefined;
+	}
+}
+
+function getHistoryItemIconDto(historyItem: vscode.SourceControlHistoryItem): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
+	if (!historyItem.icon) {
+		return undefined;
+	} else if (URI.isUri(historyItem.icon)) {
+		return historyItem.icon;
+	} else if (ThemeIcon.isThemeIcon(historyItem.icon)) {
+		return historyItem.icon;
+	} else {
+		const icon = historyItem.icon as { light: URI; dark: URI };
+		return { light: icon.light, dark: icon.dark };
 	}
 }
 
@@ -137,6 +163,10 @@ function compareCommands(a: vscode.Command, b: vscode.Command): number {
 		const bArg = b.arguments[i];
 
 		if (aArg === bArg) {
+			continue;
+		}
+
+		if (isUri(aArg) && isUri(bArg) && uriEquals(aArg, bArg)) {
 			continue;
 		}
 
@@ -400,7 +430,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 
 				let command: ICommandDto | undefined;
 				if (r.command) {
-					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff') {
+					if (r.command.command === 'vscode.open' || r.command.command === 'vscode.diff' || r.command.command === 'vscode.changes') {
 						const disposables = new DisposableStore();
 						command = this._commands.converter.toInternal(r.command, disposables);
 						this._resourceStatesDisposablesMap.set(handle, disposables);
@@ -505,6 +535,31 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			quickDiffLabel = quickDiffProvider?.label;
 		}
 		this.#proxy.$updateSourceControl(this.handle, { hasQuickDiffProvider: !!quickDiffProvider, quickDiffLabel });
+	}
+
+	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
+	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
+	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
+
+	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
+		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
+		return this._historyProvider;
+	}
+
+	set historyProvider(historyProvider: vscode.SourceControlHistoryProvider | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmHistoryProvider');
+
+		this._historyProvider = historyProvider;
+		this._historyProviderDisposable.value = new DisposableStore();
+
+		this.#proxy.$updateSourceControl(this.handle, { hasHistoryProvider: !!historyProvider });
+
+		if (historyProvider) {
+			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
+				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
+				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
+			}));
+		}
 	}
 
 	private _commitTemplate: string | undefined = undefined;
@@ -881,5 +936,27 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 		this._selectedSourceControlHandle = selectedSourceControlHandle;
 		return Promise.resolve(undefined);
+	}
+
+	async $resolveHistoryItemGroupBase(sourceControlHandle: number, historyItemGroupId: string, token: CancellationToken): Promise<SCMHistoryItemGroupDto | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		return await historyProvider?.resolveHistoryItemGroupBase(historyItemGroupId, token) ?? undefined;
+	}
+
+	async $resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		return await historyProvider?.resolveHistoryItemGroupCommonAncestor(historyItemGroupId1, historyItemGroupId2, token) ?? undefined;
+	}
+
+	async $provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		const historyItems = await historyProvider?.provideHistoryItems(historyItemGroupId, options, token);
+
+		return historyItems?.map(item => ({ ...item, icon: getHistoryItemIconDto(item) })) ?? undefined;
+	}
+
+	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		return await historyProvider?.provideHistoryItemChanges(historyItemId, token) ?? undefined;
 	}
 }

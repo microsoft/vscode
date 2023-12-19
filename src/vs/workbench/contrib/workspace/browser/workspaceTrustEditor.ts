@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
+import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -716,7 +716,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				const navOrder = [this.headerContainer, this.trustedContainer, this.untrustedContainer, this.configurationContainer];
 				const currentIndex = navOrder.findIndex(element => {
-					return isAncestor(document.activeElement, element);
+					return isAncestorOfActiveElement(element);
 				});
 
 				let newIndex = currentIndex;
@@ -746,6 +746,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	override focus() {
+		super.focus();
+
 		this.rootElement.focus();
 	}
 

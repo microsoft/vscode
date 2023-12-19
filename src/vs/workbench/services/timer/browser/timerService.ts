@@ -504,7 +504,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
 			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
 			layoutService.whenRestored,									// layout restored (including visible editors resolved)
-			Promise.all(Array.from(Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values()).map(e => e.whenConnected))
+			Promise.all(Array.from(Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values()).map(e => e.whenReady))
 		]).then(() => {
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());
@@ -544,6 +544,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
+					// eslint-disable-next-line no-restricted-globals
 					postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();

@@ -7,7 +7,8 @@ import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/commo
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
-import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IOpenerService, IOpener } from 'vs/platform/opener/common/opener';
+import { matchesScheme } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -70,7 +71,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		if (result) {
 			this.logService.trace('URLService#handleURL(): handled', uri.toString(true));
 
-			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */ });
+			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */, targetWindowId: this.nativeHostService.windowId });
 		} else {
 			this.logService.trace('URLService#handleURL(): not handled', uri.toString(true));
 		}

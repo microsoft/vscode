@@ -16,7 +16,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,14 +28,14 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createEditorPart, registerTestFileEditor, TestBeforeShutdownEvent, TestEnvironmentService, TestFilesConfigurationService, TestFileService, TestTextResourceConfigurationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestWorkspace, Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
-import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -74,7 +74,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		waitForReady(): Promise<void> {
-			return super.whenReady;
+			return this.whenReady;
 		}
 
 		get pendingBackupOperationCount(): number { return this.pendingBackupOperations.size; }
@@ -82,8 +82,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		override dispose() {
 			super.dispose();
 
-			for (const [_, disposable] of this.pendingBackupOperations) {
-				disposable.dispose();
+			for (const [_, pending] of this.pendingBackupOperations) {
+				pending.cancel();
+				pending.disposable.dispose();
 			}
 		}
 
@@ -113,11 +114,10 @@ suite('WorkingCopyBackupTracker (native)', function () {
 	let workspaceBackupPath: URI;
 
 	let accessor: TestServiceAccessor;
-	let disposables: DisposableStore;
+
+	const disposables = new DisposableStore();
 
 	setup(async () => {
-		disposables = new DisposableStore();
-
 		testDir = URI.file(join(generateUuid(), 'vsctests', 'workingcopybackuptracker')).with({ scheme: Schemas.inMemory });
 		backupHome = joinPath(testDir, 'Backups');
 		const workspacesJsonPath = joinPath(backupHome, 'workspaces.json');
@@ -137,8 +137,8 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		return accessor.fileService.writeFile(workspacesJsonPath, VSBuffer.fromString(''));
 	});
 
-	teardown(async () => {
-		disposables.dispose();
+	teardown(() => {
+		disposables.clear();
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor; part: EditorPart; tracker: TestWorkingCopyBackupTracker; instantiationService: IInstantiationService; cleanup: () => Promise<void> }> {
@@ -147,22 +147,26 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const configurationService = new TestConfigurationService();
 		if (autoSaveEnabled) {
 			configurationService.setUserConfiguration('files', { autoSave: 'afterDelay', autoSaveDelay: 1 });
+		} else {
+			configurationService.setUserConfiguration('files', { autoSave: 'off', autoSaveDelay: 1 });
 		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
-		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
+		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
-			new UriIdentityService(new TestFileService()),
-			new TestFileService()
-		));
+			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
+			disposables.add(new TestFileService()),
+			new TestMarkerService(),
+			new TestTextResourceConfigurationService(configurationService)
+		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = instantiationService.createInstance(EditorService);
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
@@ -170,8 +174,9 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const tracker = instantiationService.createInstance(TestWorkingCopyBackupTracker);
 
 		const cleanup = async () => {
-			// File changes could also schedule some backup operations so we need to wait for them before finishing the test
-			await accessor.workingCopyBackupService.waitForAllBackups();
+			await accessor.workingCopyBackupService.waitForAllBackups(); // File changes could also schedule some backup operations so we need to wait for them before finishing the test
+
+			await workbenchTeardown(instantiationService);
 
 			part.dispose();
 			tracker.dispose();
@@ -356,7 +361,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				this._register(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
 			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
@@ -365,7 +370,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		const resource = toResource.call(this, '/path/custom.txt');
-		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+		const customWorkingCopy = disposables.add(new TestBackupWorkingCopy(resource));
 		customWorkingCopy.setDirty(true);
 
 		const event = new TestBeforeShutdownEvent();
@@ -389,7 +394,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			constructor(resource: URI) {
 				super(resource);
 
-				accessor.workingCopyService.registerWorkingCopy(this);
+				this._register(accessor.workingCopyService.registerWorkingCopy(this));
 			}
 
 			override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
@@ -408,7 +413,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		}
 
 		const resource = toResource.call(this, '/path/custom.txt');
-		new TestBackupWorkingCopy(resource);
+		disposables.add(new TestBackupWorkingCopy(resource));
 
 		const event = new TestBeforeShutdownEvent();
 		event.reason = ShutdownReason.QUIT;
@@ -716,7 +721,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 				constructor(resource: URI) {
 					super(resource);
 
-					accessor.workingCopyService.registerWorkingCopy(this);
+					this._register(accessor.workingCopyService.registerWorkingCopy(this));
 				}
 
 				override capabilities = WorkingCopyCapabilities.Untitled | WorkingCopyCapabilities.Scratchpad;
@@ -747,7 +752,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			accessor.fileDialogService.setConfirmResult(ConfirmResult.CANCEL);
 
 			const resource = toResource.call(this, '/path/custom.txt');
-			new TestBackupWorkingCopy(resource);
+			disposables.add(new TestBackupWorkingCopy(resource));
 
 			const event = new TestBeforeShutdownEvent();
 			event.reason = shutdownReason;
@@ -761,4 +766,6 @@ suite('WorkingCopyBackupTracker (native)', function () {
 			await cleanup();
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

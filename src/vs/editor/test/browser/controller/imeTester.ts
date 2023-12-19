@@ -11,6 +11,9 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { mainWindow } from 'vs/base/browser/window';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 // To run this test, open imeTester.html
 
@@ -126,7 +129,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 		isFirefox: browser.isFirefox,
 		isChrome: browser.isChrome,
 		isSafari: browser.isSafari,
-	});
+	}, new TestAccessibilityService(), new NullLogService());
 
 	const output = document.createElement('pre');
 	output.className = 'output';
@@ -145,7 +148,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	const updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.writeScreenReaderContent('selection changed');
+		handler.writeNativeTextAreaContent('selection changed');
 		handler.focusTextArea();
 	};
 
@@ -198,5 +201,5 @@ const TESTS = [
 ];
 
 TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
+	mainWindow.document.body.appendChild(doCreateTest(t.description, t.in, t.out));
 });

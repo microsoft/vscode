@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
@@ -68,7 +67,7 @@ registerAction2(class extends Action2 {
 				group: 'status',
 				order: -10
 			}],
-			description: {
+			metadata: {
 				description: localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
 					{

@@ -17,6 +17,7 @@ import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerDecorationsGroup } from 'vs/editor/common/viewModel';
+import { equals } from 'vs/base/common/arrays';
 
 class Settings {
 
@@ -212,12 +213,23 @@ const enum OverviewRulerLane {
 	Full = 7
 }
 
+const enum ShouldRenderValue {
+	NotNeeded = 0,
+	Maybe = 1,
+	Needed = 2
+}
+
 export class DecorationsOverviewRuler extends ViewPart {
+
+	private _actualShouldRender: ShouldRenderValue = ShouldRenderValue.NotNeeded;
 
 	private readonly _tokensColorTrackerListener: IDisposable;
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private _settings!: Settings;
 	private _cursorPositions: Position[];
+
+	private _renderedDecorations: OverviewRulerDecorationsGroup[] = [];
+	private _renderedCursorPositions: Position[] = [];
 
 	constructor(context: ViewContext) {
 		super(context);
@@ -270,8 +282,18 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	// ---- begin view event handlers
 
+	private _markRenderingIsNeeded(): true {
+		this._actualShouldRender = ShouldRenderValue.Needed;
+		return true;
+	}
+
+	private _markRenderingIsMaybeNeeded(): true {
+		this._actualShouldRender = ShouldRenderValue.Maybe;
+		return true;
+	}
+
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
-		return this._updateSettings(false);
+		return this._updateSettings(false) ? this._markRenderingIsNeeded() : false;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._cursorPositions = [];
@@ -279,25 +301,25 @@ export class DecorationsOverviewRuler extends ViewPart {
 			this._cursorPositions[i] = e.selections[i].getPosition();
 		}
 		this._cursorPositions.sort(Position.compare);
-		return true;
+		return this._markRenderingIsMaybeNeeded();
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		if (e.affectsOverviewRuler) {
-			return true;
+			return this._markRenderingIsMaybeNeeded();
 		}
 		return false;
 	}
 	public override onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		return true;
+		return this._markRenderingIsNeeded();
 	}
 	public override onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		return e.scrollHeightChanged;
+		return e.scrollHeightChanged ? this._markRenderingIsNeeded() : false;
 	}
 	public override onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return true;
+		return this._markRenderingIsNeeded();
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		return this._updateSettings(false);
+		return this._updateSettings(false) ? this._markRenderingIsNeeded() : false;
 	}
 
 	// ---- end view event handlers
@@ -312,6 +334,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 
 	public render(editorCtx: RestrictedRenderingContext): void {
 		this._render();
+		this._actualShouldRender = ShouldRenderValue.NotNeeded;
 	}
 
 	private _render(): void {
@@ -322,6 +345,23 @@ export class DecorationsOverviewRuler extends ViewPart {
 			this._domNode.setDisplay('none');
 			return;
 		}
+
+		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
+		decorations.sort(OverviewRulerDecorationsGroup.compareByRenderingProps);
+
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && !OverviewRulerDecorationsGroup.equalsArr(this._renderedDecorations, decorations)) {
+			this._actualShouldRender = ShouldRenderValue.Needed;
+		}
+		if (this._actualShouldRender === ShouldRenderValue.Maybe && !equals(this._renderedCursorPositions, this._cursorPositions, (a, b) => a.lineNumber === b.lineNumber)) {
+			this._actualShouldRender = ShouldRenderValue.Needed;
+		}
+		if (this._actualShouldRender === ShouldRenderValue.Maybe) {
+			// both decorations and cursor positions are unchanged, nothing to do
+			return;
+		}
+		this._renderedDecorations = decorations;
+		this._renderedCursorPositions = this._cursorPositions;
+
 		this._domNode.setDisplay('block');
 		const canvasWidth = this._settings.canvasWidth;
 		const canvasHeight = this._settings.canvasHeight;
@@ -329,7 +369,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const viewLayout = this._context.viewLayout;
 		const outerHeight = this._context.viewLayout.getScrollHeight();
 		const heightRatio = canvasHeight / outerHeight;
-		const decorations = this._context.viewModel.getAllOverviewRulerDecorations(this._context.theme);
 
 		const minDecorationHeight = (Constants.MIN_DECORATION_HEIGHT * this._settings.pixelRatio) | 0;
 		const halfMinDecorationHeight = (minDecorationHeight / 2) | 0;
@@ -355,7 +394,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		const x = this._settings.x;
 		const w = this._settings.w;
 
-		decorations.sort(OverviewRulerDecorationsGroup.cmp);
+
 
 		for (const decorationGroup of decorations) {
 			const color = decorationGroup.color;

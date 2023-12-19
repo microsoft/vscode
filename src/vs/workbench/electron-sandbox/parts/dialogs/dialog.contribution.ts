@@ -59,37 +59,41 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		while (this.model.dialogs.length) {
 			this.currentDialog = this.model.dialogs[0];
 
-			let result: IDialogResult | undefined = undefined;
+			let result: IDialogResult | Error | undefined = undefined;
+			try {
 
-			// Confirm
-			if (this.currentDialog.args.confirmArgs) {
-				const args = this.currentDialog.args.confirmArgs;
-				result = (this.useCustomDialog || args?.confirmation.custom) ?
-					await this.browserImpl.confirm(args.confirmation) :
-					await this.nativeImpl.confirm(args.confirmation);
-			}
-
-			// Input (custom only)
-			else if (this.currentDialog.args.inputArgs) {
-				const args = this.currentDialog.args.inputArgs;
-				result = await this.browserImpl.input(args.input);
-			}
-
-			// Prompt
-			else if (this.currentDialog.args.promptArgs) {
-				const args = this.currentDialog.args.promptArgs;
-				result = (this.useCustomDialog || args?.prompt.custom) ?
-					await this.browserImpl.prompt(args.prompt) :
-					await this.nativeImpl.prompt(args.prompt);
-			}
-
-			// About
-			else {
-				if (this.useCustomDialog) {
-					await this.browserImpl.about();
-				} else {
-					await this.nativeImpl.about();
+				// Confirm
+				if (this.currentDialog.args.confirmArgs) {
+					const args = this.currentDialog.args.confirmArgs;
+					result = (this.useCustomDialog || args?.confirmation.custom) ?
+						await this.browserImpl.confirm(args.confirmation) :
+						await this.nativeImpl.confirm(args.confirmation);
 				}
+
+				// Input (custom only)
+				else if (this.currentDialog.args.inputArgs) {
+					const args = this.currentDialog.args.inputArgs;
+					result = await this.browserImpl.input(args.input);
+				}
+
+				// Prompt
+				else if (this.currentDialog.args.promptArgs) {
+					const args = this.currentDialog.args.promptArgs;
+					result = (this.useCustomDialog || args?.prompt.custom) ?
+						await this.browserImpl.prompt(args.prompt) :
+						await this.nativeImpl.prompt(args.prompt);
+				}
+
+				// About
+				else {
+					if (this.useCustomDialog) {
+						await this.browserImpl.about();
+					} else {
+						await this.nativeImpl.about();
+					}
+				}
+			} catch (error) {
+				result = error;
 			}
 
 			this.currentDialog.close(result);

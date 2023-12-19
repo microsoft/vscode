@@ -5,8 +5,10 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as sinonTest from 'sinon-test';
+import { mainWindow } from 'vs/base/browser/window';
 import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -269,14 +271,14 @@ suite('TelemetryService', () => {
 
 	test('Handle global errors', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
 		const errorTelemetry = new ErrorTelemetry(service);
 
 		const testError = new Error('test');
-		(<any>window.onerror)('Error Message', 'file.js', 2, 42, testError);
+		(<any>mainWindow.onerror)('Error Message', 'file.js', 2, 42, testError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.alwaysCalledWithExactly('Error Message', 'file.js', 2, 42, testError), true);
@@ -292,11 +294,12 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Error Telemetry removes PII from filename with spaces', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 		const settings = new ErrorTestingSettings();
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
@@ -305,7 +308,7 @@ suite('TelemetryService', () => {
 		const personInfoWithSpaces = settings.personalInfo.slice(0, 2) + ' ' + settings.personalInfo.slice(2);
 		const dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
+		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo.replace(settings.personalInfo, personInfoWithSpaces) + '/test.js', 2, 42, dangerousFilenameError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -314,12 +317,13 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Uncaught Error Telemetry removes PII from filename', sinonTestFn(function (this: any) {
 		const clock = this.clock;
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 		const settings = new ErrorTestingSettings();
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
@@ -327,14 +331,14 @@ suite('TelemetryService', () => {
 
 		let dangerousFilenameError: any = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
+		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 1);
 		assert.strictEqual(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
 
 		dangerousFilenameError = new Error('dangerousFilename');
 		dangerousFilenameError.stack = settings.stack;
-		(<any>window.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
+		(<any>mainWindow.onerror)('dangerousFilename', settings.dangerousPathWithImportantInfo + '/test.js', 2, 42, dangerousFilenameError);
 		clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 		assert.strictEqual(errorStub.callCount, 2);
 		assert.strictEqual(testAppender.events[0].data.file.indexOf(settings.dangerousPathWithImportantInfo), -1);
@@ -342,6 +346,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII', sinonTestFn(function (this: any) {
@@ -376,7 +381,7 @@ suite('TelemetryService', () => {
 
 	test('Uncaught Error Telemetry removes PII', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 		const settings = new ErrorTestingSettings();
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
@@ -384,7 +389,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithoutImportantInfoError: any = new Error('dangerousPathWithoutImportantInfo');
 		dangerousPathWithoutImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
+		(<any>mainWindow.onerror)(settings.dangerousPathWithoutImportantInfo, 'test.js', 2, 42, dangerousPathWithoutImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -398,6 +403,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinonTestFn(function (this: any) {
@@ -437,7 +443,7 @@ suite('TelemetryService', () => {
 
 	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 		const settings = new ErrorTestingSettings();
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
@@ -445,7 +451,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -465,6 +471,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinonTestFn(function (this: any) {
@@ -535,7 +542,7 @@ suite('TelemetryService', () => {
 
 	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 		const settings = new ErrorTestingSettings();
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender], piiPaths: [settings.personalInfo + '/resources/app/'] });
@@ -543,7 +550,7 @@ suite('TelemetryService', () => {
 
 		const dangerousPathWithImportantInfoError: any = new Error('dangerousPathWithImportantInfo');
 		dangerousPathWithImportantInfoError.stack = settings.stack;
-		(<any>window.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
+		(<any>mainWindow.onerror)(settings.dangerousPathWithImportantInfo, 'test.js', 2, 42, dangerousPathWithImportantInfoError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -559,6 +566,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(function (this: any) {
@@ -598,7 +606,7 @@ suite('TelemetryService', () => {
 
 	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(function (this: any) {
 		const errorStub = sinon.stub();
-		window.onerror = errorStub;
+		mainWindow.onerror = errorStub;
 		const settings = new ErrorTestingSettings();
 		const testAppender = new TestTelemetryAppender();
 		const service = new TestErrorTelemetryService({ appenders: [testAppender] });
@@ -606,7 +614,7 @@ suite('TelemetryService', () => {
 
 		const missingModelError: any = new Error('missingModelMessage');
 		missingModelError.stack = settings.stack;
-		(<any>window.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
+		(<any>mainWindow.onerror)(settings.missingModelMessage, 'test.js', 2, 42, missingModelError);
 		this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 		assert.strictEqual(errorStub.callCount, 1);
@@ -623,6 +631,7 @@ suite('TelemetryService', () => {
 
 		errorTelemetry.dispose();
 		service.dispose();
+		sinon.restore();
 	}));
 
 	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinonTestFn(function (this: any) {
@@ -666,7 +675,7 @@ suite('TelemetryService', () => {
 
 		try {
 			const errorStub = sinon.stub();
-			window.onerror = errorStub;
+			mainWindow.onerror = errorStub;
 			const settings = new ErrorTestingSettings();
 			const testAppender = new TestTelemetryAppender();
 			const service = new TestErrorTelemetryService({ appenders: [testAppender] });
@@ -674,7 +683,7 @@ suite('TelemetryService', () => {
 
 			const noSuchFileError: any = new Error('noSuchFileMessage');
 			noSuchFileError.stack = settings.stack;
-			(<any>window.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
+			(<any>mainWindow.onerror)(settings.noSuchFileMessage, 'test.js', 2, 42, noSuchFileError);
 			this.clock.tick(ErrorTelemetry.ERROR_FLUSH_TIMEOUT);
 
 			assert.strictEqual(errorStub.callCount, 1);
@@ -692,6 +701,7 @@ suite('TelemetryService', () => {
 
 			errorTelemetry.dispose();
 			service.dispose();
+			sinon.restore();
 		} finally {
 			Errors.setUnexpectedErrorHandler(origErrorHandler);
 		}
@@ -732,4 +742,6 @@ suite('TelemetryService', () => {
 
 		service.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

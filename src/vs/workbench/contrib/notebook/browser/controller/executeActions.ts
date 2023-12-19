@@ -12,6 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorsOrder } from 'vs/workbench/common/editor';
@@ -20,7 +21,7 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CELL_TITLE_CELL_GROUP_ID, CellToolbarOrder, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, NotebookAction, NotebookCellAction, NotebookMultiCellAction, cellExecutionArgs, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, IFocusNotebookCellOptions, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind, CellUri, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_HAS_SOMETHING_RUNNING, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT, NOTEBOOK_LAST_CELL_FAILED, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
@@ -80,9 +81,10 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
-	} else if (context.selectedCells) {
-		await context.notebookEditor.executeNotebookCells(context.selectedCells);
-		const firstCell = context.selectedCells[0];
+	} else if (context.selectedCells?.length || context.cell) {
+		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
+		await context.notebookEditor.executeNotebookCells(selectedCells);
+		const firstCell = selectedCells[0];
 
 		if (firstCell && context.autoReveal) {
 			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
@@ -129,7 +131,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.executeNotebook', "Run All"),
 			icon: icons.executeAllIcon,
-			description: {
+			metadata: {
 				description: localize('notebookActions.executeNotebook', "Run All"),
 				args: [
 					{
@@ -208,7 +210,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 				when: executeThisCellCondition,
 				group: 'inline'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: cellExecutionArgs
 			},
@@ -331,7 +333,7 @@ registerAction2(class ExecuteCellFocusContainer extends NotebookMultiCellAction 
 			id: EXECUTE_CELL_FOCUS_CONTAINER_COMMAND_ID,
 			precondition: executeThisCellCondition,
 			title: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
-			description: {
+			metadata: {
 				description: localize('notebookActions.executeAndFocusContainer', "Execute Cell and Focus Container"),
 				args: cellExecutionArgs
 			},
@@ -377,7 +379,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 				when: cellCancelCondition,
 				group: 'inline'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.cancel', "Stop Cell Execution"),
 				args: [
 					{
@@ -455,29 +457,39 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 		}
 		const languageService = accessor.get(ILanguageService);
 
+		const config = accessor.get(IConfigurationService);
+		const scrollBehavior = config.getValue(NotebookSetting.scrollToRevealCell);
+		let focusOptions: IFocusNotebookCellOptions;
+		if (scrollBehavior === 'none') {
+			focusOptions = { skipReveal: true };
+		} else {
+			focusOptions = {
+				revealBehavior: scrollBehavior === 'fullCell' ? ScrollToRevealBehavior.fullCell : ScrollToRevealBehavior.firstLine
+			};
+		}
+
 		if (context.cell.cellKind === CellKind.Markup) {
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			context.cell.updateEditState(CellEditState.Preview, EXECUTE_CELL_SELECT_BELOW);
 			if (nextCell) {
-				await context.notebookEditor.focusNotebookCell(nextCell, 'container', { minimalScrolling: true });
+				await context.notebookEditor.focusNotebookCell(nextCell, 'container', focusOptions);
 			} else {
 				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Markup, 'below');
 
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor', { minimalScrolling: true });
+					await context.notebookEditor.focusNotebookCell(newCell, 'editor', focusOptions);
 				}
 			}
 			return;
 		} else {
-			// Try to select below, fall back on inserting
 			const nextCell = context.notebookEditor.cellAt(idx + 1);
 			if (nextCell) {
-				await context.notebookEditor.focusNotebookCell(nextCell, 'container', { minimalScrolling: true });
+				await context.notebookEditor.focusNotebookCell(nextCell, 'container', focusOptions);
 			} else {
 				const newCell = insertCell(languageService, context.notebookEditor, idx, CellKind.Code, 'below');
 
 				if (newCell) {
-					await context.notebookEditor.focusNotebookCell(newCell, 'editor', { minimalScrolling: true });
+					await context.notebookEditor.focusNotebookCell(newCell, 'editor', focusOptions);
 				}
 			}
 

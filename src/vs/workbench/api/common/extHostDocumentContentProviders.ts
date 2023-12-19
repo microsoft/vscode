@@ -44,13 +44,25 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 
 		let subscription: IDisposable | undefined;
 		if (typeof provider.onDidChange === 'function') {
-			subscription = provider.onDidChange(uri => {
+
+			let lastEvent: Promise<void> | undefined;
+
+			subscription = provider.onDidChange(async uri => {
 				if (uri.scheme !== scheme) {
 					this._logService.warn(`Provider for scheme '${scheme}' is firing event for schema '${uri.scheme}' which will be IGNORED`);
 					return;
 				}
-				if (this._documentsAndEditors.getDocument(uri)) {
-					this.$provideTextDocumentContent(handle, uri).then(value => {
+				if (!this._documentsAndEditors.getDocument(uri)) {
+					// ignore event if document isn't open
+					return;
+				}
+
+				if (lastEvent) {
+					await lastEvent;
+				}
+
+				const thisEvent = this.$provideTextDocumentContent(handle, uri)
+					.then(async value => {
 						if (!value && typeof value !== 'string') {
 							return;
 						}
@@ -68,9 +80,15 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 						if (!document.equalLines(lines)) {
 							return this._proxy.$onVirtualDocumentChange(uri, value);
 						}
+					})
+					.catch(onUnexpectedError)
+					.finally(() => {
+						if (lastEvent === thisEvent) {
+							lastEvent = undefined;
+						}
+					});
 
-					}, onUnexpectedError);
-				}
+				lastEvent = thisEvent;
 			});
 		}
 		return new Disposable(() => {

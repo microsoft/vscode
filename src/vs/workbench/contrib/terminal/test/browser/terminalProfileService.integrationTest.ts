@@ -28,7 +28,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IPickOptions, IQuickInputService, Omit, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService>{
+class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService> {
 	hasRefreshedProfiles: Promise<void> | undefined;
 	override refreshAvailableProfiles(): void {
 		this.hasRefreshedProfiles = this._refreshAvailableProfilesNow();
@@ -42,7 +42,7 @@ class TestTerminalProfileService extends TerminalProfileService implements Parti
 	}
 }
 
-class MockTerminalProfileService implements Partial<ITerminalProfileService>{
+class MockTerminalProfileService implements Partial<ITerminalProfileService> {
 	hasRefreshedProfiles: Promise<void> | undefined;
 	_defaultProfileName: string | undefined;
 	availableProfiles?: ITerminalProfile[] | undefined = [];
@@ -200,6 +200,9 @@ suite('TerminalProfileService', () => {
 			remoteAgentService.setEnvironment(OperatingSystem.Macintosh);
 		}
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
+	});
+	teardown(() => {
+		instantiationService.dispose();
 	});
 	suite('Contributed Profiles', () => {
 		test('should filter out contributed profiles set to null (Linux)', async () => {

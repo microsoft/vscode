@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,12 +20,14 @@ import { LanguageRecommendations } from 'vs/workbench/contrib/extensions/browser
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { timeout } from 'vs/base/common/async';
+import { CancelablePromise, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webRecommendations';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RemoteRecommendations } from 'vs/workbench/contrib/extensions/browser/remoteRecommendations';
+import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 type IgnoreRecommendationClassification = {
 	owner: 'sandy081';
@@ -64,17 +66,19 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IRemoteExtensionsScannerService private readonly remoteExtensionsScannerService: IRemoteExtensionsScannerService,
+		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 	) {
 		super();
 
-		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations);
-		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations);
-		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations);
-		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations);
-		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
-		this.webRecommendations = instantiationService.createInstance(WebRecommendations);
-		this.languageRecommendations = instantiationService.createInstance(LanguageRecommendations);
-		this.remoteRecommendations = instantiationService.createInstance(RemoteRecommendations);
+		this.workspaceRecommendations = this._register(instantiationService.createInstance(WorkspaceRecommendations));
+		this.fileBasedRecommendations = this._register(instantiationService.createInstance(FileBasedRecommendations));
+		this.configBasedRecommendations = this._register(instantiationService.createInstance(ConfigBasedRecommendations));
+		this.exeBasedRecommendations = this._register(instantiationService.createInstance(ExeBasedRecommendations));
+		this.keymapRecommendations = this._register(instantiationService.createInstance(KeymapRecommendations));
+		this.webRecommendations = this._register(instantiationService.createInstance(WebRecommendations));
+		this.languageRecommendations = this._register(instantiationService.createInstance(LanguageRecommendations));
+		this.remoteRecommendations = this._register(instantiationService.createInstance(RemoteRecommendations));
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;
@@ -91,7 +95,12 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private async activate(): Promise<void> {
-		await this.lifecycleService.when(LifecyclePhase.Restored);
+		try {
+			await Promise.allSettled([
+				this.remoteExtensionsScannerService.whenExtensionsReady(),
+				this.userDataInitializationService.whenInitializationFinished(),
+				this.lifecycleService.when(LifecyclePhase.Restored)]);
+		} catch (error) { /* ignore */ }
 
 		// activate all recommendations
 		await Promise.all([
@@ -256,12 +265,6 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return !this.extensionRecommendationsManagementService.ignoredRecommendations.includes(extensionId.toLowerCase());
 	}
 
-	// for testing
-	protected get workbenchRecommendationDelay() {
-		// remote extensions might still being installed #124119
-		return 5000;
-	}
-
 	private async promptWorkspaceRecommendations(): Promise<void> {
 		const installed = await this.extensionsWorkbenchService.queryLocal();
 		const allowedRecommendations = [
@@ -273,8 +276,13 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
 		if (allowedRecommendations.length) {
-			await timeout(this.workbenchRecommendationDelay);
+			await this._registerP(timeout(5000));
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
+	}
+
+	private _registerP<T>(o: CancelablePromise<T>): CancelablePromise<T> {
+		this._register(toDisposable(() => o.cancel()));
+		return o;
 	}
 }

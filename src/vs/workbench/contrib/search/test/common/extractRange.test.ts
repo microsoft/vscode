@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { extractRangeFromFilter } from 'vs/workbench/contrib/search/common/search';
 
 suite('extractRangeFromFilter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('basics', async function () {
 		assert.ok(!extractRangeFromFilter(''));
@@ -43,7 +46,7 @@ suite('extractRangeFromFilter', () => {
 		assert.strictEqual(res?.range.startColumn, 20);
 	});
 
-	suite('unless', async function () {
+	suite('unless', function () {
 		const testSpecs = [
 			// alpha-only symbol after unless
 			{ filter: '/some/path/file.txt@alphasymbol', unless: ['@'], result: undefined },

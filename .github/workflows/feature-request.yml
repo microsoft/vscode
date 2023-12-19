@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Checkout Actions
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           path: ./actions
