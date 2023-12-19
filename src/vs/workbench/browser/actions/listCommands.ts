@@ -18,7 +18,6 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
-import { FuzzyScore } from 'vs/base/common/filters';
 import { isActiveElement } from 'vs/base/browser/dom';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
