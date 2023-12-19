@@ -152,7 +152,8 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	return {
 		browserEvent: e.browserEvent,
 		element: e.element && e.element.element as T,
-		anchor: e.anchor
+		anchor: e.anchor,
+		isStickyScroll: e.isStickyScroll
 	};
 }
 
@@ -362,6 +363,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get onDidChangeFindOpenState(): Event<boolean> { return this.tree.onDidChangeFindOpenState; }
+	get onDidChangeStickyScrollFocused(): Event<boolean> { return this.tree.onDidChangeStickyScrollFocused; }
 
 	get findMode(): TreeFindMode { return this.tree.findMode; }
 	set findMode(mode: TreeFindMode) { this.tree.findMode = mode; }
@@ -749,6 +751,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	getFocus(): T[] {
 		const nodes = this.tree.getFocus();
 		return nodes.map(n => n!.element as T);
+	}
+
+	getStickyScrollFocus(): T | undefined {
+		const node = this.tree.getStickyScrollFocus();
+		return node?.element as T;
 	}
 
 	reveal(element: T, relativeTop?: number): void {

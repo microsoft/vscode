@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isPointerEvent, asCssValueWithDefault } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -1202,12 +1202,29 @@ class StickyScrollState<T, TFilterData, TRef> extends Disposable {
 		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeEquals);
 	}
 
+	lastNodePartiallyVisible(): boolean {
+		if (this.count === 0) {
+			return false;
+		}
+
+		const lastStickyNode = this.stickyNodes[this.count - 1];
+		if (this.count === 1) {
+			return lastStickyNode.position !== 0;
+		}
+
+		const secondLastStickyNode = this.stickyNodes[this.count - 2];
+		return secondLastStickyNode.position + secondLastStickyNode.height !== lastStickyNode.position;
+	}
+
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
 	}
 }
 
 class StickyScrollController<T, TFilterData, TRef> extends Disposable {
+
+	readonly onDidChangeHasFocus: Event<boolean>;
+	readonly onContextMenu: Event<ITreeContextMenuEvent<T>>;
 
 	private stickyScrollMaxItemCount: number;
 	private readonly maxWidgetViewRatio = 0.4;
@@ -1238,6 +1255,8 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this.stickyScrollMaxItemCount = stickyScrollOptions.stickyScrollMaxItemCount;
 
 		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, model, renderers, treeDelegate));
+		this.onDidChangeHasFocus = this._widget.onDidChangeHasFocus;
+		this.onContextMenu = this._widget.onContextMenu;
 
 		this._register(view.onDidScroll(() => this.update()));
 		this._register(view.onDidChangeContentHeight(() => this.update()));
@@ -1436,6 +1455,10 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return widgetHeight;
 	}
 
+	getFocus(): T | undefined {
+		return this._widget.getFocus();
+	}
+
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
 		const validatedOptions = this.validateStickySettings(optionsUpdate);
 		if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
@@ -1458,6 +1481,10 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	private readonly _rootDomNode: HTMLElement;
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
 
+	private stickyScrollFocus: StickyScrollFocus<T, TFilterData, TRef>;
+	readonly onDidChangeHasFocus: Event<boolean>;
+	readonly onContextMenu: Event<ITreeContextMenuEvent<T>>;
+
 	constructor(
 		container: HTMLElement,
 		private readonly view: List<ITreeNode<T, TFilterData>>,
@@ -1469,6 +1496,10 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		this._rootDomNode = document.createElement('div');
 		this._rootDomNode.classList.add('monaco-tree-sticky-container');
 		container.appendChild(this._rootDomNode);
+
+		this.stickyScrollFocus = new StickyScrollFocus(this._rootDomNode, view);
+		this.onDidChangeHasFocus = this.stickyScrollFocus.onDidChangeHasFocus;
+		this.onContextMenu = this.stickyScrollFocus.onContextMenu;
 	}
 
 	get height(): number {
@@ -1510,16 +1541,18 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			return;
 		}
 
+		const elements = Array(state.count);
 		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
 			const stickyNode = state.stickyNodes[stickyIndex];
-			const previousStickyNode = stickyIndex ? state.stickyNodes[stickyIndex - 1] : undefined;
-			const currentWidgetHieght = previousStickyNode ? previousStickyNode.position + previousStickyNode.height : 0;
 
-			const { element, disposable } = this.createElement(stickyNode, currentWidgetHieght);
+			const { element, disposable } = this.createElement(stickyNode);
+			elements[stickyIndex] = element;
 
 			this._rootDomNode.appendChild(element);
 			state.addDisposable(disposable);
 		}
+
+		this.stickyScrollFocus.updateElements(elements, state);
 
 		// Add shadow element to the end of the widget
 		const shadow = $('.monaco-tree-sticky-container-shadow');
@@ -1531,7 +1564,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
 	}
 
-	private createElement(stickyNode: StickyScrollNode<T, TFilterData>, currentWidgetHeight: number): { element: HTMLElement; disposable: IDisposable } {
+	private createElement(stickyNode: StickyScrollNode<T, TFilterData>): { element: HTMLElement; disposable: IDisposable } {
 
 		const nodeLocation = this.model.getNodeLocation(stickyNode.node);
 		const nodeIndex = this.model.getListIndex(nodeLocation);
@@ -1574,11 +1607,205 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	private setVisible(visible: boolean): void {
 		this._rootDomNode.style.display = visible ? 'block' : 'none';
+
+		if (!visible) {
+			this.stickyScrollFocus.updateElements([], undefined);
+		}
+	}
+
+	getFocus(): T | undefined {
+		return this.stickyScrollFocus.getFocus();
 	}
 
 	dispose(): void {
+		this.stickyScrollFocus.dispose();
 		this._previousState?.dispose();
 		this._rootDomNode.remove();
+	}
+}
+
+class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
+
+	private elements: HTMLElement[] = [];
+	private state: StickyScrollState<T, TFilterData, TRef> | undefined;
+
+	private _onDidChangeState = new Emitter<boolean>();
+	readonly onDidChangeHasFocus = this._onDidChangeState.event;
+
+	private _domHasFocus: boolean = false;
+	private get domHasFocus(): boolean { return this._domHasFocus; }
+	private set domHasFocus(hasFocus: boolean) {
+		this._domHasFocus = hasFocus;
+		this._onDidChangeState.fire(hasFocus);
+	}
+
+	private focusedIndex: number = -1;
+
+	private _onContextMenu = new Emitter<ITreeContextMenuEvent<T>>();
+	readonly onContextMenu: Event<ITreeContextMenuEvent<T>> = this._onContextMenu.event;
+
+	constructor(
+		private readonly container: HTMLElement,
+		private readonly view: List<ITreeNode<T, TFilterData>>
+	) {
+		super();
+
+		this.container.addEventListener('focus', () => this.onFocus());
+		this.container.addEventListener('blur', () => this.onBlur());
+
+		this._register(this.view.onKeyDown((e) => this.onKeyDown(e)));
+		this._register(this.view.onContextMenu((e) => this.handleContextMenu(e)));
+	}
+
+	private handleContextMenu(e: IListContextMenuEvent<ITreeNode<T, TFilterData>>): void {
+		// We only handle context menu triggers by a keyboardevent here
+		// Context menu triggers by mouse are handled by the list itself
+
+		const target = e.browserEvent.target as HTMLElement;
+		const isStickyScroll = target.classList.contains('monaco-tree-sticky-container') && !isPointerEvent(e);
+
+		if (!this.domHasFocus && !isStickyScroll) {
+			return;
+		}
+		if (!this.state || this.focusedIndex < 0) {
+			throw new Error('Context menu key should not be triggered when focus is not in sticky scroll widget');
+		}
+
+		const stickyNode = this.state.stickyNodes[this.focusedIndex];
+		const element = stickyNode.node.element;
+		const anchor = this.elements[this.focusedIndex];
+		this._onContextMenu.fire({ element, anchor, browserEvent: e.browserEvent, isStickyScroll: true });
+	}
+
+	private onKeyDown(e: KeyboardEvent): void {
+		// Sticky Scroll Navigation
+		if (this.domHasFocus && this.state) {
+			// Move up
+			if (e.key === 'ArrowUp') {
+				this.setElementFocused(Math.max(0, this.focusedIndex - 1));
+				e.preventDefault();
+				e.stopPropagation();
+			}
+			// Move down, if last sticky node is focused, move focus into first child of last sticky node
+			else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+				if (this.focusedIndex >= this.state.count - 1) {
+					const nodeIndexToFocus = this.state.stickyNodes[this.state.count - 1].startIndex + 1;
+					this.view.domFocus();
+					this.view.setFocus([nodeIndexToFocus]);
+					this.scrollNodeUnderWidget(nodeIndexToFocus, this.state);
+				} else {
+					this.setElementFocused(this.focusedIndex + 1);
+				}
+				e.preventDefault();
+				e.stopPropagation();
+			}
+		}
+	}
+
+	updateElements(elements: HTMLElement[], state: StickyScrollState<T, TFilterData, TRef> | undefined): void {
+		const previousFocusedIndex = this.focusedIndex;
+		this.removeFocus();
+
+		this.elements = elements;
+		this.state = state;
+
+		this.container.tabIndex = state ? 0 : -1;
+
+		if (this.domHasFocus && state) {
+			const newFocusedIndex = clamp(previousFocusedIndex, 0, state.count - 1);
+			this.setFocus(newFocusedIndex);
+		} else {
+			this.removeFocus();
+			this.view.domFocus();
+		}
+	}
+
+	setElementFocused(stickyIndex: number): void {
+		const state = this.state;
+		if (!state) {
+			throw new Error('Cannot set focus when state is undefined');
+		}
+
+		this.setFocus(stickyIndex);
+
+		if (stickyIndex < state.count - 1) {
+			return;
+		}
+
+		// If the last sticky node is not fully visible, scroll it into view
+		if (state.lastNodePartiallyVisible()) {
+			const lastStickyNode = state.stickyNodes[stickyIndex];
+			this.scrollNodeUnderWidget(lastStickyNode.endIndex + 1, state);
+		}
+	}
+
+	private scrollNodeUnderWidget(nodeIndex: number, state: StickyScrollState<T, TFilterData, TRef>) {
+		const lastStickyNode = state.stickyNodes[state.count - 1];
+		const secondLastStickyNode = state.count > 1 ? state.stickyNodes[state.count - 2] : undefined;
+
+		const elementScrollTop = this.view.getElementTop(nodeIndex);
+		const elementTargetViewTop = secondLastStickyNode ? secondLastStickyNode.position + secondLastStickyNode.height + lastStickyNode.height : lastStickyNode.height;
+		this.view.scrollTop = elementScrollTop - elementTargetViewTop;
+	}
+
+	getFocus(): T | undefined {
+		if (!this.state || this.focusedIndex === -1) {
+			return undefined;
+		}
+		return this.state.stickyNodes[this.focusedIndex].node.element;
+	}
+
+	private removeFocus(): void {
+		if (this.focusedIndex === -1) {
+			return;
+		}
+		this.toggleElementFocus(this.elements[this.focusedIndex], false);
+		this.focusedIndex = -1;
+	}
+
+	private setFocus(newFocusIndex: number): void {
+		if (0 > newFocusIndex) {
+			throw new Error('addFocus() can not remove focus');
+		}
+		if (!this.state && newFocusIndex >= 0) {
+			throw new Error('Cannot set focus index when state is undefined');
+		}
+		if (this.state && newFocusIndex >= this.state.count) {
+			throw new Error('Cannot set focus index to an index that does not exist');
+		}
+
+		const oldIndex = this.focusedIndex;
+		if (oldIndex >= 0) {
+			this.toggleElementFocus(this.elements[oldIndex], false);
+		}
+		if (newFocusIndex >= 0) {
+			this.toggleElementFocus(this.elements[newFocusIndex], true);
+		}
+		this.focusedIndex = newFocusIndex;
+	}
+
+	private toggleElementFocus(element: HTMLElement, focused: boolean): void {
+		element.classList.toggle('focused', focused);
+	}
+
+	private onFocus(): void {
+		if (!this.state || this.elements.length === 0) {
+			throw new Error('Cannot focus when state is undefined or elements are empty');
+		}
+
+		this.domHasFocus = true;
+		if (this.focusedIndex === -1) {
+			this.setFocus(0);
+		}
+	}
+
+	private onBlur(): void {
+		this.domHasFocus = false;
+	}
+
+	override dispose(): void {
+		this._onDidChangeState.fire(false);
+		super.dispose();
 	}
 }
 
@@ -1601,10 +1828,14 @@ function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMo
 }
 
 function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
+	const target = event.browserEvent.target as HTMLElement;
+	const isStickyScroll = target.classList.contains('monaco-tree-sticky-container');
+
 	return {
 		element: event.element ? event.element.element : null,
 		browserEvent: event.browserEvent,
-		anchor: event.anchor
+		anchor: event.anchor,
+		isStickyScroll
 	};
 }
 
@@ -1850,6 +2081,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const elementScrollTop = this.list.getElementTop(nodeIndex);
 		const elementTargetViewTop = stickyScrollController.nodePositionTopBelowWidget(node);
 		this.tree.scrollTop = elementScrollTop - elementTargetViewTop;
+		this.list.domFocus();
 		this.list.setFocus([nodeIndex]);
 		this.list.setSelection([nodeIndex]);
 	}
@@ -1976,6 +2208,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private eventBufferer = new EventBufferer();
 	private findController?: FindController<T, TFilterData>;
 	readonly onDidChangeFindOpenState: Event<boolean> = Event.None;
+	onDidChangeStickyScrollFocused: Event<boolean> = Event.None;
+	onStickyScrollContextMenu: Event<ITreeContextMenuEvent<T>> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	private stickyScrollController?: StickyScrollController<T, TFilterData, TRef>;
 	private styleElement: HTMLStyleElement;
@@ -1988,7 +2222,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.filter(Event.map(this.view.onMouseDblClick, asTreeMouseEvent), e => e.target !== TreeMouseEventTarget.Filter); }
-	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.view.onContextMenu, asTreeContextMenuEvent); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.any(Event.filter(Event.map(this.view.onContextMenu, asTreeContextMenuEvent), e => !e.isStickyScroll), this.onStickyScrollContextMenu); }
 	get onTap(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onTap, asTreeMouseEvent); }
 	get onPointer(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onPointer, asTreeMouseEvent); }
 
@@ -2117,6 +2351,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		if (_options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, _options);
+			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
+			this.onStickyScrollContextMenu = this.stickyScrollController.onContextMenu;
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
@@ -2146,7 +2382,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private updateStickyScroll(optionsUpdate: IAbstractTreeOptionsUpdate) {
 		if (!this.stickyScrollController && this._options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, this._options);
+			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
+			this.onStickyScrollContextMenu = this.stickyScrollController.onContextMenu;
 		} else if (this.stickyScrollController && !this._options.enableStickyScroll) {
+			this.onDidChangeStickyScrollFocused = Event.None;
+			this.onStickyScrollContextMenu = Event.None;
 			this.stickyScrollController.dispose();
 			this.stickyScrollController = undefined;
 		}
@@ -2267,9 +2507,28 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			content.push(`.monaco-list${suffix} .monaco-tl-indent > .indent-guide.active { border-color: ${styles.treeIndentGuidesStroke}; }`);
 		}
 
+		// Sticky Scroll Background
 		if (styles.listBackground) {
 			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container { background-color: ${styles.listBackground}; }`);
 			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container .monaco-tree-sticky-row { background-color: ${styles.listBackground}; }`);
+		}
+
+		// Sticky Scroll Focus
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { color: inherit; }`);
+		}
+
+		// Sticky Scroll Focus Outlines
+		const focusAndSelectionOutline = asCssValueWithDefault(styles.listFocusAndSelectionOutline, asCssValueWithDefault(styles.listSelectionOutline, styles.listFocusOutline ?? ''));
+		if (focusAndSelectionOutline) { // default: listFocusOutline
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
+			content.push(`.monaco-list${suffix}:focus .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused.selected { outline: inherit;}`);
+		}
+
+		if (styles.listFocusOutline) { // default: set
+			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { outline: inherit; }`);
 		}
 
 		this.styleElement.textContent = content.join('\n');
@@ -2417,6 +2676,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	getFocus(): T[] {
 		return this.focus.get();
+	}
+
+	getStickyScrollFocus(): T | undefined {
+		return this.stickyScrollController?.getFocus();
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {
