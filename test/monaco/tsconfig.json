@@ -8,6 +8,7 @@
 		"outDir": "out",
 		"sourceMap": true,
 		"declaration": true,
+		"skipLibCheck": true, // avoid errors reporting for usage of Symbol.asyncDispose in playwright-core/types/types.d.ts
 		"lib": [
 			"es2016",
 			"dom"
