@@ -7,7 +7,7 @@ import 'vs/css!./media/notificationsActions';
 import { INotificationViewItem } from 'vs/workbench/common/notifications';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
+import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER, TOGGLE_DO_NOT_DISTURB_MODE, TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Codicon } from 'vs/base/common/codicons';
@@ -73,6 +73,24 @@ export class ToggleDoNotDisturbAction extends Action {
 
 	override async run(): Promise<void> {
 		this.commandService.executeCommand(TOGGLE_DO_NOT_DISTURB_MODE);
+	}
+}
+
+export class ToggleDoNotDisturbBySourceAction extends Action {
+
+	static readonly ID = TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE;
+	static readonly LABEL = localize('toggleDoNotDisturbModeBySource', "Toggle Do Not Disturb Mode By Source...");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		this.commandService.executeCommand(TOGGLE_DO_NOT_DISTURB_MODE_BY_SOURCE);
 	}
 }
 
