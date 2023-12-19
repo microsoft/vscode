@@ -746,16 +746,17 @@ abstract class RunTestDecoration {
 			return false;
 		}
 
+		const alternateAction = e.event.altKey;
 		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
 			case DefaultGutterClickAction.ContextMenu:
 				this.showContextMenu(e);
 				break;
 			case DefaultGutterClickAction.Debug:
-				this.defaultDebug();
+				(alternateAction ? this.defaultRun() : this.defaultDebug());
 				break;
 			case DefaultGutterClickAction.Run:
 			default:
-				this.defaultRun();
+				(alternateAction ? this.defaultDebug() : this.defaultRun());
 				break;
 		}
 
