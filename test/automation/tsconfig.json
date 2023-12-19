@@ -8,6 +8,7 @@
 		"outDir": "out",
 		"sourceMap": true,
 		"declaration": true,
+		"skipLibCheck": true,
 		"lib": [
 			"es2020",
 			"dom"
