@@ -180,6 +180,9 @@ suite('AbstractKeybindingService', () => {
 				},
 				getFilters() {
 					throw new Error('not implemented');
+				},
+				removeFilter() {
+					throw new Error('not implemented');
 				}
 			};
 

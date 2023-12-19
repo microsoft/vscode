@@ -358,6 +358,8 @@ export class StandaloneNotificationService implements INotificationService {
 	public getFilters(): INotificationSourceFilter[] {
 		return [];
 	}
+
+	public removeFilter(sourceId: string): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {

@@ -13,6 +13,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -55,6 +56,9 @@ const emptyNotificationService = new class implements INotificationService {
 	getFilters(): INotificationSourceFilter[] {
 		throw new Error('not implemented');
 	}
+	removeFilter(sourceId: string): void {
+		throw new Error('not implemented');
+	}
 };
 
 class EmptyNotificationService implements INotificationService {
@@ -95,6 +99,9 @@ class EmptyNotificationService implements INotificationService {
 	getFilters(): INotificationSourceFilter[] {
 		throw new Error('Method not implemented.');
 	}
+	removeFilter(sourceId: string): void {
+		throw new Error('Method not implemented.');
+	}
 }
 
 suite('ExtHostMessageService', function () {
@@ -104,10 +111,12 @@ suite('ExtHostMessageService', function () {
 		const service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.strictEqual(notification.actions!.primary!.length, 1);
 			queueMicrotask(() => notification.actions!.primary![0].run());
-		}), emptyCommandService, new TestDialogService());
+		}), emptyCommandService, new TestDialogService(), new TestExtensionService());
 
 		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
 		assert.strictEqual(handle, 42);
+
+		service.dispose();
 	});
 
 	suite('modal', () => {
@@ -120,10 +129,12 @@ suite('ExtHostMessageService', function () {
 					assert.strictEqual((cancelButton as IPromptButton<unknown>)!.label, 'Cancel');
 					return Promise.resolve({ result: buttons![0].run({ checkboxChecked: false }) });
 				}
-			} as IDialogService);
+			} as IDialogService, new TestExtensionService());
 
 			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
 			assert.strictEqual(handle, 42);
+
+			service.dispose();
 		});
 
 		test('returns undefined when cancelled', async () => {
@@ -131,10 +142,12 @@ suite('ExtHostMessageService', function () {
 				override prompt(prompt: IPrompt<any>) {
 					return Promise.resolve({ result: (prompt.cancelButton as IPromptButton<unknown>)!.run({ checkboxChecked: false }) });
 				}
-			} as IDialogService);
+			} as IDialogService, new TestExtensionService());
 
 			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
 			assert.strictEqual(handle, undefined);
+
+			service.dispose();
 		});
 
 		test('hides Cancel button when not needed', async () => {
@@ -144,10 +157,12 @@ suite('ExtHostMessageService', function () {
 					assert.ok(cancelButton);
 					return Promise.resolve({ result: (cancelButton as IPromptButton<unknown>).run({ checkboxChecked: false }) });
 				}
-			} as IDialogService);
+			} as IDialogService, new TestExtensionService());
 
 			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
 			assert.strictEqual(handle, 42);
+
+			service.dispose();
 		});
 	});
 
