@@ -326,8 +326,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onRequestAddInstanceToGroup = this._onRequestAddInstanceToGroup.event;
 	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
-	private readonly _onDidRunText = this._register(new Emitter<void>());
-	readonly onDidExecuteText = this._onDidRunText.event;
+	private readonly _onDidExecuteText = this._register(new Emitter<void>());
+	readonly onDidExecuteText = this._onDidExecuteText.event;
 	private readonly _onDidChangeTarget = this._register(new Emitter<TerminalLocation | undefined>());
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 	private readonly _onDidSendText = this._register(new Emitter<string>());
@@ -1217,7 +1217,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidSendText.fire(text);
 		this.xterm?.scrollToBottom();
 		if (shouldExecute) {
-			this._onDidRunText.fire();
+			this._onDidExecuteText.fire();
 		}
 	}
 
