@@ -69,11 +69,13 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		switch (location) {
 			case ProgressLocation.Notification: {
-				let priority: NotificationPriority | undefined = undefined;
-				if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
-					priority = NotificationPriority.SILENT;
-				} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
-					priority = NotificationPriority.SILENT;
+				let priority = (options as IProgressNotificationOptions).priority;
+				if (priority !== NotificationPriority.URGENT) {
+					if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
+						priority = NotificationPriority.SILENT;
+					}
 				}
 
 				return this.withNotificationProgress({ ...options, location, priority }, task, onDidCancel);

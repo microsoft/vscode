@@ -76,6 +76,19 @@ export class ToggleDoNotDisturbAction extends Action {
 	}
 }
 
+export class ConfigureDoNotDisturbAction extends Action {
+
+	static readonly ID = 'workbench.action.configureDoNotDisturbMode';
+	static readonly LABEL = localize('configureDoNotDisturbMode', "Configure Do Not Disturb...");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
+	}
+}
+
 export class HideNotificationsCenterAction extends Action {
 
 	static readonly ID = HIDE_NOTIFICATIONS_CENTER;
@@ -139,19 +152,6 @@ export class ConfigureNotificationAction extends Action {
 		id: string,
 		label: string,
 		readonly notification: INotificationViewItem
-	) {
-		super(id, label, ThemeIcon.asClassName(configureIcon));
-	}
-}
-
-export class ConfigureNotificationsAction extends Action {
-
-	static readonly ID = 'workbench.action.configureNotifications';
-	static readonly LABEL = localize('configureNotifications', "Configure Notifications...");
-
-	constructor(
-		id: string,
-		label: string
 	) {
 		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}
