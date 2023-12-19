@@ -18,7 +18,7 @@ import { INotificationViewItem, NotificationViewItem, NotificationViewItemConten
 import { ClearNotificationAction, ExpandNotificationAction, CollapseNotificationAction, ConfigureNotificationAction } from 'vs/workbench/browser/parts/notifications/notificationsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { INotificationService, Severity, isNotificationSource } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationsFilter, Severity, isNotificationSource } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -243,13 +243,13 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 
 								const source = { id: action.notification.sourceId, label: action.notification.source };
 								if (isNotificationSource(source)) {
-									const isSourceDoNotDisturb = that.notificationService.isSourceDoNotDisturb(source);
+									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
 									actions.push(toAction({
 										id: source.id,
 										label: localize('notifyForSource', "Notify for '{0}'", source.label),
-										checked: !isSourceDoNotDisturb,
+										checked: !isSourceFiltered,
 										run: () => {
-											that.notificationService.setSourceDoNotDisturb(source, !isSourceDoNotDisturb);
+											that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR });
 										}
 									}));
 

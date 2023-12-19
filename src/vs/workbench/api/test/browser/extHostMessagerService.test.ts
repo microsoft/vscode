@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { MainThreadMessageService } from 'vs/workbench/api/browser/mainThreadMessageService';
 import { IDialogService, IPrompt, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, NoOpNotification, INotificationHandle, Severity, IPromptChoice, IPromptOptions, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -25,11 +25,9 @@ const emptyCommandService: ICommandService = {
 
 const emptyNotificationService = new class implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	isGlobalDoNotDisturbMode: boolean = false;
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
-	onDidChangeGlobalDoNotDisturbMode: Event<void> = Event.None;
-	onDidChangePerSourceDoNotDisturbMode = Event.None;
+	onDidChangeFilter: Event<void> = Event.None;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -48,30 +46,26 @@ const emptyNotificationService = new class implements INotificationService {
 	status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-	setGlobalDoNotDisturbMode(mode: boolean): void {
+	setFilter(): void {
 		throw new Error('not implemented');
 	}
-	isSourceDoNotDisturb(source: INotificationSource): boolean {
-		throw new Error('Method not implemented.');
+	getFilter(source?: INotificationSource | undefined): NotificationsFilter {
+		throw new Error('not implemented');
 	}
-	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
-		throw new Error('Method not implemented.');
-	}
-	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
-		throw new Error('Method not implemented.');
+	getFilters(): INotificationSourceFilter[] {
+		throw new Error('not implemented');
 	}
 };
 
 class EmptyNotificationService implements INotificationService {
 	declare readonly _serviceBrand: undefined;
-	isGlobalDoNotDisturbMode: boolean = false;
+	filter: boolean = false;
 	constructor(private withNotify: (notification: INotification) => void) {
 	}
 
 	onDidAddNotification: Event<INotification> = Event.None;
 	onDidRemoveNotification: Event<INotification> = Event.None;
-	onDidChangeGlobalDoNotDisturbMode: Event<void> = Event.None;
-	onDidChangePerSourceDoNotDisturbMode = Event.None;
+	onDidChangeFilter: Event<void> = Event.None;
 	notify(notification: INotification): INotificationHandle {
 		this.withNotify(notification);
 
@@ -92,16 +86,13 @@ class EmptyNotificationService implements INotificationService {
 	status(message: string, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
-	setGlobalDoNotDisturbMode(mode: boolean): void {
+	setFilter(): void {
 		throw new Error('Method not implemented.');
 	}
-	isSourceDoNotDisturb(source: INotificationSource): boolean {
+	getFilter(source?: INotificationSource | undefined): NotificationsFilter {
 		throw new Error('Method not implemented.');
 	}
-	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
-		throw new Error('Method not implemented.');
-	}
-	getSourcesDoNotDisturb(): INotificationSourceFilter[] {
+	getFilters(): INotificationSourceFilter[] {
 		throw new Error('Method not implemented.');
 	}
 }

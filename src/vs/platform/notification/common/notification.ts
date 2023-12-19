@@ -370,39 +370,27 @@ export interface INotificationService {
 	readonly onDidRemoveNotification: Event<INotification>;
 
 	/**
-	 * Emitted when the global do not disturb mode has changed.
+	 * Emitted when the notifications filter changed.
 	 */
-	readonly onDidChangeGlobalDoNotDisturbMode: Event<void>;
+	readonly onDidChangeFilter: Event<void>;
 
 	/**
-	 * If enabled, only error messages will show as toasts.
+	 * Sets a notification filter either for all notifications
+	 * or for a specific source.
 	 */
-	readonly isGlobalDoNotDisturbMode: boolean;
+	setFilter(filter: NotificationsFilter | INotificationSourceFilter): void;
 
 	/**
-	 * Enables or disables the global do not disturb mode.
+	 * Gets the notification filter either for all notifications
+	 * or for a specific source.
 	 */
-	setGlobalDoNotDisturbMode(mode: boolean): void;
+	getFilter(source?: INotificationSource): NotificationsFilter;
 
 	/**
-	 * Emitted when the per-source do not disturb mode has changed.
+	 * Returns all filters with their sources.
 	 */
-	readonly onDidChangePerSourceDoNotDisturbMode: Event<INotificationSource>;
+	getFilters(): INotificationSourceFilter[];
 
-	/**
-	 * Whether the provided source is configured as do not disturb.
-	 */
-	isSourceDoNotDisturb(source: INotificationSource): boolean;
-
-	/**
-	 * Enables or disables the per-source do not disturb mode.
-	 */
-	setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void;
-
-	/**
-	 * Returns all sources do not disturb configuration.
-	 */
-	getSourcesDoNotDisturb(): INotificationSourceFilter[];
 	/**
 	 * Show the provided notification to the user. The returned `INotificationHandle`
 	 * can be used to control the notification afterwards.

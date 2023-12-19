@@ -11,7 +11,7 @@ import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IP
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, INotificationHandle, NotificationPriority, isNotificationSource, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -70,9 +70,9 @@ export class ProgressService extends Disposable implements IProgressService {
 		switch (location) {
 			case ProgressLocation.Notification: {
 				let priority: NotificationPriority | undefined = undefined;
-				if (this.notificationService.isGlobalDoNotDisturbMode) {
+				if (this.notificationService.getFilter() === NotificationsFilter.ERROR) {
 					priority = NotificationPriority.SILENT;
-				} else if (isNotificationSource(options.source) && this.notificationService.isSourceDoNotDisturb(options.source)) {
+				} else if (isNotificationSource(options.source) && this.notificationService.getFilter(options.source) === NotificationsFilter.ERROR) {
 					priority = NotificationPriority.SILENT;
 				}
 

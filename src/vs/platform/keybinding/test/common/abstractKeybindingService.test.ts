@@ -17,7 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { INotification, INotificationService, INotificationSource, INotificationSourceFilter, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationService, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification } from 'vs/platform/notification/common/notification';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
 function createContext(ctx: any) {
@@ -142,11 +142,9 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				isGlobalDoNotDisturbMode: false,
 				onDidAddNotification: undefined!,
 				onDidRemoveNotification: undefined!,
-				onDidChangeGlobalDoNotDisturbMode: undefined!,
-				onDidChangePerSourceDoNotDisturbMode: undefined!,
+				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
 					return new NoOpNotification();
@@ -174,17 +172,14 @@ suite('AbstractKeybindingService', () => {
 						}
 					};
 				},
-				setGlobalDoNotDisturbMode(mode: boolean) {
+				setFilter() {
 					throw new Error('not implemented');
 				},
-				isSourceDoNotDisturb(source: INotificationSource): boolean {
-					throw new Error('Method not implemented.');
+				getFilter() {
+					throw new Error('not implemented');
 				},
-				setSourceDoNotDisturb(source: INotificationSource, mode: boolean): void {
-					throw new Error('Method not implemented.');
-				},
-				getSourcesDoNotDisturb(): INotificationSourceFilter[] {
-					throw new Error('Method not implemented.');
+				getFilters() {
+					throw new Error('not implemented');
 				}
 			};
 
