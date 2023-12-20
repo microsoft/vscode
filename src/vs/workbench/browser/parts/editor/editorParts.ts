@@ -12,7 +12,7 @@ import { EditorPart, IEditorPartUIState, MainEditorPart } from 'vs/workbench/bro
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { distinct } from 'vs/base/common/arrays';
+import { distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 import { MultiWindowParts } from 'vs/workbench/browser/part';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -23,6 +23,7 @@ import { getWindow } from 'vs/base/browser/dom';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
+	readonly mru: number[];
 }
 
 interface IAuxiliaryEditorPartState {
@@ -36,7 +37,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	readonly mainPart = this._register(this.createMainEditorPart());
 
-	private readonly mostRecentActiveParts = [this.mainPart];
+	private mostRecentActiveParts = [this.mainPart];
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -201,23 +202,34 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		// that restoring was not attempted because specific
 		// editors were opened.
 		if (this.mainPart.didRestoreState) {
-			const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
 			const uiState: IEditorPartsUIState | undefined = this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
 			if (uiState?.auxiliary.length) {
+				const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
+
+				// Create auxiliary editor parts
 				for (const auxiliaryEditorPartState of uiState.auxiliary) {
 					auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
 						bounds: auxiliaryEditorPartState.bounds,
 						state: auxiliaryEditorPartState.state
 					}));
 				}
-			}
 
-			// Await creation
-			await Promise.allSettled(auxiliaryEditorPartPromises);
+				// Await creation
+				await Promise.allSettled(auxiliaryEditorPartPromises);
+
+				// Update MRU list
+				if (uiState.mru.length === this.parts.length) {
+					this.mostRecentActiveParts = uiState.mru.map(index => this.parts[index]);
+				}
+			}
 		}
 
 		// Await ready
 		await Promise.allSettled(this.parts.map(part => part.whenReady));
+
+		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+		mostRecentActivePart?.activeGroup.focus();
+
 		this._isReady = true;
 		this.whenReadyPromise.complete();
 
@@ -245,7 +257,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 						return undefined;
 					})()
 				};
-			})
+			}),
+			mru: this.mostRecentActiveParts.map(part => this.parts.indexOf(part))
 		};
 
 		if (uiState.auxiliary.length === 0) {

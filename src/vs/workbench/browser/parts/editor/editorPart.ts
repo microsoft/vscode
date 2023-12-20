@@ -1180,9 +1180,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				// Grid Widget
 				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
 
-				// Ensure last active group has focus
-				this._activeGroup.focus();
-
 				// Remember that we did restore previous state
 				this._didRestoreState = true;
 			} catch (error) {
