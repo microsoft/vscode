@@ -84,8 +84,8 @@ class GridWidgetView<T extends IView> implements IView {
 
 export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
-	protected static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
-	protected static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
+	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
+	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
 
 	//#region Events
 
@@ -135,8 +135,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	//#endregion
 
-	private get workspaceMemento() { return this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE); } 	// using get() to allow for subclass overrides
-	private get profileMemento() { return this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE); } 		// using get() to allow for subclass overrides
+	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	private readonly profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
@@ -1170,7 +1170,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private doCreateGridControlWithPreviousState(): boolean {
-		const uiState: IEditorPartUIState | undefined = this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		const uiState: IEditorPartUIState | undefined = this.loadState();
 		if (uiState?.serializedGrid) {
 			try {
 
@@ -1333,6 +1333,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		super.saveState();
+	}
+
+	protected loadState(): IEditorPartUIState | undefined {
+		return this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
 	createState(): IEditorPartUIState {

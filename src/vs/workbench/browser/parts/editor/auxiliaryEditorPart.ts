@@ -11,14 +11,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorPart, IEditorPartUIState } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { MementoObject } from 'vs/workbench/common/memento';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -217,20 +216,8 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		this.doClose(false /* do not merge any groups to main part */);
 	}
 
-	protected override getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
-
-		// Auxiliary editor parts do not persist state directly
-		// but are managed from the EditorParts class. As such,
-		// we return fake mementos based on the state that is
-		// passed in to us.
-
-		if (scope === StorageScope.WORKSPACE && target === StorageTarget.MACHINE) {
-			return {
-				[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY]: this.state
-			};
-		}
-
-		return {};
+	protected override loadState(): IEditorPartUIState | undefined {
+		return this.state;
 	}
 
 	protected override saveState(): void {
