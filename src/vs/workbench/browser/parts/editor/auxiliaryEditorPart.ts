@@ -94,7 +94,7 @@ export class AuxiliaryEditorPart {
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label, options?.state));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, options?.state, label));
 		disposables.add(this.editorPartsView.registerPart(editorPart));
 		editorPart.create(editorPartContainer);
 
@@ -172,8 +172,8 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	constructor(
 		readonly windowId: number,
 		editorPartsView: IEditorPartsView,
-		groupsLabel: string,
 		private readonly state: IEditorPartUIState | undefined,
+		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -184,16 +184,6 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
-	}
-
-	protected override getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
-		if (scope === StorageScope.WORKSPACE && target === StorageTarget.MACHINE) {
-			return {
-				[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY]: this.state
-			};
-		}
-
-		return {};
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
@@ -225,6 +215,22 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		}
 
 		this.doClose(false /* do not merge any groups to main part */);
+	}
+
+	protected override getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+
+		// Auxiliary editor parts do not persist state directly
+		// but are managed from the EditorParts class. As such,
+		// we return fake mementos based on the state that is
+		// passed in to us.
+
+		if (scope === StorageScope.WORKSPACE && target === StorageTarget.MACHINE) {
+			return {
+				[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY]: this.state
+			};
+		}
+
+		return {};
 	}
 
 	protected override saveState(): void {
