@@ -113,9 +113,9 @@ export class NotebookEditorContextKeys {
 			return c.model.onDidChangeOutputs(() => {
 				layoutDisposable.clear();
 
-				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._editor.getDomNode()), () => {
 					recomputeOutputsExistence();
-				}, DOM.getWindow(this._editor.getDomNode())));
+				}));
 			});
 		};
 
@@ -194,7 +194,7 @@ export class NotebookEditorContextKeys {
 	}
 
 	private _updateForNotebookOptions(): void {
-		const layout = this._editor.notebookOptions.getLayoutConfiguration();
+		const layout = this._editor.notebookOptions.getDisplayOptions();
 		this._useConsolidatedOutputButton.set(layout.consolidatedOutputButton);
 		this._cellToolbarLocation.set(this._editor.notebookOptions.computeCellToolbarLocation(this._editor.textModel?.viewType));
 	}

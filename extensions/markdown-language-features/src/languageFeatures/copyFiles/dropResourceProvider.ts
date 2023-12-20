@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Mime, mediaMimes } from '../../util/mimes';
 import { Schemes } from '../../util/schemes';
 import { createEditForMediaFiles, tryGetUriListSnippet } from './shared';
+import { getParentDocumentUri } from '../../util/document';
 
 class ResourceDropProvider implements vscode.DocumentDropEditProvider {
 
@@ -43,12 +44,12 @@ class ResourceDropProvider implements vscode.DocumentDropEditProvider {
 	private async _getUriListEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
 		const urlList = await dataTransfer.get(Mime.textUriList)?.asString();
 		if (!urlList || token.isCancellationRequested) {
-			return undefined;
+			return;
 		}
 
-		const snippet = await tryGetUriListSnippet(document, urlList, token);
+		const snippet = tryGetUriListSnippet(document, urlList);
 		if (!snippet) {
-			return undefined;
+			return;
 		}
 
 		const edit = new vscode.DocumentDropEdit(snippet.snippet);
@@ -58,7 +59,7 @@ class ResourceDropProvider implements vscode.DocumentDropEditProvider {
 	}
 
 	private async _getMediaFilesEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentDropEdit | undefined> {
-		if (document.uri.scheme === Schemes.untitled) {
+		if (getParentDocumentUri(document.uri).scheme === Schemes.untitled) {
 			return;
 		}
 

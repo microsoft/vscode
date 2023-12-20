@@ -83,7 +83,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
-		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always') {
+		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar !== 'onHover') {
 			return [];
 		}
 

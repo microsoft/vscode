@@ -11,7 +11,6 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeColor } from 'vs/base/common/themables';
-import { $window } from 'vs/base/browser/window';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -24,8 +23,8 @@ export class PageCoordinates {
 		public readonly y: number
 	) { }
 
-	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - $window.scrollX, this.y - $window.scrollY);
+	public toClientCoordinates(targetWindow: Window): ClientCoordinates {
+		return new ClientCoordinates(this.x - targetWindow.scrollX, this.y - targetWindow.scrollY);
 	}
 }
 
@@ -44,8 +43,8 @@ export class ClientCoordinates {
 		public readonly clientY: number
 	) { }
 
-	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + $window.scrollX, this.clientY + $window.scrollY);
+	public toPageCoordinates(targetWindow: Window): PageCoordinates {
+		return new PageCoordinates(this.clientX + targetWindow.scrollX, this.clientY + targetWindow.scrollY);
 	}
 }
 
@@ -129,7 +128,7 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	public readonly relativePos: CoordinatesRelativeToEditor;
 
 	constructor(e: MouseEvent, isFromPointerCapture: boolean, editorViewDomNode: HTMLElement) {
-		super(e);
+		super(dom.getWindow(editorViewDomNode), e);
 		this.isFromPointerCapture = isFromPointerCapture;
 		this.pos = new PageCoordinates(this.posx, this.posy);
 		this.editorPos = createEditorPagePosition(editorViewDomNode);

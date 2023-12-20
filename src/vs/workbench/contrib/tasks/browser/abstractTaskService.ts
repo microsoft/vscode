@@ -494,7 +494,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
-			this._showOutput();
+			this._showOutput(undefined, true);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.build', async () => {
@@ -636,15 +636,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._workspace = setup[4];
 	}
 
-	protected _showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
+	protected _showOutput(runSource: TaskRunSource = TaskRunSource.User, userRequested?: boolean): void {
 		if (!VirtualWorkspaceContext.getValue(this._contextKeyService) && ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange))) {
-			this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
-				[{
-					label: nls.localize('showOutput', "Show output"),
-					run: () => {
-						this._outputService.showChannel(this._outputChannel.id, true);
-					}
-				}]);
+			if (userRequested) {
+				this._outputService.showChannel(this._outputChannel.id, true);
+			} else {
+				this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
+					[{
+						label: nls.localize('showOutput', "Show output"),
+						run: () => {
+							this._outputService.showChannel(this._outputChannel.id, true);
+						}
+					}]);
+			}
 		}
 	}
 
@@ -1023,11 +1027,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		for (const entry of storedTasks.entries()) {
-			const key = entry[0];
-			const task = JSON.parse(entry[1]);
-			const folderInfo = this._getFolderFromTaskKey(key);
-			this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
-			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			try {
+				const key = entry[0];
+				const task = JSON.parse(entry[1]);
+				const folderInfo = this._getFolderFromTaskKey(key);
+				this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
+				addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			} catch (error) {
+				this._log(nls.localize('taskService.getSavedTasks.error', 'Fetching a task from task storage failed: {0}.', error), true);
+			}
 		}
 
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();

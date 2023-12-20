@@ -123,7 +123,8 @@ class AMDModuleImporter {
 				scriptSrc = this._amdPolicy.createScriptURL(scriptSrc) as any as string;
 			}
 			scriptElement.setAttribute('src', scriptSrc);
-			document.getElementsByTagName('head')[0].appendChild(scriptElement);
+			// eslint-disable-next-line no-restricted-globals
+			window.document.getElementsByTagName('head')[0].appendChild(scriptElement);
 		});
 	}
 

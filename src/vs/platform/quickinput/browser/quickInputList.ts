@@ -860,9 +860,13 @@ export class QuickInputList {
 			linkHandler: (url) => {
 				this.options.linkOpenerDelegate(url);
 			},
-			showPointer: true,
+			appearance: {
+				showPointer: true,
+			},
 			container: this.container,
-			hoverPosition: HoverPosition.RIGHT
+			position: {
+				hoverPosition: HoverPosition.RIGHT
+			}
 		}, false);
 	}
 

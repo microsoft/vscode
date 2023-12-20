@@ -12,7 +12,6 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService, NavigationType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
@@ -31,6 +30,7 @@ import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/wor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Event } from 'vs/base/common/event';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
@@ -85,7 +85,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this.show();
 			return true;
 		}, TerminalContextKeys.focus));
-		this._register(_instance.onDidRunText(() => {
+		this._register(_instance.onDidExecuteText(() => {
 			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
@@ -111,6 +111,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		addon.activate(xterm.raw);
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
+			if (this._terminalService.activeInstance !== this._instance) {
+				return;
+			}
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
 				this.show();
 			}
@@ -118,6 +121,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._register(onRequestUpdateEditor(() => {
+			if (this._terminalService.activeInstance !== this._instance) {
+				return;
+			}
 			if (this._isTerminalAccessibleViewOpen()) {
 				this.show();
 			}
@@ -314,5 +320,41 @@ registerTerminalAction({
 			return;
 		}
 		await TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.ScrollToBottom,
+	title: { value: localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom"), original: 'Scroll to Bottom' },
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.End,
+		linux: { primary: KeyMod.Shift | KeyCode.End },
+		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const lastPosition = accessibleViewService.getLastPosition();
+		if (!lastPosition) {
+			return;
+		}
+		accessibleViewService.setPosition(lastPosition, true);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.ScrollToTop,
+	title: { value: localize('workbench.action.terminal.scrollToTop', "Scroll to Top"), original: 'Scroll to Top' },
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.Home,
+		linux: { primary: KeyMod.Shift | KeyCode.Home },
+		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
 	}
 });

@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, getDebugName, getFunctionName, observableValue, transaction } from 'vs/base/common/observableInternal/base';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setRecomputeInitiallyAndOnChange, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { derived } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -56,16 +56,17 @@ export function waitForState<T>(observable: IObservable<T>, predicate: (state: T
 	return new Promise(resolve => {
 		let didRun = false;
 		let shouldDispose = false;
+		const stateObs = observable.map(state => ({ isFinished: predicate(state), state }));
 		const d = autorun(reader => {
 			/** @description waitForState */
-			const currentState = observable.read(reader);
-			if (predicate(currentState)) {
+			const { isFinished, state } = stateObs.read(reader);
+			if (isFinished) {
 				if (!didRun) {
 					shouldDispose = true;
 				} else {
 					d.dispose();
 				}
-				resolve(currentState);
+				resolve(state);
 			}
 		});
 		didRun = true;
@@ -83,6 +84,8 @@ export function observableFromEvent<T, TArgs = unknown>(
 }
 
 export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
+	public static globalTransaction: ITransaction | undefined;
+
 	private value: T | undefined;
 	private hasValue = false;
 	private subscription: IDisposable | undefined;
@@ -109,17 +112,21 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 	private readonly handleEvent = (args: TArgs | undefined) => {
 		const newValue = this._getValue(args);
+		const oldValue = this.value;
 
-		const didChange = !this.hasValue || this.value !== newValue;
-
-		getLogger()?.handleFromEventObservableTriggered(this, { oldValue: this.value, newValue, change: undefined, didChange, hadValue: this.hasValue });
+		const didChange = !this.hasValue || oldValue !== newValue;
+		let didRunTransaction = false;
 
 		if (didChange) {
 			this.value = newValue;
 
 			if (this.hasValue) {
-				transaction(
+				didRunTransaction = true;
+				subtransaction(
+					FromEventObservable.globalTransaction,
 					(tx) => {
+						getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
+
 						for (const o of this.observers) {
 							tx.updateObserver(o, this);
 							o.handleChange(this, undefined);
@@ -132,6 +139,10 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 				);
 			}
 			this.hasValue = true;
+		}
+
+		if (!didRunTransaction) {
+			getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
 		}
 	};
 
@@ -157,6 +168,21 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 export namespace observableFromEvent {
 	export const Observer = FromEventObservable;
+
+	export function batchEventsGlobally(tx: ITransaction, fn: () => void): void {
+		let didSet = false;
+		if (FromEventObservable.globalTransaction === undefined) {
+			FromEventObservable.globalTransaction = tx;
+			didSet = true;
+		}
+		try {
+			fn();
+		} finally {
+			if (didSet) {
+				FromEventObservable.globalTransaction = undefined;
+			}
+		}
+	}
 }
 
 export function observableSignalFromEvent(
@@ -298,7 +324,7 @@ export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, 
  * This makes sure the observable is being observed and keeps its cache alive.
  */
 export function keepObserved<T>(observable: IObservable<T>): IDisposable {
-	const o = new KeepAliveObserver(false);
+	const o = new KeepAliveObserver(false, undefined);
 	observable.addObserver(o);
 	return toDisposable(() => {
 		observable.removeObserver(o);
@@ -308,29 +334,42 @@ export function keepObserved<T>(observable: IObservable<T>): IDisposable {
 /**
  * This converts the given observable into an autorun.
  */
-export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>): IDisposable {
-	const o = new KeepAliveObserver(true);
+export function recomputeInitiallyAndOnChange<T>(observable: IObservable<T>, handleValue?: (value: T) => void): IDisposable {
+	const o = new KeepAliveObserver(true, handleValue);
 	observable.addObserver(o);
-	observable.reportChanges();
+	if (handleValue) {
+		handleValue(observable.get());
+	} else {
+		observable.reportChanges();
+	}
 
 	return toDisposable(() => {
 		observable.removeObserver(o);
 	});
 }
 
-class KeepAliveObserver implements IObserver {
-	private counter = 0;
+_setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange);
 
-	constructor(private readonly forceRecompute: boolean) { }
+class KeepAliveObserver implements IObserver {
+	private _counter = 0;
+
+	constructor(
+		private readonly _forceRecompute: boolean,
+		private readonly _handleValue: ((value: any) => void) | undefined,
+	) { }
 
 	beginUpdate<T>(observable: IObservable<T, void>): void {
-		this.counter++;
+		this._counter++;
 	}
 
 	endUpdate<T>(observable: IObservable<T, void>): void {
-		this.counter--;
-		if (this.counter === 0 && this.forceRecompute) {
-			observable.reportChanges();
+		this._counter--;
+		if (this._counter === 0 && this._forceRecompute) {
+			if (this._handleValue) {
+				this._handleValue(observable.get());
+			} else {
+				observable.reportChanges();
+			}
 		}
 	}
 

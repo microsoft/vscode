@@ -48,8 +48,8 @@ export class TerminalContextActionRunner extends ActionRunner {
 	}
 }
 
-export function openContextMenu(event: MouseEvent, contextInstances: SingleOrMany<ITerminalInstance> | undefined, menu: IMenu, contextMenuService: IContextMenuService, extraActions?: IAction[]): void {
-	const standardEvent = new StandardMouseEvent(event);
+export function openContextMenu(targetWindow: Window, event: MouseEvent, contextInstances: SingleOrMany<ITerminalInstance> | undefined, menu: IMenu, contextMenuService: IContextMenuService, extraActions?: IAction[]): void {
+	const standardEvent = new StandardMouseEvent(targetWindow, event);
 
 	const actions: IAction[] = [];
 

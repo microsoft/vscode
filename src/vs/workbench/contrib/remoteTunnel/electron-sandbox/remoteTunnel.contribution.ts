@@ -50,6 +50,7 @@ export const REMOTE_TUNNEL_CONNECTION_STATE = new RawContextKey<CONTEXT_KEY_STAT
 const REMOTE_TUNNEL_USED_STORAGE_KEY = 'remoteTunnelServiceUsed';
 const REMOTE_TUNNEL_PROMPTED_PREVIEW_STORAGE_KEY = 'remoteTunnelServicePromptedPreview';
 const REMOTE_TUNNEL_EXTENSION_RECOMMENDED_KEY = 'remoteTunnelExtensionRecommended';
+const REMOTE_TUNNEL_HAS_USED_BEFORE = 'remoteTunnelHasUsed';
 const REMOTE_TUNNEL_EXTENSION_TIMEOUT = 4 * 60 * 1000; // show the recommendation that a machine started using tunnels if it joined less than 4 minutes ago
 
 const INVALID_TOKEN_RETRIES = 2;
@@ -236,38 +237,47 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			return; // already initialized, token available
 		}
 
-		return await this.progressService.withProgress(
-			{
-				location: ProgressLocation.Window,
-				title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
-			},
-			async (progress: IProgress<IProgressStep>) => {
-				const listener = this.remoteTunnelService.onDidChangeTunnelStatus(status => {
-					switch (status.type) {
-						case 'connecting':
-							if (status.progress) {
-								progress.report({ message: status.progress });
-							}
-							break;
-					}
-				});
-				let newSession: IRemoteTunnelSession | undefined;
-				if (mode.active) {
-					const token = await this.getSessionToken(mode.session);
-					if (token) {
-						newSession = { ...mode.session, token };
-					}
+		const doInitialStateDiscovery = async (progress?: IProgress<IProgressStep>) => {
+			const listener = progress && this.remoteTunnelService.onDidChangeTunnelStatus(status => {
+				switch (status.type) {
+					case 'connecting':
+						if (status.progress) {
+							progress.report({ message: status.progress });
+						}
+						break;
 				}
-				const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
-				listener.dispose();
-
-				if (status.type === 'connected') {
-					this.connectionInfo = status.info;
-					this.connectionStateContext.set('connected');
-					return;
+			});
+			let newSession: IRemoteTunnelSession | undefined;
+			if (mode.active) {
+				const token = await this.getSessionToken(mode.session);
+				if (token) {
+					newSession = { ...mode.session, token };
 				}
 			}
-		);
+			const status = await this.remoteTunnelService.initialize(mode.active && newSession ? { ...mode, session: newSession } : INACTIVE_TUNNEL_MODE);
+			listener?.dispose();
+
+			if (status.type === 'connected') {
+				this.connectionInfo = status.info;
+				this.connectionStateContext.set('connected');
+				return;
+			}
+		};
+
+
+		const hasUsed = this.storageService.getBoolean(REMOTE_TUNNEL_HAS_USED_BEFORE, StorageScope.APPLICATION, false);
+
+		if (hasUsed) {
+			await this.progressService.withProgress(
+				{
+					location: ProgressLocation.Window,
+					title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+				},
+				doInitialStateDiscovery
+			);
+		} else {
+			doInitialStateDiscovery(undefined);
+		}
 	}
 
 	private getPreferredTokenFromSession(session: ExistingSessionItem) {
@@ -278,6 +288,8 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		if (this.connectionInfo) {
 			return this.connectionInfo;
 		}
+
+		this.storageService.store(REMOTE_TUNNEL_HAS_USED_BEFORE, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		let tokenProblems = false;
 		for (let i = 0; i < INVALID_TOKEN_RETRIES; i++) {
@@ -795,7 +807,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: ''
 		},
 		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
-			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
+			description: localize('remoteTunnelAccess.preventSleep', "Prevent this computer from sleeping when remote tunnel access is turned on."),
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			default: false,

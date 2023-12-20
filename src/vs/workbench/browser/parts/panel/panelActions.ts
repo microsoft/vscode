@@ -233,7 +233,7 @@ class SwitchPanelViewAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, offset: number): Promise<void> {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
-		const pinnedPanels = paneCompositeService.getPinnedPaneCompositeIds(ViewContainerLocation.Panel);
+		const pinnedPanels = paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.Panel);
 		const activePanel = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
 		if (!activePanel) {
 			return;

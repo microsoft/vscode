@@ -9,7 +9,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
-import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
+import { CommentNode, ResourceWithCommentThreads } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ITreeFilter, ITreeNode, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,6 +31,7 @@ import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ILocalizedString } from 'vs/platform/action/common/action';
+import { CommentsModel } from 'vs/workbench/contrib/comments/browser/commentsModel';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
@@ -38,6 +39,8 @@ export const COMMENTS_VIEW_TITLE: ILocalizedString = nls.localize2('comments.vie
 
 interface IResourceTemplateData {
 	resourceLabel: IResourceLabel;
+	separator: HTMLElement;
+	owner: HTMLElement;
 }
 
 interface ICommentThreadTemplateData {
@@ -95,12 +98,23 @@ export class ResourceWithCommentsRenderer implements IListRenderer<ITreeNode<Res
 	renderTemplate(container: HTMLElement) {
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
 		const resourceLabel = this.labels.create(labelContainer);
+		const separator = dom.append(labelContainer, dom.$('.separator'));
+		const owner = labelContainer.appendChild(dom.$('.owner'));
 
-		return { resourceLabel };
+		return { resourceLabel, owner, separator };
 	}
 
 	renderElement(node: ITreeNode<ResourceWithCommentThreads>, index: number, templateData: IResourceTemplateData, height: number | undefined): void {
 		templateData.resourceLabel.setFile(node.element.resource);
+		templateData.separator.innerText = '\u00b7';
+
+		if (node.element.ownerLabel) {
+			templateData.owner.innerText = node.element.ownerLabel;
+			templateData.separator.style.display = 'inline';
+		} else {
+			templateData.owner.innerText = '';
+			templateData.separator.style.display = 'none';
+		}
 	}
 
 	disposeTemplate(templateData: IResourceTemplateData): void {
@@ -337,7 +351,6 @@ export class CommentsList extends WorkbenchObjectTree<CommentsModel | ResourceWi
 		options: ICommentsListOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
-		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {

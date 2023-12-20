@@ -144,9 +144,9 @@ export class CodeCell extends Disposable {
 
 	private updateForLayout(): void {
 		this._pendingLayout?.dispose();
-		this._pendingLayout = DOM.modify(() => {
+		this._pendingLayout = DOM.modify(DOM.getWindow(this.notebookEditor.getDomNode()), () => {
 			this.cellParts.updateInternalLayoutNow(this.viewCell);
-		}, DOM.getWindow(this.templateData.container));
+		});
 	}
 
 	private updateForOutputHover() {
@@ -485,7 +485,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private layoutEditor(dimension: IDimension): void {
-		this.templateData.editor?.layout(dimension);
+		this.templateData.editor?.layout(dimension, true);
 	}
 
 	private onCellWidthChange(): void {

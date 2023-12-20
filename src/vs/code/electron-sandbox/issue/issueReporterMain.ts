@@ -19,18 +19,19 @@ import { IIssueMainService, IssueReporterWindowConfiguration } from 'vs/platform
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { IssueReporter } from './issueReporterService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export function startup(configuration: IssueReporterWindowConfiguration) {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
-	document.body.classList.add(platformClass); // used by our fonts
+	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
-	safeInnerHtml(document.body, BaseHtml());
+	safeInnerHtml(mainWindow.document.body, BaseHtml());
 
 	const instantiationService = initServices(configuration.windowId);
 
 	const issueReporter = instantiationService.createInstance(IssueReporter, configuration);
 	issueReporter.render();
-	document.body.style.display = 'block';
+	mainWindow.document.body.style.display = 'block';
 	issueReporter.setInitialFocus();
 }
 

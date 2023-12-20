@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenIdle } from 'vs/base/common/async';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import * as performance from 'vs/base/common/performance';
@@ -134,7 +135,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		// see https://github.com/microsoft/vscode/issues/41322
 		lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
-			runWhenIdle(() => {
+			runWhenWindowIdle(mainWindow, () => {
 				this._initialize();
 			}, 50 /*max delay*/);
 		});

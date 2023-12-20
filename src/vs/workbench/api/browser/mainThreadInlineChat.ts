@@ -31,10 +31,11 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 		this._registrations.dispose();
 	}
 
-	async $registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void> {
+	async $registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportIssueReporting: boolean): Promise<void> {
 		const unreg = this._inlineChatService.addProvider({
 			debugName,
 			label,
+			supportIssueReporting,
 			prepareInlineChatSession: async (model, range, token) => {
 				const session = await this._proxy.$prepareSession(handle, model.uri, range, token);
 				if (!session) {
@@ -58,6 +59,9 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 				} finally {
 					this._progresses.delete(request.requestId);
 				}
+			},
+			provideFollowups: !supportsFollowups ? undefined : async (session, response, token) => {
+				return this._proxy.$provideFollowups(handle, session.id, response.id, token);
 			},
 			handleInlineChatResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
 				this._proxy.$handleFeedback(handle, session.id, response.id, kind);

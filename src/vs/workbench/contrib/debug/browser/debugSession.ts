@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { distinct } from 'vs/base/common/arrays';
 import { Queue, RunOnceScheduler } from 'vs/base/common/async';
@@ -40,6 +39,8 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
@@ -54,11 +55,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
 	private readonly rawListeners = new DisposableStore();
+	private readonly globalDisposables = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
+	private readonly statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -104,7 +107,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose = new DisposableStore();
+		const toDispose = this.globalDisposables;
 		const replListener = toDispose.add(new MutableDisposable());
 		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 		if (lifecycleService) {
@@ -982,71 +985,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}));
 
 
-		const statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
-		this.rawListeners.add(this.raw.onDidStop(async event => {
-			this.passFocusScheduler.cancel();
-			this.stoppedDetails.push(event.body);
-
-			statusQueue.run(
-				this.fetchThreads(event.body).then(() => event.body.threadId === undefined ? this.threadIds : [event.body.threadId]),
-				async (threadId, token) => {
-					const hasLotsOfThreads = event.body.threadId === undefined && this.threadIds.length > 10;
-
-					// If the focus for the current session is on a non-existent thread, clear the focus.
-					const focusedThread = this.debugService.getViewModel().focusedThread;
-					const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
-					if (focusedThreadDoesNotExist) {
-						this.debugService.focusStackFrame(undefined, undefined);
-					}
-					const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
-					if (thread) {
-						// Call fetch call stack twice, the first only return the top stack frame.
-						// Second retrieves the rest of the call stack. For performance reasons #25605
-						// Second call is only done if there's few threads that stopped in this event.
-						const promises = this.model.refreshTopOfCallstack(<Thread>thread, /* fetchFullStack= */!hasLotsOfThreads);
-						const focus = async () => {
-							if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
-								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-								if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
-									// Only take focus if nothing is focused, or if the focus is already on the current session
-									const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
-									await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
-								}
-
-								if (thread.stoppedDetails && !token.isCancellationRequested) {
-									if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
-										await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
-									}
-
-									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
-										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
-									}
-								}
-							}
-						};
-
-						await promises.topCallStack;
-						if (token.isCancellationRequested) {
-							return;
-						}
-
-						focus();
-
-						await promises.wholeCallStack;
-						if (token.isCancellationRequested) {
-							return;
-						}
-
-						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-						if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
-							// The top stack frame can be deemphesized so try to focus again #68616
-							focus();
-						}
-					}
-					this._onDidChangeState.fire();
-				},
-			);
-		}));
+		const statusQueue = this.statusQueue;
+		this.rawListeners.add(this.raw.onDidStop(event => this.handleStop(event.body)));
 
 		this.rawListeners.add(this.raw.onDidThread(event => {
 			statusQueue.cancel([event.body.threadId]);
@@ -1263,11 +1203,15 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this._onDidInvalidMemory.fire(event);
 		}));
 		this.rawListeners.add(this.raw.onDidInvalidated(async event => {
-			if (!(event.body.areas && event.body.areas.length === 1 && (event.body.areas[0] === 'variables' || event.body.areas[0] === 'watch'))) {
-				// If invalidated event only requires to update variables or watch, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
+			const areas = event.body.areas || ['all'];
+			// If invalidated event only requires to update variables or watch, do that, otherwise refetch threads https://github.com/microsoft/vscode/issues/106745
+			if (areas.includes('threads') || areas.includes('stacks') || areas.includes('all')) {
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
-				await this.fetchThreads(this.getStoppedDetails());
+
+				const details = this.stoppedDetails;
+				this.stoppedDetails.length = 1;
+				await Promise.all(details.map(d => this.handleStop(d)));
 			}
 
 			const viewModel = this.debugService.getViewModel();
@@ -1277,6 +1221,74 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}));
 
 		this.rawListeners.add(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+	}
+
+	private async handleStop(event: IRawStoppedDetails) {
+		this.passFocusScheduler.cancel();
+		this.stoppedDetails.push(event);
+
+		this.statusQueue.run(
+			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
+			async (threadId, token) => {
+				const hasLotsOfThreads = event.threadId === undefined && this.threadIds.length > 10;
+
+				// If the focus for the current session is on a non-existent thread, clear the focus.
+				const focusedThread = this.debugService.getViewModel().focusedThread;
+				const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
+				if (focusedThreadDoesNotExist) {
+					this.debugService.focusStackFrame(undefined, undefined);
+				}
+				const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
+				if (thread) {
+					// Call fetch call stack twice, the first only return the top stack frame.
+					// Second retrieves the rest of the call stack. For performance reasons #25605
+					// Second call is only done if there's few threads that stopped in this event.
+					const promises = this.model.refreshTopOfCallstack(<Thread>thread, /* fetchFullStack= */!hasLotsOfThreads);
+					const focus = async () => {
+						if (focusedThreadDoesNotExist || (!event.preserveFocusHint && thread.getCallStack().length)) {
+							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+							if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
+								// Only take focus if nothing is focused, or if the focus is already on the current session
+								const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+								await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
+							}
+
+							if (thread.stoppedDetails && !token.isCancellationRequested) {
+								if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
+									await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+								}
+
+								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
+									const activeWindow = getActiveWindow();
+									if (!activeWindow.document.hasFocus()) {
+										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+									}
+								}
+							}
+						}
+					};
+
+					await promises.topCallStack;
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					focus();
+
+					await promises.wholeCallStack;
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+					if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
+						// The top stack frame can be deemphesized so try to focus again #68616
+						focus();
+					}
+				}
+				this._onDidChangeState.fire();
+			},
+		);
 	}
 
 	private onDidExitAdapter(event?: AdapterEndEvent): void {
@@ -1306,6 +1318,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	public dispose() {
 		this.cancelAllRequests();
 		this.rawListeners.dispose();
+		this.globalDisposables.dispose();
 	}
 
 	//---- sources

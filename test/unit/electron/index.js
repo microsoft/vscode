@@ -43,8 +43,8 @@ const minimist = require('minimist');
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'dev', 'reporter', 'reporter-options', 'wait-server', 'timeout', 'crash-reporter-directory', 'tfs'],
-	boolean: ['build', 'coverage', 'help'],
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'wait-server', 'timeout', 'crash-reporter-directory', 'tfs'],
+	boolean: ['build', 'coverage', 'help', 'dev'],
 	alias: {
 		'grep': ['g', 'f'],
 		'runGlob': ['glob', 'runGrep'],

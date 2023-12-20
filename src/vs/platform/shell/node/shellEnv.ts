@@ -137,6 +137,9 @@ async function doResolveUnixShellEnv(logService: ILogService, token: Cancellatio
 		} else if (name === 'nu') { // nushell requires ^ before quoted path to treat it as a command
 			command = `^'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 			shellArgs = ['-i', '-l', '-c'];
+		} else if (name === 'xonsh') { // #200374: native implementation is shorter
+			command = `import os, json; print("${mark}", json.dumps(dict(os.environ)), "${mark}")`;
+			shellArgs = ['-i', '-l', '-c'];
 		} else {
 			command = `'${process.execPath}' ${extraArgs} -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
 

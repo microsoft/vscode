@@ -161,7 +161,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 	}
 
 	if (editor.hasOutputTextSelection()) {
-		document.execCommand('copy');
+		getWindow(editor.getDomNode()).document.execCommand('copy');
 		return true;
 	}
 

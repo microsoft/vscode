@@ -23,6 +23,7 @@ import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/com
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { IRange } from 'vs/editor/common/core/range';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
@@ -59,6 +60,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * Uses the provided icon instead of deriving a resource icon.
+	 */
+	readonly icon?: ThemeIcon;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -462,6 +468,7 @@ class ResourceLabelWidget extends IconLabel {
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);
+		const hasIconChanged = this.hasIconChanged(options);
 
 		this.label = label;
 		this.options = options;
@@ -475,7 +482,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.render({
-			updateIcon: hasResourceChanged || hasFileKindChanged,
+			updateIcon: hasResourceChanged || hasFileKindChanged || hasIconChanged,
 			updateDecoration: hasResourceChanged || hasFileKindChanged
 		});
 	}
@@ -506,6 +513,10 @@ class ResourceLabelWidget extends IconLabel {
 		const newResource = toResource(newLabel);
 
 		return !!newResource && this.computedPathLabel !== this.labelService.getUriLabel(newResource);
+	}
+
+	private hasIconChanged(newOptions?: IResourceLabelOptions): boolean {
+		return this.options?.icon !== newOptions?.icon;
 	}
 
 	clear(): void {
@@ -573,7 +584,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind);
+				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);

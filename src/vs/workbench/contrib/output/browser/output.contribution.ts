@@ -10,7 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { OutputService } from 'vs/workbench/contrib/output/browser/outputServices';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_ACTIVE_FILE_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, IFileOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -93,7 +93,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerShowOutputChannelsAction();
 		this.registerClearOutputAction();
 		this.registerToggleAutoScrollAction();
-		this.registerOpenActiveLogOutputFileAction();
+		this.registerOpenActiveOutputFileAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
 	}
@@ -259,12 +259,12 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		}));
 	}
 
-	private registerOpenActiveLogOutputFileAction(): void {
+	private registerOpenActiveOutputFileAction(): void {
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.action.openActiveLogOutputFile`,
-					title: nls.localize2('openActiveLogOutputFile', "Open Log Output File"),
+					title: nls.localize2('openActiveOutputFile', "Open Output as Editor"),
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
@@ -272,29 +272,29 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						order: 4
 					}],
 					icon: Codicon.goToFile,
-					precondition: CONTEXT_ACTIVE_LOG_OUTPUT
+					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
 				const editorService = accessor.get(IEditorService);
 				const fileConfigurationService = accessor.get(IFilesConfigurationService);
-				const logFileOutputChannelDescriptor = this.getLogFileOutputChannelDescriptor(outputService);
-				if (logFileOutputChannelDescriptor) {
-					await fileConfigurationService.updateReadonly(logFileOutputChannelDescriptor.file, true);
+				const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor(outputService);
+				if (fileOutputChannelDescriptor) {
+					await fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.file, true);
 					await editorService.openEditor({
-						resource: logFileOutputChannelDescriptor.file,
+						resource: fileOutputChannelDescriptor.file,
 						options: {
 							pinned: true,
 						}
 					});
 				}
 			}
-			private getLogFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
+			private getFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
 				const channel = outputService.getActiveChannel();
 				if (channel) {
 					const descriptor = outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
-					if (descriptor && descriptor.file && descriptor.log) {
+					if (descriptor?.file) {
 						return <IFileOutputChannelDescriptor>descriptor;
 					}
 				}

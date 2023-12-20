@@ -142,6 +142,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 							// icon (search)
 							const searchIcon = document.createElement('span');
+							searchIcon.ariaHidden = 'true';
 							searchIcon.className = action.class ?? '';
 							searchIcon.classList.add('search-icon');
 
