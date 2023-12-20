@@ -6,11 +6,12 @@
 import { disposableWindowInterval } from 'vs/base/browser/dom';
 import { $window } from 'vs/base/browser/window';
 import { IAction, toAction } from 'vs/base/common/actions';
-import { equals, tail } from 'vs/base/common/arrays';
+import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
@@ -44,6 +45,14 @@ import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX
 
 export abstract class EditModeStrategy {
 
+	protected static _decoBlock = ModelDecorationOptions.register({
+		description: 'inline-chat',
+		showIfCollapsed: false,
+		isWholeLine: true,
+		className: 'inline-chat-block-selection',
+	});
+
+
 	protected readonly _onDidAccept = new Emitter<void>();
 	protected readonly _onDidDiscard = new Emitter<void>();
 
@@ -52,7 +61,10 @@ export abstract class EditModeStrategy {
 
 	toggleDiff?: () => any;
 
-	constructor(protected readonly _zone: InlineChatZoneWidget) { }
+	constructor(
+		protected readonly _session: Session,
+		protected readonly _zone: InlineChatZoneWidget,
+	) { }
 
 	dispose(): void {
 		this._onDidAccept.dispose();
@@ -75,7 +87,12 @@ export abstract class EditModeStrategy {
 
 	abstract hasFocus(): boolean;
 
-	abstract needsMargin(): boolean;
+	getWholeRangeDecoration(): IModelDeltaDecoration[] {
+		const ranges = [this._session.wholeRange.value];
+		const newDecorations = ranges.map(range => range.isEmpty() ? undefined : ({ range, options: EditModeStrategy._decoBlock }));
+		coalesceInPlace(newDecorations);
+		return newDecorations;
+	}
 }
 
 export class PreviewStrategy extends EditModeStrategy {
@@ -84,16 +101,16 @@ export class PreviewStrategy extends EditModeStrategy {
 	private readonly _listener: IDisposable;
 
 	constructor(
-		private readonly _session: Session,
+		session: Session,
 		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(zone);
+		super(session, zone);
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
-		this._listener = Event.debounce(_session.textModelN.onDidChangeContent.bind(_session.textModelN), () => { }, 350)(_ => {
-			if (!_session.textModelN.isDisposed() && !_session.textModel0.isDisposed()) {
-				this._ctxDocumentChanged.set(_session.hasChangedText);
+		this._listener = Event.debounce(session.textModelN.onDidChangeContent.bind(session.textModelN), () => { }, 350)(_ => {
+			if (!session.textModelN.isDisposed() && !session.textModel0.isDisposed()) {
+				this._ctxDocumentChanged.set(session.hasChangedText);
 			}
 		});
 	}
@@ -164,10 +181,6 @@ export class PreviewStrategy extends EditModeStrategy {
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
 	}
-
-	needsMargin(): boolean {
-		return true;
-	}
 }
 
 
@@ -184,7 +197,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 	private _editCount: number = 0;
 
 	constructor(
-		private readonly _session: Session,
+		session: Session,
 		private readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
 		@IStorageService storageService: IStorageService,
@@ -192,7 +205,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		super(zone);
+		super(session, zone);
 
 		this._previewZone = new Lazy(() => _instaService.createInstance(InlineChatFileCreatePreviewWidget, _editor));
 	}
@@ -305,11 +318,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		}
 		this._zone.widget.updateStatus(message);
 	}
-
-	override needsMargin(): boolean {
-		return true;
-	}
-
 
 	private async _updateDiffZones() {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
@@ -510,16 +518,14 @@ export class LiveStrategy extends EditModeStrategy {
 	private _editCount: number = 0;
 
 	constructor(
-		protected readonly _session: Session,
+		session: Session,
 		protected readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService protected _storageService: IStorageService,
-		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
-		super(zone);
+		super(session, zone);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
@@ -812,7 +818,8 @@ export class LiveStrategy extends EditModeStrategy {
 				this._zone.updatePositionAndHeight(widgetData.position);
 				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
-				this._updateSummaryMessage(hunks.length);
+				const remainingHunks = Iterable.reduce(hunkDisplayData.values(), (p, c) => { return p + (c.acceptedOrRejected ? 0 : 1); }, 0);
+				this._updateSummaryMessage(remainingHunks);
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;
@@ -899,12 +906,13 @@ export class LiveStrategy extends EditModeStrategy {
 		this._zone.widget.updateStatus(message);
 	}
 
-	override needsMargin(): boolean {
-		return true;
-	}
-
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
+	}
+
+	override getWholeRangeDecoration(): IModelDeltaDecoration[] {
+		// don't render the blue in live mode
+		return [];
 	}
 }
 

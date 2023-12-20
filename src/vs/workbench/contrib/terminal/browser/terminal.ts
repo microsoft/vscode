@@ -22,11 +22,12 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -297,7 +298,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
-	moveToEditor(source: ITerminalInstance): void;
+	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
+	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
@@ -419,7 +421,7 @@ export interface ICreateTerminalOptions {
 }
 
 export interface TerminalEditorLocation {
-	viewColumn: EditorGroupColumn;
+	viewColumn: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 	preserveFocus?: boolean;
 }
 
@@ -660,7 +662,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
-	onDidRunText: Event<void>;
+	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
 	onDidSendText: Event<string>;
 

@@ -13,7 +13,6 @@ import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider, IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
-import { IAction } from 'vs/base/common/actions';
 import { range } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -30,7 +29,7 @@ import { ltrim } from 'vs/base/common/strings';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
-import { getIconClass } from 'vs/platform/quickinput/browser/quickInputUtils';
+import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
@@ -355,30 +354,13 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Actions
 		const buttons = mainItem.buttons;
 		if (buttons && buttons.length) {
-			data.actionBar.push(buttons.map((button, index): IAction => {
-				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
-				if (button.alwaysVisible) {
-					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
-				}
-				return {
-					id: `id-${index}`,
-					class: cssClasses,
-					enabled: true,
-					label: '',
-					tooltip: button.tooltip || '',
-					run: () => {
-						mainItem.type !== 'separator'
-							? element.fireButtonTriggered({
-								button,
-								item: mainItem
-							})
-							: element.fireSeparatorButtonTriggered({
-								button,
-								separator: mainItem
-							});
-					}
-				};
-			}), { icon: true, label: false });
+			data.actionBar.push(buttons.map((button, index) => quickInputButtonToAction(
+				button,
+				`id-${index}`,
+				() => mainItem.type !== 'separator'
+					? element.fireButtonTriggered({ button, item: mainItem })
+					: element.fireSeparatorButtonTriggered({ button, separator: mainItem })
+			)), { icon: true, label: false });
 			data.entry.classList.add('has-actions');
 		} else {
 			data.entry.classList.remove('has-actions');

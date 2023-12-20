@@ -7,7 +7,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType } from 'vs/base/browser/ui/tree/abstractTree';
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -367,6 +367,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	set findMode(mode: TreeFindMode) { this.tree.findMode = mode; }
 	readonly onDidChangeFindMode: Event<TreeFindMode>;
 
+	get findMatchType(): TreeFindMatchType { return this.tree.findMatchType; }
+	set findMatchType(matchType: TreeFindMatchType) { this.tree.findMatchType = matchType; }
+	readonly onDidChangeFindMatchType: Event<TreeFindMatchType>;
+
 	get expandOnlyOnTwistieClick(): boolean | ((e: T) => boolean) {
 		if (typeof this.tree.expandOnlyOnTwistieClick === 'boolean') {
 			return this.tree.expandOnlyOnTwistieClick;
@@ -393,6 +397,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.tree = this.createTree(user, container, delegate, renderers, options);
 		this.onDidChangeFindMode = this.tree.onDidChangeFindMode;
+		this.onDidChangeFindMatchType = this.tree.onDidChangeFindMatchType;
 
 		this.root = createAsyncDataTreeNode({
 			element: undefined!,
