@@ -56,7 +56,11 @@ export const enum AccessibilityVerbositySettingId {
 
 export const enum AccessibilityAlertSettingId {
 	Save = 'accessibility.alert.save',
-	Format = 'accessibility.alert.format'
+	Format = 'accessibility.alert.format',
+	Breakpoint = 'accessibility.alert.breakpoint',
+	Error = 'accessibility.alert.error',
+	Warning = 'accessibility.alert.warning',
+	FoldedArea = 'accessibility.alert.foldedArea'
 }
 
 export const enum AccessibleViewProviderId {
@@ -152,6 +156,30 @@ const configuration: IConfigurationNode = {
 				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
 				localize('alert.format.never', "Never alerts.")
 			],
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Breakpoint]: {
+			'markdownDescription': localize('alert.breakpoint', "When in screen reader mode, alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.breakpoint#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Error]: {
+			'markdownDescription': localize('alert.error', "When in screen reader mode, alerts when the active line has an error. Also see {0}.", '`#audioCues.error#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Warning]: {
+			'markdownDescription': localize('alert.warning', "When in screen reader mode, alerts when the active line has a warning. Also see {0}.", '`#audioCues.warning#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.FoldedArea]: {
+			'markdownDescription': localize('alert.foldedArea', "When in screen reader mode, alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
+			'type': 'boolean',
+			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityVoiceSettingId.SpeechTimeout]: {

@@ -15,7 +15,11 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 
 export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 	declare readonly _serviceBrand: undefined;
-	private _events: Map<AccessibleNotificationEvent, { audioCue: AudioCue; alertMessage: string; alertSetting?: string }> = new Map();
+	private _events: Map<AccessibleNotificationEvent, {
+		audioCue: AudioCue;
+		alertMessage: string;
+		alertSetting?: string;
+	}> = new Map();
 	constructor(
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -26,17 +30,24 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		this._events.set(AccessibleNotificationEvent.Clear, { audioCue: AudioCue.clear, alertMessage: localize('cleared', "Cleared") });
 		this._events.set(AccessibleNotificationEvent.Save, { audioCue: AudioCue.save, alertMessage: localize('saved', "Saved"), alertSetting: AccessibilityAlertSettingId.Save });
 		this._events.set(AccessibleNotificationEvent.Format, { audioCue: AudioCue.format, alertMessage: localize('formatted', "Formatted"), alertSetting: AccessibilityAlertSettingId.Format });
+		this._events.set(AccessibleNotificationEvent.Breakpoint, { audioCue: AudioCue.break, alertMessage: localize('breakpoint', "Breakpoint"), alertSetting: AccessibilityAlertSettingId.Breakpoint });
+		this._events.set(AccessibleNotificationEvent.Error, { audioCue: AudioCue.error, alertMessage: localize('error', "Error"), alertSetting: AccessibilityAlertSettingId.Error });
+		this._events.set(AccessibleNotificationEvent.Warning, { audioCue: AudioCue.warning, alertMessage: localize('warning', "Warning"), alertSetting: AccessibilityAlertSettingId.Warning });
+		this._events.set(AccessibleNotificationEvent.Folded, { audioCue: AudioCue.foldedArea, alertMessage: localize('foldedArea', "Folded Area"), alertSetting: AccessibilityAlertSettingId.FoldedArea });
 
-		this._register(this._workingCopyService.onDidSave((e) => this._notify(AccessibleNotificationEvent.Save, e.reason === SaveReason.EXPLICIT)));
+		this._register(this._workingCopyService.onDidSave((e) => this._notifyBasedOnUserGesture(AccessibleNotificationEvent.Save, e.reason === SaveReason.EXPLICIT)));
 	}
 
+	/**
+	 * Notify on clear, save, format. Alerts and audio cues are mutually exclusive.
+	 */
 	notify(event: AccessibleNotificationEvent, userGesture?: boolean): void {
 		if (event === AccessibleNotificationEvent.Format) {
-			return this._notify(event, userGesture);
+			return this._notifyBasedOnUserGesture(AccessibleNotificationEvent.Format, userGesture);
 		}
 		const { audioCue, alertMessage } = this._events.get(event)!;
-		const audioCueValue = this._configurationService.getValue(audioCue.settingsKey);
-		if (audioCueValue === 'on' || audioCueValue === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
+		const audioCueSetting = this._configurationService.getValue(audioCue.settingsKey);
+		if (audioCueSetting === 'on' || audioCueSetting === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
 			this._logService.debug('AccessibleNotificationService playing sound: ', audioCue.name);
 			this._audioCueService.playAudioCue(audioCue);
 		} else {
@@ -45,7 +56,24 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		}
 	}
 
-	private _notify(event: AccessibleNotificationEvent, userGesture?: boolean): void {
+	/**
+	 * Line feature contributions can use this to notify the user of changes to the line.
+	 */
+	notifyLineChanges(events: AccessibleNotificationEvent[]): void {
+		const audioCues = events.map(e => this._events.get(e)!.audioCue);
+		if (audioCues.length) {
+			this._logService.debug('AccessibleNotificationService playing sounds if enabled: ', events.map(e => this._events.get(e)!.audioCue.name).join(', '));
+			this._audioCueService.playAudioCues(audioCues);
+		}
+
+		const alerts = events.filter(e => this._configurationService.getValue(this._events.get(e)!.alertSetting!) === true).map(e => this._events.get(e)?.alertMessage);
+		if (alerts.length) {
+			this._logService.debug('AccessibleNotificationService alerting: ', alerts.join(', '));
+			this._accessibilityService.alert(alerts.join(', '));
+		}
+	}
+
+	private _notifyBasedOnUserGesture(event: AccessibleNotificationEvent, userGesture?: boolean): void {
 		const { audioCue, alertMessage, alertSetting } = this._events.get(event)!;
 		if (!alertSetting) {
 			return;
@@ -79,4 +107,5 @@ export class TestAccessibleNotificationService extends Disposable implements IAc
 	declare readonly _serviceBrand: undefined;
 
 	notify(event: AccessibleNotificationEvent, userGesture?: boolean): void { }
+	notifyLineChanges(event: AccessibleNotificationEvent[]): void { }
 }
