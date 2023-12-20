@@ -1387,7 +1387,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webview = this.instantiationService.createInstance(BackLayerWebView, {
 			get creationOptions() { return that.creationOptions; },
 			setScrollTop(scrollTop: number) { that._list.scrollTop = scrollTop; },
-			triggerScroll(targetWindow: Window, event: IMouseWheelEvent) { that._list.triggerScrollFromMouseWheelEvent(targetWindow, event); },
+			triggerScroll(event: IMouseWheelEvent) { that._list.triggerScrollFromMouseWheelEvent(event); },
 			getCellByInfo: that.getCellByInfo.bind(that),
 			getCellById: that._getCellById.bind(that),
 			toggleNotebookCellSelection: that._toggleNotebookCellSelection.bind(that),

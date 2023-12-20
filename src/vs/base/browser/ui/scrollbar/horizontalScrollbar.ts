@@ -49,7 +49,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				right: undefined,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: (targetWindow: Window) => this._host.onMouseWheel(new StandardWheelEvent(targetWindow, null, 1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 1, 0)),
 			});
 
 			this._createArrow({
@@ -61,7 +61,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 				right: arrowDelta,
 				bgWidth: options.arrowSize,
 				bgHeight: options.horizontalScrollbarSize,
-				onActivate: (targetWindow: Window) => this._host.onMouseWheel(new StandardWheelEvent(targetWindow, null, -1, 0)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, -1, 0)),
 			});
 		}
 

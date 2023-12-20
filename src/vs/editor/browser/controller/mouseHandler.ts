@@ -149,7 +149,7 @@ export class MouseHandler extends ViewEventHandler {
 				return;
 			}
 
-			const e = new StandardWheelEvent(dom.getWindow(this.viewHelper.viewDomNode), browserEvent);
+			const e = new StandardWheelEvent(browserEvent);
 			classifier.acceptStandardWheelEvent(e);
 
 			if (classifier.isPhysicalMouseWheel()) {

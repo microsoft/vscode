@@ -338,8 +338,8 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 		return this.view.scrollHeight;
 	}
 
-	triggerScrollFromMouseWheelEvent(targetWindow: Window, browserEvent: IMouseWheelEvent) {
-		this.view.delegateScrollFromMouseWheelEvent(targetWindow, browserEvent);
+	triggerScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent) {
+		this.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
 	delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent) {

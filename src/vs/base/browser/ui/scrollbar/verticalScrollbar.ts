@@ -49,7 +49,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
-				onActivate: (targetWindow: Window) => this._host.onMouseWheel(new StandardWheelEvent(targetWindow, null, 0, 1)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
 			});
 
 			this._createArrow({
@@ -61,7 +61,7 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
-				onActivate: (targetWindow: Window) => this._host.onMouseWheel(new StandardWheelEvent(targetWindow, null, 0, -1)),
+				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),
 			});
 		}
 
