@@ -98,6 +98,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
+	private readonly _onDidEnterFullScreen = this._register(new Emitter<void>());
+	readonly onDidEnterFullScreen = this._onDidEnterFullScreen.event;
+
+	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
+	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -121,6 +127,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
 			this._lastFocusTime = Date.now();
 		}));
+		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -670,14 +678,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}));
 
 		// Window Fullscreen
-		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => {
+		this._register(this.onDidEnterFullScreen(() => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		}));
 
-		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => {
+		this._register(this.onDidLeaveFullScreen(() => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();

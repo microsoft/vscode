@@ -18,6 +18,8 @@ export interface IBaseWindow extends IDisposable {
 	readonly onDidMaximize: Event<void>;
 	readonly onDidUnmaximize: Event<void>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
+	readonly onDidEnterFullScreen: Event<void>;
+	readonly onDidLeaveFullScreen: Event<void>;
 	readonly onDidClose: Event<void>;
 
 	readonly id: number;
