@@ -46,6 +46,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		}
 
 		e.preventDefault();
+		e.returnValue = true;
 
 		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
