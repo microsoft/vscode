@@ -66,6 +66,12 @@ export interface IHostService {
 	readonly onDidChangeActiveWindow: Event<number>;
 
 	/**
+	 * Emitted when the window with the given identifier changes
+	 * its fullscreen state.
+	 */
+	readonly onDidChangeFullScreen: Event<number>;
+
+	/**
 	 * Opens an empty window. The optional parameter allows to define if
 	 * a new window should open or the existing one change to an empty.
 	 */
