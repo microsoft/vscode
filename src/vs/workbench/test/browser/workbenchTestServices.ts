@@ -1492,6 +1492,8 @@ export class TestHostService implements IHostService {
 	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
 
+	readonly onDidChangeFullScreen: Event<number> = Event.None;
+
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;
 		this._onDidChangeFocus.fire(this._hasFocus);
