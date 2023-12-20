@@ -13,7 +13,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { IListOptions, IListStyles, isActionItem, isButton, isInputElement, isMonacoCustomToggle, isMonacoEditor, isStickyScrollElement, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider, IListOptions, IListStyles, isActionItem, isButton, isInputElement, isMonacoCustomToggle, isMonacoEditor, isStickyScrollElement, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
@@ -1254,7 +1254,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const stickyScrollOptions = this.validateStickySettings(options);
 		this.stickyScrollMaxItemCount = stickyScrollOptions.stickyScrollMaxItemCount;
 
-		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, model, renderers, treeDelegate));
+		this._widget = this._register(new StickyScrollWidget(view.getScrollableElement(), view, model, renderers, treeDelegate, options.accessibilityProvider));
 		this.onDidChangeHasFocus = this._widget.onDidChangeHasFocus;
 		this.onContextMenu = this._widget.onContextMenu;
 
@@ -1490,7 +1490,8 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		private readonly view: List<ITreeNode<T, TFilterData>>,
 		private readonly model: ITreeModel<T, TFilterData, TRef>,
 		private readonly treeRenderers: TreeRenderer<T, TFilterData, TRef, any>[],
-		private readonly treeDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>
+		private readonly treeDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>,
+		private readonly accessibilityProvider: IListAccessibilityProvider<T> | undefined,
 	) {
 
 		this._rootDomNode = document.createElement('div');
@@ -1545,7 +1546,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
 			const stickyNode = state.stickyNodes[stickyIndex];
 
-			const { element, disposable } = this.createElement(stickyNode);
+			const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
 			elements[stickyIndex] = element;
 
 			this._rootDomNode.appendChild(element);
@@ -1564,7 +1565,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
 	}
 
-	private createElement(stickyNode: StickyScrollNode<T, TFilterData>): { element: HTMLElement; disposable: IDisposable } {
+	private createElement(stickyNode: StickyScrollNode<T, TFilterData>, stickyIndex: number, stickyNodesTotal: number): { element: HTMLElement; disposable: IDisposable } {
 
 		const nodeLocation = this.model.getNodeLocation(stickyNode.node);
 		const nodeIndex = this.model.getListIndex(nodeLocation);
@@ -1581,6 +1582,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		stickyElement.setAttribute('data-index', `${nodeIndex}`);
 		stickyElement.setAttribute('data-parity', nodeIndex % 2 === 0 ? 'even' : 'odd');
 		stickyElement.setAttribute('id', this.view.getElementID(nodeIndex));
+		this.setAccessibilityAttributes(stickyElement, stickyNode.node.element, stickyIndex, stickyNodesTotal);
 
 		// Get the renderer for the node
 		const nodeTemplateId = this.treeDelegate.getTemplateId(stickyNode.node);
@@ -1603,6 +1605,35 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		});
 
 		return { element: stickyElement, disposable };
+	}
+
+	private setAccessibilityAttributes(container: HTMLElement, element: T, stickyIndex: number, stickyNodesTotal: number): void {
+		if (!this.accessibilityProvider) {
+			return;
+		}
+
+		if (this.accessibilityProvider.getSetSize) {
+			container.setAttribute('aria-setsize', String(this.accessibilityProvider.getSetSize(element, stickyIndex, stickyNodesTotal)));
+		}
+		if (this.accessibilityProvider.getPosInSet) {
+			container.setAttribute('aria-posinset', String(this.accessibilityProvider.getPosInSet(element, stickyIndex)));
+		}
+		if (this.accessibilityProvider.getRole) {
+			container.setAttribute('role', this.accessibilityProvider.getRole(element) ?? 'treeitem');
+		}
+
+		const ariaLabel = this.accessibilityProvider.getAriaLabel(element);
+		if (ariaLabel) {
+			container.setAttribute('aria-label', ariaLabel);
+		}
+
+		const ariaLevel = this.accessibilityProvider.getAriaLevel && this.accessibilityProvider.getAriaLevel(element);
+		if (typeof ariaLevel === 'number') {
+			container.setAttribute('aria-level', `${ariaLevel}`);
+		}
+
+		// Sticky Scroll elements can not be selected
+		container.setAttribute('aria-selected', String(false));
 	}
 
 	private setVisible(visible: boolean): void {
