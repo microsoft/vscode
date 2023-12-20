@@ -257,17 +257,3 @@ class OutputEditor extends AbstractTextResourceEditor {
 		}
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// Sidebar background for the output view
-	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.sidebar .output-view .monaco-editor,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
-				background-color: ${sidebarBackground};
-			}
-		`);
-	}
-});
