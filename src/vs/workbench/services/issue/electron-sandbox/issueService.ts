@@ -10,7 +10,7 @@ import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -22,15 +22,18 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ImplicitActivationAwareReader } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-// eslint-disable-next-line local/code-import-patterns
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
+	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -43,6 +46,8 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
@@ -55,6 +60,26 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		ipcRenderer.on('vscode:triggerIssueDataTemplate', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
 			ipcRenderer.send(request.replyChannel, result);
+		});
+		ipcRenderer.on('vscode:triggerReporterStatus', async (event, arg) => {
+			const extensionId = arg.extensionId;
+			const extension = await this.extensionService.getExtension(extensionId);
+			if (extension) {
+				const activationEvents = this._activationEventReader.readActivationEvents(extension);
+				for (const activationEvent of activationEvents) {
+					if (activationEvent === 'onIssueReporterOpened') {
+						const eventName = `onIssueReporterOpened:${ExtensionIdentifier.toKey(extension.identifier)}`;
+						try {
+							await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
+						} catch (e) {
+							this.logService.error(`Error activating extension ${extensionId}: ${e}`);
+						}
+						break;
+					}
+				}
+			}
+			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
+			ipcRenderer.send('vscode:triggerReporterStatusResponse', result);
 		});
 	}
 

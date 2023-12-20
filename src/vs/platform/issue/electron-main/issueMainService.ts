@@ -5,7 +5,7 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { Promises, timeout } from 'vs/base/common/async';
+import { Promises, raceTimeout, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -440,6 +440,19 @@ export class IssueMainService implements IIssueMainService {
 				validatedIpcMain.removeHandler(replyChannel);
 			}
 		});
+	}
+
+	async $getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
+		const defaultResult = [false, false];
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerReporterStatus`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => {
+			this.logService.error('Error: Extension timed out waiting for reporter status');
+			cts.cancel();
+		});
+		return (result ?? defaultResult) as boolean[];
 	}
 
 	async $closeReporter(): Promise<void> {

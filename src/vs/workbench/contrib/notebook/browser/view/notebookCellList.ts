@@ -282,17 +282,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		this._localDisposableStore.add(this.view.onDidChangeContentHeight(() => {
 			if (this._isInLayout) {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				DOM.scheduleAtNextAnimationFrame(DOM.getWindow(container), () => {
 					updateVisibleRanges();
-				}, DOM.getWindow(container));
+				});
 			}
 			updateVisibleRanges();
 		}));
 		this._localDisposableStore.add(this.view.onDidScroll(() => {
 			if (this._isInLayout) {
-				DOM.scheduleAtNextAnimationFrame(() => {
+				DOM.scheduleAtNextAnimationFrame(DOM.getWindow(container), () => {
 					updateVisibleRanges();
-				}, DOM.getWindow(container));
+				});
 			}
 			updateVisibleRanges();
 		}));
@@ -358,13 +358,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (e.synchronous) {
 				this._updateElementsInWebview(viewDiffs);
 			} else {
-				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(() => {
+				this._viewModelStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.rowsContainer), () => {
 					if (this._isDisposed) {
 						return;
 					}
 
 					this._updateElementsInWebview(viewDiffs);
-				}, DOM.getWindow(this.rowsContainer)));
+				}));
 			}
 		}));
 
@@ -830,7 +830,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
-		const firstIndex = this.view.firstVisibleIndex;
+		const firstIndex = this.view.firstMostlyVisibleIndex;
 		const elementHeight = this.view.elementHeight(viewIndex);
 
 		if (viewIndex <= firstIndex || (!firstLine && elementHeight >= this.view.renderHeight)) {

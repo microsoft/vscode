@@ -104,7 +104,7 @@ import { IExtensionsScannerService } from 'vs/platform/extensionManagement/commo
 import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/extensionsScannerService';
 import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
-import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { Promises, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
 import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
@@ -293,6 +293,24 @@ export class CodeApplication extends Disposable {
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.endsWith(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
 					return callback({ cancel: !isSvgRequestFromSafeContext(details) });
+				}
+			}
+
+			return callback({ cancel: false });
+		});
+
+		//#endregion
+
+		//#region Allow CORS for the PRSS CDN
+
+		// https://github.com/microsoft/vscode-remote-release/issues/9246
+		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+			if (details.url.startsWith('https://vscode.download.prss.microsoft.com/')) {
+				const responseHeaders = details.responseHeaders ?? Object.create(null);
+
+				if (responseHeaders['Access-Control-Allow-Origin'] === undefined) {
+					responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+					return callback({ cancel: false, responseHeaders });
 				}
 			}
 
@@ -624,7 +642,7 @@ export class CodeApplication extends Disposable {
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-			this._register(runWhenIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
+			this._register(runWhenGlobalIdle(() => this.lifecycleMainService.phase = LifecycleMainPhase.Eventually, 2500));
 		}, 2500));
 		eventuallyPhaseScheduler.schedule();
 	}

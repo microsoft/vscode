@@ -34,7 +34,6 @@
     "readonlyMessage",
     "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -52,8 +51,8 @@
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
-    "windowActivity",
-    "interactiveUserActions"
+    "testingActiveProfile",
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],

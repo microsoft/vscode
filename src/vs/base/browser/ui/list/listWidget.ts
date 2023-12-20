@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -256,8 +256,8 @@ export function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-export function isMonacoEditor(e: HTMLElement): boolean {
-	if (e.classList.contains('monaco-editor')) {
+function isListElementDescendantOfClass(e: HTMLElement, className: string): boolean {
+	if (e.classList.contains(className)) {
 		return true;
 	}
 
@@ -269,7 +269,27 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 		return false;
 	}
 
-	return isMonacoEditor(e.parentElement);
+	return isListElementDescendantOfClass(e.parentElement, className);
+}
+
+export function isMonacoEditor(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-editor');
+}
+
+export function isMonacoCustomToggle(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-custom-toggle');
+}
+
+export function isActionItem(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'action-item');
+}
+
+export function isMonacoTwistie(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-tl-twistie');
+}
+
+export function isStickyScrollElement(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-tree-sticky-row');
 }
 
 export function isButton(e: HTMLElement): boolean {
@@ -618,7 +638,7 @@ class DOMFocusController<T> implements IDisposable {
 			return;
 		}
 
-		const style = window.getComputedStyle(tabIndexElement);
+		const style = getWindow(tabIndexElement).getComputedStyle(tabIndexElement);
 		if (style.visibility === 'hidden' || style.display === 'none') {
 			return;
 		}
@@ -1390,7 +1410,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		const fromMouse = Event.chain(this.view.onContextMenu, $ =>
 			$.filter(_ => !didJustPressContextMenuKey)
-				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
+				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(getWindow(this.view.domNode), browserEvent), browserEvent }))
 		);
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);
@@ -1596,6 +1616,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	get firstVisibleIndex(): number {
 		return this.view.firstVisibleIndex;
+	}
+
+	get firstMostlyVisibleIndex(): number {
+		return this.view.firstMostlyVisibleIndex;
 	}
 
 	get lastVisibleIndex(): number {
@@ -1830,7 +1854,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.getFocus().map(i => this.view.element(i));
 	}
 
-	reveal(index: number, relativeTop?: number): void {
+	reveal(index: number, relativeTop?: number, paddingTop: number = 0): void {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1841,16 +1865,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		if (isNumber(relativeTop)) {
 			// y = mx + b
-			const m = elementHeight - this.view.renderHeight;
-			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop);
+			const m = elementHeight - this.view.renderHeight + paddingTop;
+			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop);
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const scrollBottom = scrollTop + this.view.renderHeight;
 
-			if (elementTop < scrollTop && viewItemBottom >= scrollBottom) {
+			if (elementTop < scrollTop + paddingTop && viewItemBottom >= scrollBottom) {
 				// The element is already overflowing the viewport, no-op
-			} else if (elementTop < scrollTop || (viewItemBottom >= scrollBottom && elementHeight >= this.view.renderHeight)) {
-				this.view.setScrollTop(elementTop);
+			} else if (elementTop < scrollTop + paddingTop || (viewItemBottom >= scrollBottom && elementHeight >= this.view.renderHeight)) {
+				this.view.setScrollTop(elementTop - paddingTop);
 			} else if (viewItemBottom >= scrollBottom) {
 				this.view.setScrollTop(viewItemBottom - this.view.renderHeight);
 			}
@@ -1861,7 +1885,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	 * Returns the relative position of an element rendered in the list.
 	 * Returns `null` if the element isn't *entirely* in the visible viewport.
 	 */
-	getRelativeTop(index: number): number | null {
+	getRelativeTop(index: number, paddingTop: number = 0): number | null {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1870,13 +1894,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const elementTop = this.view.elementTop(index);
 		const elementHeight = this.view.elementHeight(index);
 
-		if (elementTop < scrollTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
+		if (elementTop < scrollTop + paddingTop || elementTop + elementHeight > scrollTop + this.view.renderHeight) {
 			return null;
 		}
 
 		// y = mx + b
-		const m = elementHeight - this.view.renderHeight;
-		return Math.abs((scrollTop - elementTop) / m);
+		const m = elementHeight - this.view.renderHeight + paddingTop;
+		return Math.abs((scrollTop + paddingTop - elementTop) / m);
 	}
 
 	isDOMFocused(): boolean {
@@ -1887,8 +1911,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.domNode;
 	}
 
+	getScrollableElement(): HTMLElement {
+		return this.view.scrollableElementDomNode;
+	}
+
 	getElementID(index: number): string {
 		return this.view.getElementDomId(index);
+	}
+
+	getElementTop(index: number): number {
+		return this.view.elementTop(index);
 	}
 
 	style(styles: IListStyles): void {

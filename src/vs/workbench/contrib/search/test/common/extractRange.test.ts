@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { extractRangeFromFilter } from 'vs/workbench/contrib/search/common/search';
 
 suite('extractRangeFromFilter', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('basics', async function () {
 		assert.ok(!extractRangeFromFilter(''));

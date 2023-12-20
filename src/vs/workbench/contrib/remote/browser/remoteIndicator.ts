@@ -48,6 +48,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { infoIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { mainWindow } from 'vs/base/browser/window';
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 
@@ -274,8 +275,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// Online / Offline changes (web only)
 		if (isWeb) {
 			this._register(Event.any(
-				this._register(new DomEmitter(window, 'online')).event,
-				this._register(new DomEmitter(window, 'offline')).event
+				this._register(new DomEmitter(mainWindow, 'online')).event,
+				this._register(new DomEmitter(mainWindow, 'offline')).event
 			)(() => this.setNetworkState(navigator.onLine ? 'online' : 'offline')));
 		}
 

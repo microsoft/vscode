@@ -398,12 +398,12 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
 									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
@@ -433,12 +433,12 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
 									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
@@ -468,12 +468,12 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
 									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
@@ -666,7 +666,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.rename
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -675,7 +675,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.changeColor
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -684,7 +684,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.changeIcon
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
@@ -692,7 +692,7 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.toggleSizeToContentWidth
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '3_files'
+		group: '2_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -779,6 +779,6 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		submenuActions.unshift(defaultSubmenuProfileAction);
 	}
 
-	const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
+	const dropdownAction = new Action('refresh profiles', localize('launchProfile', 'Launch Profile...'), 'codicon-chevron-down', true);
 	return { dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };
 }

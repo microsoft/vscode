@@ -6,34 +6,56 @@
   welcomeMessage: undefined,
   requests: [
     {
-      providerRequestId: undefined,
       message: {
-        text: "test request",
+        text: "@ChatProviderWithUsedContext test request",
         parts: [
           {
             range: {
               start: 0,
-              endExclusive: 12
+              endExclusive: 28
             },
             editorRange: {
               startLineNumber: 1,
               startColumn: 1,
               endLineNumber: 1,
-              endColumn: 13
+              endColumn: 29
             },
-            text: "test request",
+            agent: {
+              id: "ChatProviderWithUsedContext",
+              metadata: {  },
+              provideSlashCommands: [Function provideSlashCommands],
+              invoke: [Function invoke]
+            },
+            kind: "agent"
+          },
+          {
+            range: {
+              start: 28,
+              endExclusive: 41
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 29,
+              endLineNumber: 1,
+              endColumn: 42
+            },
+            text: " test request",
             kind: "text"
           }
         ]
       },
       response: [  ],
       responseErrorDetails: undefined,
-      followups: undefined,
+      followups: [  ],
       isCanceled: false,
       vote: undefined,
-      agent: undefined,
+      agent: {
+        id: "ChatProviderWithUsedContext",
+        metadata: {  }
+      },
       slashCommand: undefined,
-      usedContext: { documents: [
+      usedContext: {
+        documents: [
           {
             uri: {
               scheme: "file",
@@ -54,10 +76,11 @@
               }
             ]
           }
-        ] },
+        ],
+        kind: "usedContext"
+      },
       contentReferences: [  ]
     }
   ],
-  providerId: "ChatProviderWithUsedContext",
-  providerState: undefined
+  providerId: "testProvider"
 }

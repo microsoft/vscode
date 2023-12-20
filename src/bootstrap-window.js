@@ -8,6 +8,8 @@
 //@ts-check
 'use strict';
 
+/* eslint-disable no-restricted-globals */
+
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
 
@@ -18,6 +20,7 @@
 
 	// Browser
 	else {
+		// @ts-ignore
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
@@ -69,12 +72,16 @@
 		};
 		const isDev = !!safeProcess.env['VSCODE_DEV'];
 		const enableDeveloperKeybindings = isDev || forceEnableDeveloperKeybindings;
+		/**
+		 * @type {() => void | undefined}
+		 */
 		let developerDeveloperKeybindingsDisposable;
 		if (enableDeveloperKeybindings) {
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
 		// Get the nls configuration into the process.env as early as possible
+		// @ts-ignore
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
@@ -88,6 +95,10 @@
 
 		window['MonacoEnvironment'] = {};
 
+		/**
+		 * @typedef {any} LoaderConfig
+		 */
+		/** @type {LoaderConfig} */
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			'vs/nls': nlsConfig,

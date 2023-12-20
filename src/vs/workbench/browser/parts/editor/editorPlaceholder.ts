@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
+import { truncate, truncateMiddle } from 'vs/base/common/strings';
 import Severity from 'vs/base/common/severity';
 import { IEditorOpenContext, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -28,7 +29,6 @@ import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { truncate } from 'vs/base/common/strings';
 
 export interface IEditorPlaceholderContents {
 	icon: string;
@@ -47,7 +47,7 @@ export interface IErrorEditorPlaceholderOptions extends IEditorOptions {
 
 export abstract class EditorPlaceholder extends EditorPane {
 
-	private static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
+	protected static readonly PLACEHOLDER_LABEL_MAX_LENGTH = 1024;
 
 	private container: HTMLElement | undefined;
 	private scrollbar: DomScrollableElement | undefined;
@@ -245,7 +245,7 @@ export class ErrorPlaceholderEditor extends EditorPlaceholder {
 		} else if (isEditorOpenError(error) && error.forceMessage) {
 			label = error.message;
 		} else if (error) {
-			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", toErrorMessage(error));
+			label = localize('unknownErrorEditorTextWithError', "The editor could not be opened due to an unexpected error: {0}", truncateMiddle(toErrorMessage(error), EditorPlaceholder.PLACEHOLDER_LABEL_MAX_LENGTH / 2));
 		} else {
 			label = localize('unknownErrorEditorTextWithoutError', "The editor could not be opened due to an unexpected error.");
 		}

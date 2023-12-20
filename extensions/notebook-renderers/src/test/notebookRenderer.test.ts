@@ -273,6 +273,36 @@ suite('Notebook builtin output renderer', () => {
 		assert.ok(inserted.innerHTML.indexOf('shouldBeTruncated') === -1, `Beginning content should be truncated`);
 	});
 
+	test(`Render filepath links in text output when enabled`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
+		const context = createContext({ outputWordWrap: true, outputScrolling: true, linkifyFilePaths: true });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('./dir/file.txt', stdoutMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(outputElement.innerHTML.indexOf('<a href="./dir/file.txt">') !== -1, `inner HTML:\n ${outputElement.innerHTML}`);
+	});
+
+	test(`No filepath links in text output when disabled`, async () => {
+		LinkDetector.injectedHtmlCreator = (value: string) => value;
+		const context = createContext({ outputWordWrap: true, outputScrolling: true, linkifyFilePaths: false });
+		const renderer = await activate(context);
+		assert.ok(renderer, 'Renderer not created');
+
+		const outputElement = new OutputHtml().getFirstOuputElement();
+		const outputItem = createOutputItem('./dir/file.txt', stdoutMimeType);
+		await renderer!.renderOutputItem(outputItem, outputElement);
+
+		const inserted = outputElement.firstChild as HTMLElement;
+		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
+		assert.ok(outputElement.innerHTML.indexOf('<a href="./dir/file.txt">') === -1, `inner HTML:\n ${outputElement.innerHTML}`);
+	});
+
 	test(`Render with wordwrap and scrolling for error output`, async () => {
 		LinkDetector.injectedHtmlCreator = (value: string) => value;
 		const context = createContext({ outputWordWrap: true, outputScrolling: true });
@@ -474,7 +504,6 @@ suite('Notebook builtin output renderer', () => {
 
 		const inserted = outputElement.firstChild as HTMLElement;
 		assert.ok(inserted, `nothing appended to output element: ${outputElement.innerHTML}`);
-		//assert.ok(false, `TextContent:\n ${outputElement.textContent}`);
 		assert.ok(outputElement.innerHTML.indexOf('class="code-background-colored"') === -1, `inner HTML:\n ${outputElement.innerHTML}`);
 	});
 

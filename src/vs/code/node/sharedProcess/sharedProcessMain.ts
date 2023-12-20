@@ -106,6 +106,7 @@ import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement
 import { RequestChannelClient } from 'vs/platform/request/common/requestIpc';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/common/extensionRecommendationsIpc';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/node/userDataAutoSyncService';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/common/mainProcessService';
@@ -274,7 +275,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IV8InspectProfilingService, new SyncDescriptor(V8InspectProfilingService, undefined, false /* proxied to other processes */));
 
 		// Native Host
-		const nativeHostService = ProxyChannel.toService<INativeHostService>(mainProcessService.getChannel('nativeHost'));
+		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
 		// Download

@@ -11,7 +11,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
-import { parse } from 'vs/base/common/marshalling';
+import { parse, revive } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
@@ -1023,6 +1023,19 @@ export namespace DocumentHighlight {
 	}
 }
 
+export namespace MultiDocumentHighlight {
+	export function from(multiDocumentHighlight: vscode.MultiDocumentHighlight): languages.MultiDocumentHighlight {
+		return {
+			uri: multiDocumentHighlight.uri,
+			highlights: multiDocumentHighlight.highlights.map(DocumentHighlight.from)
+		};
+	}
+
+	export function to(multiDocumentHighlight: languages.MultiDocumentHighlight): types.MultiDocumentHighlight {
+		return new types.MultiDocumentHighlight(URI.revive(multiDocumentHighlight.uri), multiDocumentHighlight.highlights.map(DocumentHighlight.to));
+	}
+}
+
 export namespace CompletionTriggerKind {
 	export function to(kind: languages.CompletionTriggerKind) {
 		switch (kind) {
@@ -1968,14 +1981,14 @@ export namespace TestResults {
 
 export namespace TestCoverage {
 	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
-		return { covered: count.covered, total: count.covered };
+		return { covered: count.covered, total: count.total };
 	}
 
 	function fromLocation(location: vscode.Range | vscode.Position) {
 		return 'line' in location ? Position.from(location) : Range.from(location);
 	}
 
-	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails {
+	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails.Serialized {
 		if ('branches' in coverage) {
 			return {
 				count: coverage.executionCount,
@@ -1988,13 +2001,14 @@ export namespace TestCoverage {
 		} else {
 			return {
 				type: DetailType.Function,
+				name: coverage.name,
 				count: coverage.executionCount,
 				location: fromLocation(coverage.location),
 			};
 		}
 	}
 
-	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage {
+	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage.Serialized {
 		return {
 			uri: coverage.uri,
 			statement: fromCoveredCount(coverage.statementCoverage),
@@ -2157,20 +2171,10 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function to(followup: IChatReplyFollowup): vscode.InteractiveSessionReplyFollowup {
-		return {
-			message: followup.message,
-			metadata: followup.metadata,
-			title: followup.title,
-			tooltip: followup.tooltip,
-		};
-	}
-
-	export function from(followup: vscode.InteractiveSessionReplyFollowup): IChatReplyFollowup {
+	export function from(followup: vscode.InteractiveSessionReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
-			metadata: followup.metadata,
 			title: followup.title,
 			tooltip: followup.tooltip,
 		};
@@ -2178,7 +2182,7 @@ export namespace ChatReplyFollowup {
 }
 
 export namespace ChatFollowup {
-	export function from(followup: string | vscode.InteractiveSessionFollowup): IChatFollowup {
+	export function from(followup: string | vscode.ChatAgentFollowup): IChatFollowup {
 		if (typeof followup === 'string') {
 			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
 		} else if ('commandId' in followup) {
@@ -2249,7 +2253,8 @@ export namespace ChatVariable {
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
-			value: variable.value,
+			kind: variable.kind,
+			value: revive(variable.value),
 			description: variable.description
 		};
 	}
@@ -2257,6 +2262,7 @@ export namespace ChatVariable {
 	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
 		return {
 			level: ChatVariableLevel.from(variable.level),
+			kind: variable.kind,
 			value: variable.value,
 			description: variable.description
 		};
@@ -2298,33 +2304,39 @@ export namespace InteractiveEditorResponseFeedbackKind {
 				return types.InteractiveEditorResponseFeedbackKind.Undone;
 			case InlineChatResponseFeedbackKind.Accepted:
 				return types.InteractiveEditorResponseFeedbackKind.Accepted;
+			case InlineChatResponseFeedbackKind.Bug:
+				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
 	}
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.InteractiveProgress | vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto | undefined {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { placeholder: progress.placeholder };
-		} else if ('responseId' in progress) {
-			return { requestId: progress.responseId };
+			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.markdownContent) };
+			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
+			if ('vulnerabilities' in progress && progress.vulnerabilities) {
+				checkProposedApiEnabled(extension, 'chatAgents2Additions');
+				return { content: progress.content, vulnerabilities: progress.vulnerabilities, kind: 'vulnerability' };
+			}
+
 			if (typeof progress.content === 'string') {
-				return progress;
+				return { content: progress.content, kind: 'content' };
 			}
 
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.content) };
+			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({
 					uri: d.uri,
 					version: d.version,
 					ranges: d.ranges.map(r => Range.from(r))
-				}))
+				})),
+				kind: 'usedContext'
 			};
 		} else if ('reference' in progress) {
 			return {
@@ -2332,7 +2344,8 @@ export namespace ChatResponseProgress {
 					{
 						uri: progress.reference.uri,
 						range: Range.from(progress.reference.range)
-					} : progress.reference
+					} : progress.reference,
+				kind: 'reference'
 			};
 		} else if ('inlineReference' in progress) {
 			return {
@@ -2341,22 +2354,39 @@ export namespace ChatResponseProgress {
 						uri: progress.inlineReference.uri,
 						range: Range.from(progress.inlineReference.range)
 					} : progress.inlineReference,
-				title: progress.title,
+				name: progress.title,
+				kind: 'inlineReference'
 			};
 		} else if ('agentName' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return progress;
+			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
+		} else if ('treeData' in progress) {
+			return { treeData: progress.treeData, kind: 'treeData' };
+		} else if ('message' in progress) {
+			return { content: progress.message, kind: 'progressMessage' };
 		} else {
-			return progress;
+			return undefined;
 		}
+	}
+}
+
+export namespace ChatAgentCompletionItem {
+	export function from(item: vscode.ChatAgentCompletionItem): extHostProtocol.IChatAgentCompletionItem {
+		return {
+			label: item.label,
+			values: item.values.map(ChatVariable.from),
+			insertText: item.insertText,
+			detail: item.detail,
+			documentation: item.documentation,
+		};
 	}
 }
 
 
 export namespace TerminalQuickFix {
-	export function from(quickFix: vscode.TerminalQuickFixExecuteTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixExecuteTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {
+	export function from(quickFix: vscode.TerminalQuickFixTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {
 		if ('terminalCommand' in quickFix) {
-			return { terminalCommand: quickFix.terminalCommand };
+			return { terminalCommand: quickFix.terminalCommand, shouldExecute: quickFix.shouldExecute };
 		}
 		if ('uri' in quickFix) {
 			return { uri: quickFix.uri };

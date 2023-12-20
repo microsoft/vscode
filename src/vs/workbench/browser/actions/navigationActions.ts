@@ -17,6 +17,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { isAuxiliaryWindow } from 'vs/base/browser/window';
 
 abstract class BaseNavigationAction extends Action2 {
 
@@ -253,28 +255,41 @@ abstract class BaseFocusAction extends Action2 {
 	}
 
 	private findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
+		const activeWindow = getActiveWindow();
+		const windowIsAuxiliary = isAuxiliaryWindow(activeWindow);
+
 		let neighbour: Parts;
-		switch (part) {
-			case Parts.EDITOR_PART:
-				neighbour = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
-				break;
-			case Parts.PANEL_PART:
-				neighbour = next ? Parts.STATUSBAR_PART : Parts.EDITOR_PART;
-				break;
-			case Parts.STATUSBAR_PART:
-				neighbour = next ? Parts.ACTIVITYBAR_PART : Parts.PANEL_PART;
-				break;
-			case Parts.ACTIVITYBAR_PART:
-				neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
-				break;
-			case Parts.SIDEBAR_PART:
-				neighbour = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
-				break;
-			default:
-				neighbour = Parts.EDITOR_PART;
+		if (windowIsAuxiliary) {
+			switch (part) {
+				case Parts.EDITOR_PART:
+					neighbour = Parts.STATUSBAR_PART;
+					break;
+				default:
+					neighbour = Parts.EDITOR_PART;
+			}
+		} else {
+			switch (part) {
+				case Parts.EDITOR_PART:
+					neighbour = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
+					break;
+				case Parts.PANEL_PART:
+					neighbour = next ? Parts.STATUSBAR_PART : Parts.EDITOR_PART;
+					break;
+				case Parts.STATUSBAR_PART:
+					neighbour = next ? Parts.ACTIVITYBAR_PART : Parts.PANEL_PART;
+					break;
+				case Parts.ACTIVITYBAR_PART:
+					neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
+					break;
+				case Parts.SIDEBAR_PART:
+					neighbour = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
+					break;
+				default:
+					neighbour = Parts.EDITOR_PART;
+			}
 		}
 
-		if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
+		if (layoutService.isVisible(neighbour, activeWindow) || neighbour === Parts.EDITOR_PART) {
 			return neighbour;
 		}
 
@@ -295,7 +310,7 @@ abstract class BaseFocusAction extends Action2 {
 			currentlyFocusedPart = Parts.PANEL_PART;
 		}
 
-		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART);
+		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART, getActiveWindow());
 	}
 }
 

@@ -18,12 +18,11 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { runWhenIdle } from 'vs/base/common/async';
 import { Lazy } from 'vs/base/common/lazy';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -228,7 +227,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompoisteBarActionVi
 			const disposables = new DisposableStore();
 			const actions = await this.resolveContextMenuActions(disposables);
 
-			const event = new StandardMouseEvent(e);
+			const event = new StandardMouseEvent(getWindow(this.container), e);
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => event,
@@ -354,7 +353,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		if (this._store.isDisposed) {
 			return;
 		}
-		const disposable = this._register(runWhenIdle(async () => {
+		const disposable = this._register(runWhenWindowIdle(getWindow(this.element), async () => {
 			await this.doInitialize();
 			disposable.dispose();
 		}));

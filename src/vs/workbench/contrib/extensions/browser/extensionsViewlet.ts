@@ -16,7 +16,7 @@ import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } fro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu } from '../common/extensions';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -62,6 +62,8 @@ import { extname } from 'vs/base/common/resources';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -554,7 +556,9 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : '';
 
-		this.searchBox = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
+		const searchContainer = append(header, $('.extensions-search-container'));
+
+		this.searchBox = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			sortKey: (item: string) => {
 				if (item.indexOf(':') === -1) { return 'a'; }
@@ -571,15 +575,22 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		}
 
 		this._register(this.searchBox.onInputDidChange(() => {
-			this.sortByContextKey.set(Query.parse(this.searchBox!.getValue() || '').sortBy);
+			this.sortByContextKey.set(Query.parse(this.searchBox?.getValue() ?? '').sortBy);
 			this.triggerSearch();
 		}, this));
 
 		this._register(this.searchBox.onShouldFocusResults(() => this.focusListView(), this));
 
+		const controlElement = append(searchContainer, $('.extensions-search-actions-container'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, controlElement, extensionsSearchActionsMenu, {
+			toolbarOptions: {
+				primaryGroup: () => true,
+			},
+			actionViewItemProvider: action => createActionViewItem(this.instantiationService, action)
+		}));
+
 		// Register DragAndDrop support
 		this._register(new DragAndDropObserver(this.root, {
-			onDragEnd: (e: DragEvent) => undefined,
 			onDragEnter: (e: DragEvent) => {
 				if (this.isSupportedDragElement(e)) {
 					show(overlay);
@@ -644,7 +655,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.root.classList.toggle('narrow', dimension.width <= 250);
 			this.root.classList.toggle('mini', dimension.width <= 200);
 		}
-		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8, 20));
+		this.searchBox?.layout(new Dimension(dimension.width - 34 - /*padding*/8 - (24 * 2), 20));
 		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
 
@@ -838,7 +849,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		this.badgeHandle.clear();
 
 		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !e.pinned && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {
 			let msg = '';

@@ -16,6 +16,7 @@ const glob = require('glob');
 const minimatch = require('minimatch');
 const coverage = require('../coverage');
 const minimist = require('minimist');
+const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
@@ -83,6 +84,7 @@ function main() {
 
 	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 	Object.assign(globalThis, {
+		__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
 		__readFileInTests: (/** @type {string} */ path) => fs.promises.readFile(path, 'utf-8'),
 		__writeFileInTests: (/** @type {string} */ path, /** @type {BufferEncoding} */ contents) => fs.promises.writeFile(path, contents),
 		__readDirInTests: (/** @type {string} */ path) => fs.promises.readdir(path),

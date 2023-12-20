@@ -18,6 +18,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import './registrations.contribution';
 
 export class ToggleCollapseUnchangedRegions extends Action2 {
 	constructor() {
@@ -279,17 +280,6 @@ export class AccessibleDiffViewerPrev extends Action2 {
 export function findFocusedDiffEditor(accessor: ServicesAccessor): IDiffEditor | null {
 	const codeEditorService = accessor.get(ICodeEditorService);
 	const diffEditors = codeEditorService.listDiffEditors();
-	const activeCodeEditor = codeEditorService.getFocusedCodeEditor() ?? codeEditorService.getActiveCodeEditor();
-	if (!activeCodeEditor) {
-		return null;
-	}
-
-	for (let i = 0, len = diffEditors.length; i < len; i++) {
-		const diffEditor = <IDiffEditor>diffEditors[i];
-		if (diffEditor.getModifiedEditor().getId() === activeCodeEditor.getId() || diffEditor.getOriginalEditor().getId() === activeCodeEditor.getId()) {
-			return diffEditor;
-		}
-	}
 
 	const activeElement = getActiveElement();
 	if (activeElement) {

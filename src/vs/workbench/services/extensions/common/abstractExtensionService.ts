@@ -917,6 +917,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
+	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
+		return this._activateById(extensionId, reason);
+	}
+
 	public activationEventIsDone(activationEvent: string): boolean {
 		if (!this._installedExtensionsReady.isOpen()) {
 			return false;
@@ -1333,7 +1337,7 @@ export class ExtensionHostCrashTracker {
  * This can run correctly only on the renderer process because that is the only place
  * where all extension points and all implicit activation events generators are known.
  */
-class ImplicitActivationAwareReader implements IActivationEventsReader {
+export class ImplicitActivationAwareReader implements IActivationEventsReader {
 	public readActivationEvents(extensionDescription: IExtensionDescription): string[] {
 		return ImplicitActivationEvents.readActivationEvents(extensionDescription);
 	}

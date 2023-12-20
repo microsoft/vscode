@@ -122,9 +122,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return dom.getClientArea(this.container);
 	}
 
-	layout() {
+	layout(widthInPixel?: number) {
 		this._commentElements.forEach(element => {
-			element.layout();
+			element.layout(widthInPixel);
 		});
 	}
 

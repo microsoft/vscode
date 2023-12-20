@@ -5,7 +5,7 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, trackFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, trackFocus } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
@@ -175,11 +175,11 @@ export abstract class Pane extends Disposable implements IView {
 			}
 
 			if (typeof this.animationTimer === 'number') {
-				clearTimeout(this.animationTimer);
+				getWindow(this.element).clearTimeout(this.animationTimer);
 			}
 			append(this.element, this.body);
 		} else {
-			this.animationTimer = window.setTimeout(() => {
+			this.animationTimer = getWindow(this.element).setTimeout(() => {
 				this.body.remove();
 			}, 200);
 		}
@@ -636,12 +636,12 @@ export class PaneView extends Disposable {
 
 	private setupAnimation(): void {
 		if (typeof this.animationTimer === 'number') {
-			window.clearTimeout(this.animationTimer);
+			getWindow(this.element).clearTimeout(this.animationTimer);
 		}
 
 		this.element.classList.add('animated');
 
-		this.animationTimer = window.setTimeout(() => {
+		this.animationTimer = getWindow(this.element).setTimeout(() => {
 			this.animationTimer = undefined;
 			this.element.classList.remove('animated');
 		}, 200);

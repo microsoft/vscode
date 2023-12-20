@@ -23,6 +23,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
 import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -273,7 +274,7 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(addDisposableListener(window, 'focus', () => this._update(), true));
 			disposables.add(addDisposableListener(window, 'blur', () => this._update(), true));
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 		this._editorService.onDidActiveEditorChange(() => this._update());
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);

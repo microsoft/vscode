@@ -32,7 +32,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkbench, ITunnel } from 'vs/workbench/browser/web.api';
+import { IWorkbenchConstructionOptions, IWorkbench, IWorkspace, ITunnel } from 'vs/workbench/browser/web.api';
 import { BrowserStorageService } from 'vs/workbench/services/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -63,7 +63,6 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mixin, safeStringify } from 'vs/base/common/objects';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
-import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -95,6 +94,7 @@ import { EncryptionService } from 'vs/workbench/services/encryption/browser/encr
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserMain extends Disposable {
 
@@ -113,7 +113,7 @@ export class BrowserMain extends Disposable {
 	private init(): void {
 
 		// Browser config
-		setFullscreen(!!detectFullscreen());
+		setFullscreen(!!detectFullscreen(mainWindow));
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -467,7 +467,7 @@ export class BrowserMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataProvider);
 
 		// Local file access (if supported by browser)
-		if (WebFileSystemAccess.supported(window)) {
+		if (WebFileSystemAccess.supported(mainWindow)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 

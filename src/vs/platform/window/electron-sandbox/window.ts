@@ -5,6 +5,7 @@
 
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
 import { getWindows } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 
@@ -21,7 +22,7 @@ export function applyZoom(zoomLevel: number): void {
 }
 
 function getGlobals(win: Window): ISandboxGlobals | undefined {
-	if (win === window) {
+	if (win === mainWindow) {
 		// main window
 		return { ipcRenderer, webFrame };
 	} else {

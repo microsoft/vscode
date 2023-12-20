@@ -32,6 +32,7 @@ use opentelemetry::KeyValue;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Stdio;
+use tokio::net::TcpStream;
 use tokio::pin;
 use tokio::process::{ChildStderr, ChildStdin};
 use tokio_util::codec::Decoder;
@@ -55,9 +56,9 @@ use super::protocol::{
 	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams,
 	ForwardResult, FsReadDirEntry, FsReadDirResponse, FsRenameRequest, FsSinglePathRequest,
 	FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
-	ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult, SysKillRequest,
-	SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
-	METHOD_CHALLENGE_VERIFY,
+	NetConnectRequest, ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult,
+	SysKillRequest, SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult,
+	VersionResponse, METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
 use super::server_multiplexer::ServerMultiplexer;
@@ -339,6 +340,14 @@ fn make_socket_rpc(
 		move |mut streams, p: FsSinglePathRequest, c| async move {
 			ensure_auth(&c.auth_state)?;
 			handle_fs_connect(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"net_connect",
+		1,
+		move |mut streams, n: NetConnectRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_net_connect(streams.remove(0), n).await
 		},
 	);
 	rpc.register_async("fs_rm", move |p: FsSinglePathRequest, c| async move {
@@ -896,6 +905,20 @@ async fn handle_fs_write(mut input: DuplexStream, path: String) -> Result<EmptyO
 	Ok(EmptyObject {})
 }
 
+async fn handle_net_connect(
+	mut stream: DuplexStream,
+	req: NetConnectRequest,
+) -> Result<EmptyObject, AnyError> {
+	let mut s = TcpStream::connect((req.host, req.port))
+		.await
+		.map_err(|e| wrap(e, "could not connect to address"))?;
+
+	tokio::io::copy_bidirectional(&mut stream, &mut s)
+		.await
+		.map_err(|e| wrap(e, "error copying stream data"))?;
+
+	Ok(EmptyObject {})
+}
 async fn handle_fs_connect(
 	mut stream: DuplexStream,
 	path: String,

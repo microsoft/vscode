@@ -106,7 +106,7 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 
 		const handle = ExtHostChatProvider._idPool++;
 		this._providers.set(handle, { extension, provider });
-		this._proxy.$registerProvider(handle, identifier, { extension, displayName: metadata.name ?? extension.value });
+		this._proxy.$registerProvider(handle, identifier, { extension, model: metadata.name ?? '' });
 
 		return toDisposable(() => {
 			this._proxy.$unregisterProvider(handle);
@@ -148,9 +148,17 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 			throw new Error('Extension is NOT allowed to make chat requests');
 		}
 
+		const metadata = await this._proxy.$prepareChatAccess(identifier);
+		if (!metadata) {
+			throw new Error(`ChatAccess '${identifier}' NOT found`);
+		}
+
 		const that = this;
 
 		return {
+			get model() {
+				return metadata.model;
+			},
 			get isRevoked() {
 				return !that._chatAccessAllowList.has(from);
 			},

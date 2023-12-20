@@ -18,6 +18,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -64,7 +65,6 @@ export interface IExtension {
 	readonly rating?: number;
 	readonly ratingCount?: number;
 	readonly outdated: boolean;
-	readonly pinned: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly reloadRequiredStatus?: string;
 	readonly enablementState: EnablementState;
@@ -112,8 +112,11 @@ export interface IExtensionsWorkbenchService {
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	pinExtension(extension: IExtension, pin: boolean): Promise<void>;
+	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean;
+	updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void>;
 	open(extension: IExtension | string, options?: IExtensionEditorOptions): Promise<void>;
+	isAutoUpdateEnabled(): boolean;
+	getAutoUpdateValue(): AutoUpdateConfigurationValue;
 	checkForUpdates(): Promise<void>;
 	getExtensionStatus(extension: IExtension): IExtensionsStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
@@ -137,6 +140,8 @@ export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
+
+export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
@@ -199,3 +204,6 @@ export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', fals
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
 export const INSTALL_ACTIONS_GROUP = '0_install';
+export const UPDATE_ACTIONS_GROUP = '0_update';
+
+export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');

@@ -201,7 +201,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			}
 
 			// Recompute focused item
-			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab)) {
+			else if (event.equals(KeyCode.Tab) || event.equals(KeyMod.Shift | KeyCode.Tab) || event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
 				this.updateFocusedItem();
 			}
 		}));
@@ -235,7 +235,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	}
 
 	private refreshRole(): void {
-		if (this.length() >= 2) {
+		if (this.length() >= 1) {
 			this.actionsList.setAttribute('role', this.options.ariaRole || 'toolbar');
 		} else {
 			this.actionsList.setAttribute('role', 'presentation');
@@ -561,15 +561,15 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (actionViewItem.action.id === Separator.ID) {
 				focusItem = false;
 			}
-			if (focusItem) {
-				actionViewItem.showHover?.();
-			}
 			if (!focusItem) {
 				this.actionsList.focus({ preventScroll });
 				this.previouslyFocusedItem = undefined;
 			} else if (forceFocus || this.previouslyFocusedItem !== this.focusedItem) {
 				actionViewItem.focus(fromRight);
 				this.previouslyFocusedItem = this.focusedItem;
+			}
+			if (focusItem) {
+				actionViewItem.showHover?.();
 			}
 		}
 	}
