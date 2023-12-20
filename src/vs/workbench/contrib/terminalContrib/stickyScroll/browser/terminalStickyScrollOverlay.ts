@@ -258,7 +258,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
-		if (buffer.viewportY === stickyScrollLineStart) {
+		if (buffer.viewportY <= stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
 		}
