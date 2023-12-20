@@ -1422,14 +1422,13 @@ export class Repository implements Disposable {
 		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
 	}
 
-	async getBranchDescription(name: string): Promise<string> {
+	async getBranchDescription(name: string): Promise<string | undefined> {
 		const descriptionConfigKey = `branch.${name}.description`;
 		// Git config
 		try {
-			const description = await this.getConfig(descriptionConfigKey);
-			return description;
+			return await this.getConfig(descriptionConfigKey);
 		} catch (err) { }
-		return '';
+		return undefined;
 	}
 
 	async editBranchDescription(description: string): Promise<void> {
