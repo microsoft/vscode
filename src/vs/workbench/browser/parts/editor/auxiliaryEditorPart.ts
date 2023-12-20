@@ -11,13 +11,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
+import { EditorPart, IEditorPartUIState } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IAuxiliaryTitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { MementoObject } from 'vs/workbench/common/memento';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,6 +27,10 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
+
+export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOptions {
+	readonly state?: IEditorPartUIState;
+}
 
 export class AuxiliaryEditorPart {
 
@@ -43,7 +48,7 @@ export class AuxiliaryEditorPart {
 	) {
 	}
 
-	async create(label: string, options?: IAuxiliaryWindowOpenOptions): Promise<{ readonly part: AuxiliaryEditorPartImpl; readonly instantiationService: IInstantiationService; readonly disposables: DisposableStore }> {
+	async create(label: string, options?: IAuxiliaryEditorPartOpenOptions): Promise<{ readonly part: AuxiliaryEditorPartImpl; readonly instantiationService: IInstantiationService; readonly disposables: DisposableStore }> {
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -89,9 +94,9 @@ export class AuxiliaryEditorPart {
 		editorPartContainer.style.position = 'relative';
 		auxiliaryWindow.container.appendChild(editorPartContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPartImpl, auxiliaryWindow.window.vscodeWindowId, this.editorPartsView, label, options?.state));
 		disposables.add(this.editorPartsView.registerPart(editorPart));
-		editorPart.create(editorPartContainer, { restorePreviousState: false });
+		editorPart.create(editorPartContainer);
 
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
@@ -168,6 +173,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		readonly windowId: number,
 		editorPartsView: IEditorPartsView,
 		groupsLabel: string,
+		private readonly state: IEditorPartUIState | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -178,6 +184,16 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+	}
+
+	protected override getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
+		if (scope === StorageScope.WORKSPACE && target === StorageTarget.MACHINE) {
+			return {
+				[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY]: this.state
+			};
+		}
+
+		return {};
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {
@@ -212,7 +228,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	}
 
 	protected override saveState(): void {
-		return; // TODO support auxiliary editor state
+		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
 	close(): void {

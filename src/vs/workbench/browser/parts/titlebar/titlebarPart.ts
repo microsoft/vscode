@@ -81,9 +81,11 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	readonly mainPart = this._register(this.createMainTitlebarPart());
 
 	constructor(
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
 	}
