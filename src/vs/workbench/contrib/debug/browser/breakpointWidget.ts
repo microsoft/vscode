@@ -3,44 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/breakpointWidget';
-import * as nls from 'vs/nls';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IDebugService, IBreakpoint, BreakpointWidgetContext as Context, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, DEBUG_SCHEME, CONTEXT_IN_BREAKPOINT_WIDGET, IBreakpointUpdateData, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IModelService } from 'vs/editor/common/services/model';
-import { URI as uri } from 'vs/base/common/uri';
-import { CompletionList, CompletionContext, CompletionItemKind } from 'vs/editor/common/languages';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { ITextModel } from 'vs/editor/common/model';
-import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/browser/suggest';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import * as lifecycle from 'vs/base/common/lifecycle';
+import { URI as uri } from 'vs/base/common/uri';
+import 'vs/css!./media/breakpointWidget';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorCommand, ServicesAccessor, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CompletionContext, CompletionItemKind, CompletionList } from 'vs/editor/common/languages';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IModelService } from 'vs/editor/common/services/model';
+import { CompletionOptions, provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { defaultButtonStyles, defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE, CONTEXT_IN_BREAKPOINT_WIDGET, BreakpointWidgetContext as Context, DEBUG_SCHEME, IBreakpoint, IBreakpointEditorContribution, IBreakpointUpdateData, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -101,6 +103,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
@@ -230,7 +233,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			select = index + 1;
 		}
 		const items: ISelectOptionItem[] = [{ text: nls.localize('noTriggerByBreakpoint', 'None') }];
-		breakpoints.map(bp => <ISelectOptionItem>{ text: `${bp.uri.path} : ${bp.lineNumber}` })
+		breakpoints.map(bp => <ISelectOptionItem>{ text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}` })
 			.forEach(i => items.push(i));
 
 		const selectBreakpointBox = new SelectBox(items, select, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
@@ -239,11 +242,17 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.triggeredByBreakpointInput = undefined;
 			} else {
 				this.triggeredByBreakpointInput = breakpoints[e.index - 1];
+				this.close(true);
 			}
-			this.close(true);
 		});
 		this.toDispose.push(selectBreakpointBox);
 		this.selectBreakpointContainer = $('.select-breakpoint-container');
+		this.toDispose.push(dom.addDisposableListener(this.selectBreakpointContainer, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Escape)) {
+				this.close(false);
+			}
+		}));
 
 		const selectionWrapper = $('.select-box-container');
 		dom.append(this.selectBreakpointContainer, selectionWrapper);
@@ -251,9 +260,9 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 		dom.append(container, this.selectBreakpointContainer);
 
-		const closeButton = new Button(this.selectBreakpointContainer, {});
-		closeButton.label = nls.localize('close', "Close");
-		closeButton.onDidClick(() => this.close(false));
+		const closeButton = new Button(this.selectBreakpointContainer, defaultButtonStyles);
+		closeButton.label = nls.localize('ok', "Ok");
+		this.toDispose.push(closeButton.onDidClick(() => this.close(false)));
 		this.toDispose.push(closeButton);
 	}
 

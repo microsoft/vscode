@@ -1227,6 +1227,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.passFocusScheduler.cancel();
 		this.stoppedDetails.push(event);
 
+		// do this very eagerly if we have hitBreakpointIds, since it may take a
+		// moment for breakpoints to set and we want to do our best to not miss
+		// anything
+		if (event.hitBreakpointIds) {
+			this.enableDependentBreakpoints(event.hitBreakpointIds);
+		}
+
 		this.statusQueue.run(
 			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
 			async (threadId, token) => {
@@ -1238,6 +1245,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 				if (focusedThreadDoesNotExist) {
 					this.debugService.focusStackFrame(undefined, undefined);
 				}
+
 				const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
 				if (thread) {
 					// Call fetch call stack twice, the first only return the top stack frame.
@@ -1270,7 +1278,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 					await promises.topCallStack;
 
-					this.enableDependentBreakpoints(thread);
+					if (!event.hitBreakpointIds) { // if hitBreakpointIds are present, this is handled earlier on
+						this.enableDependentBreakpoints(thread);
+					}
 
 					if (token.isCancellationRequested) {
 						return;
@@ -1294,25 +1304,30 @@ export class DebugSession implements IDebugSession, IDisposable {
 		);
 	}
 
-	private enableDependentBreakpoints(thread: Thread) {
-		const frame = thread.getTopStackFrame();
-		if (frame === undefined) {
-			return;
-		}
+	private enableDependentBreakpoints(hitBreakpointIdsOrThread: Thread | number[]) {
+		let breakpoints: IBreakpoint[];
+		if (Array.isArray(hitBreakpointIdsOrThread)) {
+			breakpoints = this.model.getBreakpoints().filter(bp => hitBreakpointIdsOrThread.includes(bp.getIdFromAdapter(this.id)!));
+		} else {
+			const frame = hitBreakpointIdsOrThread.getTopStackFrame();
+			if (frame === undefined) {
+				return;
+			}
 
-		if (thread.stoppedDetails && thread.stoppedDetails.reason !== 'breakpoint') {
-			return;
+			if (hitBreakpointIdsOrThread.stoppedDetails && hitBreakpointIdsOrThread.stoppedDetails.reason !== 'breakpoint') {
+				return;
+			}
+
+			breakpoints = this.getBreakpointsAtPosition(frame.source.uri, frame.range.startLineNumber, frame.range.endLineNumber, frame.range.startColumn, frame.range.endColumn);
 		}
 
 		// find the current breakpoints
-		const hitBreakpointIds = thread.stoppedDetails?.hitBreakpointIds?.map(id => id.toString());
-		const breakpoints = this.getBreakpoints(hitBreakpointIds) || this.getBreakpointsAtPosition(frame.source.uri, frame.range.startLineNumber, frame.range.endLineNumber, frame.range.startColumn, frame.range.endColumn);
 
 		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
 		const uriBreakpoints = new Map<URI, IBreakpoint[]>();
 		this.model.getBreakpoints({ dependentOnly: true, enabledOnly: true }).forEach(bp => {
 			breakpoints.forEach(cbp => {
-				if (bp.triggeredBy?.matches(cbp)) {
+				if (bp.enabled && bp.triggeredBy?.matches(cbp)) {
 					const uri = bp.uri;
 					if (!uriBreakpoints.has(uri)) {
 						uriBreakpoints.set(uri, []);
@@ -1327,13 +1342,6 @@ export class DebugSession implements IDebugSession, IDisposable {
 				this.sendBreakpoints(uri, bps, false);
 			});
 		}
-	}
-
-	private getBreakpoints(ids?: string[]): IBreakpoint[] | undefined {
-		if (ids) {
-			return this.model.getBreakpoints().filter(bp => ids.includes(bp.getId()));
-		}
-		return undefined;
 	}
 
 	private getBreakpointsAtPosition(uri: URI, startLineNumber: number, endLineNumber: number, startColumn: number, endColumn: number): IBreakpoint[] {
