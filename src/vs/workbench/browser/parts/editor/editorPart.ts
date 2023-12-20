@@ -424,7 +424,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this._activeGroup.focus(); // When making views visible the focus can be affected, so restore it
 	}
 
-	private hasMaximizedGroup(): boolean {
+	hasMaximizedGroup(): boolean {
 		return this.gridWidget.hasMaximizedView();
 	}
 
@@ -1129,10 +1129,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	centerLayout(active: boolean): void {
-		if (this.hasMaximizedGroup()) {
-			this.unmaximizeGroup();
-		}
-
 		this.centeredLayoutWidget.activate(active);
 
 		this._activeGroup.focus();
