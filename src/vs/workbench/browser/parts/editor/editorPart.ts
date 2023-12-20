@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
-import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -424,7 +424,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this._activeGroup.focus(); // When making views visible the focus can be affected, so restore it
 	}
 
-	private hasMaximizedGroup(): boolean {
+	hasMaximizedGroup(): boolean {
 		return this.gridWidget.hasMaximizedView();
 	}
 
@@ -811,12 +811,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Update container
 		this.updateContainer();
 
-		// Update locked state: clear when we are at just 1 group
-		// in case we are in the main editor part
-		if (this.count === 1 && !this.isAuxiliary) {
-			firstOrDefault(this.groups)?.lock(false);
-		}
-
 		// Event
 		this._onDidRemoveGroup.fire(groupView);
 	}
@@ -1135,10 +1129,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	centerLayout(active: boolean): void {
-		if (this.hasMaximizedGroup()) {
-			this.unmaximizeGroup();
-		}
-
 		this.centeredLayoutWidget.activate(active);
 
 		this._activeGroup.focus();

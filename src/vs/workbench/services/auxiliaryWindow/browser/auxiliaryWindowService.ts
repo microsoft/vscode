@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -283,18 +283,25 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
-		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
-		metaCharset.setAttribute('charset', 'utf-8');
+		for (const metaTag of ['meta[charset="utf-8"]', 'meta[http-equiv="Content-Security-Policy"]', 'meta[name="viewport"]', 'meta[name="theme-color"]']) {
+			const metaElement = mainWindow.document.querySelector(metaTag);
+			if (metaElement) {
+				const clonedMetaElement = createMetaElement(auxiliaryWindow.document.head);
+				copyAttributes(metaElement, clonedMetaElement);
 
-		const originalCSPMetaTag = mainWindow.document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-		if (originalCSPMetaTag) {
-			const csp = createMetaElement(auxiliaryWindow.document.head);
-			copyAttributes(originalCSPMetaTag, csp);
-
-			const content = csp.getAttribute('content');
-			if (content) {
-				csp.setAttribute('content', content.replace(/(script-src[^\;]*)/, `script-src 'none'`));
+				if (metaTag === 'meta[http-equiv="Content-Security-Policy"]') {
+					const content = clonedMetaElement.getAttribute('content');
+					if (content) {
+						clonedMetaElement.setAttribute('content', content.replace(/(script-src[^\;]*)/, `script-src 'none'`));
+					}
+				}
 			}
+		}
+
+		const originalIconLinkTag = mainWindow.document.querySelector('link[rel="icon"]');
+		if (originalIconLinkTag) {
+			const icon = createLinkElement(auxiliaryWindow.document.head);
+			copyAttributes(originalIconLinkTag, icon);
 		}
 	}
 

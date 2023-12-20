@@ -4,16 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	// https://github.com/microsoft/vscode/issues/195474
 
-	export interface SourceControlInputBoxActionButton {
-		readonly command: Command;
-		readonly enabled: boolean;
-		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+	// @alexr00 https://github.com/microsoft/vscode/issues/201131
+
+	export interface CommentReaction {
+		readonly reactors?: readonly string[];
 	}
-
-	export interface SourceControlInputBox {
-		actionButton?: SourceControlInputBoxActionButton;
-	}
-
 }

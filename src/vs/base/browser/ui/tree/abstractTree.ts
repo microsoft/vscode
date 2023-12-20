@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -1148,7 +1148,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	}
 
 	shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
-		if (!this.widget || !this.pattern || this._mode === TreeFindMode.Filter) {
+		if (!this.widget || !this.pattern) {
 			return true;
 		}
 
@@ -2391,27 +2391,27 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.setFocus(indexes, browserEvent, true);
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusNext(n, loop, browserEvent, filter);
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusPrevious(n, loop, browserEvent, filter);
 	}
 
-	focusNextPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
+	focusNextPage(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
 		return this.view.focusNextPage(browserEvent, filter);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
+	focusPreviousPage(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
 		return this.view.focusPreviousPage(browserEvent, filter);
 	}
 
-	focusLast(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusLast(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusLast(browserEvent, filter);
 	}
 
-	focusFirst(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusFirst(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusFirst(browserEvent, filter);
 	}
 

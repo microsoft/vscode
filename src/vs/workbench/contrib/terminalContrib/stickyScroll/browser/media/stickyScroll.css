@@ -12,6 +12,10 @@
 	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-panel-background)));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 }
+.part.sidebar .terminal-sticky-scroll,
+.part.auxiliarybar .terminal-sticky-scroll {
+	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-sideBar-background)));
+}
 .editor-instance .terminal-sticky-scroll {
 	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-editor-background)));
 }

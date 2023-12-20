@@ -10,7 +10,7 @@ import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_TOOLBAR, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
@@ -128,7 +128,7 @@ registerAction2(class extends NotebookAction {
 						id: MENU_CELL_CHAT_WIDGET_STATUS,
 						group: 'inline',
 						order: 0,
-						when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChateResponseTypes.OnlyMessages),
+						when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.OnlyMessages),
 					}
 				]
 			});

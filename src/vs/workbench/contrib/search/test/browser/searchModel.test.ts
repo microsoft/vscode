@@ -614,7 +614,7 @@ suite('SearchModel', () => {
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		instantiationService.stub(IEditorService, new TestEditorService());
+		instantiationService.stub(IEditorService, store.add(new TestEditorService()));
 		const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
 		store.add(notebookEditorWidgetService);
 		return notebookEditorWidgetService;

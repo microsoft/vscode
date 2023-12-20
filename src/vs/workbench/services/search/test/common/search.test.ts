@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITextSearchPreviewOptions, OneLineRange, TextSearchMatch, SearchRange } from 'vs/workbench/services/search/common/search';
 
 suite('TextSearchResult', () => {
@@ -17,6 +18,8 @@ suite('TextSearchResult', () => {
 			result.preview.text.substring((<SearchRange>result.preview.matches).startColumn, (<SearchRange>result.preview.matches).endColumn),
 			text);
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('empty without preview options', () => {
 		const range = new OneLineRange(5, 0, 0);

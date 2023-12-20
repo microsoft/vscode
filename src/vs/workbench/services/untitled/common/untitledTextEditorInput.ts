@@ -19,6 +19,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { dispose, IReference } from 'vs/base/common/lifecycle';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -47,9 +48,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IPathService private readonly pathService: IPathService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService private readonly textModelService: ITextModelService
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService
 	) {
-		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 
 		this.registerModelListeners(model);
 	}

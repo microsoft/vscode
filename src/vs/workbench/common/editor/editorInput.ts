@@ -12,6 +12,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IEditorCloseHandler {
 
@@ -161,6 +162,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	getAriaLabel(): string {
 		return this.getTitle(Verbosity.SHORT);
+	}
+
+	/**
+	 * Returns the icon which represents this editor input.
+	 * If undefined, the default icon will be used.
+	 */
+	getIcon(): ThemeIcon | undefined {
+		return undefined;
 	}
 
 	/**

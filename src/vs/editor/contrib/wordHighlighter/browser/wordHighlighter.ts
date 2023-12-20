@@ -253,9 +253,10 @@ function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocu
 	return new TextualOccurenceRequest(model, selection, word, wordSeparators, otherModels);
 }
 
-registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
+registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	return getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+	const map = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+	return map?.get(model.uri);
 });
 
 class WordHighlighter {

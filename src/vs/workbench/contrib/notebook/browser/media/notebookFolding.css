@@ -43,7 +43,7 @@
 	padding: 4px 4px 4px 4px;
 }
 
-.monaco-workbench .notebookOverlay>.cell-list-container .notebook-folded-hint {
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folded-hint {
 	position: absolute;
 	user-select: none;
 }

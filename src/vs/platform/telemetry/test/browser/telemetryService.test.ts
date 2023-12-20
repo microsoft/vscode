@@ -8,6 +8,7 @@ import * as sinonTest from 'sinon-test';
 import { mainWindow } from 'vs/base/browser/window';
 import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -741,4 +742,6 @@ suite('TelemetryService', () => {
 
 		service.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

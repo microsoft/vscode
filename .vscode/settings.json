@@ -167,5 +167,7 @@
 	],
 	"[github-issues]": {
 		"editor.wordWrap": "on"
-	}
+	},
+	"css.format.spaceAroundSelectorSeparator": true,
+	"inlineChat.mode": "live",
 }

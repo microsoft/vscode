@@ -33,7 +33,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	get onDidEndSession(): Event<IDebugSession> {
+	get onDidEndSession(): Event<{ session: IDebugSession; restart: boolean }> {
 		throw new Error('not implemented');
 	}
 

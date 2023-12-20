@@ -21,6 +21,18 @@ function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
 }
 
+const repositoryMenuDisposables = new DisposableStore();
+
+MenuRegistry.onDidChangeMenu(e => {
+	if (e.has(MenuId.SCMTitle)) {
+		repositoryMenuDisposables.clear();
+
+		for (const menuItem of MenuRegistry.getMenuItems(MenuId.SCMTitle)) {
+			repositoryMenuDisposables.add(MenuRegistry.appendMenuItem(MenuId.SCMSourceControlInline, menuItem));
+		}
+	}
+});
+
 export class SCMTitleMenu implements IDisposable {
 
 	private _actions: IAction[] = [];
@@ -148,16 +160,18 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private contextKeyService: IContextKeyService;
 
 	readonly titleMenu: SCMTitleMenu;
+	readonly repositoryMenu: IMenu;
+
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
-	private _repositoryMenu: IMenu | undefined;
-	get repositoryMenu(): IMenu {
-		if (!this._repositoryMenu) {
-			this._repositoryMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
-			this.disposables.add(this._repositoryMenu);
+	private _repositoryContextMenu: IMenu | undefined;
+	get repositoryContextMenu(): IMenu {
+		if (!this._repositoryContextMenu) {
+			this._repositoryContextMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
+			this.disposables.add(this._repositoryContextMenu);
 		}
 
-		return this._repositoryMenu;
+		return this._repositoryContextMenu;
 	}
 
 	private _historyProviderMenu: SCMHistoryProviderMenus | undefined;
@@ -187,6 +201,10 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		instantiationService = instantiationService.createChild(serviceCollection);
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
+		this.disposables.add(this.titleMenu);
+
+		this.repositoryMenu = menuService.createMenu(MenuId.SCMSourceControlInline, this.contextKeyService);
+		this.disposables.add(this.repositoryMenu);
 
 		provider.onDidChangeResourceGroups(this.onDidChangeResourceGroups, this, this.disposables);
 		this.onDidChangeResourceGroups();

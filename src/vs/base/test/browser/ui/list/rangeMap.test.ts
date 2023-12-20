@@ -361,6 +361,8 @@ suite('RangeMap', () => {
 
 suite('RangeMap with top padding', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('empty', () => {
 		const rangeMap = new RangeMap(10);
 		assert.strictEqual(rangeMap.size, 10);

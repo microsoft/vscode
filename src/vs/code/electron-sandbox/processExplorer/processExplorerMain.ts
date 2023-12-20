@@ -245,7 +245,7 @@ class ProcessExplorer {
 		this.setEventHandlers(data);
 
 		ipcRenderer.on('vscode:pidToNameResponse', (event: unknown, pidToNames: [number, string][]) => {
-			this.mapPidToName = new Map<number, string>();
+			this.mapPidToName.clear();
 
 			for (const [pid, name] of pidToNames) {
 				this.mapPidToName.set(pid, name);

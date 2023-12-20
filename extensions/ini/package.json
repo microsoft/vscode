@@ -35,7 +35,8 @@
           ".gitattributes",
           ".gitconfig",
           ".gitmodules",
-          ".editorconfig"
+          ".editorconfig",
+          ".repo"
         ],
         "filenames": [
           "gitconfig",

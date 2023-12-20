@@ -180,7 +180,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('confirmUrl', "Allow '{0}' extension to open this URI?", extensionDisplayName),
 				checkbox: {
-					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
+					label: localize('rememberConfirmUrl', "Do not ask me again for this extension"),
 				},
 				detail: uriString,
 				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")

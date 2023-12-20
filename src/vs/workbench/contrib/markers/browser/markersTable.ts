@@ -57,7 +57,7 @@ interface IMarkerHighlightedLabelColumnTemplateData {
 	readonly highlightedLabel: HighlightedLabel;
 }
 
-class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerIconColumnTemplateData>{
+class MarkerSeverityColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerIconColumnTemplateData> {
 
 	static readonly TEMPLATE_ID = 'severity';
 
@@ -168,7 +168,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	disposeTemplate(templateData: IMarkerCodeColumnTemplateData): void { }
 }
 
-class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData>{
+class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
 
 	static readonly TEMPLATE_ID = 'message';
 
@@ -189,7 +189,7 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void { }
 }
 
-class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerFileColumnTemplateData>{
+class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerFileColumnTemplateData> {
 
 	static readonly TEMPLATE_ID = 'file';
 
@@ -220,7 +220,7 @@ class MarkerFileColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	disposeTemplate(templateData: IMarkerFileColumnTemplateData): void { }
 }
 
-class MarkerOwnerColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData>{
+class MarkerOwnerColumnRenderer implements ITableRenderer<MarkerTableItem, IMarkerHighlightedLabelColumnTemplateData> {
 
 	static readonly TEMPLATE_ID = 'owner';
 

@@ -17,6 +17,8 @@ import type { Terminal } from '@xterm/xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 suite('Workbench - TerminalUriLinkDetector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,6 +41,7 @@ suite('Workbench - TerminalUriLinkDetector', () => {
 				return createFileStat(resource);
 			}
 		});
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		validResources = [];
 
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
