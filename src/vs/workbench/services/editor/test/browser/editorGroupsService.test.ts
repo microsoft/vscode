@@ -1776,6 +1776,9 @@ suite('EditorGroupsService', () => {
 		const rootGroup = part.activeGroup;
 		const editorPartSize = part.getSize(rootGroup);
 
+		// If there is only one group, it should not be considered maximized
+		assert.strictEqual(part.hasMaximizedGroup(), false);
+
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 		const rightBottomGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
 
@@ -1788,7 +1791,11 @@ suite('EditorGroupsService', () => {
 			maximizedValue = maximized;
 		});
 
+		assert.strictEqual(part.hasMaximizedGroup(), false);
+
 		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rootGroup);
+
+		assert.strictEqual(part.hasMaximizedGroup(), true);
 
 		// getSize()
 		assert.deepStrictEqual(part.getSize(rootGroup), editorPartSize);
@@ -1798,6 +1805,8 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(maximizedValue, true);
 
 		part.toggleMaximizeGroup();
+
+		assert.strictEqual(part.hasMaximizedGroup(), false);
 
 		// Size is restored
 		assert.deepStrictEqual(part.getSize(rootGroup), sizeRootGroup);
