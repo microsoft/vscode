@@ -109,9 +109,8 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 
 class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
-	private length = 0;
-	private indexes: number[] = [];
-	private sortedIndexes: number[] = [];
+	protected indexes: number[] = [];
+	protected sortedIndexes: number[] = [];
 
 	private readonly _onChange = new Emitter<ITraitChangeEvent>();
 	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
@@ -126,8 +125,6 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	constructor(private _trait: string) { }
 
 	splice(start: number, deleteCount: number, elements: boolean[]): void {
-		deleteCount = Math.max(0, Math.min(deleteCount, this.length - start));
-
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
 		const sortedIndexes: number[] = [];
@@ -147,16 +144,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			sortedIndexes.push(this.sortedIndexes[i++] + diff);
 		}
 
-		const length = this.length + diff;
-
-		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0 && length > 0) {
-			const first = this.sortedIndexes.find(index => index >= start) ?? length - 1;
-			sortedIndexes.push(Math.min(first, length - 1));
-		}
-
 		this.renderer.splice(start, deleteCount, elements.length);
 		this._set(sortedIndexes, sortedIndexes);
-		this.length = length;
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
