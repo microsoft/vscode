@@ -231,7 +231,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				return undefined;
 			}
 			let userInfo: { id: string; accountName: string } | undefined;
-			if (!session.account) {
+			if (!session.account?.iconPath) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
