@@ -488,8 +488,8 @@ function selectElement(accessor: ServicesAccessor, retainCurrentFocus: boolean):
 	// List
 	if (focused instanceof List || focused instanceof PagedList || focused instanceof Table) {
 		const list = focused;
-		list.setSelection(list.getFocus(), fakeKeyboardEvent);
 		list.setAnchor(list.getFocus()[0]);
+		list.setSelection(list.getFocus(), fakeKeyboardEvent);
 	}
 
 	// Trees
