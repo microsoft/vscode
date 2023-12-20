@@ -22,12 +22,12 @@ import { IRectangle } from 'vs/platform/window/common/window';
 import { getWindow } from 'vs/base/browser/dom';
 
 interface IEditorPartsUIState {
-	readonly auxiliaryEditorParts: IAuxiliaryEditorPartState[];
+	readonly auxiliary: IAuxiliaryEditorPartState[];
 }
 
 interface IAuxiliaryEditorPartState {
-	readonly bounds?: IRectangle;
 	readonly state: IEditorPartUIState;
+	readonly bounds?: IRectangle;
 }
 
 export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
@@ -203,8 +203,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		if (this.mainPart.didRestoreState) {
 			const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
 			const uiState: IEditorPartsUIState | undefined = this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
-			if (uiState?.auxiliaryEditorParts.length) {
-				for (const auxiliaryEditorPartState of uiState.auxiliaryEditorParts) {
+			if (uiState?.auxiliary.length) {
+				for (const auxiliaryEditorPartState of uiState.auxiliary) {
 					auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
 						bounds: auxiliaryEditorPartState.bounds,
 						state: auxiliaryEditorPartState.state
@@ -228,26 +228,27 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	protected override saveState(): void {
 		const uiState: IEditorPartsUIState = {
-			auxiliaryEditorParts: this.parts.filter(part => part !== this.mainPart).map(part => {
-				let bounds: IRectangle | undefined;
-				const auxiliaryWindow = getWindow(part.getContainer());
-				if (auxiliaryWindow) {
-					bounds = {
-						x: auxiliaryWindow.screenX,
-						y: auxiliaryWindow.screenY,
-						width: auxiliaryWindow.outerWidth,
-						height: auxiliaryWindow.outerHeight
-					};
-				}
-
+			auxiliary: this.parts.filter(part => part !== this.mainPart).map(part => {
 				return {
-					bounds,
-					state: part.createState()
+					state: part.createState(),
+					bounds: (() => {
+						const auxiliaryWindow = getWindow(part.getContainer());
+						if (auxiliaryWindow) {
+							return {
+								x: auxiliaryWindow.screenX,
+								y: auxiliaryWindow.screenY,
+								width: auxiliaryWindow.outerWidth,
+								height: auxiliaryWindow.outerHeight
+							};
+						}
+
+						return undefined;
+					})()
 				};
 			})
 		};
 
-		if (uiState.auxiliaryEditorParts.length === 0) {
+		if (uiState.auxiliary.length === 0) {
 			delete this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
 		} else {
 			this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY] = uiState;
