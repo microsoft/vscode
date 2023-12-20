@@ -43,6 +43,7 @@ export class GitHubServer implements IGitHubServer {
 		private readonly _telemetryReporter: ExperimentationTelemetry,
 		private readonly _uriHandler: UriEventHandler,
 		private readonly _extensionKind: vscode.ExtensionKind,
+		private readonly _globalStorageUri: vscode.Uri,
 		private readonly _ghesUri?: vscode.Uri
 	) {
 		this._type = _ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
@@ -214,6 +215,16 @@ export class GitHubServer implements IGitHubServer {
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
+	private async downloadAndSaveImage(avatarUrl: string): Promise<string> {
+		const response = await fetching(avatarUrl);
+		const imageBuffer = await response.buffer();
+		await vscode.workspace.fs.createDirectory(this._globalStorageUri);
+		const imageUri = this._globalStorageUri.with({ path: this._globalStorageUri.path + '/avatar' });
+		await vscode.workspace.fs.writeFile(imageUri, imageBuffer);
+
+		return imageUri.fsPath;
+	}
+
 	public async getUserInfo(token: string): Promise<{ id: string; accountName: string; iconPath: string }> {
 		let result;
 		try {
@@ -233,7 +244,8 @@ export class GitHubServer implements IGitHubServer {
 			try {
 				const json = await result.json();
 				this._logger.info('Got account info!');
-				return { id: json.id, accountName: json.login, iconPath: json.avatar_url };
+				const iconPath = await this.downloadAndSaveImage(json.avatar_url);
+				return { id: json.id, accountName: json.login, iconPath };
 			} catch (e) {
 				this._logger.error(`Unexpected error parsing response from GitHub: ${e.message ?? e}`);
 				throw e;

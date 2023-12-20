@@ -382,7 +382,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	protected override updateLabel(): void {
 		super.updateLabel();
 		this.label.classList.toggle('show-avatar', !!this.accountForAvatar);
-		this.label.style.setProperty('background-image', this.accountForAvatar?.iconPath ? `url("${URI.from(this.accountForAvatar.iconPath).toString()}")` : '');
+		this.label.style.setProperty('background-image', this.accountForAvatar?.iconPath ? `url("${URI.from(this.accountForAvatar.iconPath).fsPath}")` : '');
 	}
 
 	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {

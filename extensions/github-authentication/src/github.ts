@@ -125,6 +125,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._telemetryReporter,
 			uriHandler,
 			context.extension.extensionKind,
+			context.globalStorageUri,
 			ghesUri);
 
 		// Contains the current state of the sessions we have available.
