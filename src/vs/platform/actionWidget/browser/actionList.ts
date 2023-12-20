@@ -314,7 +314,6 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private onFocus() {
-		this._list.getFocus();
 		const focused = this._list.getFocus();
 		if (focused.length === 0) {
 			return;
