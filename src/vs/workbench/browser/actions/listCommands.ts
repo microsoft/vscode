@@ -365,7 +365,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.stickyScroll.collapse',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + 50,
 	when: WorkbenchTreeStickyScrollFocused,
 	primary: KeyCode.LeftArrow,
 	mac: {
@@ -564,7 +564,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.stickyScrollselect',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
 	when: WorkbenchTreeStickyScrollFocused,
 	primary: KeyCode.Enter,
 	mac: {
@@ -713,7 +713,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.toggleExpand',
-	weight: KeybindingWeight.WorkbenchContrib,
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
 	when: WorkbenchTreeStickyScrollFocused,
 	primary: KeyCode.Space,
 	handler: (accessor) => {
