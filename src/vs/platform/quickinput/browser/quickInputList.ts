@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IHoverDelegate, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -235,7 +235,10 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 	static readonly ID = 'listelement';
 
-	constructor(private readonly themeService: IThemeService) { }
+	constructor(
+		private readonly themeService: IThemeService,
+		private readonly hoverDelegate: IHoverDelegate | undefined,
+	) { }
 
 	get templateId() {
 		return ListElementRenderer.ID;
@@ -267,7 +270,7 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		const row2 = dom.append(rows, $('.quick-input-list-row'));
 
 		// Label
-		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true });
+		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
 		data.toDisposeTemplate.push(data.label);
 		data.icon = <HTMLInputElement>dom.prepend(data.label.element, $('.quick-input-list-icon'));
 
@@ -277,14 +280,14 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
-		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true });
+		data.detail = new IconLabel(detailContainer, { supportHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
 		data.toDisposeTemplate.push(data.detail);
 
 		// Separator
 		data.separator = dom.append(data.entry, $('.quick-input-list-separator'));
 
 		// Actions
-		data.actionBar = new ActionBar(data.entry);
+		data.actionBar = new ActionBar(data.entry, this.hoverDelegate ? { hoverDelegate: this.hoverDelegate } : undefined);
 		data.actionBar.domNode.classList.add('quick-input-list-entry-action-bar');
 		data.toDisposeTemplate.push(data.actionBar);
 
@@ -314,7 +317,8 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 		// Label
 		const options: IIconLabelValueOptions = {
 			matches: labelHighlights || [],
-			descriptionTitle: element.saneDescription,
+			// If we have a tooltip, we want that to be shown and not any other hover
+			descriptionTitle: element.saneTooltip ? undefined : element.saneDescription,
 			descriptionMatches: descriptionHighlights || [],
 			labelEscapeNewLines: true
 		};
@@ -336,7 +340,8 @@ class ListElementRenderer implements IListRenderer<IListElement, IListElementTem
 			data.detail.element.style.display = '';
 			data.detail.setLabel(element.saneDetail, undefined, {
 				matches: detailHighlights,
-				title: element.saneDetail,
+				// If we have a tooltip, we want that to be shown and not any other hover
+				title: element.saneTooltip ? undefined : element.saneDetail,
 				labelEscapeNewLines: true
 			});
 		} else {
@@ -468,7 +473,7 @@ export class QuickInputList {
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
-		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService)], {
+		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer(themeService, options.hoverDelegate)], {
 			identityProvider: {
 				getId: element => {
 					// always prefer item over separator because if item is defined, it must be the main item type
