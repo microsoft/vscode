@@ -44,7 +44,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		this._terminalSuggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(this._contextKeyService);
 	}
 
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._loadSuggestAddon(xterm.raw);
 		this.add(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._terminalSuggestWidgetContextKeys)) {

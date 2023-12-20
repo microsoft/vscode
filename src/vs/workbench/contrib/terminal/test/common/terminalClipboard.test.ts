@@ -25,7 +25,7 @@ suite('TerminalClipboard', function () {
 			configurationService = new TestConfigurationService({
 				[TerminalSettingId.EnableMultiLinePasteWarning]: 'auto'
 			});
-			dialogService = new TestDialogService({ confirmed: false });
+			dialogService = new TestDialogService(undefined, { result: { confirmed: false } });
 
 			instantiationService.stub(IConfigurationService, configurationService);
 			instantiationService.stub(IDialogService, dialogService);

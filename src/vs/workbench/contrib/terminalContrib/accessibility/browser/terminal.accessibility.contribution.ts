@@ -85,7 +85,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this.show();
 			return true;
 		}, TerminalContextKeys.focus));
-		this._register(_instance.onDidRunText(() => {
+		this._register(_instance.onDidExecuteText(() => {
 			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
