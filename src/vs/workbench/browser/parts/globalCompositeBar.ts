@@ -382,7 +382,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	protected override updateLabel(): void {
 		super.updateLabel();
 		this.label.classList.toggle('show-avatar', !!this.accountForAvatar);
-		this.label.style.setProperty('background-image', this.accountForAvatar?.avatar ? `url("${URI.from(this.accountForAvatar.avatar).toString()}")` : '');
+		this.label.style.setProperty('background-image', this.accountForAvatar?.iconPath ? `url("${URI.from(this.accountForAvatar.iconPath).toString()}")` : '');
 	}
 
 	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
@@ -421,7 +421,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 				const providerSubMenuActions: Action[] = [manageExtensionsAction];
 
-				if (account.avatar) {
+				if (account.iconPath) {
 					const useAsAvatarAction = disposables.add(new Action('showAvatar', localize('showAvatar', "Show Avatar"), undefined, true, async () => {
 						useAsAvatarAction.checked = !useAsAvatarAction.checked;
 						this.accountForAvatar = useAsAvatarAction.checked ? account : undefined;

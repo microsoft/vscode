@@ -18,7 +18,7 @@ interface SessionData {
 	account?: {
 		label?: string;
 		displayName?: string;
-		avatar?: string;
+		iconPath?: string;
 		id: string;
 	};
 	scopes: string[];
@@ -252,7 +252,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
 						: userInfo?.accountName ?? '<unknown>',
 					id: session.account?.id ?? userInfo?.id ?? '<unknown>',
-					avatar: session?.account?.avatar
+					iconPath: session?.account?.iconPath
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -344,7 +344,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id, avatar: vscode.Uri.parse(userInfo.avatar) },
+			account: { label: userInfo.accountName, id: userInfo.id, iconPath: vscode.Uri.parse(userInfo.iconPath) },
 			scopes
 		};
 	}

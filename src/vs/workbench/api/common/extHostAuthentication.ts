@@ -48,7 +48,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			const session = await this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
-			return session ? { ...session, account: { ...session.account, avatar: URI.revive(session.account.avatar) } } : undefined;
+			return session ? { ...session, account: { ...session.account, iconPath: URI.revive(session.account.iconPath) } } : undefined;
 		});
 	}
 
@@ -59,7 +59,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			const sessions = await this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
-			return sessions.map(session => ({ ...session, account: { ...session.account, avatar: URI.revive(session.account.avatar) } }));
+			return sessions.map(session => ({ ...session, account: { ...session.account, iconPath: URI.revive(session.account.iconPath) } }));
 		});
 	}
 

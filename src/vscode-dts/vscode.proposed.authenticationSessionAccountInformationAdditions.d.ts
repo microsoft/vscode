@@ -8,6 +8,6 @@ declare module 'vscode' {
 		/**
 		 * URI to the avatar image of the authentication session. Will be rendered in the activity bar.
 		 */
-		readonly avatar?: Uri;
+		readonly iconPath?: Uri;
 	}
 }

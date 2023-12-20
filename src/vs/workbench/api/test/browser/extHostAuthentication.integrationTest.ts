@@ -80,7 +80,7 @@ class TestAuthProvider implements AuthenticationProvider {
 			account: {
 				label: this.authProviderName,
 				id: `${this.id}`,
-				avatar: URI.parse('https://example.com'),
+				iconPath: URI.parse('https://example.com'),
 			},
 			accessToken: Math.random() + '',
 		};

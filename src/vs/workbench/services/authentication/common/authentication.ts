@@ -9,7 +9,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export interface AuthenticationSessionAccount {
 	label: string;
 	id: string;
-	avatar?: UriComponents;
+	iconPath?: UriComponents;
 }
 
 export interface AuthenticationSession {
