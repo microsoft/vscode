@@ -531,6 +531,7 @@ export interface IBreakpointData {
 	readonly condition?: string;
 	readonly logMessage?: string;
 	readonly hitCondition?: string;
+	readonly triggeredBy?: IBreakpoint;
 }
 
 export interface IBreakpointUpdateData {
@@ -539,7 +540,7 @@ export interface IBreakpointUpdateData {
 	readonly logMessage?: string;
 	readonly lineNumber?: number;
 	readonly column?: number;
-	readonly waitFor?: IBreakpoint;
+	readonly triggeredBy?: IBreakpoint;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -571,7 +572,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
-	readonly waitFor?: IBreakpointReference;
+	readonly triggeredBy?: IBreakpointReference;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -1213,7 +1214,7 @@ export const enum BreakpointWidgetContext {
 	CONDITION = 0,
 	HIT_COUNT = 1,
 	LOG_MESSAGE = 2,
-	WAIT_FOR_BREAKPOINT = 3
+	TRIGGER_POINT = 3
 }
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {

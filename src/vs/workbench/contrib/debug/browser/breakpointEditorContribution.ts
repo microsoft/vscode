@@ -284,7 +284,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 
 					if (isShiftPressed) {
 						breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
-					} else if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition)) {
+					} else if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition || !!bp.triggeredBy)) {
 						// Show the dialog if there is a potential condition to be accidently lost.
 						// Do not show dialog on linux due to electron issue freezing the mouse #50026
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
@@ -453,6 +453,13 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				undefined,
 				true,
 				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.LOG_MESSAGE))
+			));
+			actions.push(new Action(
+				'addTriggerByBreakpoint',
+				nls.localize('addTriggerByBreakpoint', "Add Wait for breakpoint.."),
+				undefined,
+				true,
+				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))
 			));
 		}
 

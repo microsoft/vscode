@@ -1292,12 +1292,12 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	}
 
 	// can change this when all breakpoint supports dependent breakpoint condition
-	let waitForBreakpoint: BreakpointReference | undefined;
+	let triggeredByBreakpoint: BreakpointReference | undefined;
 	if (breakpoint instanceof Breakpoint) {
-		waitForBreakpoint = breakpoint.waitFor;
+		triggeredByBreakpoint = breakpoint.triggeredBy;
 	}
 
-	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition || waitForBreakpoint) {
+	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition || triggeredByBreakpoint) {
 		const messages: string[] = [];
 		let icon = breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular;
 		if (!breakpoint.supported) {
@@ -1315,8 +1315,8 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 			messages.push(localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
 		}
 
-		if (waitForBreakpoint) {
-			messages.push(localize('waitFor', "Hit after breakpoint: {0}:{1}", waitForBreakpoint.uri.toString(), waitForBreakpoint.lineNumber));
+		if (triggeredByBreakpoint) {
+			messages.push(localize('triggeredBy', "Hit after breakpoint: {0}:{1}", triggeredByBreakpoint.uri.toString(), triggeredByBreakpoint.lineNumber));
 		}
 
 		return {

@@ -882,7 +882,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
 		id = generateUuid(),
-		public waitFor: IBreakpointReference | undefined = undefined
+		public triggeredBy: IBreakpointReference | undefined = undefined
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
@@ -900,7 +900,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 			return this.data.verified && !this.textFileService.isDirty(this._uri);
 		}
 
-		return !this.waitFor;
+		return !this.triggeredBy;
 	}
 
 	get uri(): uri {
@@ -969,11 +969,11 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		result.column = this._column;
 		result.adapterData = this.adapterData;
 
-		if (this.waitFor) {
+		if (this.triggeredBy) {
 			const wf = Object.create(null);
-			wf.uri = this.waitFor?.uri.toString();
-			wf.lineNumber = this.waitFor?.lineNumber;
-			wf.column = this.waitFor?.column;
+			wf.uri = this.triggeredBy?.uri.toString();
+			wf.lineNumber = this.triggeredBy?.lineNumber;
+			wf.column = this.triggeredBy?.column;
 			result.waitFor = wf;
 		}
 
@@ -1000,10 +1000,10 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		if (!isUndefinedOrNull(data.logMessage)) {
 			this.logMessage = data.logMessage;
 		}
-		if (!isUndefinedOrNull(data.waitFor)) {
-			this.waitFor = new BreakpointReference(data.waitFor.uri, data.waitFor.lineNumber, data.waitFor.column);
+		if (!isUndefinedOrNull(data.triggeredBy)) {
+			this.triggeredBy = new BreakpointReference(data.triggeredBy.uri, data.triggeredBy.lineNumber, data.triggeredBy.column);
 		} else {
-			this.waitFor = undefined;
+			this.triggeredBy = undefined;
 		}
 	}
 }
@@ -1412,10 +1412,10 @@ export class DebugModel extends Disposable implements IDebugModel {
 				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
 					return false;
 				}
-				if (filter.dependentOnly && bp.waitFor === undefined) {
+				if (filter.dependentOnly && bp.triggeredBy === undefined) {
 					return false;
 				}
-				if (filter.excludeDependent && bp.waitFor !== undefined) {
+				if (filter.excludeDependent && bp.triggeredBy !== undefined) {
 					return false;
 				}
 
@@ -1492,7 +1492,13 @@ export class DebugModel extends Disposable implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => {
+			let triggeredBy = undefined;
+			if (rawBp!.triggeredBy) {
+				triggeredBy = new BreakpointReference(rawBp.triggeredBy.uri, rawBp.triggeredBy.lineNumber, rawBp.triggeredBy.column);
+			}
+			return new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id, triggeredBy);
+		});
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();

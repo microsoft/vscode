@@ -1312,7 +1312,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		const uriBreakpoints = new Map<URI, IBreakpoint[]>();
 		this.model.getBreakpoints({ dependentOnly: true, enabledOnly: true }).forEach(bp => {
 			breakpoints.forEach(cbp => {
-				if (bp.waitFor?.matches(cbp)) {
+				if (bp.triggeredBy?.matches(cbp)) {
 					const uri = bp.uri;
 					if (!uriBreakpoints.has(uri)) {
 						uriBreakpoints.set(uri, []);

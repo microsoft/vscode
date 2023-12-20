@@ -32,16 +32,28 @@
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container {
 	display: flex;
+	flex-direction: row;
+	padding: 0 10px;
+	flex-shrink: 1;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .monaco-button {
+	min-width: 100px;
+	min-height: 18px;
+	padding: 2px 20px 2px 1px;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .select-box-container {
+	display: flex;
 	justify-content: center;
 	flex-direction: column;
-	padding: 0 10px;
 	flex-shrink: 0;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .monaco-select-box {
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .select-box-container .monaco-select-box {
 	min-width: 100px;
 	min-height: 18px;
-	padding: 2px 20px 2px 8px;
+	padding: 2px 1px 2px 0px;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container:after {
