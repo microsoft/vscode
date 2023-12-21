@@ -20,6 +20,81 @@ import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './api/git-base';
 
+abstract class CheckoutCommandItem implements QuickPickItem {
+	abstract get label(): string;
+	get description(): string { return ''; }
+	get alwaysShow(): boolean { return true; }
+}
+
+class CreateBranchItem extends CheckoutCommandItem {
+	get label(): string { return l10n.t('{0} Create new branch...', '$(plus)'); }
+}
+
+class CreateBranchFromItem extends CheckoutCommandItem {
+	get label(): string { return l10n.t('{0} Create new branch from...', '$(plus)'); }
+}
+
+class CheckoutDetachedItem extends CheckoutCommandItem {
+	get label(): string { return l10n.t('{0} Checkout detached...', '$(debug-disconnect)'); }
+}
+
+class RefItemSeparator implements QuickPickItem {
+	get kind(): QuickPickItemKind { return QuickPickItemKind.Separator; }
+
+	get label(): string {
+		switch (this.refType) {
+			case RefType.Head:
+				return l10n.t('branches');
+			case RefType.RemoteHead:
+				return l10n.t('remote branches');
+			case RefType.Tag:
+				return l10n.t('tags');
+			default:
+				return '';
+		}
+	}
+
+	constructor(private readonly refType: RefType) { }
+}
+
+class RefItem implements QuickPickItem {
+
+	get label(): string {
+		switch (this.ref.type) {
+			case RefType.Head:
+				return `$(git-branch) ${this.ref.name ?? this.shortCommit}`;
+			case RefType.RemoteHead:
+				return `$(cloud) ${this.ref.name ?? this.shortCommit}`;
+			case RefType.Tag:
+				return `$(tag) ${this.ref.name ?? this.shortCommit}`;
+			default:
+				return '';
+		}
+	}
+
+	get description(): string {
+		switch (this.ref.type) {
+			case RefType.Head:
+				return this.shortCommit;
+			case RefType.RemoteHead:
+				return l10n.t('Remote branch at {0}', this.shortCommit);
+			case RefType.Tag:
+				return l10n.t('Tag at {0}', this.shortCommit);
+			default:
+				return '';
+		}
+	}
+
+	get refName(): string | undefined { return this.ref.name; }
+	get refRemote(): string | undefined { return this.ref.remote; }
+	get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+
+	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
+	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
+
+	constructor(protected readonly ref: Ref, private _buttons?: QuickInputButton[]) { }
+}
+
 class CheckoutItem implements QuickPickItem {
 
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
@@ -88,116 +163,47 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 	}
 }
 
-abstract class RefQuickPickItem implements QuickPickItem {
+class BranchDeleteItem extends RefItem {
 
-	protected _shortCommit: string;
-
-	private _label: string;
-	get label(): string {
-		switch (this.ref.type) {
-			case RefType.Head:
-				return `$(git-branch) ${this._label}`;
-			case RefType.RemoteHead:
-				return `$(cloud) ${this._label}`;
-			case RefType.Tag:
-				return `$(tag) ${this._label}`;
-			default:
-				return '';
-		}
-	}
-
-	get description(): string {
-		switch (this.ref.type) {
-			case RefType.Head:
-				return this._shortCommit;
-			case RefType.RemoteHead:
-				return l10n.t('Remote branch at {0}', this._shortCommit);
-			case RefType.Tag:
-				return l10n.t('Tag at {0}', this._shortCommit);
-			default:
-				return '';
-		}
-	}
-
-	constructor(protected readonly ref: Ref) {
-		this._shortCommit = (this.ref.commit ?? '').substring(0, 8);
-		this._label = this.ref.name ?? this._shortCommit;
-	}
-
-	abstract run(repository: Repository): Promise<void>;
-
-}
-
-class RefQuickPickItemSeparator implements QuickPickItem {
-
-	get kind(): QuickPickItemKind {
-		return QuickPickItemKind.Separator;
-	}
-
-	get label(): string {
-		switch (this.refType) {
-			case RefType.Head:
-				return l10n.t('branches');
-			case RefType.RemoteHead:
-				return l10n.t('remote branches');
-			case RefType.Tag:
-				return l10n.t('tags');
-			default:
-				return '';
-		}
-	}
-
-	constructor(private readonly refType: RefType) { }
-
-}
-
-class BranchDeleteItem extends RefQuickPickItem {
-
-	override async run(repository: Repository, force?: boolean): Promise<void> {
+	async run(repository: Repository, force?: boolean): Promise<void> {
 		if (this.ref.name) {
 			await repository.deleteBranch(this.ref.name, force);
 		}
 	}
-
 }
 
-class TagDeleteItem extends RefQuickPickItem {
+class TagDeleteItem extends RefItem {
 
-	override async run(repository: Repository): Promise<void> {
+	async run(repository: Repository): Promise<void> {
 		if (this.ref.name) {
 			await repository.deleteTag(this.ref.name);
 		}
 	}
-
 }
 
-class RemoteTagDeleteItem extends RefQuickPickItem {
+class RemoteTagDeleteItem extends RefItem {
 
 	override get description(): string {
-		return l10n.t('Remote tag at {0}', this._shortCommit);
+		return l10n.t('Remote tag at {0}', this.shortCommit);
 	}
 
-	constructor(ref: Ref, private readonly remoteName: string) {
-		super(ref);
-	}
-
-	override async run(repository: Repository): Promise<void> {
+	async run(repository: Repository, remote: string): Promise<void> {
 		if (this.ref.name) {
-			await repository.deleteRemoteTag(this.remoteName, this.ref.name);
+			await repository.deleteRemoteTag(remote, this.ref.name);
 		}
 	}
-
 }
 
-class MergeItem extends RefQuickPickItem {
+class MergeItem extends RefItem {
 
-	override async run(repository: Repository): Promise<void> {
-		await repository.merge(this.ref.name ?? this.ref.commit!);
+	async run(repository: Repository): Promise<void> {
+		if (this.ref.name || this.ref.commit) {
+			await repository.merge(this.ref.name ?? this.ref.commit!);
+		}
 	}
-
 }
 
-class RebaseItem extends RefQuickPickItem {
+class RebaseItem extends RefItem {
 
 	override get description(): string {
 		return this.isUpstream ? '(upstream)' : super.description;
@@ -207,29 +213,11 @@ class RebaseItem extends RefQuickPickItem {
 		super(ref);
 	}
 
-	override async run(repository: Repository): Promise<void> {
+	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {
 			await repository.rebase(this.ref.name);
 		}
 	}
-}
-
-class CreateBranchItem implements QuickPickItem {
-	get label(): string { return '$(plus) ' + l10n.t('Create new branch...'); }
-	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
-}
-
-class CreateBranchFromItem implements QuickPickItem {
-	get label(): string { return '$(plus) ' + l10n.t('Create new branch from...'); }
-	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
-}
-
-class CheckoutDetachedItem implements QuickPickItem {
-	get label(): string { return '$(debug-disconnect) ' + l10n.t('Checkout detached...'); }
-	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
 }
 
 class HEADItem implements QuickPickItem {
@@ -337,7 +325,7 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 	return { merge, resolved, unresolved, deletionConflicts };
 }
 
-async function createCheckoutItems(repository: Repository, detached = false): Promise<CheckoutItem[]> {
+async function createCheckoutItems(repository: Repository, detached = false): Promise<QuickPickItem[]> {
 	const config = workspace.getConfiguration('git');
 	const checkoutTypeConfig = config.get<string | string[]>('checkoutType');
 	let checkoutTypes: string[];
@@ -377,7 +365,11 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		fallbackRemoteButtons = buttons.get(remoteUrl);
 	}
 
-	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items.map((item) => {
+	return processors.reduce<QuickPickItem[]>((r, p) => r.concat(...p.items.map((item) => {
+		if (!(item instanceof CheckoutItem)) {
+			return item;
+		}
+
 		if (item.refRemote) {
 			const matchingRemote = repository.remotes.find((remote) => remote.name === item.refRemote);
 			const remoteUrl = matchingRemote?.pushUrl ?? matchingRemote?.fetchUrl;
@@ -422,7 +414,11 @@ async function getRemoteRefItemButtons(repository: Repository) {
 class CheckoutProcessor {
 
 	private refs: Ref[] = [];
-	get items(): CheckoutItem[] { return this.refs.map(r => new this.ctor(this.repository, r)); }
+	get items(): QuickPickItem[] {
+		const items = this.refs.map(r => new this.ctor(this.repository, r));
+		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
+	}
+
 	constructor(private repository: Repository, private type: RefType, private ctor: { new(repository: Repository, ref: Ref): CheckoutItem }) { }
 
 	onRef(ref: Ref): void {
@@ -2296,7 +2292,7 @@ export class CommandCenter {
 		const picks: QuickPickItem[] = [];
 
 		if (!opts?.detached) {
-			picks.push(createBranch, createBranchFrom, checkoutDetached, { label: '', kind: QuickPickItemKind.Separator });
+			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
 		const quickpick = window.createQuickPick();
@@ -2474,7 +2470,34 @@ export class CommandCenter {
 
 		if (from) {
 			const getRefPicks = async () => {
-				return [new HEADItem(repository), ...await createCheckoutItems(repository)];
+				const result: QuickPickItem[] = [];
+				const refs = await repository.getRefs();
+
+				const heads = refs.filter(ref => ref.type === RefType.Head)
+					.filter(ref => ref.name || ref.commit)
+					.map(ref => new RefItem(ref));
+
+				if (heads.length !== 0) {
+					result.push(new RefItemSeparator(RefType.Head), ...heads);
+				}
+
+				const remoteHeads = refs.filter(ref => ref.type === RefType.RemoteHead)
+					.filter(ref => ref.name || ref.commit)
+					.map(ref => new RefItem(ref));
+
+				if (remoteHeads.length !== 0) {
+					result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads);
+				}
+
+				const tags = refs.filter(ref => ref.type === RefType.Tag)
+					.filter(ref => ref.name || ref.commit)
+					.map(ref => new RefItem(ref));
+
+				if (tags.length !== 0) {
+					result.push(new RefItemSeparator(RefType.Tag), ...tags);
+				}
+
+				return [new HEADItem(repository), ...result];
 			};
 
 			const placeHolder = l10n.t('Select a ref to create the branch from');
@@ -2484,7 +2507,7 @@ export class CommandCenter {
 				return;
 			}
 
-			if (choice.refName) {
+			if (choice instanceof RefItem && choice.refName) {
 				target = choice.refName;
 			}
 		}
@@ -2578,7 +2601,7 @@ export class CommandCenter {
 				.map(ref => new MergeItem(ref));
 
 			if (heads.length !== 0) {
-				result.push(new RefQuickPickItemSeparator(RefType.Head), ...heads);
+				result.push(new RefItemSeparator(RefType.Head), ...heads);
 			}
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
@@ -2586,7 +2609,7 @@ export class CommandCenter {
 				.map(ref => new MergeItem(ref));
 
 			if (remoteHeads.length !== 0) {
-				result.push(new RefQuickPickItemSeparator(RefType.RemoteHead), ...remoteHeads);
+				result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads);
 			}
 
 			const tags = (includeTags ? refs.filter(ref => ref.type === RefType.Tag) : [])
@@ -2594,7 +2617,7 @@ export class CommandCenter {
 				.map(ref => new MergeItem(ref));
 
 			if (tags.length !== 0) {
-				result.push(new RefQuickPickItemSeparator(RefType.Tag), ...tags);
+				result.push(new RefItemSeparator(RefType.Tag), ...tags);
 			}
 
 			return result;
@@ -2629,7 +2652,7 @@ export class CommandCenter {
 				.map(ref => new RebaseItem(ref));
 
 			if (heads.length !== 0) {
-				result.push(new RefQuickPickItemSeparator(RefType.Head), ...heads);
+				result.push(new RefItemSeparator(RefType.Head), ...heads);
 			}
 
 			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
@@ -2648,7 +2671,7 @@ export class CommandCenter {
 				}
 
 				if (remoteHeads.length !== 0) {
-					result.push(new RefQuickPickItemSeparator(RefType.RemoteHead), ...remoteHeads.map(ref => new RebaseItem(ref)));
+					result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads.map(ref => new RebaseItem(ref)));
 				}
 			}
 
@@ -2738,14 +2761,14 @@ export class CommandCenter {
 				}
 			}
 
-			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new RemoteTagDeleteItem(ref, remoteName));
+			return remoteTags.length === 0 ? [{ label: l10n.t('$(info) Remote "{0}" has no tags.', remoteName) }] : remoteTags.map(ref => new RemoteTagDeleteItem(ref));
 		};
 
 		const tagPickPlaceholder = l10n.t('Select a remote tag to delete');
 		const remoteTagPick = await window.showQuickPick<RemoteTagDeleteItem | QuickPickItem>(remoteTagPicks(), { placeHolder: tagPickPlaceholder });
 
 		if (remoteTagPick instanceof RemoteTagDeleteItem) {
-			await remoteTagPick.run(repository);
+			await remoteTagPick.run(repository, remoteName);
 		}
 	}
 
