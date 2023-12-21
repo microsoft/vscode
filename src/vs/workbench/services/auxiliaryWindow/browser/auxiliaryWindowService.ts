@@ -241,8 +241,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const height = Math.max(options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height, WindowMinimumSize.HEIGHT);
 
 		let newWindowBounds: IRectangle = {
-			x: options?.bounds?.x ?? (activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2),
-			y: options?.bounds?.y ?? (activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2),
+			x: options?.bounds?.x ?? Math.max(activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2, 0),
+			y: options?.bounds?.y ?? Math.max(activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2, 0),
 			width,
 			height
 		};
