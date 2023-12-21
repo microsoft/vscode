@@ -119,6 +119,14 @@ class CheckoutItem extends RefItem {
 	}
 }
 
+class CheckoutProtectedItem extends CheckoutItem {
+
+	override get label(): string {
+		return `$(lock) ${this.ref.name ?? this.shortCommit}`;
+	}
+
+}
+
 class CheckoutRemoteHeadItem extends RefItem {
 
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
@@ -194,18 +202,17 @@ class MergeItem extends RefItem {
 
 class RebaseItem extends RefItem {
 
-	override get description(): string {
-		return this.isUpstream ? '(upstream)' : super.description;
-	}
-
-	constructor(ref: Ref, private readonly isUpstream?: boolean) {
-		super(ref);
-	}
-
 	async run(repository: Repository): Promise<void> {
 		if (this.ref?.name) {
 			await repository.rebase(this.ref.name);
 		}
+	}
+}
+
+class RebaseUpstreamItem extends RebaseItem {
+
+	override get description(): string {
+		return '(upstream)';
 	}
 }
 
@@ -414,6 +421,24 @@ class CheckoutProcessor {
 		if (ref.type === this.type) {
 			this.refs.push(ref);
 		}
+	}
+}
+
+class RefProcessor {
+	readonly refs: Ref[] = [];
+
+	constructor(readonly type: RefType) { }
+
+	processRef(ref: Ref): boolean {
+		if (!ref.name && !ref.commit) {
+			return false;
+		}
+		if (ref.type !== this.type) {
+			return false;
+		}
+
+		this.refs.push(ref);
+		return true;
 	}
 }
 
@@ -2459,31 +2484,28 @@ export class CommandCenter {
 
 		if (from) {
 			const getRefPicks = async () => {
-				const result: QuickPickItem[] = [];
 				const refs = await repository.getRefs();
+				const refProcessors = [
+					new RefProcessor(RefType.Head),
+					new RefProcessor(RefType.RemoteHead),
+					new RefProcessor(RefType.Tag)
+				];
 
-				const heads = refs.filter(ref => ref.type === RefType.Head)
-					.filter(ref => ref.name || ref.commit)
-					.map(ref => new RefItem(ref));
-
-				if (heads.length !== 0) {
-					result.push(new RefItemSeparator(RefType.Head), ...heads);
+				for (const ref of refs) {
+					for (const processor of refProcessors) {
+						if (processor.processRef(ref)) {
+							break;
+						}
+					}
 				}
 
-				const remoteHeads = refs.filter(ref => ref.type === RefType.RemoteHead)
-					.filter(ref => ref.name || ref.commit)
-					.map(ref => new RefItem(ref));
-
-				if (remoteHeads.length !== 0) {
-					result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads);
-				}
-
-				const tags = refs.filter(ref => ref.type === RefType.Tag)
-					.filter(ref => ref.name || ref.commit)
-					.map(ref => new RefItem(ref));
-
-				if (tags.length !== 0) {
-					result.push(new RefItemSeparator(RefType.Tag), ...tags);
+				const result: QuickPickItem[] = [];
+				for (const processor of refProcessors) {
+					if (processor.refs.length > 0) {
+						result.push(
+							new RefItemSeparator(processor.type),
+							...processor.refs.map(ref => new RefItem(ref)));
+					}
 				}
 
 				return [new HEADItem(repository), ...result];
@@ -2577,31 +2599,28 @@ export class CommandCenter {
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const result: QuickPickItem[] = [];
 			const refs = await repository.getRefs();
+			const refProcessors = [
+				new RefProcessor(RefType.Head),
+				new RefProcessor(RefType.RemoteHead),
+				new RefProcessor(RefType.Tag)
+			];
 
-			const heads = refs.filter(ref => ref.type === RefType.Head)
-				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref));
-
-			if (heads.length !== 0) {
-				result.push(new RefItemSeparator(RefType.Head), ...heads);
+			for (const ref of refs) {
+				for (const processor of refProcessors) {
+					if (processor.processRef(ref)) {
+						break;
+					}
+				}
 			}
 
-			const remoteHeads = refs.filter(ref => ref.type === RefType.RemoteHead)
-				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref));
-
-			if (remoteHeads.length !== 0) {
-				result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads);
-			}
-
-			const tags = refs.filter(ref => ref.type === RefType.Tag)
-				.filter(ref => ref.name || ref.commit)
-				.map(ref => new MergeItem(ref));
-
-			if (tags.length !== 0) {
-				result.push(new RefItemSeparator(RefType.Tag), ...tags);
+			const result: QuickPickItem[] = [];
+			for (const processor of refProcessors) {
+				if (processor.refs.length > 0) {
+					result.push(
+						new RefItemSeparator(processor.type),
+						...processor.refs.map(ref => new MergeItem(ref)));
+				}
 			}
 
 			return result;
@@ -2623,35 +2642,53 @@ export class CommandCenter {
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
-			const result: QuickPickItem[] = [];
 			const refs = await repository.getRefs();
 
-			const heads = refs.filter(ref => ref.type === RefType.Head)
-				.filter(ref => ref.name !== repository.HEAD?.name)
-				.filter(ref => ref.name || ref.commit)
-				.map(ref => new RebaseItem(ref));
+			const refProcessors = [
+				new RefProcessor(RefType.Head),
+				new RefProcessor(RefType.RemoteHead)
+			];
 
-			if (heads.length !== 0) {
-				result.push(new RefItemSeparator(RefType.Head), ...heads);
+			for (const ref of refs) {
+				for (const processor of refProcessors) {
+					if (processor.processRef(ref)) {
+						break;
+					}
+				}
 			}
 
-			const remoteHeads = refs.filter(ref => ref.type === RefType.RemoteHead)
-				.filter(ref => ref.name || ref.commit);
+			const result: QuickPickItem[] = [];
+			for (const processor of refProcessors) {
+				// Heads
+				if (processor.type === RefType.Head) {
+					const heads = processor.refs
+						.filter(ref => ref.name !== repository.HEAD?.name);
 
-			if (remoteHeads.length !== 0) {
-				// set upstream branch as first
-				if (repository.HEAD?.upstream) {
-					const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
-					const index = remoteHeads.findIndex(ref => ref.name === upstreamName);
-
-					if (index !== -1) {
-						const [upstreamRef] = remoteHeads.splice(index, 1);
-						result.unshift(new RebaseItem(upstreamRef, true));
+					if (heads.length > 0) {
+						result.push(
+							new RefItemSeparator(processor.type),
+							...processor.refs.map(ref => new RebaseItem(ref)));
 					}
 				}
 
-				if (remoteHeads.length !== 0) {
-					result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads.map(ref => new RebaseItem(ref)));
+				// Remote heads
+				if (processor.type === RefType.RemoteHead) {
+					// set upstream branch as first
+					if (repository.HEAD?.upstream) {
+						const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
+						const index = processor.refs.findIndex(ref => ref.name === upstreamName);
+
+						if (index !== -1) {
+							const [upstreamRef] = processor.refs.splice(index, 1);
+							result.unshift(new RebaseUpstreamItem(upstreamRef));
+						}
+					}
+
+					if (processor.refs.length > 0) {
+						result.push(
+							new RefItemSeparator(RefType.RemoteHead),
+							...processor.refs.map(ref => new RebaseItem(ref)));
+					}
 				}
 			}
 
@@ -2838,21 +2875,20 @@ export class CommandCenter {
 			remoteName = remotePick.label;
 		}
 
-		const getBranchPicks = async (): Promise<QuickPickItem[]> => {
-			const remoteRefs = await repository.getRefs();
-			const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remoteName));
-			return remoteRefsFiltered.map(r => ({ label: r.name! }));
+		const getBranchPicks = async (): Promise<RefItem[]> => {
+			const remoteRefs = await repository.getRefs({ pattern: `refs/remotes/${remoteName}/` });
+			return remoteRefs.map(r => new RefItem(r));
 		};
 
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
 		const branchPick = await window.showQuickPick(getBranchPicks(), { placeHolder: branchPlaceHolder });
 
-		if (!branchPick) {
+		if (!branchPick || !branchPick.refName) {
 			return;
 		}
 
 		const remoteCharCnt = remoteName.length;
-		await repository.pullFrom(false, remoteName, branchPick.label.slice(remoteCharCnt + 1));
+		await repository.pullFrom(false, remoteName, branchPick.refName.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
