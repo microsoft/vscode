@@ -28,6 +28,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -1422,7 +1423,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		});
 	}
 
-	getItems(contextKeyService: IContextKeyService): QuickPickItem[] {
+	getItems(contextKeyService: IContextKeyService, keybindingService: IKeybindingService): QuickPickItem[] {
 		const toQuickPickItem = (item: CustomizeLayoutItem): IQuickPickItem => {
 			const toggled = item.active.evaluate(contextKeyService.getContext(null));
 			let label = item.useButtons ?
@@ -1448,6 +1449,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				id: item.id,
 				label,
 				ariaLabel,
+				keybinding: keybindingService.lookupKeybinding(item.id, contextKeyService),
 				buttons: !item.useButtons ? undefined : [
 					{
 						alwaysVisible: false,
@@ -1491,10 +1493,11 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 		const quickInputService = accessor.get(IQuickInputService);
+		const keybindingService = accessor.get(IKeybindingService);
 		const quickPick = quickInputService.createQuickPick();
 
 		this._currentQuickPick = quickPick;
-		quickPick.items = this.getItems(contextKeyService);
+		quickPick.items = this.getItems(contextKeyService, keybindingService);
 		quickPick.ignoreFocusOut = true;
 		quickPick.hideInput = true;
 		quickPick.title = localize('customizeLayoutQuickPickTitle', "Customize Layout");
@@ -1520,7 +1523,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 		let selectedItem: CustomizeLayoutItem | undefined = undefined;
 		disposables.add(contextKeyService.onDidChangeContext(changeEvent => {
 			if (changeEvent.affectsSome(LayoutContextKeySet)) {
-				quickPick.items = this.getItems(contextKeyService);
+				quickPick.items = this.getItems(contextKeyService, keybindingService);
 				if (selectedItem) {
 					quickPick.activeItems = quickPick.items.filter(item => (item as CustomizeLayoutItem).id === selectedItem?.id) as IQuickPickItem[];
 				}

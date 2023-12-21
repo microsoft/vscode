@@ -75,6 +75,7 @@ export class TestNativeHostService implements INativeHostService {
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
 	onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	onDidChangeWindowFullScreen = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
