@@ -2576,11 +2576,6 @@ export class CommandCenter {
 
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string | string[]>('checkoutType');
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
-		const includeTags = checkoutType === 'all' || checkoutType === 'tags' || checkoutType?.includes('tags');
-
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const result: QuickPickItem[] = [];
 			const refs = await repository.getRefs();
@@ -2593,7 +2588,7 @@ export class CommandCenter {
 				result.push(new RefItemSeparator(RefType.Head), ...heads);
 			}
 
-			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			const remoteHeads = refs.filter(ref => ref.type === RefType.RemoteHead)
 				.filter(ref => ref.name || ref.commit)
 				.map(ref => new MergeItem(ref));
 
@@ -2601,7 +2596,7 @@ export class CommandCenter {
 				result.push(new RefItemSeparator(RefType.RemoteHead), ...remoteHeads);
 			}
 
-			const tags = (includeTags ? refs.filter(ref => ref.type === RefType.Tag) : [])
+			const tags = refs.filter(ref => ref.type === RefType.Tag)
 				.filter(ref => ref.name || ref.commit)
 				.map(ref => new MergeItem(ref));
 
@@ -2627,10 +2622,6 @@ export class CommandCenter {
 
 	@command('git.rebase', { repository: true })
 	async rebase(repository: Repository): Promise<void> {
-		const config = workspace.getConfiguration('git');
-		const checkoutType = config.get<string | string[]>('checkoutType');
-		const includeRemotes = checkoutType === 'all' || checkoutType === 'remote' || checkoutType?.includes('remote');
-
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const result: QuickPickItem[] = [];
 			const refs = await repository.getRefs();
@@ -2644,7 +2635,7 @@ export class CommandCenter {
 				result.push(new RefItemSeparator(RefType.Head), ...heads);
 			}
 
-			const remoteHeads = (includeRemotes ? refs.filter(ref => ref.type === RefType.RemoteHead) : [])
+			const remoteHeads = refs.filter(ref => ref.type === RefType.RemoteHead)
 				.filter(ref => ref.name || ref.commit);
 
 			if (remoteHeads.length !== 0) {
