@@ -799,6 +799,13 @@ registerThemingParticipant((theme, collector) => {
 			color: ${debugIconBreakpointColor} !important;
 		}
 		`);
+
+		collector.addRule(`
+		.monaco-workbench ${ThemeIcon.asCSSSelector(icons.breakpoint.pending)} {
+			color: ${debugIconBreakpointColor} !important;
+			font-size: 12px !important;
+		}
+		`);
 	}
 
 	const debugIconBreakpointDisabledColor = theme.getColor(debugIconBreakpointDisabledForeground);

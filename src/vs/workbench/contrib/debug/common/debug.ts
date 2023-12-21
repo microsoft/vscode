@@ -573,6 +573,8 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
 	readonly triggeredBy?: IBreakpointReference;
+	/** Pending on the trigger breakpoint, which means this breakpoint is not yet sent to DA */
+	readonly pending: boolean;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {

@@ -900,7 +900,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 			return this.data.verified && !this.textFileService.isDirty(this._uri);
 		}
 
-		return !this.triggeredBy;
+		return true;
+	}
+
+	get pending(): boolean {
+		if (this.data) {
+			return false;
+		}
+		return this.triggeredBy !== undefined;
 	}
 
 	get uri(): uri {

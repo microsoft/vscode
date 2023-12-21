@@ -1221,6 +1221,13 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	const appendMessage = (text: string): string => {
 		return ('message' in breakpoint && breakpoint.message) ? text.concat(', ' + breakpoint.message) : text;
 	};
+
+	if (debugActive && breakpoint instanceof Breakpoint && breakpoint.pending) {
+		return {
+			icon: icons.breakpoint.pending
+		};
+	}
+
 	if (debugActive && !breakpoint.verified) {
 		return {
 			icon: breakpointIcon.unverified,
