@@ -31,6 +31,12 @@ export interface IAuxiliaryEditorPartOpenOptions extends IAuxiliaryWindowOpenOpt
 	readonly state?: IEditorPartUIState;
 }
 
+export interface ICreateAuxiliaryEditorPartResult {
+	readonly part: AuxiliaryEditorPartImpl;
+	readonly instantiationService: IInstantiationService;
+	readonly disposables: DisposableStore;
+}
+
 export class AuxiliaryEditorPart {
 
 	private static STATUS_BAR_VISIBILITY = 'workbench.statusBar.visible';
@@ -47,7 +53,7 @@ export class AuxiliaryEditorPart {
 	) {
 	}
 
-	async create(label: string, options?: IAuxiliaryEditorPartOpenOptions): Promise<{ readonly part: AuxiliaryEditorPartImpl; readonly instantiationService: IInstantiationService; readonly disposables: DisposableStore }> {
+	async create(label: string, options?: IAuxiliaryEditorPartOpenOptions): Promise<ICreateAuxiliaryEditorPartResult> {
 
 		function computeEditorPartHeightOffset(): number {
 			let editorPartHeightOffset = 0;
@@ -122,7 +128,7 @@ export class AuxiliaryEditorPart {
 
 		// Lifecycle
 		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
-		disposables.add(Event.once(auxiliaryWindow.onWillClose)(() => {
+		disposables.add(Event.once(auxiliaryWindow.onUnload)(() => {
 			if (disposables.isDisposed) {
 				return; // the close happened as part of an earlier dispose call
 			}
