@@ -348,6 +348,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		return DOM.isAncestorOfActiveElement(this.container);
 	}
 
+	getFocus(): ExplorerItem[] {
+		return this.tree.getFocus();
+	}
+
+	focusNext(): void {
+		this.tree.focusNext();
+	}
+
+	focusLast(): void {
+		this.tree.focusLast();
+	}
+
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
 		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}

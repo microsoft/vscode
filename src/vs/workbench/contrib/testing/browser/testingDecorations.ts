@@ -35,6 +35,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorLineNumberContextMenu, GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
@@ -54,6 +55,7 @@ import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/
 import { TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/testing/common/testingUri';
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
+const MAX_TESTS_IN_SUBMENU = 30;
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -746,16 +748,17 @@ abstract class RunTestDecoration {
 			return false;
 		}
 
+		const alternateAction = e.event.altKey;
 		switch (getTestingConfiguration(this.configurationService, TestingConfigKeys.DefaultGutterClickAction)) {
 			case DefaultGutterClickAction.ContextMenu:
 				this.showContextMenu(e);
 				break;
 			case DefaultGutterClickAction.Debug:
-				this.defaultDebug();
+				(alternateAction ? this.defaultRun() : this.defaultDebug());
 				break;
 			case DefaultGutterClickAction.Run:
 			default:
-				this.defaultRun();
+				(alternateAction ? this.defaultDebug() : this.defaultRun());
 				break;
 		}
 
@@ -891,18 +894,49 @@ abstract class RunTestDecoration {
 	}
 }
 
+interface IMultiRunTest {
+	currentLabel: string;
+	parent: TestId | undefined;
+	testItem: {
+		test: IncrementalTestCollectionItem;
+		resultItem: TestResultItem | undefined;
+	};
+}
+
 class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoration {
+	constructor(
+		tests: readonly {
+			test: IncrementalTestCollectionItem;
+			resultItem: TestResultItem | undefined;
+		}[],
+		visible: boolean,
+		model: ITextModel,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ITestService testService: ITestService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ICommandService commandService: ICommandService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITestProfileService testProfileService: ITestProfileService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+	) {
+		super(tests, visible, model, codeEditorService, testService, contextMenuService, commandService, configurationService, testProfileService, contextKeyService, menuService);
+	}
+
 	override getContextMenuActions() {
 		const allActions: IAction[] = [];
-		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Run)) {
+		const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Run);
+		if (canRun) {
 			allActions.push(new Action('testing.gutter.runAll', localize('run all test', 'Run All Tests'), undefined, undefined, () => this.defaultRun()));
 		}
 
-		if (this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Debug)) {
+		const canDebug = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Debug);
+		if (canDebug) {
 			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
 		}
 
-		const testItems = this.tests.map(testItem => ({
+		const testItems = this.tests.map((testItem): IMultiRunTest => ({
 			currentLabel: testItem.test.item.label,
 			testItem,
 			parent: TestId.fromString(testItem.test.item.extId).parentId,
@@ -930,14 +964,66 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 			}
 		}
 
+		testItems.sort((a, b) => {
+			const ai = a.testItem.test.item;
+			const bi = b.testItem.test.item;
+			return (ai.sortText || ai.label).localeCompare(bi.sortText || bi.label);
+		});
+
 		const disposable = new DisposableStore();
-		const testSubmenus = testItems.map(({ currentLabel, testItem }) => {
+		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
 			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
 		});
 
+
+		const overflow = testSubmenus.length - MAX_TESTS_IN_SUBMENU;
+		if (overflow > 0) {
+			testSubmenus = testSubmenus.slice(0, MAX_TESTS_IN_SUBMENU);
+			testSubmenus.push(new Action(
+				'testing.gutter.overflow',
+				localize('testOverflowItems', '{0} more tests...', overflow),
+				undefined,
+				undefined,
+				() => this.pickAndRun(testItems),
+			));
+		}
+
 		return { object: Separator.join(allActions, testSubmenus), dispose: () => disposable.dispose() };
+	}
+
+	private async pickAndRun(testItems: IMultiRunTest[]) {
+		const doPick = <T extends IQuickPickItem>(items: T[], title: string) => new Promise<T | undefined>(resolve => {
+			const pick = this.quickInputService.createQuickPick<T>();
+			pick.placeholder = title;
+			pick.items = items;
+			pick.onDidHide(() => {
+				resolve(undefined);
+				pick.dispose();
+			});
+			pick.onDidAccept(() => {
+				resolve(pick.selectedItems[0]);
+				pick.dispose();
+			});
+			pick.show();
+		});
+
+		const item = await doPick(
+			testItems.map(({ currentLabel, testItem }) => ({ label: currentLabel, test: testItem.test, result: testItem.resultItem })),
+			localize('selectTestToRun', 'Select a test to run'),
+		);
+
+		if (!item) {
+			return;
+		}
+
+		const actions = this.getTestContextMenuActions(item.test, item.result);
+		try {
+			(await doPick(actions.object, item.label))?.run();
+		} finally {
+			actions.dispose();
+		}
 	}
 }
 

@@ -2543,7 +2543,8 @@ export class Repository {
 			return branch;
 		}
 
-		return Promise.reject<Branch>(new Error('No such branch'));
+		this.logger.warn(`No such branch: ${name}.`);
+		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
 	async getDefaultBranch(): Promise<Branch> {

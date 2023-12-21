@@ -699,6 +699,10 @@ export class NativeWindow extends BaseWindow {
 		const that = this;
 		const originalWindowFocus = mainWindow.focus.bind(mainWindow);
 		mainWindow.focus = function () {
+			if (that.environmentService.extensionTestsLocationURI) {
+				return; // no focus when we are running tests from CLI
+			}
+
 			originalWindowFocus();
 
 			if (!mainWindow.document.hasFocus()) {

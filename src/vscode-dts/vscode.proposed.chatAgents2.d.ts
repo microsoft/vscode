@@ -341,6 +341,11 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
+		 * The type of this node. Defaults to {@link FileType.Directory} if it has {@link ChatAgentFileTreeData.children children}.
+		 */
+		type?: FileType;
+
+		/**
 		 * The children of this node.
 		 */
 		children?: ChatAgentFileTreeData[];

@@ -20,17 +20,17 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
  * This can end up producing multiple `LineDecorationToRender`.
  */
 export class DecorationToRender {
-	_decorationToRenderBrand: void = undefined;
+	public readonly _decorationToRenderBrand: void = undefined;
 
-	public startLineNumber: number;
-	public endLineNumber: number;
-	public className: string;
 	public readonly zIndex: number;
 
-	constructor(startLineNumber: number, endLineNumber: number, className: string, zIndex: number | undefined) {
-		this.startLineNumber = +startLineNumber;
-		this.endLineNumber = +endLineNumber;
-		this.className = String(className);
+	constructor(
+		public readonly startLineNumber: number,
+		public readonly endLineNumber: number,
+		public readonly className: string,
+		public readonly tooltip: string | null,
+		zIndex: number | undefined,
+	) {
 		this.zIndex = zIndex ?? 0;
 	}
 }
@@ -42,6 +42,7 @@ export class LineDecorationToRender {
 	constructor(
 		public readonly className: string,
 		public readonly zIndex: number,
+		public readonly tooltip: string | null,
 	) { }
 }
 
@@ -108,7 +109,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 			}
 
 			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(new LineDecorationToRender(className, zIndex));
+				output[i].add(new LineDecorationToRender(className, zIndex, d.tooltip));
 			}
 		}
 

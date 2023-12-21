@@ -10,7 +10,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_INPUT, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_EDIT_MODE, EditMode, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, CTX_INLINE_CHAT_MESSAGE_CROP_STATE, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, MENU_INLINE_CHAT_WIDGET_FEEDBACK, ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_INNER_CURSOR_START, CTX_INLINE_CHAT_INNER_CURSOR_END, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { localize, localize2 } from 'vs/nls';
 import { IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -29,6 +29,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
@@ -140,7 +141,7 @@ export class MakeRequestAction extends AbstractInlineChatAction {
 				primary: KeyCode.Enter
 			},
 			menu: {
-				id: MENU_INLINE_CHAT_WIDGET,
+				id: MENU_INLINE_CHAT_INPUT,
 				group: 'main',
 				order: 1,
 				when: CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.isEqualTo(false)
@@ -185,7 +186,7 @@ export class StopRequestAction extends AbstractInlineChatAction {
 			icon: Codicon.debugStop,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_EMPTY.negate(), CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST),
 			menu: {
-				id: MENU_INLINE_CHAT_WIDGET,
+				id: MENU_INLINE_CHAT_INPUT,
 				group: 'main',
 				order: 1,
 				when: CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST
@@ -470,13 +471,17 @@ export class ReportIssueForBugCommand extends AbstractInlineChatAction {
 			id: 'inlineChat.reportIssueForBug',
 			title: localize('feedback.reportIssueForBug', 'Report Issue'),
 			icon: Codicon.report,
-			precondition: CTX_INLINE_CHAT_VISIBLE,
-			menu: {
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
+			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_FEEDBACK,
 				when: ContextKeyExpr.and(CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.Empty)),
 				group: '2_feedback',
 				order: 3
-			}
+			}, {
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'config',
+				order: 3
+			}]
 		});
 	}
 
@@ -541,6 +546,51 @@ export class CancelSessionAction extends AbstractInlineChatAction {
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		ctrl.cancelSession();
+	}
+}
+
+export class CloseAction extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat.close',
+			title: localize('close', 'Close'),
+			icon: Codicon.close,
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib - 1,
+				primary: KeyCode.Escape
+			},
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'main',
+				order: 0,
+			}
+		});
+	}
+
+	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+		ctrl.finishExistingSession();
+	}
+}
+
+export class ConfigureInlineChatAction extends AbstractInlineChatAction {
+	constructor() {
+		super({
+			id: 'inlineChat.configure',
+			title: localize('configure', 'Configure '),
+			icon: Codicon.settingsGear,
+			precondition: CTX_INLINE_CHAT_VISIBLE,
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'config',
+				order: 1,
+			}
+		});
+	}
+
+	async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+		accessor.get(IPreferencesService).openSettings({ query: 'inlineChat' });
 	}
 }
 
