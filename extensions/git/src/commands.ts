@@ -89,77 +89,66 @@ class RefItem implements QuickPickItem {
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 
+	private _buttons?: QuickInputButton[];
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
 	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
 
-	constructor(protected readonly ref: Ref, private _buttons?: QuickInputButton[]) { }
+	constructor(protected readonly ref: Ref) { }
 }
 
-class CheckoutItem implements QuickPickItem {
+class CheckoutItem extends RefItem {
 
-	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
-	get label(): string { return `${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
-	get description(): string { return this.shortCommit; }
-	get refName(): string | undefined { return this.ref.name; }
-	get refRemote(): string | undefined { return this.ref.remote; }
-	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
-	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
+	override get label(): string {
+		return this.isProtected ? `$(lock) ${this.ref.name ?? this.shortCommit}` : super.label;
+	}
 
-	constructor(protected repository: Repository, protected ref: Ref, protected _buttons?: QuickInputButton[]) { }
+	constructor(ref: Ref, private readonly isProtected?: boolean) {
+		super(ref);
+	}
 
-	async run(opts?: { detached?: boolean }): Promise<void> {
+	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		const pullBeforeCheckout = config.get<boolean>('pullBeforeCheckout', false) === true;
 
 		const treeish = opts?.detached ? this.ref.commit ?? this.ref.name : this.ref.name;
-		await this.repository.checkout(treeish, { ...opts, pullBeforeCheckout });
+		await repository.checkout(treeish, { ...opts, pullBeforeCheckout });
 	}
 }
 
-class CheckoutTagItem extends CheckoutItem {
+class CheckoutRemoteHeadItem extends RefItem {
 
-	override get label(): string { return `$(tag) ${this.ref.name || this.shortCommit}`; }
-	override get description(): string {
-		return l10n.t('Tag at {0}', this.shortCommit);
-	}
-
-	override async run(opts?: { detached?: boolean }): Promise<void> {
-		if (!this.ref.name) {
-			return;
-		}
-
-		await this.repository.checkout(this.ref.name, opts);
-	}
-}
-
-class CheckoutRemoteHeadItem extends CheckoutItem {
-
-	override get label(): string { return `$(cloud) ${this.ref.name || this.shortCommit}`; }
-	override get description(): string {
-		return l10n.t('Remote branch at {0}', this.shortCommit);
-	}
-
-	override async run(opts?: { detached?: boolean }): Promise<void> {
+	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
 
 		if (opts?.detached) {
-			await this.repository.checkout(this.ref.commit ?? this.ref.name, opts);
+			await repository.checkout(this.ref.commit ?? this.ref.name, opts);
 			return;
 		}
 
-		const branches = await this.repository.findTrackingBranches(this.ref.name);
+		const branches = await repository.findTrackingBranches(this.ref.name);
 
 		if (branches.length > 0) {
-			await this.repository.checkout(branches[0].name!, opts);
+			await repository.checkout(branches[0].name!, opts);
 		} else {
-			await this.repository.checkoutTracking(this.ref.name, opts);
+			await repository.checkoutTracking(this.ref.name, opts);
 		}
+	}
+}
+
+class CheckoutTagItem extends RefItem {
+
+	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+		if (!this.ref.name) {
+			return;
+		}
+
+		await repository.checkout(this.ref.name, opts);
 	}
 }
 
@@ -415,11 +404,11 @@ class CheckoutProcessor {
 
 	private refs: Ref[] = [];
 	get items(): QuickPickItem[] {
-		const items = this.refs.map(r => new this.ctor(this.repository, r));
+		const items = this.refs.map(r => new this.ctor(r, this.type === RefType.Head ? this.repository.isBranchProtected(r) : undefined));
 		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
 	}
 
-	constructor(private repository: Repository, private type: RefType, private ctor: { new(repository: Repository, ref: Ref): CheckoutItem }) { }
+	constructor(private readonly repository: Repository, private readonly type: RefType, private ctor: { new(ref: Ref, isProtected?: boolean): CheckoutItem }) { }
 
 	onRef(ref: Ref): void {
 		if (ref.type === this.type) {
@@ -2334,7 +2323,7 @@ export class CommandCenter {
 			const item = choice as CheckoutItem;
 
 			try {
-				await item.run(opts);
+				await item.run(repository, opts);
 			} catch (err) {
 				if (err.gitErrorCode !== GitErrorCodes.DirtyWorkTree) {
 					throw err;
@@ -2347,10 +2336,10 @@ export class CommandCenter {
 
 				if (choice === force) {
 					await this.cleanAll(repository);
-					await item.run(opts);
+					await item.run(repository, opts);
 				} else if (choice === stash || choice === migrate) {
 					if (await this._stash(repository)) {
-						await item.run(opts);
+						await item.run(repository, opts);
 
 						if (choice === migrate) {
 							await this.stashPopLatest(repository);
