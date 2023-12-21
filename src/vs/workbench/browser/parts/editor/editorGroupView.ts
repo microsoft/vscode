@@ -281,7 +281,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 
 		// Update group contexts based on group changes
-		this._register(this.onDidModelChange(e => {
+		const updateGroupContextKeys = (e: IGroupModelChangeEvent) => {
 			switch (e.kind) {
 				case GroupModelChangeKind.GROUP_LOCKED:
 					groupLockedContext.set(this.isLocked);
@@ -312,16 +312,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Group editors count context
 			groupEditorsCountContext.set(this.count);
-		}));
+		};
+
+		this._register(this.onDidModelChange(e => updateGroupContextKeys(e)));
 
 		// Track the active editor and update context key that reflects
 		// the dirty state of this editor
-		this._register(this.onDidActiveEditorChange(() => {
-			observeActiveEditor();
-		}));
+		this._register(this.onDidActiveEditorChange(() => observeActiveEditor()));
 
 		// Update context keys on startup
 		observeActiveEditor();
+		updateGroupContextKeys({ kind: GroupModelChangeKind.EDITOR_ACTIVE });
+		updateGroupContextKeys({ kind: GroupModelChangeKind.GROUP_LOCKED });
 	}
 
 	private registerContainerListeners(): void {
