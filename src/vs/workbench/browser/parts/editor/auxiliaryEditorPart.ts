@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onDidChangeFullscreen } from 'vs/base/browser/browser';
 import { detectFullscreen, hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -49,8 +50,7 @@ export class AuxiliaryEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ITitleService private readonly titleService: ITitleService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IHostService private readonly hostService: IHostService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 	}
 
@@ -114,7 +114,7 @@ export class AuxiliaryEditorPart {
 
 			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
 
-			disposables.add(this.hostService.onDidChangeFullScreen(windowId => {
+			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
 					return; // ignore all but our window
 				}

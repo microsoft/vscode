@@ -8,7 +8,7 @@ import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsAuxiliaryWindowFocusedContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -298,7 +298,7 @@ class ToggleFullScreenAction extends Action2 {
 				}
 			},
 			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			toggled: IsMainWindowFullscreenContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',

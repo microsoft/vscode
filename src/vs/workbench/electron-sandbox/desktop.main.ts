@@ -78,7 +78,7 @@ export class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Apply fullscreen early if configured
-		setFullscreen(!!this.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen, mainWindow);
 	}
 
 	private reviveUris() {

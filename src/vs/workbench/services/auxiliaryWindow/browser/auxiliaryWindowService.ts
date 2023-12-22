@@ -21,6 +21,7 @@ import { BaseWindow } from 'vs/workbench/browser/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -78,8 +79,9 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		readonly container: HTMLElement,
 		stylesHaveLoaded: Barrier,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService hostService: IHostService
 	) {
-		super(window);
+		super(window, undefined, hostService);
 
 		this.whenStylesHaveLoaded = stylesHaveLoaded.wait().then(() => { });
 		this.registerListeners();
@@ -170,7 +172,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService protected readonly hostService: IHostService
 	) {
 		super();
 	}
@@ -225,7 +228,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesLoaded: Barrier): AuxiliaryWindow {
-		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService);
+		return new AuxiliaryWindow(targetWindow, container, stylesLoaded, this.configurationService, this.hostService);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
