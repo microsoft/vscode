@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $window } from 'vs/base/browser/window';
+import { $window, CodeWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
-	public static readonly INSTANCE = new WindowManager();
+	static readonly INSTANCE = new WindowManager();
 
 	// --- Zoom Level
+
 	private _zoomLevel: number = 0;
 
-	public getZoomLevel(): number {
+	getZoomLevel(): number {
 		return this._zoomLevel;
 	}
-	public setZoomLevel(zoomLevel: number): void {
+	setZoomLevel(zoomLevel: number): void {
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}
@@ -25,30 +26,38 @@ class WindowManager {
 	}
 
 	// --- Zoom Factor
+
 	private _zoomFactor: number = 1;
 
-	public getZoomFactor(): number {
+	getZoomFactor(): number {
 		return this._zoomFactor;
 	}
-	public setZoomFactor(zoomFactor: number): void {
+	setZoomFactor(zoomFactor: number): void {
 		this._zoomFactor = zoomFactor;
 	}
 
 	// --- Fullscreen
-	private _fullscreen: boolean = false;
-	private readonly _onDidChangeFullscreen = new Emitter<void>();
 
-	public readonly onDidChangeFullscreen: Event<void> = this._onDidChangeFullscreen.event;
-	public setFullscreen(fullscreen: boolean): void {
-		if (this._fullscreen === fullscreen) {
+	private readonly _onDidChangeFullscreen = new Emitter<number>();
+	readonly onDidChangeFullscreen = this._onDidChangeFullscreen.event;
+
+	private readonly mapWindowIdToFullScreen = new Map<number, boolean>();
+
+	setFullscreen(fullscreen: boolean, targetWindow: Window): void {
+		if (this.isFullscreen(targetWindow) === fullscreen) {
 			return;
 		}
 
-		this._fullscreen = fullscreen;
-		this._onDidChangeFullscreen.fire();
+		const windowId = this.getWindowId(targetWindow);
+		this.mapWindowIdToFullScreen.set(windowId, fullscreen);
+		this._onDidChangeFullscreen.fire(windowId);
 	}
-	public isFullscreen(): boolean {
-		return this._fullscreen;
+	isFullscreen(targetWindow: Window): boolean {
+		return !!this.mapWindowIdToFullScreen.get(this.getWindowId(targetWindow));
+	}
+
+	private getWindowId(targetWindow: Window): number {
+		return (targetWindow as CodeWindow).vscodeWindowId;
 	}
 }
 
@@ -58,7 +67,7 @@ class WindowManager {
 class DevicePixelRatioMonitor extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
-	public readonly onDidChange = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	private readonly _listener: () => void;
 	private _mediaQueryList: MediaQueryList | null;
@@ -86,11 +95,11 @@ class DevicePixelRatioMonitor extends Disposable {
 class PixelRatioImpl extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<number>());
-	public readonly onDidChange = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	private _value: number;
 
-	public get value(): number {
+	get value(): number {
 		return this._value;
 	}
 
@@ -131,14 +140,14 @@ class PixelRatioFacade {
 	/**
 	 * Get the current value.
 	 */
-	public get value(): number {
+	get value(): number {
 		return this._getOrCreatePixelRatioMonitor().value;
 	}
 
 	/**
 	 * Listen for changes.
 	 */
-	public get onDidChange(): Event<number> {
+	get onDidChange(): Event<number> {
 		return this._getOrCreatePixelRatioMonitor().onDidChange;
 	}
 }
@@ -175,11 +184,11 @@ export function setZoomFactor(zoomFactor: number): void {
 	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
 }
 
-export function setFullscreen(fullscreen: boolean): void {
-	WindowManager.INSTANCE.setFullscreen(fullscreen);
+export function setFullscreen(fullscreen: boolean, targetWindow: Window): void {
+	WindowManager.INSTANCE.setFullscreen(fullscreen, targetWindow);
 }
-export function isFullscreen(): boolean {
-	return WindowManager.INSTANCE.isFullscreen();
+export function isFullscreen(targetWindow: Window): boolean {
+	return WindowManager.INSTANCE.isFullscreen(targetWindow);
 }
 export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscreen;
 

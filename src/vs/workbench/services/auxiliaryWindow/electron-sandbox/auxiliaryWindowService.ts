@@ -20,6 +20,7 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -35,9 +36,10 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		stylesHaveLoaded: Barrier,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHostService hostService: IHostService
 	) {
-		super(window, container, stylesHaveLoaded, configurationService);
+		super(window, container, stylesHaveLoaded, configurationService, hostService);
 	}
 
 	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
@@ -65,9 +67,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		@IDialogService dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IHostService hostService: IHostService
 	) {
-		super(layoutService, dialogService, configurationService, telemetryService);
+		super(layoutService, dialogService, configurationService, telemetryService, hostService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
@@ -110,7 +113,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	}
 
 	protected override createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement, stylesHaveLoaded: Barrier,): AuxiliaryWindow {
-		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService);
+		return new NativeAuxiliaryWindow(targetWindow, container, stylesHaveLoaded, this.configurationService, this.nativeHostService, this.instantiationService, this.hostService);
 	}
 }
 

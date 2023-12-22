@@ -72,6 +72,7 @@ import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/uti
 import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 import { mainWindow } from 'vs/base/browser/window';
 import { BaseWindow } from 'vs/workbench/browser/window';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class NativeWindow extends BaseWindow {
 
@@ -124,9 +125,10 @@ export class NativeWindow extends BaseWindow {
 		@IBannerService private readonly bannerService: IBannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService
+		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
+		@IHostService hostService: IHostService
 	) {
-		super(mainWindow);
+		super(mainWindow, undefined, hostService);
 
 		this.mainPartEditorService = editorService.createScoped('main', this._store);
 
@@ -248,8 +250,8 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true); });
-		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
+		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true, mainWindow); });
+		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false, mainWindow); });
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {

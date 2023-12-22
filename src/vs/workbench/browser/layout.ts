@@ -53,7 +53,7 @@ import { mainWindow } from 'vs/base/browser/window';
 
 interface ILayoutRuntimeState {
 	activeContainerId: number;
-	fullscreen: boolean;
+	mainWindowFullscreen: boolean;
 	readonly maximized: Set<number>;
 	hasFocus: boolean;
 	mainWindowBorder: boolean;
@@ -124,9 +124,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private readonly _onDidChangeZenMode = this._register(new Emitter<boolean>());
 	readonly onDidChangeZenMode = this._onDidChangeZenMode.event;
-
-	private readonly _onDidChangeFullscreen = this._register(new Emitter<boolean>());
-	readonly onDidChangeFullscreen = this._onDidChangeFullscreen.event;
 
 	private readonly _onDidChangeCenteredLayout = this._register(new Emitter<boolean>());
 	readonly onDidChangeCenteredLayout = this._onDidChangeCenteredLayout.event;
@@ -358,7 +355,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}));
 
 		// Fullscreen changes
-		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
+		this._register(onDidChangeFullscreen(windowId => this.onFullscreenChanged(windowId)));
 
 		// Group changes
 		this._register(this.editorGroupService.mainPart.onDidAddGroup(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
@@ -408,7 +405,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
-			else if (this.state.runtime.fullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
+			else if (this.state.runtime.mainWindowFullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 			}
 
@@ -431,11 +428,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidLayoutContainer.fire({ container, dimension });
 	}
 
-	private onFullscreenChanged(): void {
-		this.state.runtime.fullscreen = isFullscreen();
+	private onFullscreenChanged(windowId: number): void {
+		if (windowId !== mainWindow.vscodeWindowId) {
+			return; // ignore all but main window
+		}
+
+		this.state.runtime.mainWindowFullscreen = isFullscreen(mainWindow);
 
 		// Apply as CSS class
-		if (this.state.runtime.fullscreen) {
+		if (this.state.runtime.mainWindowFullscreen) {
 			this.mainContainer.classList.add(LayoutClasses.FULLSCREEN);
 		} else {
 			this.mainContainer.classList.remove(LayoutClasses.FULLSCREEN);
@@ -448,9 +449,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Change edge snapping accordingly
-		this.workbenchGrid.edgeSnapping = this.state.runtime.fullscreen;
+		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
-		// Changing fullscreen state of the window has an impact
+		// Changing fullscreen state of the main window has an impact
 		// on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 
@@ -459,8 +460,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.updateWindowsBorder(true);
 		}
-
-		this._onDidChangeFullscreen.fire(this.state.runtime.fullscreen);
 	}
 
 	private onActiveWindowChanged(): void {
@@ -554,7 +553,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			const containerWindowId = getWindowId(getWindow(container));
 
 			let windowBorder = false;
-			if (!this.state.runtime.fullscreen && !this.state.runtime.maximized.has(containerWindowId) && (activeBorder || inactiveBorder)) {
+			if (!this.state.runtime.mainWindowFullscreen && !this.state.runtime.maximized.has(containerWindowId) && (activeBorder || inactiveBorder)) {
 				windowBorder = true;
 
 				// If the inactive color is missing, fallback to the active one
@@ -629,7 +628,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Layout Runtime State
 		const layoutRuntimeState: ILayoutRuntimeState = {
 			activeContainerId: this.getActiveContainerId(),
-			fullscreen: isFullscreen(),
+			mainWindowFullscreen: isFullscreen(mainWindow),
 			hasFocus: this.hostService.hasFocus,
 			maximized: new Set<number>(),
 			mainWindowBorder: false,
@@ -1237,23 +1236,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
-			return !this.state.runtime.fullscreen;
+			return !this.state.runtime.mainWindowFullscreen;
 		}
 
 		// non-fullscreen native must show the title bar
-		if (isNative && !this.state.runtime.fullscreen) {
+		if (isNative && !this.state.runtime.mainWindowFullscreen) {
 			return true;
 		}
 
 		// if WCO is visible, we have to show the title bar
-		if (isWCOEnabled() && !this.state.runtime.fullscreen) {
+		if (isWCOEnabled() && !this.state.runtime.mainWindowFullscreen) {
 			return true;
 		}
 
 		// remaining behavior is based on menubar visibility
 		switch (getMenuBarVisibility(this.configurationService)) {
 			case 'classic':
-				return !this.state.runtime.fullscreen || this.state.runtime.menuBar.toggled;
+				return !this.state.runtime.mainWindowFullscreen || this.state.runtime.menuBar.toggled;
 			case 'compact':
 			case 'hidden':
 				return false;
@@ -1262,7 +1261,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case 'visible':
 				return true;
 			default:
-				return isWeb ? false : !this.state.runtime.fullscreen || this.state.runtime.menuBar.toggled;
+				return isWeb ? false : !this.state.runtime.mainWindowFullscreen || this.state.runtime.menuBar.toggled;
 		}
 	}
 
@@ -1336,17 +1335,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Check if zen mode transitioned to full screen and if now we are out of zen mode
 		// -> we need to go out of full screen (same goes for the centered editor layout)
-		let toggleFullScreen = false;
+		let toggleMainWindowFullScreen = false;
 		const config = getZenModeConfiguration(this.configurationService);
 		const zenModeExitInfo = this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_EXIT_INFO);
 
 		// Zen Mode Active
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE)) {
 
-			toggleFullScreen = !this.state.runtime.fullscreen && config.fullScreen && !isIOS;
+			toggleMainWindowFullScreen = !this.state.runtime.mainWindowFullscreen && config.fullScreen && !isIOS;
 
 			if (!restoring) {
-				zenModeExitInfo.transitionedToFullScreen = toggleFullScreen;
+				zenModeExitInfo.transitionedToFullScreen = toggleMainWindowFullScreen;
 				zenModeExitInfo.transitionedToCenteredEditorLayout = !this.isMainEditorLayoutCentered() && config.centerLayout;
 				zenModeExitInfo.handleNotificationsDoNotDisturbMode = this.notificationService.getFilter() === NotificationsFilter.OFF;
 				zenModeExitInfo.wasVisible.sideBar = this.isVisible(Parts.SIDEBAR_PART);
@@ -1461,15 +1460,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			this.focus();
 
-			toggleFullScreen = zenModeExitInfo.transitionedToFullScreen && this.state.runtime.fullscreen;
+			toggleMainWindowFullScreen = zenModeExitInfo.transitionedToFullScreen && this.state.runtime.mainWindowFullscreen;
 		}
 
 		if (!skipLayout) {
 			this.layout();
 		}
 
-		if (toggleFullScreen) {
-			this.hostService.toggleFullScreen(getActiveWindow());
+		if (toggleMainWindowFullScreen) {
+			this.hostService.toggleFullScreen(mainWindow);
 		}
 
 		// Event
@@ -1531,7 +1530,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.mainContainer.prepend(workbenchGrid.element);
 		this.mainContainer.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
-		this.workbenchGrid.edgeSnapping = this.state.runtime.fullscreen;
+		this.workbenchGrid.edgeSnapping = this.state.runtime.mainWindowFullscreen;
 
 		for (const part of [titleBar, editorPart, activityBar, panelPart, sideBar, statusBar, auxiliaryBarPart, bannerPart]) {
 			this._register(part.onDidVisibilityChange((visible) => {
@@ -1738,7 +1737,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			this.state.runtime.fullscreen ? LayoutClasses.FULLSCREEN : undefined
+			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
 		]);
 	}
 
