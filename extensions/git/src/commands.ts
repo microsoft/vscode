@@ -25,12 +25,14 @@ class CheckoutItem implements QuickPickItem {
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	get label(): string { return `${this.repository.isBranchProtected(this.ref) ? '$(lock)' : '$(git-branch)'} ${this.ref.name || this.shortCommit}`; }
 	get description(): string { return this.shortCommit; }
+	get detail(): string | undefined { return this._detail; }
+	set detail(newDetail: string | undefined) { this._detail = newDetail; }
 	get refName(): string | undefined { return this.ref.name; }
 	get refRemote(): string | undefined { return this.ref.remote; }
 	get buttons(): QuickInputButton[] | undefined { return this._buttons; }
 	set buttons(newButtons: QuickInputButton[] | undefined) { this._buttons = newButtons; }
 
-	constructor(protected repository: Repository, protected ref: Ref, protected _buttons?: QuickInputButton[]) { }
+	constructor(protected repository: Repository, protected ref: Ref, protected _buttons?: QuickInputButton[], protected _detail?: string) { }
 
 	async run(opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
@@ -305,6 +307,18 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		fallbackRemoteButtons = buttons.get(remoteUrl);
 	}
 
+	const gitLocalConfigs = await repository.getConfigs();
+	const descriptions = gitLocalConfigs.reduce<any>(
+		(dict, el) => {
+			const keyPart = el.key.split('.');
+			if (keyPart.length === 3 && keyPart[0] === 'branch' && keyPart[2] === 'description') {
+				dict[keyPart[1]] = el.value;
+			}
+			return dict;
+		},
+		{}
+	);
+
 	return processors.reduce<CheckoutItem[]>((r, p) => r.concat(...p.items.map((item) => {
 		if (item.refRemote) {
 			const matchingRemote = repository.remotes.find((remote) => remote.name === item.refRemote);
@@ -312,6 +326,10 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 			if (remoteUrl) {
 				item.buttons = buttons.get(item.refRemote);
 			}
+		}
+
+		if (item.refName && descriptions[item.refName]) {
+			item.detail = descriptions[item.refName];
 		}
 
 		item.buttons = fallbackRemoteButtons;
@@ -2430,6 +2448,52 @@ export class CommandCenter {
 		}
 
 		await repository.branch(branchName, true, target);
+	}
+
+	private async promptForBranchDescription(defaultValue?: string, initialValue?: string): Promise<string> {
+		let rawDescription = defaultValue;
+
+		if (!rawDescription) {
+			if (!initialValue) {
+				//TODO Add template?
+				initialValue = '';
+			}
+
+			rawDescription = await window.showInputBox({
+				placeHolder: l10n.t('Branch description'),
+				prompt: l10n.t('Please provide a new branch description'),
+				value: initialValue,
+				ignoreFocusOut: true
+			});
+		}
+
+		return rawDescription || '';
+	}
+
+	@command('git.editBranchDescription', { repository: true })
+	async editBranchDescription(repository: Repository): Promise<void> {
+		const currentHead = repository.HEAD && repository.HEAD.name;
+		if (!currentHead) {
+			return;
+		}
+		const currentDescription = await repository.getBranchDescription(currentHead);
+		const branchDescription = await this.promptForBranchDescription(undefined, currentDescription);
+
+		if (!branchDescription) {
+			return;
+		}
+
+		try {
+			await repository.editBranchDescription(branchDescription);
+		} catch (err) {
+			switch (err.gitErrorCode) {
+				case GitErrorCodes.InvalidBranchName:
+					window.showErrorMessage(l10n.t('Invalid branch name'));
+					return;
+				default:
+					throw err;
+			}
+		}
 	}
 
 	@command('git.deleteBranch', { repository: true })
