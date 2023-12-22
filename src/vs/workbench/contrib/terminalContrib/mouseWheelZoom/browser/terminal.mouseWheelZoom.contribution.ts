@@ -40,7 +40,7 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		super();
 	}
 
-	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalSettingId.MouseWheelZoom)) {
 				if (!!this._configurationService.getValue(TerminalSettingId.MouseWheelZoom)) {

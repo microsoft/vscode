@@ -139,7 +139,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 					.then(c => c.map(u => IFileCoverage.deserialize(this.uriIdentityService, u))),
 				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token)
 					.then(d => d.map(CoverageDetails.deserialize)),
-			}, token)) : undefined;
+			}, this.uriIdentityService, token)) : undefined;
 
 			(task.coverage as ISettableObservable<undefined | ((tkn: CancellationToken) => Promise<TestCoverage>)>).set(fn, undefined);
 		});

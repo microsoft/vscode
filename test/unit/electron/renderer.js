@@ -195,7 +195,6 @@ function loadTests(opts) {
 		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
 		'property limits', // https://github.com/microsoft/vscode/issues/192443
 		'Error events', // https://github.com/microsoft/vscode/issues/192443
-		'guards calls after runs are ended' // https://github.com/microsoft/vscode/issues/192468
 	]);
 
 	let _testsWithUnexpectedOutput = false;
@@ -278,7 +277,7 @@ function loadTests(opts) {
 		teardown(() => {
 
 			// should not have unexpected output
-			if (_testsWithUnexpectedOutput) {
+			if (_testsWithUnexpectedOutput && !opts.dev) {
 				assert.ok(false, 'Error: Unexpected console output in test run. Please ensure no console.[log|error|info|warn] usage in tests or runtime errors.');
 			}
 

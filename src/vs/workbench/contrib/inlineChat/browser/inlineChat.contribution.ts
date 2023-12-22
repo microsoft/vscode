@@ -24,6 +24,8 @@ registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContribut
 registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, InlineChatActions.InlineAccessibilityHelpContribution, EditorContributionInstantiation.Eventually);
 
 registerAction2(InlineChatActions.StartSessionAction);
+registerAction2(InlineChatActions.CloseAction);
+registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.MakeRequestAction);
 registerAction2(InlineChatActions.StopRequestAction);
@@ -42,12 +44,11 @@ registerAction2(InlineChatActions.ViewInChatAction);
 registerAction2(InlineChatActions.ExpandMessageAction);
 registerAction2(InlineChatActions.ContractMessageAction);
 
-registerAction2(InlineChatActions.ToggleInlineDiff);
 registerAction2(InlineChatActions.ToggleDiffForChange);
 registerAction2(InlineChatActions.FeebackHelpfulCommand);
 registerAction2(InlineChatActions.FeebackUnhelpfulCommand);
 registerAction2(InlineChatActions.ReportIssueForBugCommand);
-registerAction2(InlineChatActions.ApplyPreviewEdits);
+registerAction2(InlineChatActions.AcceptChanges);
 
 registerAction2(InlineChatActions.CopyRecordings);
 

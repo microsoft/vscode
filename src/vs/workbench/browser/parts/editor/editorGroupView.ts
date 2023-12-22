@@ -281,7 +281,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		};
 
 		// Update group contexts based on group changes
-		this._register(this.onDidModelChange(e => {
+		const updateGroupContextKeys = (e: IGroupModelChangeEvent) => {
 			switch (e.kind) {
 				case GroupModelChangeKind.GROUP_LOCKED:
 					groupLockedContext.set(this.isLocked);
@@ -312,16 +312,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Group editors count context
 			groupEditorsCountContext.set(this.count);
-		}));
+		};
+
+		this._register(this.onDidModelChange(e => updateGroupContextKeys(e)));
 
 		// Track the active editor and update context key that reflects
 		// the dirty state of this editor
-		this._register(this.onDidActiveEditorChange(() => {
-			observeActiveEditor();
-		}));
+		this._register(this.onDidActiveEditorChange(() => observeActiveEditor()));
 
 		// Update context keys on startup
 		observeActiveEditor();
+		updateGroupContextKeys({ kind: GroupModelChangeKind.EDITOR_ACTIVE });
+		updateGroupContextKeys({ kind: GroupModelChangeKind.GROUP_LOCKED });
 	}
 
 	private registerContainerListeners(): void {
@@ -706,7 +708,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active one last
 		if (activeEditor) {
-			this.doCloseEditor(activeEditor, true);
+			this.doCloseEditor(activeEditor);
 		}
 	}
 
@@ -1575,7 +1577,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Auto-save on focus change: save, because a dialog would steal focus
 			// (see https://github.com/microsoft/vscode/issues/108752)
-			if (this.filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_FOCUS_CHANGE) {
+			if (this.filesConfigurationService.getAutoSaveMode(editor).mode === AutoSaveMode.ON_FOCUS_CHANGE) {
 				autoSave = true;
 				confirmation = ConfirmResult.SAVE;
 				saveReason = SaveReason.FOCUS_CHANGE;
@@ -1584,7 +1586,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Auto-save on window change: save, because on Windows and Linux, a
 			// native dialog triggers the window focus change
 			// (see https://github.com/microsoft/vscode/issues/134250)
-			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode(editor) === AutoSaveMode.ON_WINDOW_CHANGE) {
+			else if ((isNative && (isWindows || isLinux)) && this.filesConfigurationService.getAutoSaveMode(editor).mode === AutoSaveMode.ON_WINDOW_CHANGE) {
 				autoSave = true;
 				confirmation = ConfirmResult.SAVE;
 				saveReason = SaveReason.WINDOW_CHANGE;

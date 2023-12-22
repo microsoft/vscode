@@ -37,6 +37,10 @@ export const terminalStrings = {
 		value: localize('moveToEditor', "Move Terminal into Editor Area"),
 		original: 'Move Terminal into Editor Area',
 	},
+	moveIntoNewWindow: {
+		value: localize('moveIntoNewWindow', "Move Terminal into New Window"),
+		original: 'Move Terminal into New Window',
+	},
 	moveToTerminalPanel: {
 		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
 		original: 'Move Terminal into Panel'
