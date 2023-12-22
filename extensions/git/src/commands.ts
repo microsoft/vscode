@@ -98,14 +98,6 @@ class RefItem implements QuickPickItem {
 
 class CheckoutItem extends RefItem {
 
-	override get label(): string {
-		return this.isProtected ? `$(lock) ${this.ref.name ?? this.shortCommit}` : super.label;
-	}
-
-	constructor(ref: Ref, private readonly isProtected?: boolean) {
-		super(ref);
-	}
-
 	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
@@ -340,16 +332,18 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 	}
 
 	const refs = await repository.getRefs();
-	const processors = checkoutTypes.map(type => getCheckoutProcessor(repository, type))
-		.filter(p => !!p) as CheckoutProcessor[];
+	const refProcessors = checkoutTypes.map(type => getCheckoutRefProcessor(repository, type))
+		.filter(p => !!p) as RefProcessor[];
 
 	for (const ref of refs) {
 		if (!detached && ref.name === 'origin/HEAD') {
 			continue;
 		}
 
-		for (const processor of processors) {
-			processor.onRef(ref);
+		for (const processor of refProcessors) {
+			if (processor.processRef(ref)) {
+				break;
+			}
 		}
 	}
 
@@ -361,22 +355,27 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		fallbackRemoteButtons = buttons.get(remoteUrl);
 	}
 
-	return processors.reduce<QuickPickItem[]>((r, p) => r.concat(...p.items.map((item) => {
-		if (!(item instanceof CheckoutItem)) {
-			return item;
-		}
-
-		if (item.refRemote) {
-			const matchingRemote = repository.remotes.find((remote) => remote.name === item.refRemote);
-			const remoteUrl = matchingRemote?.pushUrl ?? matchingRemote?.fetchUrl;
-			if (remoteUrl) {
-				item.buttons = buttons.get(item.refRemote);
+	const result: QuickPickItem[] = [];
+	for (const processor of refProcessors) {
+		result.push(...processor.items.map(item => {
+			if (!(item instanceof RefItem)) {
+				return item;
 			}
-		}
 
-		item.buttons = fallbackRemoteButtons;
-		return item;
-	})), []);
+			if (item.refRemote) {
+				const matchingRemote = repository.remotes.find((remote) => remote.name === item.refRemote);
+				const remoteUrl = matchingRemote?.pushUrl ?? matchingRemote?.fetchUrl;
+				if (remoteUrl) {
+					item.buttons = buttons.get(item.refRemote);
+				}
+			}
+
+			item.buttons = fallbackRemoteButtons;
+			return item;
+		}));
+	}
+
+	return result;
 }
 
 type RemoteSourceActionButton = {
@@ -407,27 +406,15 @@ async function getRemoteRefItemButtons(repository: Repository) {
 	return remoteUrlsToActions;
 }
 
-class CheckoutProcessor {
+class RefProcessor {
+	protected readonly refs: Ref[] = [];
 
-	private refs: Ref[] = [];
 	get items(): QuickPickItem[] {
-		const items = this.refs.map(r => new this.ctor(r, this.type === RefType.Head ? this.repository.isBranchProtected(r) : undefined));
+		const items = this.refs.map(r => new this.ctor(r));
 		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
 	}
 
-	constructor(private readonly repository: Repository, private readonly type: RefType, private ctor: { new(ref: Ref, isProtected?: boolean): CheckoutItem }) { }
-
-	onRef(ref: Ref): void {
-		if (ref.type === this.type) {
-			this.refs.push(ref);
-		}
-	}
-}
-
-class RefProcessor {
-	readonly refs: Ref[] = [];
-
-	constructor(readonly type: RefType) { }
+	constructor(protected readonly type: RefType, protected readonly ctor: { new(ref: Ref): QuickPickItem } = RefItem) { }
 
 	processRef(ref: Ref): boolean {
 		if (!ref.name && !ref.commit) {
@@ -442,17 +429,79 @@ class RefProcessor {
 	}
 }
 
-function getCheckoutProcessor(repository: Repository, type: string): CheckoutProcessor | undefined {
-	switch (type) {
-		case 'local':
-			return new CheckoutProcessor(repository, RefType.Head, CheckoutItem);
-		case 'remote':
-			return new CheckoutProcessor(repository, RefType.RemoteHead, CheckoutRemoteHeadItem);
-		case 'tags':
-			return new CheckoutProcessor(repository, RefType.Tag, CheckoutTagItem);
+class CheckoutRefProcessor extends RefProcessor {
+
+	override get items(): QuickPickItem[] {
+		const items = this.refs.map(ref => {
+			return this.repository.isBranchProtected(ref) ?
+				new CheckoutProtectedItem(ref) :
+				new CheckoutItem(ref);
+		});
+
+		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
 	}
 
-	return undefined;
+	constructor(private readonly repository: Repository) {
+		super(RefType.Head);
+	}
+}
+
+class RebaseRefProcessor extends RefProcessor {
+
+	override get items(): QuickPickItem[] {
+		const items = this.refs
+			.filter(ref => ref.name !== this.repository.HEAD?.name)
+			.map(ref => new RebaseItem(ref));
+
+		return items.length === 0 ? items : [new RefItemSeparator(this.type), ...items];
+	}
+
+	constructor(private readonly repository: Repository) {
+		super(RefType.Head);
+	}
+}
+
+class RebaseRemoteRefProcessor extends RefProcessor {
+
+	override get items(): QuickPickItem[] {
+		const result: QuickPickItem[] = [];
+
+		// set upstream branch as first
+		if (this.repository.HEAD?.upstream) {
+			const upstreamName = `${this.repository.HEAD?.upstream.remote}/${this.repository.HEAD?.upstream.name}`;
+			const index = this.refs.findIndex(ref => ref.name === upstreamName);
+
+			if (index !== -1) {
+				const [upstreamRef] = this.refs.splice(index, 1);
+				result.push(new RebaseUpstreamItem(upstreamRef));
+			}
+		}
+
+		if (this.refs.length > 0) {
+			result.push(
+				new RefItemSeparator(RefType.RemoteHead),
+				...this.refs.map(ref => new RebaseItem(ref)));
+		}
+
+		return result;
+	}
+
+	constructor(private readonly repository: Repository) {
+		super(RefType.RemoteHead);
+	}
+}
+
+function getCheckoutRefProcessor(repository: Repository, type: string): RefProcessor | undefined {
+	switch (type) {
+		case 'local':
+			return new CheckoutRefProcessor(repository);
+		case 'remote':
+			return new RefProcessor(RefType.RemoteHead, CheckoutRemoteHeadItem);
+		case 'tags':
+			return new RefProcessor(RefType.Tag, CheckoutTagItem);
+		default:
+			return undefined;
+	}
 }
 
 function getRepositoryLabel(repositoryRoot: string): string {
@@ -2501,11 +2550,7 @@ export class CommandCenter {
 
 				const result: QuickPickItem[] = [];
 				for (const processor of refProcessors) {
-					if (processor.refs.length > 0) {
-						result.push(
-							new RefItemSeparator(processor.type),
-							...processor.refs.map(ref => new RefItem(ref)));
-					}
+					result.push(...processor.items);
 				}
 
 				return [new HEADItem(repository), ...result];
@@ -2601,9 +2646,9 @@ export class CommandCenter {
 		const getQuickPickItems = async (): Promise<QuickPickItem[]> => {
 			const refs = await repository.getRefs();
 			const refProcessors = [
-				new RefProcessor(RefType.Head),
-				new RefProcessor(RefType.RemoteHead),
-				new RefProcessor(RefType.Tag)
+				new RefProcessor(RefType.Head, MergeItem),
+				new RefProcessor(RefType.RemoteHead, MergeItem),
+				new RefProcessor(RefType.Tag, MergeItem)
 			];
 
 			for (const ref of refs) {
@@ -2616,11 +2661,7 @@ export class CommandCenter {
 
 			const result: QuickPickItem[] = [];
 			for (const processor of refProcessors) {
-				if (processor.refs.length > 0) {
-					result.push(
-						new RefItemSeparator(processor.type),
-						...processor.refs.map(ref => new MergeItem(ref)));
-				}
+				result.push(...processor.items);
 			}
 
 			return result;
@@ -2645,8 +2686,8 @@ export class CommandCenter {
 			const refs = await repository.getRefs();
 
 			const refProcessors = [
-				new RefProcessor(RefType.Head),
-				new RefProcessor(RefType.RemoteHead)
+				new RebaseRefProcessor(repository),
+				new RebaseRemoteRefProcessor(repository)
 			];
 
 			for (const ref of refs) {
@@ -2659,37 +2700,15 @@ export class CommandCenter {
 
 			const result: QuickPickItem[] = [];
 			for (const processor of refProcessors) {
-				// Heads
-				if (processor.type === RefType.Head) {
-					const heads = processor.refs
-						.filter(ref => ref.name !== repository.HEAD?.name);
+				const items = processor.items;
 
-					if (heads.length > 0) {
-						result.push(
-							new RefItemSeparator(processor.type),
-							...processor.refs.map(ref => new RebaseItem(ref)));
-					}
+				// Move upstream item to the top
+				if (items.length > 0 && items[0] instanceof RebaseUpstreamItem) {
+					const [upstreamRef] = items.splice(0, 1);
+					result.unshift(upstreamRef);
 				}
 
-				// Remote heads
-				if (processor.type === RefType.RemoteHead) {
-					// set upstream branch as first
-					if (repository.HEAD?.upstream) {
-						const upstreamName = `${repository.HEAD?.upstream.remote}/${repository.HEAD?.upstream.name}`;
-						const index = processor.refs.findIndex(ref => ref.name === upstreamName);
-
-						if (index !== -1) {
-							const [upstreamRef] = processor.refs.splice(index, 1);
-							result.unshift(new RebaseUpstreamItem(upstreamRef));
-						}
-					}
-
-					if (processor.refs.length > 0) {
-						result.push(
-							new RefItemSeparator(RefType.RemoteHead),
-							...processor.refs.map(ref => new RebaseItem(ref)));
-					}
-				}
+				result.push(...items);
 			}
 
 			return result;
