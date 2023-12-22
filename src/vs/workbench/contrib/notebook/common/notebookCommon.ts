@@ -225,6 +225,7 @@ export interface ICellOutput {
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
 	asDto(): IOutputDto;
 	bumpVersion(): void;
+	dispose(): void;
 }
 
 export interface CellInternalMetadataChangedEvent {
@@ -955,6 +956,7 @@ export const NotebookSetting = {
 	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
+	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',

@@ -7,6 +7,7 @@
 
 import { strictEqual } from 'assert';
 import { getKoreanAltChars } from 'vs/base/common/naturalLanguage/korean';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function getKoreanAltCharsForString(text: string): string {
 	let result = '';
@@ -22,6 +23,8 @@ function getKoreanAltCharsForString(text: string): string {
 }
 
 suite('Korean', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('getKoreanAltChars', () => {
 		test('Modern initial consonants', () => {
 			const cases = new Map([

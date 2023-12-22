@@ -50,6 +50,7 @@ export class ExtHostMessageService {
 		}
 
 		const commands: { title: string; isCloseAffordance: boolean; handle: number }[] = [];
+		let hasCloseAffordance = false;
 
 		for (let handle = 0; handle < items.length; handle++) {
 			const command = items[handle];
@@ -58,8 +59,15 @@ export class ExtHostMessageService {
 			} else if (typeof command === 'object') {
 				const { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
+				if (isCloseAffordance) {
+					if (hasCloseAffordance) {
+						this._logService.warn(`[${extension.identifier}] Only one message item can have 'isCloseAffordance':`, command);
+					} else {
+						hasCloseAffordance = true;
+					}
+				}
 			} else {
-				this._logService.warn('Invalid message item:', command);
+				this._logService.warn(`[${extension.identifier}] Invalid message item:`, command);
 			}
 		}
 

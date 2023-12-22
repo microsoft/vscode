@@ -83,6 +83,8 @@ function fromRange(rng: Range): number[] {
 }
 
 suite('Multicursor selection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
 

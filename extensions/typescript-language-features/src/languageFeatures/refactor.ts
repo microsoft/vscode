@@ -13,16 +13,16 @@ import * as fileSchemes from '../configuration/fileSchemes';
 import { Schemes } from '../configuration/schemes';
 import { TelemetryReporter } from '../logging/telemetry';
 import { API } from '../tsServer/api';
+import { CachedResponse } from '../tsServer/cachedResponse';
 import type * as Proto from '../tsServer/protocol/protocol';
+import * as PConst from '../tsServer/protocol/protocol.const';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
+import { CompositeCommand, EditorChatFollowUp, EditorChatFollowUp_Args } from './util/copilot';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
-import * as PConst from '../tsServer/protocol/protocol.const';
-import { CachedResponse } from '../tsServer/cachedResponse';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -221,7 +221,7 @@ class MoveToFileRefactorCommand implements Command {
 			quickPick.items = [
 				selectExistingFileItem,
 				selectNewFileItem,
-				{ label: vscode.l10n.t("Destination Files"), kind: vscode.QuickPickItemKind.Separator },
+				{ label: vscode.l10n.t("destination files"), kind: vscode.QuickPickItemKind.Separator },
 				...coalesce(destinationItems)
 			];
 		};
@@ -645,7 +645,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 					copilotRename = info => ({
 						title: '',
 						command: EditorChatFollowUp.ID,
-						arguments: [<EditorChatFollowUp_Args>{
+						arguments: [{
 							message: `Rename ${newName} to a better name based on usage.`,
 							expand: Extract_Constant.matches(action) ? {
 								kind: 'navtree-function',
@@ -656,7 +656,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 							},
 							action: { type: 'refactor', refactor: action },
 							document,
-						}]
+						} satisfies EditorChatFollowUp_Args]
 					});
 				}
 

@@ -51,8 +51,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	public static readonly ID = 'editor.contrib.copyPasteActionController';
 
-	public static get(editor: ICodeEditor): CopyPasteController {
-		return editor.getContribution<CopyPasteController>(CopyPasteController.ID)!;
+	public static get(editor: ICodeEditor): CopyPasteController | null {
+		return editor.getContribution<CopyPasteController>(CopyPasteController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
@@ -112,6 +112,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 	private isPasteAsEnabled(): boolean {
 		return this._editor.getOption(EditorOption.pasteAs).enabled
 			&& !this._editor.getOption(EditorOption.readOnly);
+	}
+
+	public async finishedPaste(): Promise<void> {
+		await this._currentPasteOperation;
 	}
 
 	private handleCopy(e: ClipboardEvent) {

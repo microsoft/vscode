@@ -98,6 +98,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
+	private readonly _onDidEnterFullScreen = this._register(new Emitter<void>());
+	readonly onDidEnterFullScreen = this._onDidEnterFullScreen.event;
+
+	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
+	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -121,6 +127,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
 			this._lastFocusTime = Date.now();
 		}));
+		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -670,14 +678,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}));
 
 		// Window Fullscreen
-		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => {
+		this._register(this.onDidEnterFullScreen(() => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		}));
 
-		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => {
+		this._register(this.onDidLeaveFullScreen(() => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
@@ -839,7 +847,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private async destroyWindow(reopen: boolean, skipRestoreEditors: boolean): Promise<void> {
 		const workspace = this._config?.workspace;
 
-		//  check to discard editor state first
+		// check to discard editor state first
 		if (skipRestoreEditors && workspace) {
 			try {
 				const workspaceStorage = this.storageMainService.workspaceStorage(workspace);
@@ -854,37 +862,41 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// 'close' event will not be fired on destroy(), so signal crash via explicit event
 		this._onDidDestroy.fire();
 
-		// make sure to destroy the window as its renderer process is gone
-		this._win?.destroy();
+		try {
+			// ask the windows service to open a new fresh window if specified
+			if (reopen && this._config) {
 
-		// ask the windows service to open a new fresh window if specified
-		if (reopen && this._config) {
+				// We have to reconstruct a openable from the current workspace
+				let uriToOpen: IWorkspaceToOpen | IFolderToOpen | undefined = undefined;
+				let forceEmpty = undefined;
+				if (isSingleFolderWorkspaceIdentifier(workspace)) {
+					uriToOpen = { folderUri: workspace.uri };
+				} else if (isWorkspaceIdentifier(workspace)) {
+					uriToOpen = { workspaceUri: workspace.configPath };
+				} else {
+					forceEmpty = true;
+				}
 
-			// We have to reconstruct a openable from the current workspace
-			let uriToOpen: IWorkspaceToOpen | IFolderToOpen | undefined = undefined;
-			let forceEmpty = undefined;
-			if (isSingleFolderWorkspaceIdentifier(workspace)) {
-				uriToOpen = { folderUri: workspace.uri };
-			} else if (isWorkspaceIdentifier(workspace)) {
-				uriToOpen = { workspaceUri: workspace.configPath };
-			} else {
-				forceEmpty = true;
+				// Delegate to windows service
+				const window = firstOrDefault(await this.windowsMainService.open({
+					context: OpenContext.API,
+					userEnv: this._config.userEnv,
+					cli: {
+						...this.environmentMainService.args,
+						_: [] // we pass in the workspace to open explicitly via `urisToOpen`
+					},
+					urisToOpen: uriToOpen ? [uriToOpen] : undefined,
+					forceEmpty,
+					forceNewWindow: true,
+					remoteAuthority: this.remoteAuthority
+				}));
+				window?.focus();
 			}
-
-			// Delegate to windows service
-			const window = firstOrDefault(await this.windowsMainService.open({
-				context: OpenContext.API,
-				userEnv: this._config.userEnv,
-				cli: {
-					...this.environmentMainService.args,
-					_: [] // we pass in the workspace to open explicitly via `urisToOpen`
-				},
-				urisToOpen: uriToOpen ? [uriToOpen] : undefined,
-				forceEmpty,
-				forceNewWindow: true,
-				remoteAuthority: this.remoteAuthority
-			}));
-			window?.focus();
+		} finally {
+			// make sure to destroy the window as its renderer process is gone. do this
+			// after the code for reopening the window, to prevent the entire application
+			// from quitting when the last window closes as a result.
+			this._win?.destroy();
 		}
 	}
 

@@ -715,7 +715,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region isOpened()
+	//#region isOpened() / isVisible()
 
 	isOpened(editor: IResourceEditorInputIdentifier): boolean {
 		return this.editorsObserver.hasEditor({
@@ -724,10 +724,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			editorId: editor.editorId
 		});
 	}
-
-	//#endregion
-
-	//#region isOpened()
 
 	isVisible(editor: EditorInput): boolean {
 		for (const group of this.editorGroupsContainer.groups) {

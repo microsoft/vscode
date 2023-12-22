@@ -314,7 +314,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'remote.autoForwardPortsSource': {
 				type: 'string',
-				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and Mac remotes, the `process` and `hybrid` options have no effect and `output` will be used.", '`#remote.autoForwardPorts#`'),
+				markdownDescription: localize('remote.autoForwardPortsSource', "Sets the source from which ports are automatically forwarded when {0} is true. On Windows and macOS remotes, the `process` and `hybrid` options have no effect and `output` will be used.", '`#remote.autoForwardPorts#`'),
 				enum: ['process', 'output', 'hybrid'],
 				enumDescriptions: [
 					localize('remote.autoForwardPortsSource.process', "Ports will be automatically forwarded when discovered by watching for processes that are started and include a port."),
@@ -322,6 +322,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('remote.autoForwardPortsSource.hybrid', "Ports will be automatically forwarded when discovered by reading terminal and debug output. Not all processes that use ports will print to the integrated terminal or debug console, so some ports will be missed. Ports will be \"un-forwarded\" by watching for processes that listen on that port to be terminated.")
 				],
 				default: 'process'
+			},
+			'remote.autoForwardPortsFallback': {
+				type: 'number',
+				default: 20,
+				markdownDescription: localize('remote.autoForwardPortFallback', "The number of auto forwarded ports that will trigger the switch from `process` to `hybrid` when automatically forwarding ports and `remote.autoForwardPortsSource` is set to `process`. Set to `0` to disable the fallback.")
 			},
 			'remote.forwardOnOpen': {
 				type: 'boolean',

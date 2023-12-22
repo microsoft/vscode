@@ -108,6 +108,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
+	private styleChangedWhenInvisible: boolean = false;
 	private completionItemProvider: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
 	private filter: ReplFilter;
@@ -179,7 +180,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
-		this._register(this.debugService.onDidEndSession(async session => {
+		this._register(this.debugService.onDidEndSession(async () => {
 			// Update view, since orphaned sessions might now be separate
 			await Promise.resolve(); // allow other listeners to go first, so sessions can update parents
 			this.multiSessionRepl.set(this.isMultiSessionView);
@@ -199,6 +200,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
+				if (this.styleChangedWhenInvisible) {
+					this.styleChangedWhenInvisible = false;
+					this.onDidStyleChange();
+				}
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -353,6 +358,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private onDidStyleChange(): void {
+		if (!this.isVisible()) {
+			this.styleChangedWhenInvisible = true;
+			return;
+		}
 		if (this.styleElement) {
 			this.replInput.updateOptions({
 				fontSize: this.replOptions.replConfiguration.fontSize,

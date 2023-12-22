@@ -347,9 +347,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.alias,
 				action.metadata,
 				action.precondition ?? undefined,
-				(): Promise<void> => {
+				(args: unknown): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
-						return Promise.resolve(action.runEditorCommand(accessor, this, null));
+						return Promise.resolve(action.runEditorCommand(accessor, this, args));
 					});
 				},
 				this._contextKeyService

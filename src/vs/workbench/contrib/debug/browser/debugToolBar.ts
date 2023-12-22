@@ -145,7 +145,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isCancellationError(e.error)) {
-				this.notificationService.error(e.error);
+				this.notificationService.warn(e.error);
 			}
 
 			// log in telemetry
@@ -281,7 +281,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	private get yRange(): [number, number] {
 		if (!this._yRange) {
 			const isTitleBarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART, dom.getWindow(this.layoutService.activeContainer));
-			const yMin = isTitleBarVisible ? 0 : this.layoutService.mainContainerOffset.top;
+			const yMin = isTitleBarVisible ? this.layoutService.mainContainerOffset.top : 0;
 			let yMax = 0;
 
 			if (isTitleBarVisible) {

@@ -36,7 +36,7 @@ import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, FileType } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -816,18 +816,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
-		// inject keybinding hints for command links
-		const value = markdown.value.replace(/\[([^\]]+)\]\(command:([^\)]+)\)/g, (match, label, command) => {
-			const keybinding = this.keybindingService.lookupKeybinding(command);
-			const keybindingLabel = keybinding?.getLabel();
-			if (keybindingLabel) {
-				// ideally we would use the keybindingLabel renderer but dompurify sanitizes the styling
-				return `${match} (\`${keybindingLabel}\`)`;
-			}
-			return match;
-		});
-
-		markdown = new MarkdownString(value, {
+		markdown = new MarkdownString(markdown.value, {
 			isTrusted: {
 				// Disable all other config options except isTrusted
 				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []
@@ -876,7 +865,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 		}
 
-		walkTreeAndAnnotateReferenceLinks(result.element);
+		walkTreeAndAnnotateReferenceLinks(result.element, this.keybindingService);
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
@@ -1306,8 +1295,7 @@ class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponsePro
 	}
 	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		const hasExtension = /\.[^/.]+$/.test(element.element.label);
-		if (!element.children.length && hasExtension) {
+		if (!element.children.length && element.element.type !== FileType.Directory) {
 			templateData.label.setFile(element.element.uri, {
 				fileKind: FileKind.FILE,
 				hidePath: true,

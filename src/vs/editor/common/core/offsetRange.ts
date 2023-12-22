@@ -112,6 +112,12 @@ export class OffsetRange implements IOffsetRange {
 		return undefined;
 	}
 
+	public intersects(other: OffsetRange): boolean {
+		const start = Math.max(this.start, other.start);
+		const end = Math.min(this.endExclusive, other.endExclusive);
+		return start < end;
+	}
+
 	public intersectsOrTouches(other: OffsetRange): boolean {
 		const start = Math.max(this.start, other.start);
 		const end = Math.min(this.endExclusive, other.endExclusive);

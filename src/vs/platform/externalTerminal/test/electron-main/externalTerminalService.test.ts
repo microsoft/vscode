@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalConfiguration } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 
@@ -19,6 +20,8 @@ const mockConfig = Object.freeze<IExternalTerminalConfiguration>({
 });
 
 suite('ExternalTerminalService', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test(`WinTerminalService - uses terminal from configuration`, done => {
 		const testShell = 'cmd';
 		const testCwd = 'path/to/workspace';

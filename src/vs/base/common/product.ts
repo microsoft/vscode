@@ -40,7 +40,7 @@ export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
 	stableUrl: string;
-	canSwitch: boolean;
+	canSwitch?: boolean;
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>;
 };
 
@@ -203,7 +203,7 @@ export interface IExtensionRecommendations {
 }
 
 export interface ISettingsEditorOpenCondition {
-	readonly prerelease: boolean | string;
+	readonly prerelease?: boolean | string;
 }
 
 export interface IExtensionRecommendationCondition {

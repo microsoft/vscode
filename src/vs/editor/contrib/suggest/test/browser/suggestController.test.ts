@@ -668,4 +668,43 @@ suite('SuggestController', function () {
 			assert.strictEqual(editor.getValue(), 'aaa1234567891aaa23456789');
 		}
 	});
+
+	test.skip('[Bug] "No suggestions" persists while typing if the completion helper is set to return an empty list for empty content#3557', async function () {
+		let requestCount = 0;
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				requestCount += 1;
+
+				if (requestCount === 1) {
+					return undefined;
+				}
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'foo',
+						insertText: 'foo',
+						range: new Range(pos.lineNumber, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		const e1 = await p1;
+		assert.strictEqual(e1.completionModel.items.length, 0);
+		assert.strictEqual(requestCount, 1);
+
+		const p2 = Event.toPromise(controller.model.onDidSuggest);
+		editor.trigger('keyboard', 'type', { text: 'f' });
+
+		const e2 = await p2;
+		assert.strictEqual(e2.completionModel.items.length, 1);
+		assert.strictEqual(requestCount, 2);
+
+	});
 });

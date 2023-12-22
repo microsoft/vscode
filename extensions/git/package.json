@@ -99,6 +99,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.closeOtherRepositories",
+        "title": "%command.closeOtherRepositories%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -828,6 +834,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.closeOtherRepositories",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+        },
+        {
           "command": "git.refresh",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1336,8 +1346,13 @@
       "scm/sourceControl": [
         {
           "command": "git.close",
-          "group": "navigation",
+          "group": "navigation@1",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.closeOtherRepositories",
+          "group": "navigation@2",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
         }
       ],
       "scm/resourceGroup/context": [
@@ -2946,8 +2961,10 @@
     "configurationDefaults": {
       "[git-commit]": {
         "editor.rulers": [
+          50,
           72
         ],
+        "editor.wordWrap": "off",
         "workbench.editor.restoreViewState": false
       },
       "[git-rebase]": {

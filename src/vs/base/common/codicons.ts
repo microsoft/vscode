@@ -586,6 +586,7 @@ export const Codicon = {
 	sparkleFilled: register('sparkle-filled', 0xec21),
 	diffSingle: register('diff-single', 0xec22),
 	diffMultiple: register('diff-multiple', 0xec23),
+	surroundWith: register('surround-with', 0xec24),
 
 	// derived icons, that could become separate icons
 

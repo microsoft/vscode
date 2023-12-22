@@ -19,6 +19,7 @@ import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonit
 import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IPty, IPtyForkOptions, IWindowsPtyForkOptions, spawn } from 'node-pty';
+import { chunkInput } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum ShutdownConstants {
 	/**
@@ -54,14 +55,6 @@ const enum Constants {
 	 * interval.
 	 */
 	KillSpawnSpacingDuration = 50,
-
-	/**
-	 * Writing large amounts of data can be corrupted for some reason, after looking into this is
-	 * appears to be a race condition around writing to the FD which may be based on how powerful
-	 * the hardware is. The workaround for this is to space out when large amounts of data is being
-	 * written to the terminal. See https://github.com/microsoft/vscode/issues/38137
-	 */
-	WriteMaxChunkSize = 50,
 	/**
 	 * How long to wait between chunk writes.
 	 */
@@ -437,17 +430,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	input(data: string, isBinary?: boolean): void {
+	input(data: string, isBinary: boolean = false): void {
 		if (this._store.isDisposed || !this._ptyProcess) {
 			return;
 		}
-		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
-			const obj = {
-				isBinary: isBinary || false,
-				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
-			};
-			this._writeQueue.push(obj);
-		}
+		this._writeQueue.push(...chunkInput(data).map(e => {
+			return { isBinary, data: e };
+		}));
 		this._startWrite();
 	}
 

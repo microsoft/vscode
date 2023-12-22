@@ -316,8 +316,10 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 /**
  * Sticky scroll
  */
-export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: editorBackground, dark: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorStickyScrollBackground', "Sticky scroll background color for the editor"));
-export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) }, nls.localize('editorStickyScrollHoverBackground', "Sticky scroll on hover background color for the editor"));
+export const editorStickyScrollBackground = registerColor('editorStickyScroll.background', { light: editorBackground, dark: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorStickyScrollBackground', "Background color of sticky scroll in the editor"));
+export const editorStickyScrollHoverBackground = registerColor('editorStickyScrollHover.background', { dark: '#2A2D2E', light: '#F0F0F0', hcDark: null, hcLight: Color.fromHex('#0F4A85').transparent(0.1) }, nls.localize('editorStickyScrollHoverBackground', "Background color of sticky scroll on hover in the editor"));
+export const editorStickyScrollBorder = registerColor('editorStickyScroll.border', { dark: null, light: null, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorStickyScrollBorder', "Border color of sticky scroll in the editor"));
+export const editorStickyScrollShadow = registerColor('editorStickyScroll.shadow', { dark: scrollbarShadow, light: scrollbarShadow, hcDark: scrollbarShadow, hcLight: scrollbarShadow }, nls.localize('editorStickyScrollShadow', " Shadow color of sticky scroll in the editor"));
 
 /**
  * Editor widgets
@@ -405,7 +407,7 @@ export const editorInlayHintParameterBackground = registerColor('editorInlayHint
  */
 export const editorLightBulbForeground = registerColor('editorLightBulb.foreground', { dark: '#FFCC00', light: '#DDB100', hcDark: '#FFCC00', hcLight: '#007ACC' }, nls.localize('editorLightBulbForeground', "The color used for the lightbulb actions icon."));
 export const editorLightBulbAutoFixForeground = registerColor('editorLightBulbAutoFix.foreground', { dark: '#75BEFF', light: '#007ACC', hcDark: '#75BEFF', hcLight: '#007ACC' }, nls.localize('editorLightBulbAutoFixForeground', "The color used for the lightbulb auto fix actions icon."));
-export const editorLightBulbAiForeground = registerColor('editorLightBulbAi.foreground', { dark: darken(iconForeground, 0.4), light: lighten(iconForeground, 1), hcDark: iconForeground, hcLight: iconForeground }, nls.localize('editorLightBulbAiForeground', "The color used for the lightbulb AI icon."));
+export const editorLightBulbAiForeground = registerColor('editorLightBulbAi.foreground', { dark: editorLightBulbForeground, light: editorLightBulbForeground, hcDark: editorLightBulbForeground, hcLight: editorLightBulbForeground }, nls.localize('editorLightBulbAiForeground', "The color used for the lightbulb AI icon."));
 
 /**
  * Diff Editor Colors

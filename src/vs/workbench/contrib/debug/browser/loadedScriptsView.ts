@@ -571,7 +571,7 @@ export class LoadedScriptsView extends ViewPane {
 		this._register(this.debugService.onDidNewSession(registerSessionListeners));
 		this.debugService.getModel().getSessions().forEach(registerSessionListeners);
 
-		this._register(this.debugService.onDidEndSession(session => {
+		this._register(this.debugService.onDidEndSession(({ session }) => {
 			root.remove(session.getId());
 			this.changeScheduler.schedule();
 		}));

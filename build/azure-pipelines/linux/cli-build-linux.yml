@@ -39,13 +39,45 @@ steps:
       tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
     displayName: Extract openssl prebuilt
 
-  - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-    - bash: sudo apt-get install -yq gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
-      displayName: Install arm32 toolchains
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
+    - script: node build/setup-npm-registry.js $NPM_REGISTRY
+      condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+      displayName: Setup NPM Registry
 
-  - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-    - bash: sudo apt-get install -yq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
-      displayName: Install arm64 toolchains
+    - script: |
+        set -e
+        npm config set registry "$NPM_REGISTRY" --location=project
+        # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+        # following is a workaround for yarn to send authorization header
+        # for GET requests to the registry.
+        echo "always-auth=true" >> .npmrc
+        yarn config set registry "$NPM_REGISTRY"
+      condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+      displayName: Setup NPM & Yarn
+
+    - task: npmAuthenticate@0
+      inputs:
+        workingFile: .npmrc
+      condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+      displayName: Setup NPM Authentication
+
+  - script: |
+      set -e
+
+      for i in {1..5}; do # try 5 times
+        yarn --cwd build --frozen-lockfile --check-files && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    displayName: Install build dependencies
+
+  - script: |
+      set -e
+      mkdir -p $(Build.SourcesDirectory)/.build
+    displayName: Create .build folder for misc dependencies
 
   - template: ../cli/install-rust-posix.yml
     parameters:
@@ -65,9 +97,9 @@ steps:
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
         VSCODE_CLI_ENV:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
+          SYSROOT_ARCH: arm64
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -79,6 +111,7 @@ steps:
         VSCODE_CLI_ENV:
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
+          SYSROOT_ARCH: amd64
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
     - template: ../cli/cli-compile-and-publish.yml
@@ -88,6 +121,6 @@ steps:
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
         VSCODE_CLI_ENV:
-          CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
+          SYSROOT_ARCH: armhf

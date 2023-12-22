@@ -312,7 +312,7 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 	}
 }
 
-export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>{
+export class NotebookFileWorkingCopyModelFactory implements IStoredFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel>, IUntitledFileWorkingCopyModelFactory<NotebookFileWorkingCopyModel> {
 
 	constructor(
 		private readonly _viewType: string,
