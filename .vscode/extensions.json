@@ -8,6 +8,9 @@
 		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.vscode-selfhost-test-provider",
 		"ms-vscode.extension-test-runner",
-		"jrieken.vscode-pr-pinger"
+		"jrieken.vscode-pr-pinger",
+		"ms-vscode.cpptools-themes",
+		"ms-vscode.atom-keybindings",
+		"ms-vscode-remote.remote-containers"
 	]
 }
