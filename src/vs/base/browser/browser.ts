@@ -13,27 +13,33 @@ class WindowManager {
 
 	// --- Zoom Level
 
-	private _zoomLevel: number = 0;
+	private readonly mapWindowIdToZoomLevel = new Map<number, number>();
 
-	getZoomLevel(): number {
-		return this._zoomLevel;
+	private readonly _onDidChangeZoomLevel = new Emitter<number>();
+	readonly onDidChangeZoomLevel = this._onDidChangeZoomLevel.event;
+
+	getZoomLevel(targetWindow: Window): number {
+		return this.mapWindowIdToZoomLevel.get(this.getWindowId(targetWindow)) ?? 0;
 	}
-	setZoomLevel(zoomLevel: number): void {
-		if (this._zoomLevel === zoomLevel) {
+	setZoomLevel(zoomLevel: number, targetWindow: Window): void {
+		if (this.getZoomLevel(targetWindow) === zoomLevel) {
 			return;
 		}
-		this._zoomLevel = zoomLevel;
+
+		const targetWindowId = this.getWindowId(targetWindow);
+		this.mapWindowIdToZoomLevel.set(targetWindowId, zoomLevel);
+		this._onDidChangeZoomLevel.fire(targetWindowId);
 	}
 
 	// --- Zoom Factor
 
-	private _zoomFactor: number = 1;
+	private readonly mapWindowIdToZoomFactor = new Map<number, number>();
 
-	getZoomFactor(): number {
-		return this._zoomFactor;
+	getZoomFactor(targetWindow: Window): number {
+		return this.mapWindowIdToZoomFactor.get(this.getWindowId(targetWindow)) ?? 1;
 	}
-	setZoomFactor(zoomFactor: number): void {
-		this._zoomFactor = zoomFactor;
+	setZoomFactor(zoomFactor: number, targetWindow: Window): void {
+		this.mapWindowIdToZoomFactor.set(this.getWindowId(targetWindow), zoomFactor);
 	}
 
 	// --- Fullscreen
@@ -169,19 +175,20 @@ export function addMatchMediaChangeListener(query: string | MediaQueryList, call
 export const PixelRatio = new PixelRatioFacade();
 
 /** A zoom index, e.g. 1, 2, 3 */
-export function setZoomLevel(zoomLevel: number): void {
-	WindowManager.INSTANCE.setZoomLevel(zoomLevel);
+export function setZoomLevel(zoomLevel: number, targetWindow: Window): void {
+	WindowManager.INSTANCE.setZoomLevel(zoomLevel, targetWindow);
 }
-export function getZoomLevel(): number {
-	return WindowManager.INSTANCE.getZoomLevel();
+export function getZoomLevel(targetWindow: Window): number {
+	return WindowManager.INSTANCE.getZoomLevel(targetWindow);
 }
+export const onDidChangeZoomLevel = WindowManager.INSTANCE.onDidChangeZoomLevel;
 
 /** The zoom scale for an index, e.g. 1, 1.2, 1.4 */
-export function getZoomFactor(): number {
-	return WindowManager.INSTANCE.getZoomFactor();
+export function getZoomFactor(targetWindow: Window): number {
+	return WindowManager.INSTANCE.getZoomFactor(targetWindow);
 }
-export function setZoomFactor(zoomFactor: number): void {
-	WindowManager.INSTANCE.setZoomFactor(zoomFactor);
+export function setZoomFactor(zoomFactor: number, targetWindow: Window): void {
+	WindowManager.INSTANCE.setZoomFactor(zoomFactor, targetWindow);
 }
 
 export function setFullscreen(fullscreen: boolean, targetWindow: Window): void {

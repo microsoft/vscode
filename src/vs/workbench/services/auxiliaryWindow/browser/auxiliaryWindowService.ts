@@ -32,6 +32,7 @@ export interface IAuxiliaryWindowOpenEvent {
 
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+	readonly zoomLevel?: number;
 }
 
 export interface IAuxiliaryWindowService {
@@ -191,7 +192,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		ensureCodeWindow(targetWindow, resolvedWindowId);
 
 		const containerDisposables = new DisposableStore();
-		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables);
+		const { container, stylesLoaded } = this.createContainer(targetWindow, containerDisposables, options);
 
 		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container, stylesLoaded);
 
@@ -283,7 +284,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
 	}
 
-	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore): { stylesLoaded: Barrier; container: HTMLElement } {
+	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions): { stylesLoaded: Barrier; container: HTMLElement } {
 		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
