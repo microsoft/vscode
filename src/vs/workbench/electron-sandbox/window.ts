@@ -7,17 +7,17 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindowId } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindowId, getWindows } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
+import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, IWindowSettings } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
+import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { setFullscreen, getZoomLevel, onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -339,6 +339,22 @@ export class NativeWindow extends BaseWindow {
 			}
 		}));
 
+		this._register(onDidChangeZoomLevel(targetWindowId => {
+			if (targetWindowId !== mainWindow.vscodeWindowId) {
+				return; // only update our own window
+			}
+
+			const configuredWindowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel;
+			const currentWindowZoomLevel = getZoomLevel(mainWindow);
+
+			let notifyZoomLevel: number | undefined = undefined;
+			if (configuredWindowZoomLevel !== currentWindowZoomLevel) {
+				notifyZoomLevel = currentWindowZoomLevel;
+			}
+
+			ipcRenderer.invoke('vscode:notifyZoomLevel', notifyZoomLevel);
+		}));
+
 		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
 		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
 
@@ -626,8 +642,16 @@ export class NativeWindow extends BaseWindow {
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 
-		if (getZoomLevel() !== windowZoomLevel) {
-			applyZoom(windowZoomLevel);
+		let applyZoomLevel = false;
+		for (const { window } of getWindows()) {
+			if (getZoomLevel(window) !== windowZoomLevel) {
+				applyZoomLevel = true;
+				break;
+			}
+		}
+
+		if (applyZoomLevel) {
+			applyZoom(windowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
 		}
 	}
 

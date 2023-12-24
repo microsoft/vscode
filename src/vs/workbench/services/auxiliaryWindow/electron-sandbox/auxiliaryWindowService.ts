@@ -5,7 +5,7 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
@@ -21,6 +21,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -81,12 +82,18 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		return windowId;
 	}
 
-	protected override createContainer(auxiliaryWindow: NativeCodeWindow, disposables: DisposableStore) {
+	protected override createContainer(auxiliaryWindow: NativeCodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions) {
 
 		// Zoom level
-		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
-		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
+		let windowZoomLevel: number;
+		if (typeof options?.zoomLevel === 'number') {
+			windowZoomLevel = options.zoomLevel;
+		} else {
+			const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
+			windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+		}
+
+		applyZoom(windowZoomLevel, auxiliaryWindow);
 
 		return super.createContainer(auxiliaryWindow, disposables);
 	}

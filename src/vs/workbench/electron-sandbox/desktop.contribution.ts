@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
+import { ZoomResetAllWindowsAction, ZoomOutAllWindowsAction, ZoomInAllWindowsAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ZoomInActiveWindowAction, ZoomOutActiveWindowAction, ZoomResetActiveWindowAction } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -32,9 +32,13 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 (function registerActions(): void {
 
 	// Actions: Zoom
-	registerAction2(ZoomInAction);
-	registerAction2(ZoomOutAction);
-	registerAction2(ZoomResetAction);
+	registerAction2(ZoomInAllWindowsAction);
+	registerAction2(ZoomOutAllWindowsAction);
+	registerAction2(ZoomResetAllWindowsAction);
+
+	registerAction2(ZoomInActiveWindowAction);
+	registerAction2(ZoomOutActiveWindowAction);
+	registerAction2(ZoomResetActiveWindowAction);
 
 	// Actions: Window
 	registerAction2(SwitchWindowAction);
