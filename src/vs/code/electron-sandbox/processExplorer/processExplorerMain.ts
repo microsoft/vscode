@@ -288,12 +288,12 @@ class ProcessExplorer {
 
 			// Cmd/Ctrl + zooms in
 			if (cmdOrCtrlKey && e.keyCode === 187) {
-				zoomIn();
+				zoomIn(mainWindow);
 			}
 
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
-				zoomOut();
+				zoomOut(mainWindow);
 			}
 		};
 	}
@@ -595,7 +595,7 @@ export function startup(configuration: ProcessExplorerWindowConfiguration): void
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
 	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 	createCodiconStyleSheet();
-	applyZoom(configuration.data.zoomLevel);
+	applyZoom(configuration.data.zoomLevel, mainWindow);
 
 	new ProcessExplorer(configuration.windowId, configuration.data);
 }

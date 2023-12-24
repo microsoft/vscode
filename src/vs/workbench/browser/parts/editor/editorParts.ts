@@ -20,6 +20,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IRectangle } from 'vs/platform/window/common/window';
 import { getWindow } from 'vs/base/browser/dom';
+import { getZoomLevel } from 'vs/base/browser/browser';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -29,6 +30,7 @@ interface IEditorPartsUIState {
 interface IAuxiliaryEditorPartState {
 	readonly state: IEditorPartUIState;
 	readonly bounds?: IRectangle;
+	readonly zoomLevel?: number;
 }
 
 export class EditorParts extends MultiWindowParts<EditorPart> implements IEditorGroupsService, IEditorPartsView {
@@ -210,7 +212,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 				for (const auxiliaryEditorPartState of uiState.auxiliary) {
 					auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
 						bounds: auxiliaryEditorPartState.bounds,
-						state: auxiliaryEditorPartState.state
+						state: auxiliaryEditorPartState.state,
+						zoomLevel: auxiliaryEditorPartState.zoomLevel
 					}));
 				}
 
@@ -254,6 +257,14 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 								width: auxiliaryWindow.outerWidth,
 								height: auxiliaryWindow.outerHeight
 							};
+						}
+
+						return undefined;
+					})(),
+					zoomLevel: (() => {
+						const auxiliaryWindow = getWindow(part.getContainer());
+						if (auxiliaryWindow) {
+							return getZoomLevel(auxiliaryWindow);
 						}
 
 						return undefined;
