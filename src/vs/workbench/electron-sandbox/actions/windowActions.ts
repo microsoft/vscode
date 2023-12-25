@@ -23,7 +23,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
 import { getActiveWindow } from 'vs/base/browser/dom';
@@ -194,7 +194,12 @@ export class ZoomInActiveWindowAction extends BaseZoomAction {
 				original: 'Zoom In (Active Window)'
 			},
 			category: Categories.View,
-			f1: true
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Equal),
+				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Equal), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.NumpadAdd)]
+			}
 		});
 	}
 
@@ -213,7 +218,16 @@ export class ZoomOutActiveWindowAction extends BaseZoomAction {
 				original: 'Zoom Out (Active Window)'
 			},
 			category: Categories.View,
-			f1: true
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Minus),
+				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus), KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.NumpadSubtract)],
+				linux: {
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Minus),
+					secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.NumpadSubtract)]
+				}
+			}
 		});
 	}
 
@@ -232,7 +246,11 @@ export class ZoomResetActiveWindowAction extends BaseZoomAction {
 				original: 'Reset Zoom (Active Window)'
 			},
 			category: Categories.View,
-			f1: true
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.Numpad0)
+			}
 		});
 	}
 
