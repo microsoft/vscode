@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $window, CodeWindow } from 'vs/base/browser/window';
+import { $window, CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 
@@ -158,9 +158,9 @@ class PixelRatioFacade {
 	}
 }
 
-export function addMatchMediaChangeListener(query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+export function addMatchMediaChangeListener(targetWindow: Window, query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
 	if (typeof query === 'string') {
-		query = $window.matchMedia(query);
+		query = targetWindow.matchMedia(query);
 	}
 	query.addEventListener('change', callback);
 }
@@ -210,11 +210,11 @@ export const isElectron = (userAgent.indexOf('Electron/') >= 0);
 export const isAndroid = (userAgent.indexOf('Android') >= 0);
 
 let standalone = false;
-if ($window.matchMedia) {
-	const standaloneMatchMedia = $window.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
-	const fullScreenMatchMedia = $window.matchMedia('(display-mode: fullscreen)');
+if (typeof mainWindow.matchMedia === 'function') {
+	const standaloneMatchMedia = mainWindow.matchMedia('(display-mode: standalone) or (display-mode: window-controls-overlay)');
+	const fullScreenMatchMedia = mainWindow.matchMedia('(display-mode: fullscreen)');
 	standalone = standaloneMatchMedia.matches;
-	addMatchMediaChangeListener(standaloneMatchMedia, ({ matches }) => {
+	addMatchMediaChangeListener(mainWindow, standaloneMatchMedia, ({ matches }) => {
 		// entering fullscreen would change standaloneMatchMedia.matches to false
 		// if standalone is true (running as PWA) and entering fullscreen, skip this change
 		if (standalone && fullScreenMatchMedia.matches) {
