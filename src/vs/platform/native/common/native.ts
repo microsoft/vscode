@@ -53,6 +53,8 @@ export interface ICommonNativeHostService {
 	readonly onDidFocusMainWindow: Event<number>;
 	readonly onDidBlurMainWindow: Event<number>;
 
+	readonly onDidChangeWindowFullScreen: Event<number>;
+
 	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 

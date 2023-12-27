@@ -6,9 +6,9 @@
 .monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor,
 .monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor .margin,
 .monaco-workbench .part.panel > .content .pane-body.output-view .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-outputEditor-background);
+	background-color: var(--vscode-outputView-background);
 }
 
 .monaco-workbench .part.panel > .content .pane-body.output-view .sticky-widget {
-	background-color: var(--vscode-outputEditorStickyScroll-background, var(--vscode-panel-background));
+	background-color: var(--vscode-outputViewStickyScroll-background, var(--vscode-panel-background));
 }

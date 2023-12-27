@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -1148,7 +1148,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	}
 
 	shouldAllowFocus(node: ITreeNode<T, TFilterData>): boolean {
-		if (!this.widget || !this.pattern || this._mode === TreeFindMode.Filter) {
+		if (!this.widget || !this.pattern) {
 			return true;
 		}
 
@@ -2357,14 +2357,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			return this.view.setAnchor(undefined);
 		}
 
-		const node = this.model.getNode(element);
-		this.anchor.set([node]);
+		this.eventBufferer.bufferEvents(() => {
+			const node = this.model.getNode(element);
+			this.anchor.set([node]);
 
-		const index = this.model.getListIndex(element);
+			const index = this.model.getListIndex(element);
 
-		if (index > -1) {
-			this.view.setAnchor(index, true);
-		}
+			if (index > -1) {
+				this.view.setAnchor(index, true);
+			}
+		});
 	}
 
 	getAnchor(): T | undefined {
@@ -2372,11 +2374,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	setSelection(elements: TRef[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.model.getNode(e));
-		this.selection.set(nodes, browserEvent);
+		this.eventBufferer.bufferEvents(() => {
+			const nodes = elements.map(e => this.model.getNode(e));
+			this.selection.set(nodes, browserEvent);
 
-		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
-		this.view.setSelection(indexes, browserEvent, true);
+			const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
+			this.view.setSelection(indexes, browserEvent, true);
+		});
 	}
 
 	getSelection(): T[] {
@@ -2384,34 +2388,36 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	setFocus(elements: TRef[], browserEvent?: UIEvent): void {
-		const nodes = elements.map(e => this.model.getNode(e));
-		this.focus.set(nodes, browserEvent);
+		this.eventBufferer.bufferEvents(() => {
+			const nodes = elements.map(e => this.model.getNode(e));
+			this.focus.set(nodes, browserEvent);
 
-		const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
-		this.view.setFocus(indexes, browserEvent, true);
+			const indexes = elements.map(e => this.model.getListIndex(e)).filter(i => i > -1);
+			this.view.setFocus(indexes, browserEvent, true);
+		});
 	}
 
-	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusNext(n = 1, loop = false, browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusNext(n, loop, browserEvent, filter);
 	}
 
-	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusPrevious(n = 1, loop = false, browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusPrevious(n, loop, browserEvent, filter);
 	}
 
-	focusNextPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
+	focusNextPage(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
 		return this.view.focusNextPage(browserEvent, filter);
 	}
 
-	focusPreviousPage(browserEvent?: UIEvent, filter = this.focusNavigationFilter): Promise<void> {
+	focusPreviousPage(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): Promise<void> {
 		return this.view.focusPreviousPage(browserEvent, filter);
 	}
 
-	focusLast(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusLast(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusLast(browserEvent, filter);
 	}
 
-	focusFirst(browserEvent?: UIEvent, filter = this.focusNavigationFilter): void {
+	focusFirst(browserEvent?: UIEvent, filter = (isKeyboardEvent(browserEvent) && browserEvent.altKey) ? undefined : this.focusNavigationFilter): void {
 		this.view.focusFirst(browserEvent, filter);
 	}
 

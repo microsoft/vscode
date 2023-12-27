@@ -449,6 +449,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly hasRestorableState: boolean;
 
 	/**
+	 * Find out if an editor group is currently maximized.
+	 */
+	hasMaximizedGroup(): boolean;
+
+	/**
 	 * Enable or disable centered editor layout.
 	 */
 	centerLayout(active: boolean): void;

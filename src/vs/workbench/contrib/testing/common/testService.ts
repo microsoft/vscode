@@ -180,6 +180,40 @@ export const testsInFile = async function* (testService: ITestService, ident: IU
 };
 
 /**
+ * Iterator that iterates to the top-level children of tests under the given
+ * the URI.
+ */
+export const testsUnderUri = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true): AsyncIterable<IncrementalTestCollectionItem> {
+
+	const queue = [testService.collection.rootIds];
+	while (queue.length) {
+		for (const testId of queue.pop()!) {
+			const test = testService.collection.getNodeById(testId);
+
+			// Expand tests with URIs that are parent of the item, add tests
+			// that are within the URI. Don't add their children, since those
+			// tests already encompass their children.
+			if (!test) {
+				// no-op
+			} else if (!test.item.uri) {
+				queue.push(test.children.values());
+				continue;
+			} else if (ident.extUri.isEqualOrParent(uri, test.item.uri!)) {
+				if (test.expand === TestItemExpandState.Expandable) {
+					await testService.collection.expand(test.item.extId, 1);
+				}
+				if (waitForIdle) {
+					await waitForTestToBeIdle(testService, test);
+				}
+				queue.push(test.children.values());
+			} else if (ident.extUri.isEqualOrParent(test.item.uri!, uri)) {
+				yield test;
+			}
+		}
+	}
+};
+
+/**
  * An instance of the RootProvider should be registered for each extension
  * host.
  */

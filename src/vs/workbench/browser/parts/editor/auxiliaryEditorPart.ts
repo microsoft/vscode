@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, show } from 'vs/base/browser/dom';
+import { detectFullscreen, hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -39,7 +39,8 @@ export class AuxiliaryEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ITitleService private readonly titleService: ITitleService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IHostService private readonly hostService: IHostService
 	) {
 	}
 
@@ -52,7 +53,7 @@ export class AuxiliaryEditorPart {
 				editorPartHeightOffset += statusbarPart.height;
 			}
 
-			if (titlebarPart) {
+			if (titlebarPart && titlebarPartVisible) {
 				editorPartHeightOffset += titlebarPart.height;
 			}
 
@@ -95,10 +96,31 @@ export class AuxiliaryEditorPart {
 
 		// Titlebar
 		let titlebarPart: IAuxiliaryTitlebarPart | undefined = undefined;
+		let titlebarPartVisible = false;
 		const useCustomTitle = isNative && getTitleBarStyle(this.configurationService) === 'custom'; // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
+			titlebarPartVisible = true;
+
 			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
+
+			disposables.add(this.hostService.onDidChangeFullScreen(windowId => {
+				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
+					return; // ignore all but our window
+				}
+
+				// Make sure to hide the custom title when we enter
+				// fullscren mode and show it when we lave it.
+
+				const fullscreen = detectFullscreen(auxiliaryWindow.window);
+				const oldTitlebarPartVisible = titlebarPartVisible;
+				titlebarPartVisible = !fullscreen;
+				if (titlebarPart && oldTitlebarPartVisible !== titlebarPartVisible) {
+					titlebarPart.container.style.display = titlebarPartVisible ? '' : 'none';
+
+					updateEditorPartHeight(true);
+				}
+			}));
 		} else {
 			disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 		}
@@ -132,9 +154,7 @@ export class AuxiliaryEditorPart {
 		// Layout
 		disposables.add(auxiliaryWindow.onDidLayout(dimension => {
 			const titlebarPartHeight = titlebarPart?.height ?? 0;
-			if (titlebarPart) {
-				titlebarPart.layout(dimension.width, titlebarPartHeight, 0, 0);
-			}
+			titlebarPart?.layout(dimension.width, titlebarPartHeight, 0, 0);
 
 			const editorPartHeight = dimension.height - computeEditorPartHeightOffset();
 			editorPart.layout(dimension.width, editorPartHeight, titlebarPartHeight, 0);

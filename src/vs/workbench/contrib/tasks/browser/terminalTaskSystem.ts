@@ -960,6 +960,15 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 			}
 
+			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
+			const mapKey = task.getMapKey();
+			this._busyTasks[mapKey] = task;
+			this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
+
+			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
+			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
+			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
+
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
@@ -969,13 +978,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}, (_error) => {
 				// The process never got ready. Need to think how to handle this.
 			});
-			this._fireTaskEvent(TaskEvent.start(task, terminal.instanceId, resolver.values));
-			const mapKey = task.getMapKey();
-			this._busyTasks[mapKey] = task;
-			this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
-			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
-			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
+
 			const onData = terminal.onLineData((line) => {
 				startStopProblemMatcher.processLine(line);
 			});
@@ -1177,7 +1180,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
-					const folder = cwd ? path.posix.basename(cwd.toString()) : workspaceFolder.name;
+					const folder = cwd && typeof cwd === 'object' && 'path' in cwd ? path.basename(cwd.path) : workspaceFolder.name;
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
