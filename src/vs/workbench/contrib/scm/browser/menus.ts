@@ -157,12 +157,8 @@ class SCMMenusItem implements IDisposable {
 
 export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
-	private contextKeyService: IContextKeyService;
-
 	readonly titleMenu: SCMTitleMenu;
 	readonly repositoryMenu: IMenu;
-
-	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
 	private _repositoryContextMenu: IMenu | undefined;
 	get repositoryContextMenu(): IMenu {
@@ -177,19 +173,22 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private _historyProviderMenu: SCMHistoryProviderMenus | undefined;
 	get historyProviderMenu(): SCMHistoryProviderMenus | undefined {
 		if (this.provider.historyProvider && !this._historyProviderMenu) {
-			this._historyProviderMenu = this.instantiationService.createInstance(SCMHistoryProviderMenus);
+			this._historyProviderMenu = new SCMHistoryProviderMenus(this.contextKeyService, this.menuService);
 			this.disposables.add(this._historyProviderMenu);
 		}
 
 		return this._historyProviderMenu;
 	}
 
+	private readonly contextKeyService: IContextKeyService;
+	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
+
 	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private readonly provider: ISCMProvider,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		this.contextKeyService = contextKeyService.createOverlay([
@@ -254,12 +253,29 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
+	private readonly historyItemGroupMenus = new Map<MenuId, IMenu>();
 	private readonly historyItemMenus = new Map<ISCMHistoryItem, IMenu>();
+
 	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService) { }
+
+	getHistoryItemGroupMenu(menuId: MenuId): IMenu {
+		return this.getOrCreateHistoryItemGroupMenu(menuId);
+	}
+
+	private getOrCreateHistoryItemGroupMenu(menuId: MenuId): IMenu {
+		let result = this.historyItemGroupMenus.get(menuId);
+
+		if (!result) {
+			result = this.menuService.createMenu(menuId, this.contextKeyService);
+			this.historyItemGroupMenus.set(menuId, result);
+		}
+
+		return result;
+	}
 
 	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu {
 		return this.getOrCreateHistoryItemMenu(historyItem);

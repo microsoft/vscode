@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -761,31 +761,62 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 }
 
+class HistoryItemGroupActionRunner extends ActionRunner {
+
+	protected override runAction(action: IAction, context?: unknown): Promise<void> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		if (!isSCMHistoryItemGroupTreeElement(context)) {
+			return super.runAction(action, context);
+		}
+
+		return action.run(context.repository.provider, context.id);
+	}
+}
+
 interface HistoryItemGroupTemplate {
 	readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
+	readonly toolBar: WorkbenchToolBar;
 	readonly count: CountBadge;
-	readonly disposables: IDisposable;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
-class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryItemGroupTreeElement, void, HistoryItemGroupTemplate> {
+abstract class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryItemGroupTreeElement, void, HistoryItemGroupTemplate> {
 
-	static readonly TEMPLATE_ID = 'history-item-group';
-	get templateId(): string { return HistoryItemGroupRenderer.TEMPLATE_ID; }
+	abstract get templateId(): string;
+
+	constructor(
+		private readonly toolBarMenuId: MenuId,
+		readonly actionRunner: ActionRunner,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IKeybindingService	readonly keybindingService: IKeybindingService,
+		@IMenuService readonly menuService: IMenuService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@ITelemetryService readonly telemetryService: ITelemetryService
+	) { }
 
 	renderTemplate(container: HTMLElement) {
 		// hack
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
+		const templateDisposables = new DisposableStore();
 		const element = append(container, $('.history-item-group'));
 
 		const label = new IconLabel(element, { supportIcons: true });
 		const iconContainer = prepend(label.element, $('.icon-container'));
 
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionRunner: this.actionRunner, menuOptions: { shouldForwardArgs: true }, resetMenu: this.toolBarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		templateDisposables.add(toolBar);
+
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 
-		return { iconContainer, label, count, disposables: new DisposableStore() };
+		return { iconContainer, label, toolBar, count, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemGroupTreeElement>, index: number, templateData: HistoryItemGroupTemplate, height: number | undefined): void {
@@ -798,13 +829,69 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 
 		templateData.label.setLabel(historyItemGroup.label, historyItemGroup.description, { title: historyItemGroup.ariaLabel });
 		templateData.count.setCount(historyItemGroup.count ?? 0);
+
+		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(historyItemGroup.repository.provider);
+		const historyItemGroupMenu = repositoryMenus.historyProviderMenu?.getHistoryItemGroupMenu(this.toolBarMenuId);
+
+		if (historyItemGroupMenu) {
+			templateData.elementDisposables.add(connectPrimaryMenu(historyItemGroupMenu, (primary, secondary) => {
+				templateData.toolBar.setActions(primary, secondary);
+			}));
+
+			templateData.toolBar.context = historyItemGroup;
+		} else {
+			templateData.toolBar.setActions([], []);
+			templateData.toolBar.context = undefined;
+		}
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemGroupTreeElement>, void>, index: number, templateData: HistoryItemGroupTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
+
+	disposeElement(node: ITreeNode<SCMHistoryItemGroupTreeElement>, index: number, templateData: HistoryItemGroupTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+	}
+
 	disposeTemplate(templateData: HistoryItemGroupTemplate): void {
-		templateData.disposables.dispose();
+		templateData.elementDisposables.dispose();
+		templateData.templateDisposables.dispose();
+	}
+}
+
+class IncomingHistoryItemGroupRenderer extends HistoryItemGroupRenderer {
+
+	static readonly TEMPLATE_ID = 'history-item-group-incoming';
+	get templateId(): string { return IncomingHistoryItemGroupRenderer.TEMPLATE_ID; }
+
+	constructor(
+		actionRunner: ActionRunner,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IMenuService menuService: IMenuService,
+		@ISCMViewService scmViewService: ISCMViewService,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
+		super(MenuId.SCMIncomingChanges, actionRunner, contextKeyService, contextMenuService, keybindingService, menuService, scmViewService, telemetryService);
+	}
+}
+
+class OutgoingHistoryItemGroupRenderer extends HistoryItemGroupRenderer {
+
+	static readonly TEMPLATE_ID = 'history-item-group-outgoing';
+	get templateId(): string { return OutgoingHistoryItemGroupRenderer.TEMPLATE_ID; }
+
+	constructor(
+		actionRunner: ActionRunner,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IMenuService menuService: IMenuService,
+		@ISCMViewService scmViewService: ISCMViewService,
+		@ITelemetryService telemetryService: ITelemetryService
+	) {
+		super(MenuId.SCMOutgoingChanges, actionRunner, contextKeyService, contextMenuService, keybindingService, menuService, scmViewService, telemetryService);
 	}
 }
 
@@ -1031,8 +1118,10 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return ResourceGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMResource(element) || isSCMResourceNode(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
-		} else if (isSCMHistoryItemGroupTreeElement(element)) {
-			return HistoryItemGroupRenderer.TEMPLATE_ID;
+		} else if (isSCMHistoryItemGroupTreeElement(element) && element.direction === 'incoming') {
+			return IncomingHistoryItemGroupRenderer.TEMPLATE_ID;
+		} else if (isSCMHistoryItemGroupTreeElement(element) && element.direction === 'outgoing') {
+			return OutgoingHistoryItemGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return HistoryItemRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
@@ -2736,6 +2825,10 @@ export class SCMViewPane extends ViewPane {
 		actionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(actionRunner);
 
+		const historyItemGroupActionRunner = new HistoryItemGroupActionRunner();
+		historyItemGroupActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
+		this.disposables.add(historyItemGroupActionRunner);
+
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showIncomingChanges, () => this.showOutgoingChanges);
 		this.disposables.add(treeDataSource);
 
@@ -2751,7 +2844,8 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner),
-				this.instantiationService.createInstance(HistoryItemGroupRenderer),
+				this.instantiationService.createInstance(IncomingHistoryItemGroupRenderer, historyItemGroupActionRunner),
+				this.instantiationService.createInstance(OutgoingHistoryItemGroupRenderer, historyItemGroupActionRunner),
 				this.instantiationService.createInstance(HistoryItemRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)

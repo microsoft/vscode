@@ -6,10 +6,11 @@
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
+	getHistoryItemGroupMenu(menuId: MenuId): IMenu;
 	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
 }
 
@@ -57,6 +58,7 @@ export interface ISCMHistoryItemGroupDetails {
 export interface ISCMHistoryItemGroupEntry {
 	readonly id: string;
 	readonly label: string;
+	readonly direction: 'incoming' | 'outgoing';
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly description?: string;
 	readonly ancestor?: string;
