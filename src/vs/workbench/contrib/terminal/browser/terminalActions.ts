@@ -366,6 +366,14 @@ export function registerTerminalActions() {
 		runAfter: (instances) => instances.at(-1)?.focus()
 	});
 
+	registerContextualInstanceAction({
+		id: TerminalCommandId.MoveIntoNewWindow,
+		title: terminalStrings.moveIntoNewWindow,
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
+		run: (instance, c) => c.service.moveIntoNewEditor(instance),
+		runAfter: (instances) => instances.at(-1)?.focus()
+	});
+
 	registerTerminalAction({
 		id: TerminalCommandId.MoveToTerminalPanel,
 		title: terminalStrings.moveToTerminalPanel,
@@ -854,12 +862,18 @@ export function registerTerminalActions() {
 		},
 		precondition: sharedWhenClause.terminalAvailable_and_singularSelection,
 		run: async (c, accessor) => {
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const notificationService = accessor.get(INotificationService);
 			const instances = getSelectedInstances(accessor);
 			const firstInstance = instances?.[0];
 			if (!firstInstance) {
 				return;
 			}
+
+			if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
+				return renameWithQuickPick(c, accessor, firstInstance);
+			}
+
 			c.service.setEditingTerminal(firstInstance);
 			c.service.setEditable(firstInstance, {
 				validationMessage: value => validateTerminalName(value),

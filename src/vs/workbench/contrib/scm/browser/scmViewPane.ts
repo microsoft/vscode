@@ -93,7 +93,7 @@ import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -1894,6 +1894,115 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 }
 
+class SCMInputWidgetEditorOptions {
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
+
+	private readonly _disposables = new DisposableStore();
+
+	constructor(
+		private readonly overflowWidgetsDomNode: HTMLElement,
+		private readonly configurationService: IConfigurationService) {
+
+		const onDidChangeConfiguration = Event.filter(
+			this.configurationService.onDidChangeConfiguration,
+			e => {
+				return e.affectsConfiguration('editor.accessibilitySupport') ||
+					e.affectsConfiguration('editor.cursorBlinking') ||
+					e.affectsConfiguration('editor.fontFamily') ||
+					e.affectsConfiguration('editor.rulers') ||
+					e.affectsConfiguration('editor.wordWrap') ||
+					e.affectsConfiguration('scm.inputFontFamily') ||
+					e.affectsConfiguration('scm.inputFontSize');
+			},
+			this._disposables
+		);
+
+		this._disposables.add(onDidChangeConfiguration(() => this._onDidChange.fire()));
+	}
+
+	getEditorConstructionOptions(): IEditorConstructionOptions {
+		const fontFamily = this._getEditorFontFamily();
+		const fontSize = this._getEditorFontSize();
+		const lineHeight = this._getEditorLineHeight(fontSize);
+
+		return {
+			...getSimpleEditorOptions(this.configurationService),
+			...this._getEditorLanguageConfiguration(),
+			cursorWidth: 1,
+			dragAndDrop: true,
+			dropIntoEditor: { enabled: true },
+			fontFamily: fontFamily,
+			fontSize: fontSize,
+			formatOnType: true,
+			lineDecorationsWidth: 6,
+			lineHeight: lineHeight,
+			overflowWidgetsDomNode: this.overflowWidgetsDomNode,
+			padding: { top: 2, bottom: 2 },
+			quickSuggestions: false,
+			renderWhitespace: 'none',
+			scrollbar: {
+				alwaysConsumeMouseWheel: false,
+				vertical: 'hidden'
+			},
+			wrappingIndent: 'none',
+			wrappingStrategy: 'advanced',
+		};
+	}
+
+	getEditorOptions(): IEditorOptions {
+		const fontFamily = this._getEditorFontFamily();
+		const fontSize = this._getEditorFontSize();
+		const lineHeight = this._getEditorLineHeight(fontSize);
+		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
+		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
+
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, fontFamily, fontSize, lineHeight };
+	}
+
+	private _getEditorFontFamily(): string {
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
+
+		if (inputFontFamily.toLowerCase() === 'editor') {
+			return this.configurationService.getValue<string>('editor.fontFamily').trim();
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return inputFontFamily;
+		}
+
+		return this.defaultInputFontFamily;
+	}
+
+	private _getEditorFontSize(): number {
+		return this.configurationService.getValue<number>('scm.inputFontSize');
+	}
+
+	private _getEditorLanguageConfiguration(): IEditorOptions {
+		// editor.rulers
+		const rulersConfig = this.configurationService.inspect('editor.rulers', { overrideIdentifier: 'scminput' });
+		const rulers = rulersConfig.overrideIdentifiers?.includes('scminput') ? EditorOptions.rulers.validate(rulersConfig.value) : [];
+
+		// editor.wordWrap
+		const wordWrapConfig = this.configurationService.inspect('editor.wordWrap', { overrideIdentifier: 'scminput' });
+		const wordWrap = wordWrapConfig.overrideIdentifiers?.includes('scminput') ? EditorOptions.wordWrap.validate(wordWrapConfig) : 'on';
+
+		return { rulers, wordWrap };
+	}
+
+	private _getEditorLineHeight(fontSize: number): number {
+		return Math.round(fontSize * 1.5);
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+	}
+
+}
+
 class SCMInputWidget {
 
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
@@ -1902,13 +2011,13 @@ class SCMInputWidget {
 		[InputValidationType.Error]: 10000
 	};
 
-	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 	private readonly contextKeyService: IContextKeyService;
 
 	private element: HTMLElement;
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
-	private inputEditor: CodeEditorWidget;
+	private readonly inputEditor: CodeEditorWidget;
+	private readonly inputEditorOptions: SCMInputWidgetEditorOptions;
 	private toolbarContainer: HTMLElement;
 	private toolbar: SCMInputWidgetToolbar;
 	private readonly disposables = new DisposableStore();
@@ -2114,36 +2223,15 @@ class SCMInputWidget {
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
 		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
-		const fontFamily = this.getInputEditorFontFamily();
-		const fontSize = this.getInputEditorFontSize();
-		const lineHeight = this.computeLineHeight(fontSize);
-
-		this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
-
 		this.contextKeyService = contextKeyService.createScoped(this.element);
 		this.repositoryIdContextKey = this.contextKeyService.createKey('scmRepository', undefined);
 
-		const editorOptions: IEditorConstructionOptions = {
-			...getSimpleEditorOptions(configurationService),
-			lineDecorationsWidth: 6,
-			dragAndDrop: true,
-			cursorWidth: 1,
-			fontSize: fontSize,
-			lineHeight: lineHeight,
-			fontFamily: fontFamily,
-			wrappingStrategy: 'advanced',
-			wrappingIndent: 'none',
-			padding: { top: 2, bottom: 2 },
-			quickSuggestions: false,
-			scrollbar: {
-				alwaysConsumeMouseWheel: false,
-				vertical: 'hidden'
-			},
-			overflowWidgetsDomNode,
-			formatOnType: true,
-			renderWhitespace: 'none',
-			dropIntoEditor: { enabled: true }
-		};
+		this.inputEditorOptions = new SCMInputWidgetEditorOptions(overflowWidgetsDomNode, this.configurationService);
+		this.disposables.add(this.inputEditorOptions.onDidChange(this.onDidChangeEditorOptions, this));
+		this.disposables.add(this.inputEditorOptions);
+
+		const editorConstructionOptions = this.inputEditorOptions.getEditorConstructionOptions();
+		this.setPlaceholderFontStyles(editorConstructionOptions.fontFamily!, editorConstructionOptions.fontSize!, editorConstructionOptions.lineHeight!);
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
@@ -2167,7 +2255,7 @@ class SCMInputWidget {
 
 		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		const instantiationService2 = instantiationService.createChild(services);
-		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
+		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorConstructionOptions, codeEditorWidgetOptions);
 		this.disposables.add(this.inputEditor);
 
 		this.disposables.add(this.inputEditor.onDidFocusEditorText(() => {
@@ -2203,44 +2291,6 @@ class SCMInputWidget {
 			this.toolbarContainer.classList.toggle('scroll-decoration', e.scrollTop > 0);
 		}));
 
-		const relevantSettings = [
-			'scm.inputFontFamily',
-			'editor.fontFamily', // When `scm.inputFontFamily` is 'editor', we use it as an effective value
-			'scm.inputFontSize',
-			'editor.accessibilitySupport',
-			'editor.cursorBlinking'
-		];
-
-		const onRelevantSettingChanged = Event.filter(
-			this.configurationService.onDidChangeConfiguration,
-			(e) => {
-				for (const setting of relevantSettings) {
-					if (e.affectsConfiguration(setting)) {
-						return true;
-					}
-				}
-				return false;
-			},
-			this.disposables
-		);
-		this.disposables.add(onRelevantSettingChanged(() => {
-			const fontFamily = this.getInputEditorFontFamily();
-			const fontSize = this.getInputEditorFontSize();
-			const lineHeight = this.computeLineHeight(fontSize);
-			const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
-			const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
-
-			this.inputEditor.updateOptions({
-				fontFamily: fontFamily,
-				fontSize: fontSize,
-				lineHeight: lineHeight,
-				accessibilitySupport,
-				cursorBlinking
-			});
-
-			this.setPlaceholderFontStyles(fontFamily, fontSize, lineHeight);
-		}));
-
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(() => this.layout(), this, this.disposables);
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged, this.disposables));
@@ -2263,8 +2313,7 @@ class SCMInputWidget {
 	}
 
 	getContentHeight(): number {
-		const fontSize = this.getInputEditorFontSize();
-		const lineHeight = this.computeLineHeight(fontSize);
+		const lineHeight = this.inputEditor.getOption(EditorOption.lineHeight);
 		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
 
 		const inputMinLinesConfig = this.configurationService.getValue('scm.inputMinLineCount');
@@ -2315,6 +2364,13 @@ class SCMInputWidget {
 
 	hasFocus(): boolean {
 		return this.inputEditor.hasTextFocus();
+	}
+
+	private onDidChangeEditorOptions(): void {
+		const editorOptions = this.inputEditorOptions.getEditorOptions();
+
+		this.inputEditor.updateOptions(editorOptions);
+		this.setPlaceholderFontStyles(editorOptions.fontFamily!, editorOptions.fontSize!, editorOptions.lineHeight!);
 	}
 
 	private renderValidation(): void {
@@ -2394,24 +2450,6 @@ class SCMInputWidget {
 		});
 	}
 
-	private getInputEditorFontFamily(): string {
-		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
-
-		if (inputFontFamily.toLowerCase() === 'editor') {
-			return this.configurationService.getValue<string>('editor.fontFamily').trim();
-		}
-
-		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
-			return inputFontFamily;
-		}
-
-		return this.defaultInputFontFamily;
-	}
-
-	private getInputEditorFontSize(): number {
-		return this.configurationService.getValue<number>('scm.inputFontSize');
-	}
-
 	private getToolbarWidth(): number {
 		const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton');
 		if (!this.toolbar || !showInputActionButton || this.toolbar?.isEmpty() === true) {
@@ -2422,11 +2460,6 @@ class SCMInputWidget {
 			26 /* 22px action + 4px margin */ :
 			39 /* 35px action + 4px margin */;
 	}
-
-	private computeLineHeight(fontSize: number): number {
-		return Math.round(fontSize * 1.5);
-	}
-
 	private setPlaceholderFontStyles(fontFamily: string, fontSize: number, lineHeight: number): void {
 		this.placeholderTextContainer.style.fontFamily = fontFamily;
 		this.placeholderTextContainer.style.fontSize = `${fontSize}px`;
@@ -2851,6 +2884,12 @@ export class SCMViewPane extends ViewPane {
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri) {
+			return;
+		}
+
+		// Do not set focus/selection when the resource is already focused and selected
+		if (this.tree.getFocus().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri)) &&
+			this.tree.getSelection().some(e => isSCMResource(e) && this.uriIdentityService.extUri.isEqual(e.sourceUri, uri))) {
 			return;
 		}
 

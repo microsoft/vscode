@@ -114,6 +114,11 @@ class SessionWholeRange {
 		this._onDidChange.fire(this);
 	}
 
+	get trackedInitialRange(): Range {
+		const [first] = this._decorationIds;
+		return this._textModel.getDecorationRange(first) ?? new Range(1, 1, 1, 1);
+	}
+
 	get value(): Range {
 		let result: Range | undefined;
 		for (const id of this._decorationIds) {
@@ -156,6 +161,7 @@ export class Session {
 			extension: provider.debugName,
 			startTime: this._startTime.toISOString(),
 			edits: false,
+			finishedByEdit: false,
 			rounds: '',
 			undos: '',
 			editMode
@@ -517,8 +523,6 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
 		}
 
-		// expand to whole lines
-		wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
 
 		// install managed-marker for the decoration range
 		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);

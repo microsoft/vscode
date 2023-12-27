@@ -137,7 +137,7 @@ export const CTX_INLINE_CHAT_OUTER_CURSOR_POSITION = new RawContextKey<'above' |
 export const CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('inlineChatHasActiveRequest', false, localize('inlineChatHasActiveRequest', "Whether interactive editor has an active request"));
 export const CTX_INLINE_CHAT_HAS_STASHED_SESSION = new RawContextKey<boolean>('inlineChatHasStashedSession', false, localize('inlineChatHasStashedSession', "Whether interactive editor has kept a session for quick restore"));
 export const CTX_INLINE_CHAT_LAST_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType | undefined>('inlineChatLastResponseType', undefined, localize('inlineChatResponseType', "What type was the last response of the current interactive editor session"));
-export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChatResponseTypes | undefined>('inlineChatResponseTypes', undefined, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
+export const CTX_INLINE_CHAT_RESPONSE_TYPES = new RawContextKey<InlineChatResponseTypes | undefined>('inlineChatResponseTypes', InlineChatResponseTypes.Empty, localize('inlineChatResponseTypes', "What type was the responses have been receieved"));
 export const CTX_INLINE_CHAT_DID_EDIT = new RawContextKey<boolean>('inlineChatDidEdit', undefined, localize('inlineChatDidEdit', "Whether interactive editor did change any code"));
 export const CTX_INLINE_CHAT_USER_DID_EDIT = new RawContextKey<boolean>('inlineChatUserDidEdit', undefined, localize('inlineChatUserDidEdit', "Whether the user did changes ontop of the inline chat"));
 export const CTX_INLINE_CHAT_LAST_FEEDBACK = new RawContextKey<'unhelpful' | 'helpful' | ''>('inlineChatLastFeedbackKind', '', localize('inlineChatLastFeedbackKind', "The last kind of feedback that was provided"));
@@ -155,6 +155,7 @@ export const ACTION_VIEW_IN_CHAT = 'inlineChat.viewInChat';
 
 // --- menus
 
+export const MENU_INLINE_CHAT_INPUT = MenuId.for('inlineChatInput');
 export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
 export const MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE = MenuId.for('inlineChatWidget.markdownMessage');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
@@ -174,7 +175,11 @@ export const inlineChatInputPlaceholderForeground = registerColor('inlineChatInp
 export const inlineChatInputBackground = registerColor('inlineChatInput.background', { dark: inputBackground, light: inputBackground, hcDark: inputBackground, hcLight: inputBackground }, localize('inlineChatInput.background', "Background color of the interactive editor input"));
 
 export const inlineChatDiffInserted = registerColor('inlineChatDiff.inserted', { dark: transparent(diffInserted, .5), light: transparent(diffInserted, .5), hcDark: transparent(diffInserted, .5), hcLight: transparent(diffInserted, .5) }, localize('inlineChatDiff.inserted', "Background color of inserted text in the interactive editor input"));
+export const overviewRulerInlineChatDiffInserted = registerColor('editorOverviewRuler.inlineChatInserted', { dark: transparent(diffInserted, 0.6), light: transparent(diffInserted, 0.8), hcDark: transparent(diffInserted, 0.6), hcLight: transparent(diffInserted, 0.8) }, localize('editorOverviewRuler.inlineChatInserted', 'Overview ruler marker color for inline chat inserted content.'));
+
 export const inlineChatDiffRemoved = registerColor('inlineChatDiff.removed', { dark: transparent(diffRemoved, .5), light: transparent(diffRemoved, .5), hcDark: transparent(diffRemoved, .5), hcLight: transparent(diffRemoved, .5) }, localize('inlineChatDiff.removed', "Background color of removed text in the interactive editor input"));
+export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewRuler.inlineChatRemoved', { dark: transparent(diffRemoved, 0.6), light: transparent(diffRemoved, 0.8), hcDark: transparent(diffRemoved, 0.6), hcLight: transparent(diffRemoved, 0.8) }, localize('editorOverviewRuler.inlineChatRemoved', 'Overview ruler marker color for inline chat removed content.'));
+
 
 // settings
 
@@ -192,11 +197,16 @@ Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMi
 	}]
 );
 
+export const enum InlineChatConfigKeys {
+	Mode = 'inlineChat.mode',
+	FinishOnType = 'inlineChat.finishOnType',
+}
+
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'editor',
 	properties: {
-		'inlineChat.mode': {
-			description: localize('mode', "Configure if changes crafted in the interactive editor are applied directly to the document or are previewed first."),
+		[InlineChatConfigKeys.Mode]: {
+			description: localize('mode', "Configure if changes crafted with inline chat are applied directly to the document or are previewed first."),
 			default: EditMode.LivePreview,
 			type: 'string',
 			enum: [EditMode.LivePreview, EditMode.Preview, EditMode.Live],
@@ -205,6 +215,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				localize('mode.preview', "Changes are previewed only and need to be accepted via the apply button. Ending a session will discard the changes."),
 				localize('mode.live', "Changes are applied directly to the document, can be highlighted via inline diffs, and accepted/discarded by hunks. Ending a session will keep the changes."),
 			]
-		}
+		},
+		[InlineChatConfigKeys.FinishOnType]: {
+			description: localize('finishOnType', "Whether to finish an inline chat session when typing outside of changed regions."),
+			default: false,
+			type: 'boolean'
+		},
 	}
 });

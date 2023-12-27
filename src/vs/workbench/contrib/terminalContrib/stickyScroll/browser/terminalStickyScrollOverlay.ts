@@ -11,6 +11,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -257,7 +258,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
-		if (buffer.viewportY === stickyScrollLineStart) {
+		if (buffer.viewportY <= stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
 		}
@@ -284,6 +285,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				end: stickyScrollLineStart + rowOffset + Math.max(stickyScrollLineCount - 1, 0)
 			}
 		});
+
+		// If a partial command's sticky scroll would show nothing, just hide it. This is another
+		// edge case when using a pager or interactive editor.
+		if (isPartialCommand && removeAnsiEscapeCodes(content).length === 0) {
+			this._setVisible(false);
+			return;
+		}
 
 		// Write content if it differs
 		if (content && this._currentContent !== content) {

@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotificationSource, NotificationPriority } from 'vs/platform/notification/common/notification';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -53,7 +53,7 @@ export const enum ProgressLocation {
 export interface IProgressOptions {
 	readonly location: ProgressLocation | string;
 	readonly title?: string;
-	readonly source?: string | { label: string; id: string };
+	readonly source?: string | INotificationSource;
 	readonly total?: number;
 	readonly cancellable?: boolean;
 	readonly buttons?: string[];
