@@ -223,6 +223,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 				// Update MRU list
 				if (uiState.mru.length === this.parts.length) {
 					this.mostRecentActiveParts = uiState.mru.map(index => this.parts[index]);
+				} else {
+					this.mostRecentActiveParts = [...this.parts];
 				}
 			}
 		}
