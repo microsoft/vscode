@@ -708,9 +708,11 @@ export class StatusbarService extends MultiWindowParts<StatusbarPart> implements
 	readonly mainPart = this._register(this.instantiationService.createInstance(MainStatusbarPart));
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super('workbench.statusBarService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
 	}

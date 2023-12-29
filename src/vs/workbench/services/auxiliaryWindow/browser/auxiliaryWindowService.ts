@@ -45,7 +45,10 @@ export interface IAuxiliaryWindowService {
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
-	readonly onWillClose: Event<void>;
+
+	readonly onBeforeUnload: Event<void>;
+	readonly onUnload: Event<void>;
+
 	readonly whenStylesHaveLoaded: Promise<void>;
 
 	readonly window: CodeWindow;
@@ -59,8 +62,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onWillClose = this._register(new Emitter<void>());
-	readonly onWillClose = this._onWillClose.event;
+	private readonly _onBeforeUnload = this._register(new Emitter<void>());
+	readonly onBeforeUnload = this._onBeforeUnload.event;
+
+	private readonly _onUnload = this._register(new Emitter<void>());
+	readonly onUnload = this._onUnload.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -80,8 +86,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(this.window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e)));
-		this._register(addDisposableListener(this.window, EventType.UNLOAD, () => this._onWillClose.fire()));
+		this._register(addDisposableListener(this.window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.handleBeforeUnload(e)));
+		this._register(addDisposableListener(this.window, EventType.UNLOAD, () => this.handleUnload()));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
 			onUnexpectedError(e.reason);
@@ -108,7 +114,12 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		}
 	}
 
-	private onBeforeUnload(e: BeforeUnloadEvent): void {
+	private handleBeforeUnload(e: BeforeUnloadEvent): void {
+
+		// Event
+		this._onBeforeUnload.fire();
+
+		// Check for confirm before close setting
 		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
 		const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
 		if (confirmBeforeClose) {
@@ -119,6 +130,12 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
 		e.preventDefault();
 		e.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
+	}
+
+	private handleUnload(): void {
+
+		// Event
+		this._onUnload.fire();
 	}
 
 	layout(): void {
@@ -224,8 +241,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const height = Math.max(options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height, WindowMinimumSize.HEIGHT);
 
 		let newWindowBounds: IRectangle = {
-			x: options?.bounds?.x ?? (activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2),
-			y: options?.bounds?.y ?? (activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2),
+			x: options?.bounds?.x ?? Math.max(activeWindowBounds.x + activeWindowBounds.width / 2 - width / 2, 0),
+			y: options?.bounds?.y ?? Math.max(activeWindowBounds.y + activeWindowBounds.height / 2 - height / 2, 0),
 			width,
 			height
 		};
