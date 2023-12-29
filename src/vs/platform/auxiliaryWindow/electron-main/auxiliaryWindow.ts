@@ -6,6 +6,7 @@
 import { BrowserWindow, WebContents } from 'electron';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IBaseWindow } from 'vs/platform/window/electron-main/window';
@@ -33,7 +34,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStateService stateService: IStateService
+		@IStateService stateService: IStateService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
 		super(configurationService, stateService, environmentMainService);
 
@@ -61,6 +63,9 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 			// Disable Menu
 			window.setMenu(null);
+
+			// Lifecycle
+			this.lifecycleMainService.registerAuxWindow(this);
 		}
 	}
 }

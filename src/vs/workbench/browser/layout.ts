@@ -333,7 +333,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
-		this.editorGroupService.mainPart.whenRestored.then(() => {
+		this.editorGroupService.whenRestored.then(() => {
 
 			// Restore main editor part on any editor change in main part
 			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
@@ -494,7 +494,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.updateMenubarVisibility(!!skipLayout);
 
 		// Centered Layout
-		this.editorGroupService.mainPart.whenRestored.then(() => {
+		this.editorGroupService.whenRestored.then(() => {
 			this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
 		});
 	}
@@ -781,7 +781,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Empty workbench configured to open untitled file if empty
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
-			if (this.editorGroupService.mainPart.hasRestorableState) {
+			if (this.editorGroupService.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
 			}
 
@@ -854,7 +854,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is ready
-			await this.editorGroupService.mainPart.whenReady;
+			await this.editorGroupService.whenReady;
 			mark('code/restoreEditors/editorGroupsReady');
 
 			// apply editor layout if any
@@ -910,7 +910,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			layoutRestoredPromises.push(
 				Promise.all([
 					openEditorsPromise?.finally(() => mark('code/restoreEditors/editorsOpened')),
-					this.editorGroupService.mainPart.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
+					this.editorGroupService.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
 				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark
