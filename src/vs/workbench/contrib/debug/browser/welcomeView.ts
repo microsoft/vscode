@@ -64,7 +64,7 @@ export class WelcomeView extends ViewPane {
 		const setContextKey = () => {
 			let editorControl = this.editorService.activeTextEditorControl;
 			if (isDiffEditor(editorControl)) {
-				editorControl = editorControl.getOriginalEditor();
+				editorControl = editorControl.getModifiedEditor();
 			}
 
 			if (isCodeEditor(editorControl)) {
@@ -88,7 +88,7 @@ export class WelcomeView extends ViewPane {
 
 			let editorControl = this.editorService.activeTextEditorControl;
 			if (isDiffEditor(editorControl)) {
-				editorControl = editorControl.getOriginalEditor();
+				editorControl = editorControl.getModifiedEditor();
 			}
 
 			if (isCodeEditor(editorControl)) {
