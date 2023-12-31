@@ -39,6 +39,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import product from 'vs/platform/product/common/product';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -467,6 +468,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IEnvironmentService);
 
 		interface IStorageItem extends IQuickPickItem {
 			readonly key: string;
@@ -485,7 +487,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				for (const key of storageService.keys(scope, target)) {
 					const value = storageService.get(key, scope);
-					if (value && value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD) {
+					if (value && (!environmentService.isBuilt /* show all keys in dev */ || value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD)) {
 						items.push({
 							key,
 							scope,

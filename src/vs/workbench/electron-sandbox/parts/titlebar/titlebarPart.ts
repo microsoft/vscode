@@ -38,7 +38,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			return super.minimumHeight;
 		}
 
-		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.useCounterZoom ? getZoomFactor() : 1);
+		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.useCounterZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
@@ -201,7 +201,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 					return;
 				}
 
-				const zoomFactor = getZoomFactor();
+				const zoomFactor = getZoomFactor(getWindow(this.element));
 				this.onContextMenu(new MouseEvent('mouseup', { clientX: x / zoomFactor, clientY: y / zoomFactor }), MenuId.TitleBarContext);
 			}));
 		}
@@ -261,7 +261,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			// so that they can have the traffic lights rendered at the proper offset.
 			// Ref https://github.com/microsoft/vscode/issues/159862
 
-			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor()) : this.macTitlebarSize;
+			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor(getWindow(this.element))) : this.macTitlebarSize;
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({

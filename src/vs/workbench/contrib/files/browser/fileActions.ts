@@ -661,7 +661,6 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: { value: OpenActiveFileInEmptyWorkspace.LABEL, original: 'Open Active File in New Empty Workspace' },
 			f1: true,
 			category: Categories.File,
-			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
 			precondition: EmptyWorkspaceSupportContext
 		});
 	}
