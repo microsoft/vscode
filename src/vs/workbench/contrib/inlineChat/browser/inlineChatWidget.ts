@@ -682,7 +682,7 @@ export class InlineChatWidget {
 
 		this._slashCommandUsedDisposables.clear();
 
-		const label = localize('slashCommandUsed', "Using {0} to generate response. [[Re-run without]]", `\`\`/${details.command}\`\``);
+		const label = localize('slashCommandUsed', "Using {0} to generate response ([[re-run without]])", `\`\`/${details.command}\`\``);
 		const usingSlashCommandText = renderFormattedText(label, {
 			inline: true,
 			renderCodeSegments: true,
