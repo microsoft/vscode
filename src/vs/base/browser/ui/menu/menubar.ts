@@ -22,6 +22,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./menubar';
 import * as nls from 'vs/nls';
+import { mainWindow } from 'vs/base/browser/window';
 
 const $ = DOM.$;
 
@@ -786,7 +787,7 @@ export class MenuBar extends Disposable {
 	private setUnfocusedState(): void {
 		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
 			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'classic' && browser.isFullscreen()) {
+		} else if (this.options.visibility === 'classic' && browser.isFullscreen(mainWindow)) {
 			this.focusState = MenubarState.HIDDEN;
 		} else {
 			this.focusState = MenubarState.VISIBLE;
