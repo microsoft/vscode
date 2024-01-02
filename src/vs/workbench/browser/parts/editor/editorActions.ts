@@ -30,7 +30,7 @@ import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/act
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
@@ -2493,6 +2493,7 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 	constructor(
 		id: string,
 		title: ICommandActionTitle,
+		keybinding: Omit<IKeybindingRule, 'id'> | undefined,
 		private readonly move: boolean
 	) {
 		super({
@@ -2500,6 +2501,7 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 			title,
 			category: Categories.View,
 			precondition: ActiveEditorContext,
+			keybinding,
 			f1: true
 		});
 	}
@@ -2532,6 +2534,7 @@ export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAc
 				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
 				original: 'Move Editor into New Window'
 			},
+			undefined,
 			true
 		);
 	}
@@ -2547,6 +2550,7 @@ export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAct
 				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
 				original: 'Copy Editor into New Window'
 			},
+			{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
 			false
 		);
 	}

@@ -81,9 +81,11 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	readonly mainPart = this._register(this.createMainTitlebarPart());
 
 	constructor(
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
 	}
@@ -168,7 +170,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	get minimumHeight(): number {
 		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? 35 : 30;
 
-		return value / (this.useCounterZoom ? getZoomFactor() : 1);
+		return value / (this.useCounterZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 
 	get maximumHeight(): number { return this.minimumHeight; }
@@ -672,7 +674,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
-		const event = new StandardMouseEvent(getWindow(this.rootContainer), e);
+		const event = new StandardMouseEvent(getWindow(this.element), e);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -717,7 +719,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the title bar
 
-		const zoomFactor = getZoomFactor();
+		const zoomFactor = getZoomFactor(getWindow(this.element));
 
 		const noMenubar = this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh);
 		const noCommandCenter = !this.isCommandCenterVisible;
@@ -736,7 +738,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			const zoomFactor = getZoomFactor();
+			const zoomFactor = getZoomFactor(getWindow(this.element));
 
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
 			this.rootContainer.classList.toggle('counter-zoom', this.useCounterZoom);
