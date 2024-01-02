@@ -21,7 +21,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -1387,7 +1387,7 @@ const AlignPanelActions: CustomizeLayoutItem[] = [
 ];
 
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
-	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
+	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
 	CreateOptionLayoutItem('workbench.action.toggleCenteredLayout', IsCenteredLayoutContext, localize('centeredLayout', "Centered Layout"), centerLayoutIcon),
 ];

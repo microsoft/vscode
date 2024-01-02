@@ -117,11 +117,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeZenMode: Event<boolean>;
 
 	/**
-	 * Emits when fullscreen is enabled or disabled.
-	 */
-	readonly onDidChangeFullscreen: Event<boolean>;
-
-	/**
 	 * Emits when the target window is maximized or unmaximized.
 	 */
 	readonly onDidChangeWindowMaximized: Event<{ readonly windowId: number; readonly maximized: boolean }>;

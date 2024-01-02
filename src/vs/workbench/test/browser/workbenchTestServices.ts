@@ -605,7 +605,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeFullscreen: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
