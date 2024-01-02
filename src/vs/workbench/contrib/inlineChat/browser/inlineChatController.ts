@@ -379,20 +379,7 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._zone.value.widget.onRequestWithoutIntentDetection(async () => {
 			options.withIntentDetection = false;
 
-			// undo changes
-			if (this._activeSession && this._activeSession.lastExchange && this._strategy) {
-				const { lastExchange } = this._activeSession;
-				if (lastExchange.response instanceof ReplyResponse) {
-					try {
-						this._ignoreModelContentChanged = true;
-						await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
-					} finally {
-						this._ignoreModelContentChanged = false;
-					}
-				}
-			}
-
-			this.acceptInput();
+			this.regenerate();
 		}));
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
@@ -531,7 +518,9 @@ export class InlineChatController implements IEditorContribution {
 
 		if (message & Message.RERUN_INPUT && this._activeSession.lastExchange) {
 			const { lastExchange } = this._activeSession;
-			this._activeSession.addInput(lastExchange.prompt.retry());
+			if (options.withIntentDetection === undefined) { // @ulugbekna: if we're re-running with intent detection turned off, no need to update `attempt` #
+				this._activeSession.addInput(lastExchange.prompt.retry());
+			}
 			if (lastExchange.response instanceof ReplyResponse) {
 				try {
 					this._ignoreModelContentChanged = true;
