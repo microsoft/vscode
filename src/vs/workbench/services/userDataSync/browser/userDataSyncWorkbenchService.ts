@@ -692,7 +692,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
+		if (this.currentSessionId && e.removed?.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
 		this.update('change in sessions');
