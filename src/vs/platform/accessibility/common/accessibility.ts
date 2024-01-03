@@ -72,5 +72,7 @@ export const enum AccessibleNotificationEvent {
 	TerminalCommandFailed = 'terminalCommandFailed',
 	TaskCompleted = 'taskCompleted',
 	TaskFailed = 'taskFailed',
-	ChatRequestSent = 'chatRequestSent'
+	ChatRequestSent = 'chatRequestSent',
+	NotebookCellCompleted = 'notebookCellCompleted',
+	NotebookCellFailed = 'notebookCellFailed'
 }

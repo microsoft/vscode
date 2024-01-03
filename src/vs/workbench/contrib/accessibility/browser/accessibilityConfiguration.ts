@@ -67,7 +67,9 @@ export const enum AccessibilityAlertSettingId {
 	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
 	TaskCompleted = 'accessibility.alert.taskCompleted',
 	TaskFailed = 'accessibility.alert.taskFailed',
-	ChatRequestSent = 'accessibility.alert.chatRequestSent'
+	ChatRequestSent = 'accessibility.alert.chatRequestSent',
+	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
+	NotebookCellFailed = 'accessibility.alert.notebookCellFailed'
 }
 
 export const enum AccessibleViewProviderId {
@@ -227,6 +229,18 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityAlertSettingId.ChatRequestSent]: {
 			'markdownDescription': localize('alert.chatRequestSent', "Alerts when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.NotebookCellCompleted]: {
+			'markdownDescription': localize('alert.notebookCellCompleted', "Alerts when a notebook cell completes successfully. Also see {0}.", '`#audioCues.notebookCellCompleted#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.NotebookCellFailed]: {
+			'markdownDescription': localize('alert.notebookCellFailed', "Alerts when a notebook cell fails. Also see {0}.", '`#audioCues.notebookCellFailed#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
