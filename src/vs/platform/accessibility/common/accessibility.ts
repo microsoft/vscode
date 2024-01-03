@@ -74,5 +74,7 @@ export const enum AccessibleNotificationEvent {
 	TaskFailed = 'taskFailed',
 	ChatRequestSent = 'chatRequestSent',
 	NotebookCellCompleted = 'notebookCellCompleted',
-	NotebookCellFailed = 'notebookCellFailed'
+	NotebookCellFailed = 'notebookCellFailed',
+	OnDebugBreak = 'onDebugBreak',
+	NoInlayHints = 'noInlayHints'
 }

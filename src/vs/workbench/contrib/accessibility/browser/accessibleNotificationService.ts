@@ -42,6 +42,7 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		this._events.set(AccessibleNotificationEvent.ChatRequestSent, { audioCue: AudioCue.chatRequestSent, alertMessage: localize('chatRequestSent', "Chat Request Sent"), alertSetting: AccessibilityAlertSettingId.ChatRequestSent });
 		this._events.set(AccessibleNotificationEvent.NotebookCellCompleted, { audioCue: AudioCue.notebookCellCompleted, alertMessage: localize('notebookCellCompleted', "Notebook Cell Completed"), alertSetting: AccessibilityAlertSettingId.NotebookCellCompleted });
 		this._events.set(AccessibleNotificationEvent.NotebookCellFailed, { audioCue: AudioCue.notebookCellFailed, alertMessage: localize('notebookCellFailed', "Notebook Cell Failed"), alertSetting: AccessibilityAlertSettingId.NotebookCellFailed });
+		this._events.set(AccessibleNotificationEvent.OnDebugBreak, { audioCue: AudioCue.onDebugBreak, alertMessage: localize('onDebugBreak', "On Debug Break"), alertSetting: AccessibilityAlertSettingId.OnDebugBreak });
 
 		this._register(this._workingCopyService.onDidSave((e) => this._notifyBasedOnUserGesture(AccessibleNotificationEvent.Save, e.reason === SaveReason.EXPLICIT)));
 	}

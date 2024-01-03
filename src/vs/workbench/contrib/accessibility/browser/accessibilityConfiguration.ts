@@ -69,7 +69,8 @@ export const enum AccessibilityAlertSettingId {
 	TaskFailed = 'accessibility.alert.taskFailed',
 	ChatRequestSent = 'accessibility.alert.chatRequestSent',
 	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
-	NotebookCellFailed = 'accessibility.alert.notebookCellFailed'
+	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
+	OnDebugBreak = 'accessibility.alert.onDebugBreak'
 }
 
 export const enum AccessibleViewProviderId {
@@ -241,6 +242,12 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityAlertSettingId.NotebookCellFailed]: {
 			'markdownDescription': localize('alert.notebookCellFailed', "Alerts when a notebook cell fails. Also see {0}.", '`#audioCues.notebookCellFailed#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.OnDebugBreak]: {
+			'markdownDescription': localize('alert.onDebugBreak', "Alerts when the debugger breaks. Also see {0}.", '`#audioCues.onDebugBreak#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
