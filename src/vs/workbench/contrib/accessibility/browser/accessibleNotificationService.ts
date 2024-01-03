@@ -34,19 +34,25 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		this._events.set(AccessibleNotificationEvent.Error, { audioCue: AudioCue.error, alertMessage: localize('error', "Error"), alertSetting: AccessibilityAlertSettingId.Error });
 		this._events.set(AccessibleNotificationEvent.Warning, { audioCue: AudioCue.warning, alertMessage: localize('warning', "Warning"), alertSetting: AccessibilityAlertSettingId.Warning });
 		this._events.set(AccessibleNotificationEvent.Folded, { audioCue: AudioCue.foldedArea, alertMessage: localize('foldedArea', "Folded Area"), alertSetting: AccessibilityAlertSettingId.FoldedArea });
+		this._events.set(AccessibleNotificationEvent.TerminalQuickFix, { audioCue: AudioCue.terminalQuickFix, alertMessage: localize('terminalQuickFix', "Quick Fix"), alertSetting: AccessibilityAlertSettingId.TerminalQuickFix });
+		this._events.set(AccessibleNotificationEvent.TerminalBell, { audioCue: AudioCue.terminalBell, alertMessage: localize('terminalBell', "Terminal Bell"), alertSetting: AccessibilityAlertSettingId.TerminalBell });
+		this._events.set(AccessibleNotificationEvent.TerminalCommandFailed, { audioCue: AudioCue.terminalCommandFailed, alertMessage: localize('terminalCommandFailed', "Terminal Command Failed"), alertSetting: AccessibilityAlertSettingId.TerminalCommandFailed });
+		this._events.set(AccessibleNotificationEvent.TaskFailed, { audioCue: AudioCue.taskFailed, alertMessage: localize('taskFailed', "Task Failed"), alertSetting: AccessibilityAlertSettingId.TaskFailed });
+		this._events.set(AccessibleNotificationEvent.TaskCompleted, { audioCue: AudioCue.taskCompleted, alertMessage: localize('taskCompleted', "Task Completed"), alertSetting: AccessibilityAlertSettingId.TaskCompleted });
+		this._events.set(AccessibleNotificationEvent.ChatRequestSent, { audioCue: AudioCue.chatRequestSent, alertMessage: localize('chatRequestSent', "Chat Request Sent"), alertSetting: AccessibilityAlertSettingId.ChatRequestSent });
 
 		this._register(this._workingCopyService.onDidSave((e) => this._notifyBasedOnUserGesture(AccessibleNotificationEvent.Save, e.reason === SaveReason.EXPLICIT)));
 	}
 
-	notify(event: AccessibleNotificationEvent, userGesture?: boolean): void {
+	notify(event: AccessibleNotificationEvent, userGesture?: boolean, forceSound?: boolean, allowManyInParallel?: boolean): void {
 		if (event === AccessibleNotificationEvent.Format) {
 			return this._notifyBasedOnUserGesture(AccessibleNotificationEvent.Format, userGesture);
 		}
 		const { audioCue, alertMessage, alertSetting } = this._events.get(event)!;
 		const audioCueSetting = this._configurationService.getValue(audioCue.settingsKey);
-		if (audioCueSetting === 'on' || audioCueSetting === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
+		if (audioCueSetting === 'on' || audioCueSetting === 'auto' && this._accessibilityService.isScreenReaderOptimized() || forceSound) {
 			this._logService.debug('AccessibleNotificationService playing sound: ', audioCue.name);
-			this._audioCueService.playAudioCue(audioCue);
+			this._audioCueService.playSound(audioCue.sound.getSound(), allowManyInParallel);
 		}
 
 		if (alertSetting && this._configurationService.getValue(alertSetting) === true) {

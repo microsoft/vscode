@@ -61,7 +61,13 @@ export const enum AccessibilityAlertSettingId {
 	Breakpoint = 'accessibility.alert.breakpoint',
 	Error = 'accessibility.alert.error',
 	Warning = 'accessibility.alert.warning',
-	FoldedArea = 'accessibility.alert.foldedArea'
+	FoldedArea = 'accessibility.alert.foldedArea',
+	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
+	TerminalBell = 'accessibility.alert.terminalBell',
+	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
+	TaskCompleted = 'accessibility.alert.taskCompleted',
+	TaskFailed = 'accessibility.alert.taskFailed',
+	ChatRequestSent = 'accessibility.alert.chatRequestSent'
 }
 
 export const enum AccessibleViewProviderId {
@@ -185,6 +191,42 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityAlertSettingId.FoldedArea]: {
 			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TerminalQuickFix]: {
+			'markdownDescription': localize('alert.terminalQuickFix', "Alerts when there is an available terminal quick fix. Also see {0}.", '`#audioCues.terminalQuickFix#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TerminalBell]: {
+			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated. Also see {0}.", '`#audioCues.terminalBell#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TerminalCommandFailed]: {
+			'markdownDescription': localize('alert.terminalCommandFailed', "Alerts when a terminal command fails (non-zero exit code). Also see {0}.", '`#audioCues.terminalCommandFailed#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TaskFailed]: {
+			'markdownDescription': localize('alert.taskFailed', "Alerts when a task fails (non-zero exit code). Also see {0}.", '`#audioCues.taskFailed#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TaskCompleted]: {
+			'markdownDescription': localize('alert.taskCompleted', "Alerts when a task completes successfully (zero exit code). Also see {0}.", '`#audioCues.taskCompleted#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.ChatRequestSent]: {
+			'markdownDescription': localize('alert.chatRequestSent', "Alerts when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
