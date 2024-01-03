@@ -12,6 +12,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { isCancellationError } from 'vs/base/common/errors';
 
 const shellCommandCategory: ILocalizedString = { value: localize('shellCommand', "Shell Command"), original: 'Shell Command' };
 
@@ -39,6 +40,10 @@ export class InstallShellScriptAction extends Action2 {
 
 			dialogService.info(localize('successIn', "Shell command '{0}' successfully installed in PATH.", productService.applicationName));
 		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+
 			dialogService.error(toErrorMessage(error));
 		}
 	}
@@ -68,6 +73,10 @@ export class UninstallShellScriptAction extends Action2 {
 
 			dialogService.info(localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", productService.applicationName));
 		} catch (error) {
+			if (isCancellationError(error)) {
+				return;
+			}
+
 			dialogService.error(toErrorMessage(error));
 		}
 	}
