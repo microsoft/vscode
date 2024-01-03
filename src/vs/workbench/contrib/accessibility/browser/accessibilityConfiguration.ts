@@ -55,6 +55,7 @@ export const enum AccessibilityVerbositySettingId {
 }
 
 export const enum AccessibilityAlertSettingId {
+	Clear = 'accessibility.alert.clear',
 	Save = 'accessibility.alert.save',
 	Format = 'accessibility.alert.format',
 	Breakpoint = 'accessibility.alert.breakpoint',
@@ -135,7 +136,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
-			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Note that this will be ignored when {0} is enabled.", '`#audioCues.save#`'),
+			'markdownDescription': localize('alert.save', "Alerts when a file is saved. Also see {0}.", '`#audioCues.save#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'always',
@@ -146,8 +147,14 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
+		[AccessibilityAlertSettingId.Clear]: {
+			'markdownDescription': localize('alert.clear', "Alerts when a feature is cleared (for example, the terminal, Debug Console, or Output channel). Also see {0}.", '`#audioCues.clear#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
 		[AccessibilityAlertSettingId.Format]: {
-			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Note that this will be ignored when {0} is enabled.", '`#audioCues.format#`'),
+			'markdownDescription': localize('alert.format', "Alerts when a file or notebook cell is formatted. Also see {0}.", '`#audioCues.format#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'always',
@@ -159,25 +166,25 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Breakpoint]: {
-			'markdownDescription': localize('alert.breakpoint', "When in screen reader mode, alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.breakpoint#`'),
+			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.breakpoint#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Error]: {
-			'markdownDescription': localize('alert.error', "When in screen reader mode, alerts when the active line has an error. Also see {0}.", '`#audioCues.error#`'),
+			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.error#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Warning]: {
-			'markdownDescription': localize('alert.warning', "When in screen reader mode, alerts when the active line has a warning. Also see {0}.", '`#audioCues.warning#`'),
+			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.warning#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.FoldedArea]: {
-			'markdownDescription': localize('alert.foldedArea', "When in screen reader mode, alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
+			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
