@@ -516,6 +516,13 @@ export class CodeApplication extends Disposable {
 
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
+		validatedIpcMain.handle('vscode:notifyZoomLevel', async (event, zoomLevel: number | undefined) => {
+			const window = this.windowsMainService?.getWindowById(event.sender.id);
+			if (window) {
+				window.notifyZoomLevel(zoomLevel);
+			}
+		});
+
 		//#endregion
 	}
 

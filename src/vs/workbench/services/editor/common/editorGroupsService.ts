@@ -222,6 +222,42 @@ export interface IEditorGroupsContainer {
 	readonly onDidChangeGroupMaximized: Event<boolean>;
 
 	/**
+	 * A property that indicates when groups have been created
+	 * and are ready to be used in the editor part.
+	 */
+	readonly isReady: boolean;
+
+	/**
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used in the editor part.
+	 *
+	 * Await this promise to safely work on the editor groups model
+	 * (for example, install editor group listeners).
+	 *
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
+	 */
+	readonly whenReady: Promise<void>;
+
+	/**
+	 * A promise that resolves when groups have been restored in
+	 * the editor part.
+	 *
+	 * For groups with active editor, the promise will resolve
+	 * when the visible editor has finished to resolve.
+	 *
+	 * Use the `whenReady` property to not await editors to
+	 * resolve.
+	 */
+	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Find out if the editor part has UI state to restore
+	 * from a previous session.
+	 */
+	readonly hasRestorableState: boolean;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
@@ -411,42 +447,6 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * The size of the editor part.
 	 */
 	readonly contentDimension: IDimension;
-
-	/**
-	 * A property that indicates when groups have been created
-	 * and are ready to be used in the editor part.
-	 */
-	readonly isReady: boolean;
-
-	/**
-	 * A promise that resolves when groups have been created
-	 * and are ready to be used in the editor part.
-	 *
-	 * Await this promise to safely work on the editor groups model
-	 * (for example, install editor group listeners).
-	 *
-	 * Use the `whenRestored` property to await visible editors
-	 * having fully resolved.
-	 */
-	readonly whenReady: Promise<void>;
-
-	/**
-	 * A promise that resolves when groups have been restored in
-	 * the editor part.
-	 *
-	 * For groups with active editor, the promise will resolve
-	 * when the visible editor has finished to resolve.
-	 *
-	 * Use the `whenReady` property to not await editors to
-	 * resolve.
-	 */
-	readonly whenRestored: Promise<void>;
-
-	/**
-	 * Find out if the editor part has UI state to restore
-	 * from a previous session.
-	 */
-	readonly hasRestorableState: boolean;
 
 	/**
 	 * Find out if an editor group is currently maximized.

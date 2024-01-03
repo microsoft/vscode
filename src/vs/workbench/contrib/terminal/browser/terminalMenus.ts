@@ -580,6 +580,17 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
+						id: TerminalCommandId.MoveIntoNewWindow,
+						title: terminalStrings.moveIntoNewWindow.value
+					},
+					group: ContextMenuGroup.Create,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
 						id: TerminalCommandId.RenameActiveTab,
 						title: localize('workbench.action.terminal.renameInstance', "Rename...")
 					},

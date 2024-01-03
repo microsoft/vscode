@@ -366,6 +366,14 @@ export function registerTerminalActions() {
 		runAfter: (instances) => instances.at(-1)?.focus()
 	});
 
+	registerContextualInstanceAction({
+		id: TerminalCommandId.MoveIntoNewWindow,
+		title: terminalStrings.moveIntoNewWindow,
+		precondition: sharedWhenClause.terminalAvailable_and_opened,
+		run: (instance, c) => c.service.moveIntoNewEditor(instance),
+		runAfter: (instances) => instances.at(-1)?.focus()
+	});
+
 	registerTerminalAction({
 		id: TerminalCommandId.MoveToTerminalPanel,
 		title: terminalStrings.moveToTerminalPanel,

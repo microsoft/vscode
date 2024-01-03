@@ -605,7 +605,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeFullscreen: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
@@ -1491,6 +1490,8 @@ export class TestHostService implements IHostService {
 
 	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
+
+	readonly onDidChangeFullScreen: Event<number> = Event.None;
 
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;

@@ -15,7 +15,6 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { IProgressBarStyles, ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -30,7 +29,7 @@ import { localize } from 'vs/nls';
 import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
-import { getIconClass, renderQuickInputDescription } from './quickInputUtils';
+import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -388,23 +387,23 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
 			this.ui.leftActionBar.clear();
-			const leftButtons = this.buttons.filter(button => button === backButton);
-			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
-					this.onDidTriggerButtonEmitter.fire(button);
-				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
+			const leftButtons = this.buttons
+				.filter(button => button === backButton)
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
+			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
 			this.ui.rightActionBar.clear();
-			const rightButtons = this.buttons.filter(button => button !== backButton);
-			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || getIconClass(button.iconPath), true, async () => {
-					this.onDidTriggerButtonEmitter.fire(button);
-				});
-				action.tooltip = button.tooltip || '';
-				return action;
-			}), { icon: true, label: false });
+			const rightButtons = this.buttons
+				.filter(button => button !== backButton)
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
+			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;
