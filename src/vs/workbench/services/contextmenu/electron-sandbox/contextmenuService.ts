@@ -106,7 +106,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number | undefined;
 			let y: number | undefined;
 
-			let zoom = getZoomFactor();
+			let zoom = getZoomFactor(anchor instanceof HTMLElement ? dom.getWindow(anchor) : dom.getActiveWindow());
 			if (anchor instanceof HTMLElement) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
 

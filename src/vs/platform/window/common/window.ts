@@ -347,6 +347,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
 	autoDetectColorScheme?: boolean;
+	isCustomZoomLevel?: boolean;
 
 	perfMarks: PerformanceMark[];
 

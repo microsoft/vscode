@@ -87,7 +87,8 @@ export class MouseWheelClassifier {
 	}
 
 	public acceptStandardWheelEvent(e: StandardWheelEvent): void {
-		const osZoomFactor = dom.getWindow(e.browserEvent).devicePixelRatio / getZoomFactor();
+		const targetWindow = dom.getWindow(e.browserEvent);
+		const osZoomFactor = targetWindow.devicePixelRatio / getZoomFactor(targetWindow);
 		if (platform.isWindows || platform.isLinux) {
 			// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
 			// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
