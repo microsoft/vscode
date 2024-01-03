@@ -1367,7 +1367,7 @@ if (!isMacintosh || !isNative) {
 }
 
 ToggleVisibilityActions.push(...[
-	CreateToggleLayoutItem(ToggleActivityBarVisibilityActionId, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
+	CreateToggleLayoutItem(ToggleActivityBarVisibilityActionId, ContextKeyExpr.notEquals('config.workbench.activityBar.location', 'hidden'), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
 	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
@@ -1557,7 +1557,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				};
 
 				// Reset all layout options
-				resetSetting('workbench.activityBar.visible');
+				resetSetting('workbench.activityBar.location');
 				resetSetting('workbench.sideBar.location');
 				resetSetting('workbench.statusBar.visible');
 				resetSetting('workbench.panel.defaultLocation');
