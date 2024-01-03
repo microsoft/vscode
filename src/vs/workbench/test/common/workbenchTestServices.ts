@@ -27,7 +27,7 @@ import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from 'vs/platfor
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { AutoSaveMode, IAutoSaveConfiguration, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 
@@ -318,7 +318,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	readonly hotExitConfiguration = undefined;
 
 	getAutoSaveConfiguration(): IAutoSaveConfiguration { throw new Error('Method not implemented.'); }
-	getAutoSaveMode(): AutoSaveMode { throw new Error('Method not implemented.'); }
+	getAutoSaveMode(): IAutoSaveMode { throw new Error('Method not implemented.'); }
 	isShortAutoSaveDelayConfigured(): boolean { throw new Error('Method not implemented.'); }
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }

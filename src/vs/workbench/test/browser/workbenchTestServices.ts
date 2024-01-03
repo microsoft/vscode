@@ -605,7 +605,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
-	onDidChangeFullscreen: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<{ windowId: number; maximized: boolean }> = Event.None;
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
@@ -865,6 +864,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	setSize(_group: number | IEditorGroup, _size: { width: number; height: number }): void { }
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 	toggleMaximizeGroup(): void { }
+	hasMaximizedGroup(): boolean { throw new Error('not implemented'); }
 	toggleExpandGroup(): void { }
 	applyLayout(_layout: EditorGroupLayout): void { }
 	getLayout(): EditorGroupLayout { throw new Error('not implemented'); }
@@ -1490,6 +1490,8 @@ export class TestHostService implements IHostService {
 
 	private _onDidChangeWindow = new Emitter<number>();
 	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
+
+	readonly onDidChangeFullScreen: Event<number> = Event.None;
 
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;

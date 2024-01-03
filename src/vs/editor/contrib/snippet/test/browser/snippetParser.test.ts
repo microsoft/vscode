@@ -807,4 +807,8 @@ suite('SnippetParser', () => {
 		const actual3 = snippet3.toString();
 		assert.strictEqual(actual3, '.two.one.two.one <> .one.two.one.two');
 	});
+
+	test('Snippet choices are incorrectly escaped/applied #180132', function () {
+		assertTextAndMarker('${1|aaa$aaa|}bbb\\$bbb', 'aaa$aaabbb$bbb', Placeholder, Text);
+	});
 });

@@ -31,7 +31,7 @@ type AutoDetect = 'on' | 'off';
 
 let cachedTasks: ITaskWithLocation[] | undefined = undefined;
 
-const INSTALL_SCRIPT = 'install';
+export const INSTALL_SCRIPT = 'install';
 
 export interface ITaskLocation {
 	document: Uri;

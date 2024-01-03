@@ -20,10 +20,13 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
+
+const MultiDiffEditorIcon = registerIcon('multi-diff-editor-label-icon', Codicon.diffMultiple, localize('multiDiffEditorLabelIcon', 'Icon of the multi diff editor label.'));
 
 /* hot-reload:patch-prototype-methods */
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
@@ -52,7 +55,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	override getIcon(): ThemeIcon {
-		return Codicon.diffMultiple;
+		return MultiDiffEditorIcon;
 	}
 
 	constructor(

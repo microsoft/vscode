@@ -1049,7 +1049,11 @@ export class Repository {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
-			args.push('--shortstat', '--diff-merges=first-parent');
+			args.push('--shortstat');
+
+			if (this._git.compareGitVersionTo('2.31') !== -1) {
+				args.push('--diff-merges=first-parent');
+			}
 		}
 
 		if (options?.reverse) {
@@ -1105,13 +1109,22 @@ export class Repository {
 
 		args.push('--', uri.fsPath);
 
-		const result = await this.exec(args);
-		if (result.exitCode) {
-			// No file history, e.g. a new file or untracked
-			return [];
-		}
+		try {
+			const result = await this.exec(args);
+			if (result.exitCode) {
+				// No file history, e.g. a new file or untracked
+				return [];
+			}
 
-		return parseGitCommits(result.stdout);
+			return parseGitCommits(result.stdout);
+		} catch (err) {
+			// Repository has no commits yet
+			if (/does not have any commits yet/.test(err.stderr)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async reflog(ref: string, pattern: string): Promise<string[]> {
@@ -2530,7 +2543,8 @@ export class Repository {
 			return branch;
 		}
 
-		return Promise.reject<Branch>(new Error('No such branch'));
+		this.logger.warn(`No such branch: ${name}.`);
+		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
 	async getDefaultBranch(): Promise<Branch> {

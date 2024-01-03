@@ -790,3 +790,27 @@ export class SetMap<K, V> {
 		return values;
 	}
 }
+
+export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unknown, unknown>): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	if (a.size !== b.size) {
+		return false;
+	}
+
+	for (const [key, value] of a) {
+		if (!b.has(key) || b.get(key) !== value) {
+			return false;
+		}
+	}
+
+	for (const [key] of b) {
+		if (!a.has(key)) {
+			return false;
+		}
+	}
+
+	return true;
+}

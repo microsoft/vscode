@@ -31,7 +31,7 @@ import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/cha
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -81,6 +81,7 @@ suite('InteractiveChatController', function () {
 	}
 
 	const store = new DisposableStore();
+	let configurationService: TestConfigurationService;
 	let editor: IActiveCodeEditor;
 	let model: ITextModel;
 	let ctrl: TestController;
@@ -94,7 +95,7 @@ suite('InteractiveChatController', function () {
 		const contextKeyService = new MockContextKeyService();
 		inlineChatService = new InlineChatServiceImpl(contextKeyService);
 
-		const configurationService = new TestConfigurationService();
+		configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
 		configurationService.setUserConfiguration('editor', {});
 
@@ -180,7 +181,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(ctrl.getWidgetPosition() === undefined);
 	});
 
-	test('wholeRange expands to whole lines, editor selection default', async function () {
+	test('wholeRange does not expand to whole lines, editor selection default', async function () {
 
 		editor.setSelection(new Range(1, 1, 1, 3));
 		ctrl = instaService.createInstance(TestController, editor);
@@ -203,7 +204,7 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 3));
 
 		await ctrl.cancelSession();
 		d.dispose();
@@ -233,13 +234,16 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 3));
 
 		await ctrl.cancelSession();
 		d.dispose();
 	});
 
 	test('typing outside of wholeRange finishes session', async function () {
+
+		configurationService.setUserConfiguration(InlineChatConfigKeys.FinishOnType, true);
+
 		ctrl = instaService.createInstance(TestController, editor);
 		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		const r = ctrl.run({ message: 'Hello', autoSend: true });
@@ -248,7 +252,7 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 11));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });
@@ -290,13 +294,13 @@ suite('InteractiveChatController', function () {
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
-		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3));
 
 		ctrl.acceptInput();
 
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
-		assert.deepStrictEqual(session.wholeRange.value, new Range(4, 1, 4, 12));
+		assert.deepStrictEqual(session.wholeRange.value, new Range(4, 1, 4, 3));
 
 		await ctrl.cancelSession();
 		await r;

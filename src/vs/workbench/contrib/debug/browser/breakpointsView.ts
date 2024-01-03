@@ -1293,12 +1293,10 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 
 	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
 		const messages: string[] = [];
-
+		let icon = breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular;
 		if (!breakpoint.supported) {
-			return {
-				icon: icons.debugBreakpointUnsupported,
-				message: localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"),
-			};
+			icon = icons.debugBreakpointUnsupported;
+			messages.push(localize('breakpointUnsupported', "Breakpoints of this type are not supported by the debugger"));
 		}
 
 		if (breakpoint.logMessage) {
@@ -1312,7 +1310,7 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		}
 
 		return {
-			icon: breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular,
+			icon,
 			message: appendMessage(messages.join('\n'))
 		};
 	}
@@ -1544,6 +1542,7 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 			precondition: CONTEXT_BREAKPOINT_SUPPORTS_CONDITION,
 			menu: [{
 				id: MenuId.DebugBreakpointsContext,
+				when: CONTEXT_BREAKPOINT_ITEM_TYPE.notEqualsTo('functionBreakpoint'),
 				group: 'navigation',
 				order: 10
 			}, {
@@ -1590,10 +1589,10 @@ registerAction2(class extends ViewAction<BreakpointsView> {
 		super({
 			id: 'debug.editFunctionBreakpoint',
 			viewId: BREAKPOINTS_VIEW_ID,
-			title: localize('editBreakpoint', "Edit Function Breakpoint..."),
+			title: localize('editBreakpoint', "Edit Function Condition..."),
 			menu: [{
 				id: MenuId.DebugBreakpointsContext,
-				group: '1_breakpoints',
+				group: 'navigation',
 				order: 10,
 				when: CONTEXT_BREAKPOINT_ITEM_TYPE.isEqualTo('functionBreakpoint')
 			}]

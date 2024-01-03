@@ -36,7 +36,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
 
-interface IEditorPartUIState {
+export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
 	readonly activeGroup: GroupIdentifier;
 	readonly mostRecentActiveGroups: GroupIdentifier[];
@@ -251,6 +251,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
+	private _didRestoreState = false;
+	get didRestoreState(): boolean { return this._didRestoreState; }
+
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		switch (order) {
 			case GroupsOrder.CREATION_TIME:
@@ -424,7 +427,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this._activeGroup.focus(); // When making views visible the focus can be affected, so restore it
 	}
 
-	private hasMaximizedGroup(): boolean {
+	hasMaximizedGroup(): boolean {
 		return this.gridWidget.hasMaximizedView();
 	}
 
@@ -1129,10 +1132,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	centerLayout(active: boolean): void {
-		if (this.hasMaximizedGroup()) {
-			this.unmaximizeGroup();
-		}
-
 		this.centeredLayoutWidget.activate(active);
 
 		this._activeGroup.focus();
@@ -1171,7 +1170,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private doCreateGridControlWithPreviousState(): boolean {
-		const uiState: IEditorPartUIState = this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+		const uiState: IEditorPartUIState | undefined = this.loadState();
 		if (uiState?.serializedGrid) {
 			try {
 
@@ -1181,8 +1180,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				// Grid Widget
 				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
 
-				// Ensure last active group has focus
-				this._activeGroup.focus();
+				// Remember that we did restore previous state
+				this._didRestoreState = true;
 			} catch (error) {
 
 				// Log error
@@ -1316,16 +1315,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Persist grid UI state
 		if (this.gridWidget) {
-			const uiState: IEditorPartUIState = {
-				serializedGrid: this.gridWidget.serialize(),
-				activeGroup: this._activeGroup.id,
-				mostRecentActiveGroups: this.mostRecentActiveGroups
-			};
-
 			if (this.isEmpty) {
 				delete this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 			} else {
-				this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+				this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = this.createState();
 			}
 		}
 
@@ -1340,6 +1333,18 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		super.saveState();
+	}
+
+	protected loadState(): IEditorPartUIState | undefined {
+		return this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
+	}
+
+	createState(): IEditorPartUIState {
+		return {
+			serializedGrid: this.gridWidget.serialize(),
+			activeGroup: this._activeGroup.id,
+			mostRecentActiveGroups: this.mostRecentActiveGroups
+		};
 	}
 
 	toJSON(): object {
