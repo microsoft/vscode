@@ -251,8 +251,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
-	private _didRestoreState = false;
-	get didRestoreState(): boolean { return this._didRestoreState; }
+	private _willRestoreState = false;
+	get willRestoreState(): boolean { return this._willRestoreState; }
 
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		switch (order) {
@@ -986,7 +986,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		));
 
 		// Grid control
-		this.doCreateGridControl(options);
+		this._willRestoreState = !options || options.restorePreviousState;
+		this.doCreateGridControl();
 
 		// Centered layout widget
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY], this._partOptions.centeredLayoutFixedWidth));
@@ -1145,11 +1146,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return false;
 	}
 
-	private doCreateGridControl(options?: IEditorPartCreationOptions): void {
+	private doCreateGridControl(): void {
 
 		// Grid Widget (with previous UI state)
 		let restoreError = false;
-		if (!options || options.restorePreviousState) {
+		if (this._willRestoreState) {
 			restoreError = !this.doCreateGridControlWithPreviousState();
 		}
 
@@ -1179,9 +1180,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 				// Grid Widget
 				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
-
-				// Remember that we did restore previous state
-				this._didRestoreState = true;
 			} catch (error) {
 
 				// Log error
