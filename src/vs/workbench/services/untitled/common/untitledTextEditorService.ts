@@ -79,6 +79,11 @@ export interface IUntitledTextEditorModelManager {
 	readonly onDidChangeLabel: Event<IUntitledTextEditorModel>;
 
 	/**
+	 * Events for when untitled text editor models are created.
+	 */
+	readonly onDidCreate: Event<IUntitledTextEditorModel>;
+
+	/**
 	 * Events for when untitled text editors are about to be disposed.
 	 */
 	readonly onWillDispose: Event<IUntitledTextEditorModel>;
@@ -142,6 +147,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	private readonly _onDidChangeEncoding = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeEncoding = this._onDidChangeEncoding.event;
+
+	private readonly _onDidCreate = this._register(new Emitter<IUntitledTextEditorModel>());
+	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -266,6 +274,9 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 		// Add to cache
 		this.mapResourceToModel.set(model.resource, model);
+
+		// Emit as event
+		this._onDidCreate.fire(model);
 
 		// If the model is dirty right from the beginning,
 		// make sure to emit this as an event
