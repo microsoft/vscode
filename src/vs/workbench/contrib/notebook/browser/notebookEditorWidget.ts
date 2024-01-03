@@ -22,6 +22,7 @@ import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, SequencerByKey } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -404,7 +405,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
-		this.layoutService.mainContainer.appendChild(this._overlayContainer);
+		if (creationOptions.codeWindow === mainWindow) {
+			this.layoutService.mainContainer.appendChild(this._overlayContainer);
+		} else if (creationOptions.codeWindow) {
+			this.layoutService.activeContainer.appendChild(this._overlayContainer);
+			this._overlayContainer.style.zIndex = '100';
+		}
+
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._isVisible = true;

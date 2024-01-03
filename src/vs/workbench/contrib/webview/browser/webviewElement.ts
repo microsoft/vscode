@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveWindow } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -181,7 +181,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._element = this._createElement(initInfo.options, initInfo.contentOptions);
 
 
-		const subscription = this._register(addDisposableListener($window, 'message', (e: MessageEvent) => {
+		const subscription = this._register(addDisposableListener(getActiveWindow(), 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
