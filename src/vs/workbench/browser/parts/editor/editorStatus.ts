@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorstatus';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
@@ -1057,7 +1057,7 @@ export class ChangeLanguageAction extends Action2 {
 	constructor() {
 		super({
 			id: ChangeLanguageAction.ID,
-			title: { value: localize('changeMode', "Change Language Mode"), original: 'Change Language Mode' },
+			title: localize2('changeMode', 'Change Language Mode'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1312,7 +1312,7 @@ export class ChangeEOLAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEOL',
-			title: { value: localize('changeEndOfLine', "Change End of Line Sequence"), original: 'Change End of Line Sequence' },
+			title: localize2('changeEndOfLine', 'Change End of Line Sequence'),
 			f1: true
 		});
 	}
@@ -1361,7 +1361,7 @@ export class ChangeEncodingAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEncoding',
-			title: { value: localize('changeEncoding', "Change File Encoding"), original: 'Change File Encoding' },
+			title: localize2('changeEncoding', 'Change File Encoding'),
 			f1: true
 		});
 	}
