@@ -19,8 +19,8 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 
 const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {
-		type: ['string', 'boolean'],
-		enum: ['always', 'explicit', 'never', true, false],
+		type: 'string',
+		enum: ['always', 'explicit', 'never'],
 		enumDescriptions: [
 			nls.localize('alwaysSave', 'Triggers Code Actions on explicit saves and auto saves triggered by window or focus changes.'),
 			nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved'),
@@ -43,7 +43,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: ['string', 'boolean']
+				type: 'string'
 			},
 		},
 		{
@@ -54,8 +54,8 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
 	type: ['object', 'array'],
 	additionalProperties: {
-		type: ['string', 'boolean'],
-		enum: ['always', 'explicit', 'never', true, false],
+		type: 'string',
+		enum: ['always', 'explicit', 'never'],
 	},
 	default: {},
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
