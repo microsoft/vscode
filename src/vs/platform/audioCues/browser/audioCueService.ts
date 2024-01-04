@@ -45,20 +45,17 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService) {
+		@ITelemetryService private readonly telemetryService: ITelemetryService) {
 		super();
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		if (this.isEnabled(cue)) {
 			this.sendAudioCueTelemetry(cue, options.source);
-			this.logService.trace(`Playing cue: ${cue.name}`);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
 		const alertMessage = cue.alertMessage;
 		if (this.alertIsEnabled(cue) && alertMessage) {
-			this.logService.trace(`Alert: ${alertMessage}`);
 			this.accessibilityService.alert(alertMessage);
 		}
 	}
@@ -75,7 +72,6 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		const alerts = cueArray.filter(cue => this.alertIsEnabled(cue)).map(c => c.alertMessage);
 		if (alerts.length) {
 			this.accessibilityService.alert(alerts.join(', '));
-			this.logService.trace(`Alert: ${alerts.join(', ')}`);
 		}
 	}
 

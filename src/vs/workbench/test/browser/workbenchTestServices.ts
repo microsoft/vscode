@@ -279,7 +279,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	instantiationService.stub(IAudioCueService, disposables.add(instantiationService.createInstance(AudioCueService)));
+	instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());

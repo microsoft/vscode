@@ -43,7 +43,7 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IAudioCueService, disposables.add(instantiationService.createInstance(AudioCueService)));
+		instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
 		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
