@@ -1096,7 +1096,7 @@ export const unthemedListStyles: IListStyles = {
 	listInactiveSelectionIconForeground: '#FFFFFF',
 	listHoverBackground: '#2A2D2E',
 	listDropOverBackground: '#383B3D',
-	listDropBetweenBackground: '',
+	listDropBetweenBackground: '#EEEEEE',
 	treeIndentGuidesStroke: '#a9a9a9',
 	treeInactiveIndentGuidesStroke: Color.fromHex('#a9a9a9').transparent(0.4).toString(),
 	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2).toString(),
