@@ -18,7 +18,7 @@ import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEdit
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { Color } from 'vs/base/common/color';
@@ -135,7 +135,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	//#endregion
 
-	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 	private readonly profileMemento = this.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 
 	private readonly groupViews = new Map<GroupIdentifier, IEditorGroupView>();
@@ -172,6 +172,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
+		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -251,8 +252,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 	}
 
-	private _didRestoreState = false;
-	get didRestoreState(): boolean { return this._didRestoreState; }
+	private _willRestoreState = false;
+	get willRestoreState(): boolean { return this._willRestoreState; }
 
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		switch (order) {
@@ -493,23 +494,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		});
 
 		// Recreate gridwidget with descriptor
-		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
-
-		// Layout
-		this.doLayout(this._contentDimension);
-
-		// Update container
-		this.updateContainer();
-
-		// Events for groups that got added
-		for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
-			if (!currentGroupViews.includes(groupView)) {
-				this._onDidAddGroup.fire(groupView);
-			}
-		}
-
-		// Notify group index change given layout has changed
-		this.notifyGroupIndexChange();
+		this.doApplyGridState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Restore focus as needed
 		if (restoreFocus) {
@@ -712,15 +697,21 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private doRestoreGroup(group: IEditorGroupView): void {
-		if (this.gridWidget) {
-			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
-				this.unmaximizeGroup();
-			}
+		if (!this.gridWidget) {
+			return; // method is called as part of state restore very early
+		}
 
+		if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
+			this.unmaximizeGroup();
+		}
+
+		try {
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
 				this.arrangeGroups(GroupsArrangement.EXPAND, group);
 			}
+		} catch (error) {
+			// ignore: method might be called too early before view is known to grid
 		}
 	}
 
@@ -986,7 +977,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		));
 
 		// Grid control
-		this.doCreateGridControl(options);
+		this._willRestoreState = !options || options.restorePreviousState;
+		this.doCreateGridControl();
 
 		// Centered layout widget
 		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.profileMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY], this._partOptions.centeredLayoutFixedWidth));
@@ -1145,11 +1137,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return false;
 	}
 
-	private doCreateGridControl(options?: IEditorPartCreationOptions): void {
+	private doCreateGridControl(): void {
 
 		// Grid Widget (with previous UI state)
 		let restoreError = false;
-		if (!options || options.restorePreviousState) {
+		if (this._willRestoreState) {
 			restoreError = !this.doCreateGridControlWithPreviousState();
 		}
 
@@ -1170,22 +1162,19 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	private doCreateGridControlWithPreviousState(): boolean {
-		const uiState: IEditorPartUIState | undefined = this.loadState();
-		if (uiState?.serializedGrid) {
+		const state: IEditorPartUIState | undefined = this.loadState();
+		if (state?.serializedGrid) {
 			try {
 
 				// MRU
-				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+				this.mostRecentActiveGroups = state.mostRecentActiveGroups;
 
 				// Grid Widget
-				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
-
-				// Remember that we did restore previous state
-				this._didRestoreState = true;
+				this.doCreateGridControlWithState(state.serializedGrid, state.activeGroup);
 			} catch (error) {
 
 				// Log error
-				onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(uiState)})`));
+				onUnexpectedError(new Error(`Error restoring editor grid widget: ${error} (with state: ${JSON.stringify(state)})`));
 
 				// Clear any state we have from the failing restore
 				this.disposeGroups();
@@ -1345,6 +1334,59 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 			activeGroup: this._activeGroup.id,
 			mostRecentActiveGroups: this.mostRecentActiveGroups
 		};
+	}
+
+	async applyState(state: IEditorPartUIState): Promise<boolean> {
+
+		// Close all opened editors and dispose groups
+		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			const closed = await group.closeAllEditors();
+			if (!closed) {
+				return false;
+			}
+		}
+		this.disposeGroups();
+
+		// MRU
+		this.mostRecentActiveGroups = state.mostRecentActiveGroups;
+
+		// Grid Widget
+		this.doApplyGridState(state.serializedGrid, state.activeGroup);
+
+		return true;
+	}
+
+	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+
+		// Recreate grid widget from state
+		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse);
+
+		// Layout
+		this.doLayout(this._contentDimension);
+
+		// Update container
+		this.updateContainer();
+
+		// Events for groups that got added
+		for (const groupView of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
+			if (!editorGroupViewsToReuse?.includes(groupView)) {
+				this._onDidAddGroup.fire(groupView);
+			}
+		}
+
+		// Notify group index change given layout has changed
+		this.notifyGroupIndexChange();
+	}
+
+	private onDidChangeMementoState(e: IStorageValueChangeEvent): void {
+		if (e.external && e.scope === StorageScope.WORKSPACE) {
+			this.reloadMemento(e.scope);
+
+			const state = this.loadState();
+			if (state) {
+				this.applyState(state);
+			}
+		}
 	}
 
 	toJSON(): object {

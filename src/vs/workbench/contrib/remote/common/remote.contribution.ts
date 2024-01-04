@@ -11,7 +11,7 @@ import { OperatingSystem, isWeb, OS } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 import { IRemoteAgentService, remoteConnectionLatencyMeasurer } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ILoggerService } from 'vs/platform/log/common/log';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -241,7 +241,7 @@ if (enableDiagnostics) {
 		constructor() {
 			super({
 				id: 'workbench.action.triggerReconnect',
-				title: { value: localize('triggerReconnect', "Connection: Trigger Reconnect"), original: 'Connection: Trigger Reconnect' },
+				title: localize2('triggerReconnect', 'Connection: Trigger Reconnect'),
 				category: Categories.Developer,
 				f1: true,
 			});
@@ -256,7 +256,7 @@ if (enableDiagnostics) {
 		constructor() {
 			super({
 				id: 'workbench.action.pauseSocketWriting',
-				title: { value: localize('pauseSocketWriting', "Connection: Pause socket writing"), original: 'Connection: Pause socket writing' },
+				title: localize2('pauseSocketWriting', 'Connection: Pause socket writing'),
 				category: Categories.Developer,
 				f1: true,
 			});

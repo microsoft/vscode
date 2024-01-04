@@ -20,7 +20,6 @@ import type { IDecoration, Terminal } from '@xterm/xterm';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IActionWidgetService } from 'vs/platform/actionWidget/browser/actionWidget';
 import { ActionSet } from 'vs/platform/actionWidget/common/actionWidget';
 import { getLinesForCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
@@ -35,6 +34,7 @@ import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 const quickFixClasses = [
 	DecorationSelector.QuickFix,
@@ -77,7 +77,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		@ITerminalQuickFixService private readonly _quickFixService: ITerminalQuickFixService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -284,8 +284,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			e.classList.add(...ThemeIcon.asClassNameArray(isExplainOnly ? Codicon.sparkle : Codicon.lightBulb));
 
 			updateLayout(this._configurationService, e);
-			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
-
+			this._accessibleNotificationService.notify(AccessibleNotificationEvent.TerminalQuickFix);
 			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {
 				return;

@@ -6,6 +6,7 @@
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -19,12 +20,12 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _requestId: number = 0;
 
-	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService, @IInstantiationService private readonly _instantiationService: IInstantiationService) {
+	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService, @IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService, @IInstantiationService private readonly _instantiationService: IInstantiationService) {
 		super();
 	}
 	acceptRequest(): number {
 		this._requestId++;
-		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, { allowManyInParallel: true });
+		this._accessibleNotificationService.notify(AccessibleNotificationEvent.ChatRequestSent, undefined, undefined, true);
 		this._pendingCueMap.set(this._requestId, this._instantiationService.createInstance(AudioCueScheduler));
 		return this._requestId;
 	}

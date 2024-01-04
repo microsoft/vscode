@@ -9,7 +9,6 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,6 +25,7 @@ import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import type { IDecoration, ITerminalAddon, Terminal } from '@xterm/xterm';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -52,7 +52,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IAudioCueService private readonly _audioCueService: IAudioCueService,
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService,
 		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super();
@@ -219,7 +219,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		commandDetectionListeners.push(capability.onCommandFinished(command => {
 			this.registerCommandDecoration(command);
 			if (command.exitCode) {
-				this._audioCueService.playAudioCue(AudioCue.terminalCommandFailed);
+				this._accessibleNotificationService.notify(AccessibleNotificationEvent.TerminalCommandFailed);
 			}
 		}));
 		// Command invalidated

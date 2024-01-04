@@ -22,7 +22,7 @@ import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/con
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -36,7 +36,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
-import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -716,26 +716,49 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
+	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
+			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
+				return false;
+			}
 		}
 
-		return true;
+		let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
+				dropEffectPosition = ListDragOverEffectPosition.Before; break;
+			case ListViewTargetSector.CENTER_BOTTOM:
+			case ListViewTargetSector.BOTTOM:
+				dropEffectPosition = ListDragOverEffectPosition.After; break;
+		}
+
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] } as IListDragOverReaction;
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
-		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+		const targetEditorIndex = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+
+		let targetIndex = targetEditorIndex;
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
+				targetIndex -= 1; break;
+		}
 
 		if (data instanceof ElementsDragAndDropData) {
-			const elementsData = data.elements;
-			elementsData.forEach((oe: OpenEditor, offset) => {
-				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
+			let offset = 0;
+			data.elements.forEach((oe: OpenEditor) => {
+				// Moving an editor which is located before the target location does not change the index of the target
+				if (oe.group.getIndexOfEditor(oe.editor) >= targetEditorIndex) {
+					offset += 1;
+				}
+				oe.group.moveEditor(oe.editor, group, { index: targetIndex + offset, preserveFocus: true });
 			});
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index });
+			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index: targetIndex + 1 });
 		}
 	}
 

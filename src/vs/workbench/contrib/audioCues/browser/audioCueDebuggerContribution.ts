@@ -5,6 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorunWithStore, observableFromEvent } from 'vs/base/common/observable';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IAudioCueService, AudioCue, AudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
@@ -15,7 +16,8 @@ export class AudioCueLineDebuggerContribution
 
 	constructor(
 		@IDebugService debugService: IDebugService,
-		@IAudioCueService private readonly audioCueService: AudioCueService,
+		@IAudioCueService audioCueService: AudioCueService,
+		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
 	) {
 		super();
 
@@ -60,7 +62,7 @@ export class AudioCueLineDebuggerContribution
 			const stoppedDetails = session.getStoppedDetails();
 			const BREAKPOINT_STOP_REASON = 'breakpoint';
 			if (stoppedDetails && stoppedDetails.reason === BREAKPOINT_STOP_REASON) {
-				this.audioCueService.playAudioCue(AudioCue.onDebugBreak);
+				this.accessibleNotificationService.notify(AccessibleNotificationEvent.OnDebugBreak);
 			}
 		});
 
