@@ -11,7 +11,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -1740,7 +1740,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const dataTransfer = toExternalVSDataTransfer(originalEvent.dataTransfer!);
 
 		const types = new Set<string>(Array.from(dataTransfer, x => x[0]));
@@ -1792,7 +1792,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
-	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
+	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		const dndController = this.dndController;
 		if (!originalEvent.dataTransfer || !dndController) {
 			return;
