@@ -73,7 +73,7 @@ export class WebIssueService implements IWorkbenchIssueService {
 
 	registerIssueDataProvider(extensionId: string, handler: IIssueDataProvider): IDisposable {
 		this._providers.set(extensionId, handler);
-		return toDisposable(() => this._handlers.delete(extensionId));
+		return toDisposable(() => this._providers.delete(extensionId));
 	}
 
 	private async getIssueUriFromHandler(extensionId: string, token: CancellationToken): Promise<string> {

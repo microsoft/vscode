@@ -16,6 +16,7 @@ import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IIssueMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { IssueReporter } from './issueReporterService';
@@ -50,3 +51,4 @@ function initServices(windowId: number) {
 }
 
 registerMainProcessRemoteService(IIssueMainService, 'issue');
+registerMainProcessRemoteService(IContextMenuService, 'context');

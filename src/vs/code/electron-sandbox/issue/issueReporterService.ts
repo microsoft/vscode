@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
+import { Button, ButtonWithDropdown, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { mainWindow } from 'vs/base/browser/window';
+import { Action } from 'vs/base/common/actions';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
@@ -17,6 +18,7 @@ import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import { localize } from 'vs/nls';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
@@ -50,11 +52,13 @@ export class IssueReporter extends Disposable {
 	private hasBeenSubmitted = false;
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
+	private readonly previewButtonWithDropdown!: ButtonWithDropdown;
 
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IIssueMainService private readonly issueMainService: IIssueMainService
+		@IIssueMainService private readonly issueMainService: IIssueMainService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -72,8 +76,33 @@ export class IssueReporter extends Disposable {
 
 		//TODO: Handle case where extension is not activated
 
+		const mainAction = new Action('main', 'Main Action', undefined, true, () => {
+			// Main action logic here
+		});
+
+		// Create the dropdown actions
+		const dropdownActions = [
+			new Action('action1', 'Action 1', undefined, true, () => {
+				// Action 1 logic here
+			}),
+			new Action('action2', 'Action 2', undefined, true, () => {
+				// Action 1 logic here
+			}),
+			// Add more actions as needed
+		];
+
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
+			this.previewButtonWithDropdown = new ButtonWithDropdown(issueReporterElement,
+				{
+					actions: dropdownActions,
+					addPrimaryActionToDropdown: false,
+					contextMenuProvider: this.contextMenuService,
+					title: 'temp',
+					supportIcons: true,
+					...unthemedButtonStyles
+				});
+
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
 		}
@@ -133,6 +162,11 @@ export class IssueReporter extends Disposable {
 		this.updateExperimentsInfo(configuration.data.experiments);
 		this.updateRestrictedMode(configuration.data.restrictedMode);
 		this.updateUnsupportedMode(configuration.data.isUnsupported);
+
+		// Handle case where extension is pre-selected through the command
+		if (configuration.data.command && targetExtension) {
+			this.updateExtensionStatus(targetExtension);
+		}
 	}
 
 	render(): void {
@@ -386,6 +420,12 @@ export class IssueReporter extends Disposable {
 		});
 
 		this.previewButton.onDidClick(async () => {
+			this.delayedSubmit.trigger(async () => {
+				this.createIssue();
+			});
+		});
+
+		this.previewButtonWithDropdown.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
 				this.createIssue();
 			});
@@ -785,7 +825,7 @@ export class IssueReporter extends Disposable {
 			show(extensionSelector);
 		}
 
-		if (fileOnExtension && selectedExtension?.hasIssueUriRequestHandler) {
+		if (fileOnExtension && selectedExtension?.hasIssueUriRequestHandler && !selectedExtension.hasIssueDataProviders) {
 			hide(titleTextArea);
 			hide(descriptionTextArea);
 			reset(descriptionTitle, localize('handlesIssuesElsewhere', "This extension handles issues outside of VS Code"));
@@ -890,8 +930,10 @@ export class IssueReporter extends Disposable {
 	}
 
 	private async createIssue(): Promise<boolean> {
+		const hasUri = this.issueReporterModel.getData().selectedExtension?.hasIssueUriRequestHandler;
+		const hasData = this.issueReporterModel.getData().selectedExtension?.hasIssueDataProviders;
 		// Short circuit if the extension provides a custom issue handler
-		if (this.issueReporterModel.getData().selectedExtension?.hasIssueUriRequestHandler) {
+		if (hasUri && !hasData) {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
@@ -934,7 +976,10 @@ export class IssueReporter extends Disposable {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		const issueUrl = this.getIssueUrl();
+		const issueUrl = hasUri ? this.getExtensionBugsUrl() : this.getIssueUrl();
+		if (!issueUrl) {
+			return false;
+		}
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
 		if (this.configuration.data.githubAccessToken && gitHubDetails) {
 			return this.submitToGitHub(issueTitle, issueBody, gitHubDetails);
@@ -1141,55 +1186,86 @@ export class IssueReporter extends Disposable {
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
-					this.issueReporterModel.update({ selectedExtension: matches[0] });
-
-					// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
-					if (!matches[0].hasIssueDataProviders && !matches[0].hasIssueUriRequestHandler) {
-						const toActivate = await this.getReporterStatus(matches[0]);
-						matches[0].hasIssueDataProviders = toActivate[0];
-						matches[0].hasIssueUriRequestHandler = toActivate[1];
-						this.renderBlocks();
-					}
-
-					if (matches[0].hasIssueUriRequestHandler) {
-						this.updateIssueReporterUri(matches[0]);
-					} else if (matches[0].hasIssueDataProviders) {
-						const template = await this.getIssueTemplateFromExtension(matches[0]);
-						const descriptionTextArea = this.getElementById('description')!;
-						const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
-						if (descriptionText === '' || !descriptionText.includes(template)) {
-							const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
-							(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
-							this.issueReporterModel.update({ issueDescription: fullTextArea });
-						}
-						const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
-						show(extensionDataBlock);
-
-						// Start loading for extension data.
-						const iconElement = document.createElement('span');
-						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-						this.setLoading(iconElement);
-						await this.getIssueDataFromExtension(matches[0]);
-						this.removeLoading(iconElement);
-					} else {
-						this.validateSelectedExtension();
-						this.issueReporterModel.update({ extensionData: undefined });
-						const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
-						this.searchExtensionIssues(title);
-					}
+					this.updateExtensionStatus(matches[0]);
 				} else {
 					this.issueReporterModel.update({ selectedExtension: undefined });
 					this.clearSearchResults();
 					this.validateSelectedExtension();
 				}
-				this.updatePreviewButtonState();
-				this.renderBlocks();
+
 			});
 		}
 
 		this.addEventListener('problem-source', 'change', (_) => {
 			this.validateSelectedExtension();
 		});
+	}
+
+	private async updateExtensionStatus(extension: IssueReporterExtensionData) {
+		this.issueReporterModel.update({ selectedExtension: extension });
+
+		// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
+		if (!extension.hasIssueDataProviders && !extension.hasIssueUriRequestHandler) {
+			const toActivate = await this.getReporterStatus(extension);
+			extension.hasIssueDataProviders = toActivate[0];
+			extension.hasIssueUriRequestHandler = toActivate[1];
+			this.renderBlocks();
+		}
+
+		if (extension.hasIssueUriRequestHandler && extension.hasIssueDataProviders) {
+			// update this first
+			const template = await this.getIssueTemplateFromExtension(extension);
+			const descriptionTextArea = this.getElementById('description')!;
+			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+			if (descriptionText === '' || !descriptionText.includes(template)) {
+				const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
+				(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+				this.issueReporterModel.update({ issueDescription: fullTextArea });
+			}
+			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
+			show(extensionDataBlock);
+
+			// Start loading for extension data.
+			const iconElement = document.createElement('span');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+			this.setLoading(iconElement);
+			await this.getIssueDataFromExtension(extension);
+			this.removeLoading(iconElement);
+
+			// then update this
+			this.updateIssueReporterUri(extension);
+
+			// reset to false so issue url is updated, but won't be affected later.
+			// extension.hasIssueUriRequestHandler = false;
+		} else if (extension.hasIssueUriRequestHandler) {
+			this.updateIssueReporterUri(extension);
+		} else if (extension.hasIssueDataProviders) {
+			const template = await this.getIssueTemplateFromExtension(extension);
+			const descriptionTextArea = this.getElementById('description')!;
+			const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+			if (descriptionText === '' || !descriptionText.includes(template)) {
+				const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
+				(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+				this.issueReporterModel.update({ issueDescription: fullTextArea });
+			}
+			const extensionDataBlock = mainWindow.document.querySelector('.block-extension-data')!;
+			show(extensionDataBlock);
+
+			// Start loading for extension data.
+			const iconElement = document.createElement('span');
+			iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+			this.setLoading(iconElement);
+			await this.getIssueDataFromExtension(extension);
+			this.removeLoading(iconElement);
+		} else {
+			this.validateSelectedExtension();
+			this.issueReporterModel.update({ extensionData: undefined });
+			const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
+			this.searchExtensionIssues(title);
+		}
+
+		this.updatePreviewButtonState();
+		this.renderBlocks();
 	}
 
 	private validateSelectedExtension(): void {
@@ -1205,7 +1281,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		const hasValidGitHubUrl = this.getExtensionGitHubUrl();
-		if (hasValidGitHubUrl || extension.hasIssueUriRequestHandler) {
+		if (hasValidGitHubUrl || (extension.hasIssueUriRequestHandler && !extension.hasIssueDataProviders)) {
 			this.previewButton.enabled = true;
 		} else {
 			this.setExtensionValidationMessage();
