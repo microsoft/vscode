@@ -3577,8 +3577,13 @@ export class CommandCenter {
 
 		quickPick.placeholder = placeHolder;
 		quickPick.items = stashes.map(stash => ({
-			label: `#${stash.index}:  ${stash.description}`,
-			buttons: showOpenStashButton ? [{ iconPath: new ThemeIcon('diff-multiple'), tooltip: 'Open Stash' }] : undefined,
+			label: `#${stash.index}: ${stash.description}`,
+			description: stash.branchName,
+			buttons: showOpenStashButton ? [
+				{
+					iconPath: new ThemeIcon('diff-multiple'),
+					tooltip: 'Open Stash'
+				}] : undefined,
 			stash
 		}));
 
