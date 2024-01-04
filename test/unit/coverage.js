@@ -37,7 +37,7 @@ exports.initialize = function (loaderConfig) {
 	};
 };
 
-exports.createReport = function (isSingle) {
+exports.createReport = function (isSingle, coveragePath) {
 	const mapStore = iLibSourceMaps.createSourceMapStore();
 	const coverageMap = iLibCoverage.createCoverageMap(global.__coverage__);
 	return mapStore.transformCoverage(coverageMap).then((transformed) => {
@@ -52,7 +52,7 @@ exports.createReport = function (isSingle) {
 		transformed.data = newData;
 
 		const context = iLibReport.createContext({
-			dir: path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
+			dir: coveragePath || path.join(REPO_PATH, `.build/coverage${isSingle ? '-single' : ''}`),
 			coverageMap: transformed
 		});
 		const tree = context.getTree('flat');
@@ -60,6 +60,9 @@ exports.createReport = function (isSingle) {
 		const reports = [];
 		if (isSingle) {
 			reports.push(iReports.create('lcovonly'));
+			if (coveragePath) {
+				reports.push(iReports.create('json'));
+			}
 		} else {
 			reports.push(iReports.create('json'));
 			reports.push(iReports.create('lcov'));
