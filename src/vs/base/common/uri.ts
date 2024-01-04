@@ -361,10 +361,7 @@ export class URI implements UriComponents {
 		}
 		let newPath: string;
 		if (uri.scheme === 'file') {
-			if (isWindows)
-				newPath = URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path;
-			else
-				newPath = paths.posix.join(uri.path, ...pathFragment);
+			newPath = isWindows ? URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path : paths.posix.join(uri.path, ...pathFragment);
 		} else {
 			newPath = joinPath(uri.path, ...pathFragment);
 		}
