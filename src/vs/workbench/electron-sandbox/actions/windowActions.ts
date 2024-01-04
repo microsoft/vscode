@@ -75,20 +75,41 @@ abstract class BaseZoomAction extends Action2 {
 		super(desc);
 	}
 
-	protected async setZoomLevel(accessor: ServicesAccessor, level: number): Promise<void> {
+	protected async setZoomLevel(accessor: ServicesAccessor, levelOrReset: number | true): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
-
-		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
-
-		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
-			return; // https://github.com/microsoft/vscode/issues/48357
-		}
 
 		let target: ApplyZoomTarget;
 		if (configurationService.getValue(BaseZoomAction.ZOOM_PER_WINDOW_SETTING_KEY) !== false) {
 			target = ApplyZoomTarget.ACTIVE_WINDOW;
 		} else {
 			target = ApplyZoomTarget.ALL_WINDOWS;
+		}
+
+		let level: number;
+		if (typeof levelOrReset === 'number') {
+			level = levelOrReset;
+		} else {
+
+			// reset to 0 when we apply to all windows
+			if (target === ApplyZoomTarget.ALL_WINDOWS) {
+				level = 0;
+			}
+
+			// otherwise, reset to the default zoom level
+			else {
+				const defaultLevel = configurationService.getValue(BaseZoomAction.ZOOM_LEVEL_SETTING_KEY);
+				if (typeof defaultLevel === 'number') {
+					level = defaultLevel;
+				} else {
+					level = 0;
+				}
+			}
+		}
+
+		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
+
+		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
+			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
 		if (target === ApplyZoomTarget.ALL_WINDOWS) {
@@ -188,7 +209,7 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setZoomLevel(accessor, 0);
+		return super.setZoomLevel(accessor, true);
 	}
 }
 
