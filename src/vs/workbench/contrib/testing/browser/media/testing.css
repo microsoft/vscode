@@ -43,6 +43,7 @@
 
 .test-explorer .test-item .label,
 .test-output-peek-tree .test-peek-item .name,
+.test-coverage-list-item .name,
 .test-coverage-list-item-label {
 	flex-grow: 1;
 	width: 0;
@@ -365,6 +366,7 @@
 
 .test-coverage-list-item {
 	display: flex;
+	align-items: center;
 }
 
 .test-coverage-bars {
@@ -376,7 +378,6 @@
 }
 
 .test-coverage-bars .bar {
-	width: 16px;
 	height: 8px;
 	border: 1px solid currentColor;
 	border-radius: 2px;
@@ -390,6 +391,14 @@
 	width: var(--test-bar-width);
 	height: 100%;
 	position: absolute;
+	opacity: 0.7;
+}
+
+.test-coverage-list-item .icon {
+	margin-right: 0.2em;
+}
+
+.test-coverage-list-item.not-covered .name {
 	opacity: 0.7;
 }
 

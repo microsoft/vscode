@@ -850,7 +850,7 @@ export class Repository implements Disposable {
 
 		this._sourceControl.quickDiffProvider = this;
 
-		const historyProvider = new GitHistoryProvider(this);
+		const historyProvider = new GitHistoryProvider(this, logger);
 		this._sourceControl.historyProvider = historyProvider;
 		this.disposables.push(historyProvider);
 
@@ -1474,8 +1474,9 @@ export class Repository implements Disposable {
 		// Git config
 		try {
 			const mergeBase = await this.getConfig(branchMergeBaseConfigKey);
-			if (mergeBase) {
-				return await this.getBranch(mergeBase);
+			if (mergeBase !== '') {
+				const mergeBaseBranch = await this.getBranch(mergeBase);
+				return mergeBaseBranch;
 			}
 		} catch (err) { }
 

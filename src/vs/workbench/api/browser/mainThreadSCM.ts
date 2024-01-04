@@ -142,29 +142,33 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		// History item group base
 		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
 
+		if (!historyItemGroupBase) {
+			return undefined;
+		}
+
 		// Common ancestor, ahead, behind
-		const ancestor = historyItemGroupBase ?
-			await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id) : undefined;
+		const ancestor = await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id);
+
+		if (!ancestor) {
+			return undefined;
+		}
 
 		// Incoming
-		let incoming: ISCMHistoryItemGroupEntry | undefined;
-		if (historyItemGroupBase) {
-			incoming = {
-				id: historyItemGroupBase.id,
-				label: historyItemGroupBase.label,
-				icon: Codicon.arrowCircleDown,
-				ancestor: ancestor?.id,
-				count: ancestor?.behind ?? 0,
-			};
-		}
+		const incoming: ISCMHistoryItemGroupEntry = {
+			id: historyItemGroupBase.id,
+			label: historyItemGroupBase.label,
+			icon: Codicon.arrowCircleDown,
+			ancestor: ancestor.id,
+			count: ancestor.behind,
+		};
 
 		// Outgoing
 		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
 			icon: Codicon.arrowCircleUp,
-			ancestor: ancestor?.id,
-			count: ancestor?.ahead ?? 0,
+			ancestor: ancestor.id,
+			count: ancestor.ahead,
 		};
 
 		return { incoming, outgoing };

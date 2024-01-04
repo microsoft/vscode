@@ -571,12 +571,12 @@ export namespace IFileCoverage {
 		uri: original.uri.toJSON(),
 	});
 
-	export const deserialize = (serialized: Serialized): IFileCoverage => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
 		statement: serialized.statement,
 		branch: serialized.branch,
 		function: serialized.function,
 		details: serialized.details?.map(CoverageDetails.deserialize),
-		uri: URI.from(serialized.uri),
+		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 }
 
@@ -631,7 +631,7 @@ export interface IFunctionCoverage {
 	type: DetailType.Function;
 	name: string;
 	count: number;
-	location?: Range | Position;
+	location: Range | Position;
 }
 
 export namespace IFunctionCoverage {
@@ -639,7 +639,7 @@ export namespace IFunctionCoverage {
 		type: DetailType.Function;
 		name: string;
 		count: number;
-		location?: IRange | IPosition;
+		location: IRange | IPosition;
 	}
 
 	export const serialize: (original: IFunctionCoverage) => Serialized = serializeThingWithLocation;

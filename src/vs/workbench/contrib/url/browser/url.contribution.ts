@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuId, MenuRegistry, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -26,7 +26,7 @@ class OpenUrlAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.url.openUrl',
-			title: { value: localize('openUrl', "Open URL"), original: 'Open URL' },
+			title: localize2('openUrl', 'Open URL'),
 			category: Categories.Developer,
 			f1: true
 		});

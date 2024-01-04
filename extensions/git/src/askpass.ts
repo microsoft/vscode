@@ -102,7 +102,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			const options: InputBoxOptions = {
 				password: true,
 				placeHolder: l10n.t('Passphrase'),
-				prompt: `SSH Key: ${file}`,
+				prompt: file ? `SSH Key: ${file}` : undefined,
 				ignoreFocusOut: true
 			};
 

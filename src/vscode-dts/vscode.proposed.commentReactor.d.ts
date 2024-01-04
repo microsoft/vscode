@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.vs .show-file-icons .chat-editor-label.file-icon::before,
-.show-file-icons .chat-editor-label.file-icon::before {
-	content: '\EAC7';
-	font-family: 'codicon';
-	font-size: 16px;
+declare module 'vscode' {
+
+	// @alexr00 https://github.com/microsoft/vscode/issues/201131
+
+	export interface CommentReaction {
+		readonly reactors?: readonly string[];
+	}
 }

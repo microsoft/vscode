@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -302,11 +302,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: '_interactive.open',
-			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
+			title: localize2('interactive.open', 'Open Interactive Window'),
 			f1: false,
 			category: interactiveWindowCategory,
 			metadata: {
-				description: localize('interactive.open', "Open Interactive Window"),
+				description: localize('interactive.open', 'Open Interactive Window'),
 				args: [
 					{
 						name: 'showOptions',
@@ -420,7 +420,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.execute',
-			title: { value: localize('interactive.execute', "Execute Code"), original: 'Execute Code' },
+			title: localize2('interactive.execute', 'Execute Code'),
 			category: interactiveWindowCategory,
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -535,7 +535,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.input.clear',
-			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
+			title: localize2('interactive.input.clear', 'Clear the interactive window input editor contents'),
 			category: interactiveWindowCategory,
 			f1: false
 		});
@@ -561,7 +561,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.previous',
-			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
+			title: localize2('interactive.history.previous', 'Previous value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
@@ -600,7 +600,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.next',
-			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
+			title: localize2('interactive.history.next', 'Next value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
@@ -699,7 +699,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.input.focus',
-			title: { value: localize('interactive.input.focus', "Focus Input Editor"), original: 'Focus Input Editor' },
+			title: localize2('interactive.input.focus', 'Focus Input Editor'),
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -738,7 +738,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.focus',
-			title: { value: localize('interactive.history.focus', "Focus History"), original: 'Focus History' },
+			title: localize2('interactive.history.focus', 'Focus History'),
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,

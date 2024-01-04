@@ -807,7 +807,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: ''
 		},
 		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
-			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
+			description: localize('remoteTunnelAccess.preventSleep', "Prevent this computer from sleeping when remote tunnel access is turned on."),
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
 			default: false,
