@@ -16,7 +16,7 @@ import { distinct, firstOrDefault } from 'vs/base/common/arrays';
 import { AuxiliaryEditorPart, IAuxiliaryEditorPartOpenOptions } from 'vs/workbench/browser/parts/editor/auxiliaryEditorPart';
 import { MultiWindowParts } from 'vs/workbench/browser/part';
 import { DeferredPromise } from 'vs/base/common/async';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IRectangle } from 'vs/platform/window/common/window';
 import { getWindow } from 'vs/base/browser/dom';
@@ -51,6 +51,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this._register(this.registerPart(this.mainPart));
 
 		this.restoreParts();
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
 	}
 
 	protected createMainEditorPart(): MainEditorPart {
@@ -180,7 +185,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private static readonly EDITOR_PARTS_UI_STATE_STORAGE_KEY = 'editorparts.state';
 
-	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	private readonly workspaceMemento = this.getMemento(StorageScope.WORKSPACE, StorageTarget.USER);
 
 	private _isReady = false;
 	get isReady(): boolean { return this._isReady; }
@@ -203,34 +208,12 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		// when the main part did restore. It is possible
 		// that restoring was not attempted because specific
 		// editors were opened.
-		if (this.mainPart.didRestoreState) {
-			const uiState: IEditorPartsUIState | undefined = this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
-			if (uiState?.auxiliary.length) {
-				const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
-
-				// Create auxiliary editor parts
-				for (const auxiliaryEditorPartState of uiState.auxiliary) {
-					auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
-						bounds: auxiliaryEditorPartState.bounds,
-						state: auxiliaryEditorPartState.state,
-						zoomLevel: auxiliaryEditorPartState.zoomLevel
-					}));
-				}
-
-				// Await creation
-				await Promise.allSettled(auxiliaryEditorPartPromises);
-
-				// Update MRU list
-				if (uiState.mru.length === this.parts.length) {
-					this.mostRecentActiveParts = uiState.mru.map(index => this.parts[index]);
-				} else {
-					this.mostRecentActiveParts = [...this.parts];
-				}
+		if (this.mainPart.willRestoreState) {
+			const state = this.loadState();
+			if (state) {
+				await this.restoreState(state);
 			}
 		}
-
-		// Await ready
-		await Promise.allSettled(this.parts.map(part => part.whenReady));
 
 		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
 		mostRecentActivePart?.activeGroup.focus();
@@ -243,8 +226,21 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this.whenRestoredPromise.complete();
 	}
 
+	private loadState(): IEditorPartsUIState | undefined {
+		return this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
+	}
+
 	protected override saveState(): void {
-		const uiState: IEditorPartsUIState = {
+		const state = this.createState();
+		if (state.auxiliary.length === 0) {
+			delete this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
+		} else {
+			this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY] = state;
+		}
+	}
+
+	private createState(): IEditorPartsUIState {
+		return {
 			auxiliary: this.parts.filter(part => part !== this.mainPart).map(part => {
 				return {
 					state: part.createState(),
@@ -273,16 +269,73 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			}),
 			mru: this.mostRecentActiveParts.map(part => this.parts.indexOf(part))
 		};
+	}
 
-		if (uiState.auxiliary.length === 0) {
-			delete this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY];
-		} else {
-			this.workspaceMemento[EditorParts.EDITOR_PARTS_UI_STATE_STORAGE_KEY] = uiState;
+	private async restoreState(state: IEditorPartsUIState): Promise<void> {
+		if (state.auxiliary.length) {
+			const auxiliaryEditorPartPromises: Promise<IAuxiliaryEditorPart>[] = [];
+
+			// Create auxiliary editor parts
+			for (const auxiliaryEditorPartState of state.auxiliary) {
+				auxiliaryEditorPartPromises.push(this.createAuxiliaryEditorPart({
+					bounds: auxiliaryEditorPartState.bounds,
+					state: auxiliaryEditorPartState.state,
+					zoomLevel: auxiliaryEditorPartState.zoomLevel
+				}));
+			}
+
+			// Await creation
+			await Promise.allSettled(auxiliaryEditorPartPromises);
+
+			// Update MRU list
+			if (state.mru.length === this.parts.length) {
+				this.mostRecentActiveParts = state.mru.map(index => this.parts[index]);
+			} else {
+				this.mostRecentActiveParts = [...this.parts];
+			}
+
+			// Await ready
+			await Promise.allSettled(this.parts.map(part => part.whenReady));
 		}
 	}
 
 	get hasRestorableState(): boolean {
 		return this.parts.some(part => part.hasRestorableState);
+	}
+
+	private onDidChangeMementoState(e: IStorageValueChangeEvent): void {
+		if (e.external && e.scope === StorageScope.WORKSPACE) {
+			this.reloadMemento(e.scope);
+
+			const state = this.loadState();
+			if (state) {
+				this.applyState(state);
+			}
+		}
+	}
+
+	private async applyState(state: IEditorPartsUIState): Promise<boolean> {
+
+		// Close all editors and auxiliary parts first
+		for (const part of this.parts) {
+			if (part === this.mainPart) {
+				continue; // main part takes care on its own
+			}
+
+			for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				const closed = await group.closeAllEditors();
+				if (!closed) {
+					return false;
+				}
+			}
+
+			(part as unknown as IAuxiliaryEditorPart).close();
+		}
+
+		// Restore auxiliary state
+		await this.restoreState(state);
+
+		return true;
 	}
 
 	//#endregion
