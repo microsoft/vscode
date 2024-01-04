@@ -120,9 +120,9 @@ export interface IListDragAndDrop<T> extends IDisposable {
 	getDragURI(element: T): string | null;
 	getDragLabel?(elements: T[], originalEvent: DragEvent): string | undefined;
 	onDragStart?(data: IDragAndDropData, originalEvent: DragEvent): void;
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent, position: ListViewItemDragAndDropSector | undefined): boolean | IListDragOverReaction;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): boolean | IListDragOverReaction;
 	onDragLeave?(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void;
-	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent, position: ListViewItemDragAndDropSector | undefined): void;
+	drop(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): void;
 	onDragEnd?(originalEvent: DragEvent): void;
 }
 
