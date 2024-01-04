@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import product from 'vs/platform/product/common/product';
@@ -13,7 +13,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IProductService } from 'vs/platform/product/common/productService';
 
-const shellCommandCategory: ILocalizedString = { value: localize('shellCommand', "Shell Command"), original: 'Shell Command' };
+const shellCommandCategory: ILocalizedString = localize2('shellCommand', 'Shell Command');
 
 export class InstallShellScriptAction extends Action2 {
 

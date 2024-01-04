@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -266,7 +266,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenRecent',
-			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
+			title: localize2('quickOpenRecent', 'Quick Open Recent...'),
 			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
@@ -320,7 +320,7 @@ export class ReloadWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: ReloadWindowAction.ID,
-			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
+			title: localize2('reloadWindow', 'Reload Window'),
 			category: Categories.Developer,
 			f1: true,
 			keybinding: {
@@ -402,7 +402,7 @@ class BlurAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.blur',
-			title: { value: localize('blur', "Remove keyboard focus from focused element"), original: 'Remove keyboard focus from focused element' }
+			title: localize2('blur', 'Remove keyboard focus from focused element')
 		});
 	}
 

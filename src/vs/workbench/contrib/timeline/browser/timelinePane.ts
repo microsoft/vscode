@@ -1250,9 +1250,9 @@ class TimelinePaneCommands extends Disposable {
 			constructor() {
 				super({
 					id: 'timeline.refresh',
-					title: { value: localize('refresh', "Refresh"), original: 'Refresh' },
+					title: localize2('refresh', "Refresh"),
 					icon: timelineRefresh,
-					category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+					category: localize2('timeline', "Timeline"),
 					menu: {
 						id: MenuId.TimelineTitle,
 						group: 'navigation',
@@ -1272,9 +1272,9 @@ class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: { value: localize('timeline.toggleFollowActiveEditorCommand.follow', "Pin the Current Timeline"), original: 'Pin the Current Timeline' },
+				title: localize2('timeline.toggleFollowActiveEditorCommand.follow', 'Pin the Current Timeline'),
 				icon: timelinePin,
-				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+				category: localize2('timeline', "Timeline"),
 			},
 			group: 'navigation',
 			order: 98,
@@ -1284,9 +1284,9 @@ class TimelinePaneCommands extends Disposable {
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
 			command: {
 				id: 'timeline.toggleFollowActiveEditor',
-				title: { value: localize('timeline.toggleFollowActiveEditorCommand.unfollow', "Unpin the Current Timeline"), original: 'Unpin the Current Timeline' },
+				title: localize2('timeline.toggleFollowActiveEditorCommand.unfollow', 'Unpin the Current Timeline'),
 				icon: timelineUnpin,
-				category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+				category: localize2('timeline', "Timeline"),
 			},
 			group: 'navigation',
 			order: 98,

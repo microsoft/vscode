@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Registry } from 'vs/platform/registry/common/platform';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -90,12 +90,12 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 	// Actions: macOS Native Tabs
 	if (isMacintosh) {
 		for (const command of [
-			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: { value: localize('newTab', "New Window Tab"), original: 'New Window Tab' } },
-			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: { value: localize('showPreviousTab', "Show Previous Window Tab"), original: 'Show Previous Window Tab' } },
-			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: { value: localize('showNextWindowTab', "Show Next Window Tab"), original: 'Show Next Window Tab' } },
-			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: { value: localize('moveWindowTabToNewWindow', "Move Window Tab to New Window"), original: 'Move Window Tab to New Window' } },
-			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: { value: localize('mergeAllWindowTabs', "Merge All Windows"), original: 'Merge All Windows' } },
-			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: { value: localize('toggleWindowTabsBar', "Toggle Window Tabs Bar"), original: 'Toggle Window Tabs Bar' } }
+			{ handler: NewWindowTabHandler, id: 'workbench.action.newWindowTab', title: localize2('newTab', 'New Window Tab') },
+			{ handler: ShowPreviousWindowTabHandler, id: 'workbench.action.showPreviousWindowTab', title: localize2('showPreviousTab', 'Show Previous Window Tab') },
+			{ handler: ShowNextWindowTabHandler, id: 'workbench.action.showNextWindowTab', title: localize2('showNextWindowTab', 'Show Next Window Tab') },
+			{ handler: MoveWindowTabToNewWindowHandler, id: 'workbench.action.moveWindowTabToNewWindow', title: localize2('moveWindowTabToNewWindow', 'Move Window Tab to New Window') },
+			{ handler: MergeWindowTabsHandlerHandler, id: 'workbench.action.mergeAllWindowTabs', title: localize2('mergeAllWindowTabs', 'Merge All Windows') },
+			{ handler: ToggleWindowTabsBarHandler, id: 'workbench.action.toggleWindowTabsBar', title: localize2('toggleWindowTabsBar', 'Toggle Window Tabs Bar') }
 		]) {
 			CommandsRegistry.registerCommand(command.id, command.handler);
 
