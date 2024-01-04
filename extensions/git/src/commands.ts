@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, QuickPick } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -3538,12 +3538,16 @@ export class CommandCenter {
 	@command('git.stashOpen', { repository: true })
 	async stashOpen(repository: Repository): Promise<void> {
 		const placeHolder = l10n.t('Pick a stash to open');
-		const stash = await this.pickStash(repository, placeHolder);
+		const stash = await this.pickStash(repository, placeHolder, false);
 
 		if (!stash) {
 			return;
 		}
 
+		await this.openStash(repository, stash);
+	}
+
+	private async openStash(repository: Repository, stash: Stash): Promise<void> {
 		const stashFiles = await repository.showStash(stash.index);
 
 		if (!stashFiles || stashFiles.length === 0) {
@@ -3557,10 +3561,10 @@ export class CommandCenter {
 			args.push([fileUri, toGitUri(fileUri, `stash@{${stash.index}}`), fileUri]);
 		}
 
-		commands.executeCommand('vscode.changes', `Stash #${stash.index}: ${stash.description}`, args);
+		commands.executeCommand('vscode.changes', `Git Stash #${stash.index}: ${stash.description}`, args);
 	}
 
-	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
+	private async pickStash(repository: Repository, placeHolder: string, showOpenStashButton = true): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
 		if (stashes.length === 0) {
@@ -3568,9 +3572,27 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
-		const result = await window.showQuickPick(picks, { placeHolder });
-		return result && result.stash;
+		type StashQuickPickItem = QuickPickItem & { stash: Stash };
+		const quickPick = window.createQuickPick<StashQuickPickItem>();
+
+		quickPick.placeholder = placeHolder;
+		quickPick.items = stashes.map(stash => ({
+			label: `#${stash.index}:  ${stash.description}`,
+			buttons: showOpenStashButton ? [{ iconPath: new ThemeIcon('diff-multiple'), tooltip: 'Open Stash' }] : undefined,
+			stash
+		}));
+
+		quickPick.show();
+		const result = await new Promise<StashQuickPickItem | undefined>(resolve => {
+			quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
+			quickPick.onDidTriggerItemButton(e => {
+				this.openStash(repository, e.item.stash);
+				resolve(undefined);
+			});
+		});
+		quickPick.hide();
+
+		return result?.stash;
 	}
 
 	@command('git.timeline.openDiff', { repository: false })
