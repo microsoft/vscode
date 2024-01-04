@@ -299,7 +299,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						order: 5,
 						isHiddenByDefault: true
 					}],
-					icon: Codicon.window,
+					icon: Codicon.emptyWindow,
 					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
