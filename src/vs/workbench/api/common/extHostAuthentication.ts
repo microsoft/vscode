@@ -83,13 +83,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			});
 		}
 
-		const listener = provider.onDidChangeSessions(e => {
-			this._proxy.$sendDidChangeSessions(id, {
-				added: e.added ?? [],
-				changed: e.changed ?? [],
-				removed: e.removed ?? []
-			});
-		});
+		const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
 
 		this._proxy.$registerAuthenticationProvider(id, label, options?.supportsMultipleAccounts ?? false);
 

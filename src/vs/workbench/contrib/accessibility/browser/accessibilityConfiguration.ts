@@ -55,8 +55,22 @@ export const enum AccessibilityVerbositySettingId {
 }
 
 export const enum AccessibilityAlertSettingId {
+	Clear = 'accessibility.alert.clear',
 	Save = 'accessibility.alert.save',
-	Format = 'accessibility.alert.format'
+	Format = 'accessibility.alert.format',
+	Breakpoint = 'accessibility.alert.breakpoint',
+	Error = 'accessibility.alert.error',
+	Warning = 'accessibility.alert.warning',
+	FoldedArea = 'accessibility.alert.foldedArea',
+	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
+	TerminalBell = 'accessibility.alert.terminalBell',
+	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
+	TaskCompleted = 'accessibility.alert.taskCompleted',
+	TaskFailed = 'accessibility.alert.taskFailed',
+	ChatRequestSent = 'accessibility.alert.chatRequestSent',
+	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
+	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
+	OnDebugBreak = 'accessibility.alert.onDebugBreak'
 }
 
 export const enum AccessibleViewProviderId {
@@ -131,7 +145,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
-			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Note that this will be ignored when {0} is enabled.", '`#audioCues.save#`'),
+			'markdownDescription': localize('alert.save', "Alerts when a file is saved. Also see {0}.", '`#audioCues.save#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'always',
@@ -142,8 +156,14 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
+		[AccessibilityAlertSettingId.Clear]: {
+			'markdownDescription': localize('alert.clear', "Alerts when a feature is cleared (for example, the terminal, Debug Console, or Output channel). Also see {0}.", '`#audioCues.clear#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
 		[AccessibilityAlertSettingId.Format]: {
-			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Note that this will be ignored when {0} is enabled.", '`#audioCues.format#`'),
+			'markdownDescription': localize('alert.format', "Alerts when a file or notebook cell is formatted. Also see {0}.", '`#audioCues.format#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'always',
@@ -152,6 +172,84 @@ const configuration: IConfigurationNode = {
 				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
 				localize('alert.format.never', "Never alerts.")
 			],
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Breakpoint]: {
+			'markdownDescription': localize('alert.breakpoint', "Alerts when the active line has a breakpoint. Also see {0}.", '`#audioCues.breakpoint#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Error]: {
+			'markdownDescription': localize('alert.error', "Alerts when the active line has an error. Also see {0}.", '`#audioCues.error#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Warning]: {
+			'markdownDescription': localize('alert.warning', "Alerts when the active line has a warning. Also see {0}.", '`#audioCues.warning#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.FoldedArea]: {
+			'markdownDescription': localize('alert.foldedArea', "Alerts when the active line has a folded area that can be unfolded. Also see {0}.", '`#audioCues.foldedArea#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TerminalQuickFix]: {
+			'markdownDescription': localize('alert.terminalQuickFix', "Alerts when there is an available terminal quick fix. Also see {0}.", '`#audioCues.terminalQuickFix#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TerminalBell]: {
+			'markdownDescription': localize('alert.terminalBell', "Alerts when the terminal bell is activated. Also see {0}.", '`#audioCues.terminalBell#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TerminalCommandFailed]: {
+			'markdownDescription': localize('alert.terminalCommandFailed', "Alerts when a terminal command fails (non-zero exit code). Also see {0}.", '`#audioCues.terminalCommandFailed#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TaskFailed]: {
+			'markdownDescription': localize('alert.taskFailed', "Alerts when a task fails (non-zero exit code). Also see {0}.", '`#audioCues.taskFailed#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.TaskCompleted]: {
+			'markdownDescription': localize('alert.taskCompleted', "Alerts when a task completes successfully (zero exit code). Also see {0}.", '`#audioCues.taskCompleted#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.ChatRequestSent]: {
+			'markdownDescription': localize('alert.chatRequestSent', "Alerts when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.NotebookCellCompleted]: {
+			'markdownDescription': localize('alert.notebookCellCompleted', "Alerts when a notebook cell completes successfully. Also see {0}.", '`#audioCues.notebookCellCompleted#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.NotebookCellFailed]: {
+			'markdownDescription': localize('alert.notebookCellFailed', "Alerts when a notebook cell fails. Also see {0}.", '`#audioCues.notebookCellFailed#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.OnDebugBreak]: {
+			'markdownDescription': localize('alert.onDebugBreak', "Alerts when the debugger breaks. Also see {0}.", '`#audioCues.onDebugBreak#`'),
+			'type': 'boolean',
+			'default': true,
 			tags: ['accessibility']
 		},
 		[AccessibilityVoiceSettingId.SpeechTimeout]: {

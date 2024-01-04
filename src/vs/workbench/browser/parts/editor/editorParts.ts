@@ -208,7 +208,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		// when the main part did restore. It is possible
 		// that restoring was not attempted because specific
 		// editors were opened.
-		if (this.mainPart.didRestoreState) {
+		if (this.mainPart.willRestoreState) {
 			const state = this.loadState();
 			if (state) {
 				await this.restoreState(state);
