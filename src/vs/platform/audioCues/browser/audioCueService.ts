@@ -49,13 +49,14 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
-		if (this.isEnabled(cue)) {
-			this.sendAudioCueTelemetry(cue, options.source);
-			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
-		}
 		const alertMessage = cue.alertMessage;
 		if (this.alertIsEnabled(cue) && alertMessage) {
 			this.accessibilityService.alert(alertMessage);
+		}
+
+		if (this.isEnabled(cue)) {
+			this.sendAudioCueTelemetry(cue, options.source);
+			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
 	}
 
@@ -64,14 +65,15 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			this.sendAudioCueTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
 		}
 		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
-		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cueArray.filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
-
 		const alerts = cueArray.filter(cue => this.alertIsEnabled(cue)).map(c => c.alertMessage);
 		if (alerts.length) {
 			this.accessibilityService.alert(alerts.join(', '));
 		}
+
+		// Some audio cues might reuse sounds. Don't play the same sound twice.
+		const sounds = new Set(cueArray.filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
+		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
+
 	}
 
 
