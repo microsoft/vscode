@@ -197,14 +197,20 @@ export class ExtensionManagementCLI {
 			}
 		}
 
-		if (extensionsToUpdate.length) {
-			this.logger.info(localize('updateExtensionsNewVersionsAvailable', "Updating extensions: {0}", extensionsToUpdate.map(ext => ext.extension.identifier.id).join(', ')));
-			await this.extensionManagementService.installGalleryExtensions(extensionsToUpdate);
-			this.logger.info(localize('updateExtensionsDone', "Updated {0} extensions", extensionsToUpdate.length));
-		}
-		else {
+		if (!extensionsToUpdate.length) {
 			this.logger.info(localize('updateExtensionsNoExtensions', "No extension to update"));
+			return;
 		}
+
+		this.logger.info(localize('updateExtensionsNewVersionsAvailable', "Updating extensions: {0}", extensionsToUpdate.map(ext => ext.extension.identifier.id).join(', ')));
+		const installationResult = await this.extensionManagementService.installGalleryExtensions(extensionsToUpdate);
+
+		const failed: string[] = installationResult.filter(ext => ext.error).map(ext => ext.identifier.id);
+		if (failed.length) {
+			throw new Error(localize('updateExtensionsFailed', "Failed updating extensions: {0}", failed.join(', ')));
+		}
+
+		this.logger.info(localize('updateExtensionsDone', "Successfully updated {0} extensions", extensionsToUpdate.length));
 	}
 
 	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, installedExtensions: ILocalExtension[]): Promise<IExtensionManifest | null> {
