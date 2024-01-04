@@ -6,7 +6,7 @@
 import * as errors from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
-import { URI } from 'vs/base/common/uri';
+import { URI, joinPath } from 'vs/base/common/uri';
 
 export namespace Schemas {
 
@@ -146,7 +146,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	private get _remoteResourcesPath(): string {
-		return `${this._serverRootPath}/${Schemas.vscodeRemoteResource}`;
+		return joinPath(this._serverRootPath, Schemas.vscodeRemoteResource);
 	}
 
 	set(authority: string, host: string, port: number): void {
