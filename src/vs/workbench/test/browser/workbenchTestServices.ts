@@ -169,7 +169,7 @@ import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { AudioCueService, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);

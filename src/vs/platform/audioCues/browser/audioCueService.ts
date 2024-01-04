@@ -12,7 +12,6 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { observableFromEvent, derived } from 'vs/base/common/observable';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 

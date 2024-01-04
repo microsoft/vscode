@@ -23,7 +23,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { AudioCueService, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 suite('EditorAutoSave', () => {
 
