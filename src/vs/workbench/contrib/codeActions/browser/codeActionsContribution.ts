@@ -20,7 +20,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {
 		type: 'string',
-		enum: ['always', 'explicit', 'never'],
+		enum: ['always', 'explicit', 'never', true, false],
 		enumDescriptions: [
 			nls.localize('alwaysSave', 'Triggers Code Actions on explicit saves and auto saves triggered by window or focus changes.'),
 			nls.localize('explicitSave', 'Triggers Code Actions only when explicitly saved'),
@@ -28,7 +28,7 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 			nls.localize('explicitSaveBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'),
 			nls.localize('neverSaveBoolean', 'Never triggers Code Actions on save. This value will be deprecated in favor of "never".')
 		],
-		default: true,
+		default: 'explicit',
 		description: description
 	};
 };
@@ -55,7 +55,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	type: ['object', 'array'],
 	additionalProperties: {
 		type: 'string',
-		enum: ['always', 'explicit', 'never'],
+		enum: ['always', 'explicit', 'never', true, false],
 	},
 	default: {},
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
