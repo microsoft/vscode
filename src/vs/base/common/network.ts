@@ -131,7 +131,7 @@ class RemoteAuthoritiesImpl {
 	private readonly _connectionTokens: { [authority: string]: string | undefined } = Object.create(null);
 	private _preferredWebSchema: 'http' | 'https' = 'http';
 	private _delegate: ((uri: URI) => URI) | null = null;
-	private _remoteResourcesPath: string = `/${Schemas.vscodeRemoteResource}`;
+	private _serverRootPath: string = '/';
 
 	setPreferredWebSchema(schema: 'http' | 'https') {
 		this._preferredWebSchema = schema;
@@ -142,7 +142,11 @@ class RemoteAuthoritiesImpl {
 	}
 
 	setServerRootPath(serverRootPath: string): void {
-		this._remoteResourcesPath = `${serverRootPath}/${Schemas.vscodeRemoteResource}`;
+		this._serverRootPath = serverRootPath;
+	}
+
+	private get _remoteResourcesPath(): string {
+		return `${this._serverRootPath}/${Schemas.vscodeRemoteResource}`;
 	}
 
 	set(authority: string, host: string, port: number): void {

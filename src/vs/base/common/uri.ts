@@ -79,6 +79,8 @@ const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
 
+export const joinPath = paths.posix.join;
+
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
  * This class is a simple parser which creates the basic component parts
@@ -358,10 +360,13 @@ export class URI implements UriComponents {
 			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
 		}
 		let newPath: string;
-		if (isWindows && uri.scheme === 'file') {
-			newPath = URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path;
+		if (uri.scheme === 'file') {
+			if (isWindows)
+				newPath = URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path;
+			else
+				newPath = paths.posix.join(uri.path, ...pathFragment);
 		} else {
-			newPath = paths.posix.join(uri.path, ...pathFragment);
+			newPath = joinPath(uri.path, ...pathFragment);
 		}
 		return uri.with({ path: newPath });
 	}

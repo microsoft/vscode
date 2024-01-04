@@ -17,7 +17,7 @@ import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/ba
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { RemotePaths } from 'vs/platform/remote/common/remoteHosts';
 import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 
@@ -234,7 +234,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 
 	let socket: ISocket;
 	try {
-		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, getRemoteServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
+		socket = await createSocket(options.logService, options.remoteSocketFactoryService, options.connectTo, RemotePaths.getServerRootPath(options), `reconnectionToken=${options.reconnectionToken}&reconnection=${options.reconnectionProtocol ? 'true' : 'false'}`, connectionTypeToString(connectionType), `renderer-${connectionTypeToString(connectionType)}-${options.reconnectionToken}`, timeoutCancellationToken);
 	} catch (error) {
 		options.logService.error(`${logPrefix} socketFactory.connect() failed or timed out. Error:`);
 		options.logService.error(error);

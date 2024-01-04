@@ -33,7 +33,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ConnectionType, ConnectionTypeRequest, ErrorMessage, HandshakeMessage, IRemoteExtensionHostStartParams, ITunnelConnectionStartParams, SignRequest } from 'vs/platform/remote/common/remoteAgentConnection';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
-import { getRemoteServerRootPath } from 'vs/platform/remote/common/remoteHosts';
+import { RemotePaths } from 'vs/platform/remote/common/remoteHosts';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
@@ -82,7 +82,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 	) {
 		super();
 
-		this._serverRootPath = getRemoteServerRootPath(_productService);
+		this._serverRootPath = RemotePaths.getServerRootPath(_productService);
 		this._extHostConnections = Object.create(null);
 		this._managementConnections = Object.create(null);
 		this._allReconnectionTokens = new Set<string>();
@@ -665,6 +665,8 @@ export interface IServerAPI {
 }
 
 export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<IServerAPI> {
+	RemotePaths.setBasePath(args['route-base-url-path'] || '/');
+
 	const connectionToken = await determineServerConnectionToken(args);
 	if (connectionToken instanceof ServerConnectionTokenParseError) {
 		console.warn(connectionToken.message);
@@ -779,7 +781,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
 		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?${connectionTokenQueryName}=${connectionToken.value}` : '');
-		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
+		console.log(`Web UI available at http://${address.address}:${address.port}/${queryPart}`);
 	}
 
 	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient);
