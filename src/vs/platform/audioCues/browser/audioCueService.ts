@@ -19,7 +19,7 @@ export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue, options?: IAudioCueOptions): Promise<void>;
 	playAudioCues(cues: (AudioCue | { cue: AudioCue; source: string })[]): Promise<void>;
-	isEnabled(cue: AudioCue): boolean;
+	cueIsEnabled(cue: AudioCue): boolean;
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
@@ -29,6 +29,7 @@ export interface IAudioCueService {
 export interface IAudioCueOptions {
 	allowManyInParallel?: boolean;
 	source?: string;
+	userGesture?: boolean;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -43,15 +44,17 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-	) {
+		@ITelemetryService private readonly telemetryService: ITelemetryService) {
 		super();
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
-		if (this.isEnabled(cue)) {
+		if (this.cueIsEnabled(cue)) {
 			this.sendAudioCueTelemetry(cue, options.source);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
+		}
+		if (this.alertIsEnabled(cue) && cue.alertMessage) {
+			this.accessibilityService.alert(cue.alertMessage);
 		}
 	}
 
@@ -59,11 +62,17 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		for (const cue of cues) {
 			this.sendAudioCueTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
 		}
-
+		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cues.map(c => 'cue' in c ? c.cue : c).filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
+		const sounds = new Set(cueArray.filter(cue => this.cueIsEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
+
+		const alerts = cueArray.filter(cue => this.alertIsEnabled(cue)).map(c => c.alertMessage);
+		if (alerts.length) {
+			this.accessibilityService.alert(alerts.join(', '));
+		}
 	}
+
 
 	private sendAudioCueTelemetry(cue: AudioCue, source: string | undefined): void {
 		const isScreenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();
@@ -152,15 +161,15 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 			e.affectsConfiguration('audioCues.enabled')
 		),
-		() => /** @description config: audioCues.enabled */ this.configurationService.getValue<'on' | 'off' | 'auto'>('audioCues.enabled')
+		() => /** @description config: audioCues.enabled */ this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>('audioCues.enabled')
 	);
 
-	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
+	private readonly isCueEnabledCache = new Cache((cue: AudioCue, userGesture?: boolean) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(cue.settingsKey)
 			),
-			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
+			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(cue.settingsKey)
 		);
 		return derived(reader => {
 			/** @description audio cue enabled */
@@ -169,6 +178,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 				setting === 'on' ||
 				(setting === 'auto' && this.screenReaderAttached.read(reader))
 			) {
+				return true;
+			} else if (setting === 'always' || setting === 'userGesture' && userGesture) {
 				return true;
 			}
 
@@ -184,12 +195,35 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	});
 
-	public isEnabled(cue: AudioCue): boolean {
-		return this.isEnabledCache.get(cue).get();
+	private readonly isAlertEnabledCache = new Cache((cue: AudioCue, userGesture?: boolean) => {
+		const settingObservable = observableFromEvent(
+			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
+				e.affectsConfiguration(cue.settingsKey)
+			),
+			() => this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(cue.alertSettingsKey)
+		);
+		return derived(reader => {
+			/** @description audio cue enabled */
+			const setting = settingObservable.read(reader);
+			if (
+				!this.screenReaderAttached.read(reader)
+			) {
+				return false;
+			}
+			return setting === true || setting === 'always' || setting === 'userGesture' && userGesture;
+		});
+	});
+
+	public alertIsEnabled(cue: AudioCue): boolean {
+		return this.isAlertEnabledCache.get(cue).get() ?? false;
+	}
+
+	public cueIsEnabled(cue: AudioCue): boolean {
+		return this.isCueEnabledCache.get(cue).get() ?? false;
 	}
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
-		return Event.fromObservableLight(this.isEnabledCache.get(cue));
+		return Event.fromObservableLight(this.isCueEnabledCache.get(cue));
 	}
 }
 
@@ -291,9 +325,11 @@ export class AudioCue {
 			randomOneOf: Sound[];
 		};
 		settingsKey: string;
+		alertSettingsKey: string;
+		alertMessage?: string;
 	}): AudioCue {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
-		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey);
+		const audioCue = new AudioCue(soundSource, options.name, options.settingsKey, options.alertSettingsKey, options.alertMessage);
 		AudioCue._audioCues.add(audioCue);
 		return audioCue;
 	}
@@ -306,104 +342,139 @@ export class AudioCue {
 		name: localize('audioCues.lineHasError.name', 'Error on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
+		alertSettingsKey: 'alert.lineHasError',
+		alertMessage: localize('audioCues.lineHasError.alertMessage', 'Error')
 	});
 	public static readonly warning = AudioCue.register({
 		name: localize('audioCues.lineHasWarning.name', 'Warning on Line'),
 		sound: Sound.warning,
 		settingsKey: 'audioCues.lineHasWarning',
+		alertSettingsKey: 'alert.lineHasWarning',
+		alertMessage: localize('audioCues.lineHasWarning.alertMessage', 'Warning')
 	});
 	public static readonly foldedArea = AudioCue.register({
 		name: localize('audioCues.lineHasFoldedArea.name', 'Folded Area on Line'),
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
+		alertSettingsKey: 'alert.lineHasFoldedArea',
+		alertMessage: localize('audioCues.lineHasFoldedArea.alertMessage', 'Folded')
 	});
 	public static readonly break = AudioCue.register({
 		name: localize('audioCues.lineHasBreakpoint.name', 'Breakpoint on Line'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
+		alertSettingsKey: 'alert.lineHasBreakpoint',
+		alertMessage: localize('audioCues.lineHasBreakpoint.alertMessage', 'Breakpoint')
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
 		name: localize('audioCues.lineHasInlineSuggestion.name', 'Inline Suggestion on Line'),
 		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
+		alertSettingsKey: 'alert.lineHasInlineSuggestion',
+		alertMessage: localize('audioCues.lineHasInlineSuggestion.alertMessage', 'Inline Suggestion')
 	});
 
 	public static readonly terminalQuickFix = AudioCue.register({
 		name: localize('audioCues.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.terminalQuickFix',
+		alertSettingsKey: 'alert.terminalQuickFix',
+		alertMessage: localize('audioCues.terminalQuickFix.alertMessage', 'Quick Fix')
 	});
 
 	public static readonly onDebugBreak = AudioCue.register({
 		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.onDebugBreak',
+		alertSettingsKey: 'alert.onDebugBreak',
+		alertMessage: localize('audioCues.onDebugBreak.alertMessage', 'Breakpoint')
 	});
 
 	public static readonly noInlayHints = AudioCue.register({
 		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
-		settingsKey: 'audioCues.noInlayHints'
+		settingsKey: 'audioCues.noInlayHints',
+		alertSettingsKey: 'alert.noInlayHints',
+		alertMessage: localize('audioCues.noInlayHints.alertMessage', 'No Inlay Hints')
 	});
 
 	public static readonly taskCompleted = AudioCue.register({
 		name: localize('audioCues.taskCompleted', 'Task Completed'),
 		sound: Sound.taskCompleted,
-		settingsKey: 'audioCues.taskCompleted'
+		settingsKey: 'audioCues.taskCompleted',
+		alertSettingsKey: 'alert.taskCompleted',
+		alertMessage: localize('audioCues.taskCompleted.alertMessage', 'Task Completed')
 	});
 
 	public static readonly taskFailed = AudioCue.register({
 		name: localize('audioCues.taskFailed', 'Task Failed'),
 		sound: Sound.taskFailed,
-		settingsKey: 'audioCues.taskFailed'
+		settingsKey: 'audioCues.taskFailed',
+		alertSettingsKey: 'alert.taskFailed',
+		alertMessage: localize('audioCues.taskFailed.alertMessage', 'Task Failed')
 	});
 
 	public static readonly terminalCommandFailed = AudioCue.register({
 		name: localize('audioCues.terminalCommandFailed', 'Terminal Command Failed'),
 		sound: Sound.error,
-		settingsKey: 'audioCues.terminalCommandFailed'
+		settingsKey: 'audioCues.terminalCommandFailed',
+		alertSettingsKey: 'alert.terminalCommandFailed',
+		alertMessage: localize('audioCues.terminalCommandFailed.alertMessage', 'Command Failed')
 	});
 
 	public static readonly terminalBell = AudioCue.register({
 		name: localize('audioCues.terminalBell', 'Terminal Bell'),
 		sound: Sound.terminalBell,
-		settingsKey: 'audioCues.terminalBell'
+		settingsKey: 'audioCues.terminalBell',
+		alertSettingsKey: 'alert.terminalBell',
+		alertMessage: localize('audioCues.terminalBell.alertMessage', 'Terminal Bell')
 	});
 
 	public static readonly notebookCellCompleted = AudioCue.register({
 		name: localize('audioCues.notebookCellCompleted', 'Notebook Cell Completed'),
 		sound: Sound.taskCompleted,
-		settingsKey: 'audioCues.notebookCellCompleted'
+		settingsKey: 'audioCues.notebookCellCompleted',
+		alertSettingsKey: 'alert.notebookCellCompleted',
+		alertMessage: localize('audioCues.notebookCellCompleted.alertMessage', 'Notebook Cell Completed')
 	});
 
 	public static readonly notebookCellFailed = AudioCue.register({
 		name: localize('audioCues.notebookCellFailed', 'Notebook Cell Failed'),
 		sound: Sound.taskFailed,
-		settingsKey: 'audioCues.notebookCellFailed'
+		settingsKey: 'audioCues.notebookCellFailed',
+		alertSettingsKey: 'alert.notebookCellFailed',
+		alertMessage: localize('audioCues.notebookCellFailed.alertMessage', 'Notebook Cell Failed')
 	});
 
 	public static readonly diffLineInserted = AudioCue.register({
 		name: localize('audioCues.diffLineInserted', 'Diff Line Inserted'),
 		sound: Sound.diffLineInserted,
-		settingsKey: 'audioCues.diffLineInserted'
+		settingsKey: 'audioCues.diffLineInserted',
+		alertSettingsKey: 'alert.diffLineInserted',
+		alertMessage: localize('audioCues.diffLineInserted.alertMessage', '+')
 	});
 
 	public static readonly diffLineDeleted = AudioCue.register({
 		name: localize('audioCues.diffLineDeleted', 'Diff Line Deleted'),
 		sound: Sound.diffLineDeleted,
-		settingsKey: 'audioCues.diffLineDeleted'
+		settingsKey: 'audioCues.diffLineDeleted',
+		alertSettingsKey: 'alert.diffLineDeleted',
+		alertMessage: localize('audioCues.diffLineDeleted.alertMessage', '-')
 	});
 
 	public static readonly diffLineModified = AudioCue.register({
 		name: localize('audioCues.diffLineModified', 'Diff Line Modified'),
 		sound: Sound.diffLineModified,
-		settingsKey: 'audioCues.diffLineModified'
+		settingsKey: 'audioCues.diffLineModified',
+		alertSettingsKey: 'alert.diffLineModified',
 	});
 
 	public static readonly chatRequestSent = AudioCue.register({
 		name: localize('audioCues.chatRequestSent', 'Chat Request Sent'),
 		sound: Sound.chatRequestSent,
-		settingsKey: 'audioCues.chatRequestSent'
+		settingsKey: 'audioCues.chatRequestSent',
+		alertSettingsKey: 'alert.chatRequestSent',
+		alertMessage: localize('audioCues.chatRequestSent.alertMessage', 'Chat Request Sent')
 	});
 
 	public static readonly chatResponseReceived = AudioCue.register({
@@ -416,36 +487,48 @@ export class AudioCue {
 				Sound.chatResponseReceived3,
 				Sound.chatResponseReceived4
 			]
-		}
+		},
+		alertSettingsKey: 'alert.chatResponseReceived',
+		alertMessage: localize('audioCues.chatResponseReceived.alertMessage', 'Chat Response Received')
 	});
 
 	public static readonly chatResponsePending = AudioCue.register({
 		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
 		sound: Sound.chatResponsePending,
-		settingsKey: 'audioCues.chatResponsePending'
+		settingsKey: 'audioCues.chatResponsePending',
+		alertSettingsKey: 'alert.chatResponsePending',
+		alertMessage: localize('audioCues.chatResponsePending.alertMessage', 'Chat Response Pending')
 	});
 
 	public static readonly clear = AudioCue.register({
 		name: localize('audioCues.clear', 'Clear'),
 		sound: Sound.clear,
-		settingsKey: 'audioCues.clear'
+		settingsKey: 'audioCues.clear',
+		alertSettingsKey: 'alert.clear',
+		alertMessage: localize('audioCues.clear.alertMessage', 'Clear')
 	});
 
 	public static readonly save = AudioCue.register({
 		name: localize('audioCues.save', 'Save'),
 		sound: Sound.save,
-		settingsKey: 'audioCues.save'
+		settingsKey: 'audioCues.save',
+		alertSettingsKey: 'alert.save',
+		alertMessage: localize('audioCues.save.alertMessage', 'Save')
 	});
 
 	public static readonly format = AudioCue.register({
 		name: localize('audioCues.format', 'Format'),
 		sound: Sound.format,
-		settingsKey: 'audioCues.format'
+		settingsKey: 'audioCues.format',
+		alertSettingsKey: 'alert.format',
+		alertMessage: localize('audioCues.format.alertMessage', 'Format')
 	});
 
 	private constructor(
 		public readonly sound: SoundSource,
 		public readonly name: string,
 		public readonly settingsKey: string,
+		public readonly alertSettingsKey: string,
+		public readonly alertMessage?: string
 	) { }
 }
