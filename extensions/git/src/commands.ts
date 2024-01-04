@@ -2700,7 +2700,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch or tag to merge from');
-		const choice = await this._unsortedQuickPick<MergeItem>((getQuickPickItems(), placeHolder);
+		const choice = await this._unsortedQuickPick(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof MergeItem) {
 			await choice.run(repository);
@@ -2722,7 +2722,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
-		const choice = await this._unsortedQuickPick<RebaseItem>(getQuickPickItems(), placeHolder);
+		const choice = await this._unsortedQuickPick(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof RebaseItem) {
 			await choice.run(repository);
