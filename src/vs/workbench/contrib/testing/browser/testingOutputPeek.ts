@@ -1717,7 +1717,7 @@ class CoverageElement implements ITreeElement {
 	}
 
 	public get icon() {
-		return this.isOpen ? widgetClose : icons.testingCoverage;
+		return this.isOpen ? widgetClose : icons.testingCoverageReport;
 	}
 
 	public get isOpen() {
