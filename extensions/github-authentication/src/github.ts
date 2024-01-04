@@ -18,6 +18,7 @@ interface SessionData {
 	account?: {
 		label?: string;
 		displayName?: string;
+		iconPath?: string;
 		id: string;
 	};
 	scopes: string[];
@@ -124,6 +125,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._telemetryReporter,
 			uriHandler,
 			context.extension.extensionKind,
+			context.globalStorageUri,
 			ghesUri);
 
 		// Contains the current state of the sessions we have available.
@@ -230,7 +232,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				return undefined;
 			}
 			let userInfo: { id: string; accountName: string } | undefined;
-			if (!session.account) {
+			if (!session.account?.iconPath) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
@@ -250,7 +252,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 					label: session.account
 						? session.account.label ?? session.account.displayName ?? '<unknown>'
 						: userInfo?.accountName ?? '<unknown>',
-					id: session.account?.id ?? userInfo?.id ?? '<unknown>'
+					id: session.account?.id ?? userInfo?.id ?? '<unknown>',
+					iconPath: session?.account?.iconPath
 				},
 				// we set this to session.scopes to maintain the original order of the scopes requested
 				// by the extension that called getSession()
@@ -342,7 +345,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		return {
 			id: crypto.getRandomValues(new Uint32Array(2)).reduce((prev, curr) => prev += curr.toString(16), ''),
 			accessToken: token,
-			account: { label: userInfo.accountName, id: userInfo.id },
+			account: { label: userInfo.accountName, id: userInfo.id, iconPath: vscode.Uri.parse(userInfo.iconPath) },
 			scopes
 		};
 	}

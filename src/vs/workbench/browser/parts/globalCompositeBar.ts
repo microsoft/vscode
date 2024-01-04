@@ -42,6 +42,7 @@ import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userD
 import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { URI } from 'vs/base/common/uri';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -280,12 +281,14 @@ abstract class AbstractGlobalActivityActionViewItem extends CompoisteBarActionVi
 export class AccountsActivityActionViewItem extends AbstractGlobalActivityActionViewItem {
 
 	static readonly ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+	private static readonly AVATAR_STORAGE_KEY = 'workbench.activity.avatar';
 
 	private readonly groupedAccounts: Map<string, (AuthenticationSessionAccount & { canSignOut: boolean })[]> = new Map();
 	private readonly problematicProviders: Set<string> = new Set();
 
 	private initialized = false;
 	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
+	private accountForAvatar: AuthenticationSessionAccount | undefined;
 
 	constructor(
 		contextMenuActionsProvider: () => IAction[],
@@ -300,7 +303,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -308,6 +310,8 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@ILogService private readonly logService: ILogService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		const action = instantiationService.createInstance(CompositeBarAction, {
 			id: ACCOUNTS_ACTIVITY_ID,
@@ -377,6 +381,12 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 	//#region overrides
 
+	protected override updateLabel(): void {
+		super.updateLabel();
+		this.label.classList.toggle('show-avatar', !!this.accountForAvatar);
+		this.label.style.setProperty('background-image', this.accountForAvatar?.iconPath ? `url("${URI.from(this.accountForAvatar.iconPath).fsPath}")` : '');
+	}
+
 	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		await super.resolveMainMenuActions(accountsMenu, disposables);
 
@@ -412,6 +422,17 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 				}));
 
 				const providerSubMenuActions: Action[] = [manageExtensionsAction];
+
+				if (account.iconPath) {
+					const useAsAvatarAction = disposables.add(new Action('showAvatar', localize('showAvatar', "Show Avatar"), undefined, true, async () => {
+						useAsAvatarAction.checked = !useAsAvatarAction.checked;
+						this.accountForAvatar = useAsAvatarAction.checked ? account : undefined;
+						this.storageService.store(AccountsActivityActionViewItem.AVATAR_STORAGE_KEY, this.accountForAvatar ? this.accountForAvatar.id : 'none', StorageScope.PROFILE, StorageTarget.USER);
+						this.updateActionItem();
+					}));
+					useAsAvatarAction.checked = this.accountForAvatar?.id === account.id;
+					providerSubMenuActions.push(useAsAvatarAction);
+				}
 
 				if (account.canSignOut) {
 					const signOutAction = disposables.add(new Action('signOut', localize('signOut', "Sign Out"), undefined, true, async () => {
@@ -488,6 +509,13 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		} else {
 			accounts.push({ ...account, canSignOut });
 		}
+
+		const avatarId = this.storageService.get(AccountsActivityActionViewItem.AVATAR_STORAGE_KEY, StorageScope.PROFILE);
+		// account.id is sometimes a number and sometimes a string so we need to convert to string
+		if (account.id.toString() === avatarId || (avatarId === undefined && providerId === 'github')) {
+			this.accountForAvatar = account;
+			this.updateActionItem();
+		}
 	}
 
 	private removeAccount(providerId: string, account: AuthenticationSessionAccount): void {
@@ -504,6 +532,10 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		accounts.splice(index, 1);
 		if (accounts.length === 0) {
 			this.groupedAccounts.delete(providerId);
+		}
+		if (this.accountForAvatar?.id === account.id) {
+			this.accountForAvatar = undefined;
+			this.updateActionItem();
 		}
 	}
 
@@ -525,6 +557,16 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}
 	}
 
+	private updateActionItem(): void {
+		const classNames = ThemeIcon.asClassNameArray(this.userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(this.userDataProfileService.currentProfile.icon) : GlobalCompositeBar.ACCOUNTS_ICON);
+		if (this.accountForAvatar) {
+			classNames.push('show-avatar');
+		}
+		(this.action as CompositeBarAction).compositeBarActionItem = {
+			...(this.action as CompositeBarAction).compositeBarActionItem,
+			classNames
+		};
+	}
 	//#endregion
 }
 
@@ -545,7 +587,6 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActivityService activityService: IActivityService,
@@ -626,7 +667,9 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@ISecretStorageService secretStorageService: ISecretStorageService,
 		@ILogService logService: ILogService,
 		@IActivityService activityService: IActivityService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IStorageService storageService: IStorageService
 	) {
 		super(() => [], {
 			colors: theme => ({
@@ -635,7 +678,7 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 			}),
 			hoverOptions,
 			compact: true,
-		}, undefined, undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
+		}, undefined, undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService, userDataProfileService, storageService);
 	}
 }
 
@@ -650,7 +693,6 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActivityService activityService: IActivityService,
@@ -662,6 +704,6 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 			}),
 			hoverOptions,
 			compact: true,
-		}, undefined, undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService, instantiationService, activityService);
+		}, undefined, undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, instantiationService, activityService);
 	}
 }
