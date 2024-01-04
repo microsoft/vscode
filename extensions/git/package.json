@@ -675,6 +675,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stashOpen",
+        "title": "%command.stashOpen%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.timeline.openDiff",
         "title": "%command.timelineOpenDiff%",
         "icon": "$(compare-changes)",

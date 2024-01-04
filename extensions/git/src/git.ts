@@ -2114,6 +2114,24 @@ export class Repository {
 		}
 	}
 
+	async showStash(index: number): Promise<string[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-only'];
+
+		try {
+			const result = await this.exec(args);
+
+			return result.stdout.trim()
+				.split('\n')
+				.filter(line => !!line);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				return undefined;
+			}
+
+			throw err;
+		}
+	}
+
 	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();

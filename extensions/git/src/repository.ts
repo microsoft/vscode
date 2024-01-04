@@ -1958,6 +1958,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
 	}
 
+	async showStash(index: number): Promise<string[] | undefined> {
+		return await this.run(Operation.Stash, () => this.repository.showStash(index));
+	}
+
 	async getCommitTemplate(): Promise<string> {
 		return await this.run(Operation.GetCommitTemplate, async () => this.repository.getCommitTemplate());
 	}

@@ -3535,6 +3535,31 @@ export class CommandCenter {
 		await repository.dropStash();
 	}
 
+	@command('git.stashOpen', { repository: true })
+	async stashOpen(repository: Repository): Promise<void> {
+		const placeHolder = l10n.t('Pick a stash to open');
+		const stash = await this.pickStash(repository, placeHolder);
+
+		if (!stash) {
+			return;
+		}
+
+		const stashFiles = await repository.showStash(stash.index);
+
+		if (!stashFiles || stashFiles.length === 0) {
+			return;
+		}
+
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+
+		for (const file of stashFiles) {
+			const fileUri = Uri.file(path.join(repository.root, file));
+			args.push([fileUri, toGitUri(fileUri, `stash@{${stash.index}}`), fileUri]);
+		}
+
+		commands.executeCommand('vscode.changes', `Stash #${stash.index}: ${stash.description}`, args);
+	}
+
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
