@@ -1380,7 +1380,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private onDidChangeMementoState(e: IStorageValueChangeEvent): void {
 		if (e.external && e.scope === StorageScope.WORKSPACE) {
-			this.reloadMememnto(e.scope);
+			this.reloadMemento(e.scope);
 
 			const state = this.loadState();
 			if (state) {

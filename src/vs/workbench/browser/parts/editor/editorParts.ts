@@ -305,7 +305,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private onDidChangeMementoState(e: IStorageValueChangeEvent): void {
 		if (e.external && e.scope === StorageScope.WORKSPACE) {
-			this.reloadMememnto(e.scope);
+			this.reloadMemento(e.scope);
 
 			const state = this.loadState();
 			if (state) {

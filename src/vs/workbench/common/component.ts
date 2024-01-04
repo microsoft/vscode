@@ -41,7 +41,7 @@ export class Component extends Themable {
 		return this.memento.getMemento(scope, target);
 	}
 
-	protected reloadMememnto(scope: StorageScope): void {
+	protected reloadMemento(scope: StorageScope): void {
 		return this.memento.reloadMemento(scope);
 	}
 
