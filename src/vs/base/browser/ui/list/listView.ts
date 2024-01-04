@@ -48,7 +48,7 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];
 }
 
-export const enum ListViewItemDragAndDropSector {
+export const enum ListViewTargetSector {
 	// drop position relative to the top of the item
 	TOP = 0, 				// [0%-25%)
 	CENTER_TOP = 1, 		// [25%-50%)
@@ -1092,7 +1092,8 @@ export class ListView<T> implements IListView<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);
 		const item = typeof index === 'undefined' ? undefined : this.items[index];
 		const element = item && item.element;
-		return { browserEvent, index, element };
+		const sector = this.getTargetSector(browserEvent, index);
+		return { browserEvent, index, element, sector };
 	}
 
 	private onScroll(e: ScrollEvent): void {
@@ -1193,9 +1194,7 @@ export class ListView<T> implements IListView<T> {
 			}
 		}
 
-		const itemDndSector = this.getItemDragAndDropSector(event);
-
-		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent, itemDndSector);
+		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.sector, event.browserEvent);
 		this.canDrop = typeof result === 'boolean' ? result : result.accept;
 
 		if (!this.canDrop) {
@@ -1290,11 +1289,9 @@ export class ListView<T> implements IListView<T> {
 			return;
 		}
 
-		const itemDndSector = this.getItemDragAndDropSector(event);
-
 		event.browserEvent.preventDefault();
 		dragData.update(event.browserEvent.dataTransfer);
-		this.dnd.drop(dragData, event.element, event.index, event.browserEvent, itemDndSector);
+		this.dnd.drop(dragData, event.element, event.index, event.sector, event.browserEvent);
 	}
 
 	private onDragEnd(event: DragEvent): void {
@@ -1360,13 +1357,12 @@ export class ListView<T> implements IListView<T> {
 
 	// Util
 
-	private getItemDragAndDropSector(event: IListDragEvent<T>): ListViewItemDragAndDropSector | undefined {
-		if (!event.element || event.index === undefined) {
+	private getTargetSector(browserEvent: DragEvent, targetIndex: number | undefined): ListViewTargetSector | undefined {
+		if (targetIndex === undefined) {
 			return undefined;
 		}
 
-		const height = this.virtualDelegate.getHeight(event.element);
-		const relativePosition = event.browserEvent.offsetY / height;
+		const relativePosition = browserEvent.offsetY / this.items[targetIndex].size;
 		return Math.floor(relativePosition / 0.25);
 	}
 

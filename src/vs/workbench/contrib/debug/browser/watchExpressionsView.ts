@@ -20,7 +20,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ElementsDragAndDropData, ListViewItemDragAndDropSector } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
@@ -383,7 +383,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 
 	constructor(private debugService: IDebugService) { }
 
-	onDragOver(data: IDragAndDropData, targetElement: IExpression | undefined, targetIndex: number | undefined, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: IExpression | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		if (!(data instanceof ElementsDragAndDropData)) {
 			return false;
 		}
@@ -400,12 +400,12 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 			targetIndex = -1;
 		} else {
 			// Hovering over an element
-			switch (itemDndSector) {
-				case ListViewItemDragAndDropSector.TOP:
-				case ListViewItemDragAndDropSector.CENTER_TOP:
+			switch (targetSector) {
+				case ListViewTargetSector.TOP:
+				case ListViewTargetSector.CENTER_TOP:
 					dropEffectPosition = ListDragOverEffectPosition.Before; break;
-				case ListViewItemDragAndDropSector.CENTER_BOTTOM:
-				case ListViewItemDragAndDropSector.BOTTOM:
+				case ListViewTargetSector.CENTER_BOTTOM:
+				case ListViewTargetSector.BOTTOM:
 					dropEffectPosition = ListDragOverEffectPosition.After; break;
 			}
 		}
@@ -429,7 +429,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		return undefined;
 	}
 
-	drop(data: IDragAndDropData, targetElement: IExpression, targetIndex: number | undefined, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): void {
+	drop(data: IDragAndDropData, targetElement: IExpression, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
 		if (!(data instanceof ElementsDragAndDropData)) {
 			return;
 		}
@@ -443,13 +443,13 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		const sourcePosition = watches.indexOf(draggedElement);
 		let targetPosition = targetElement instanceof Expression ? watches.indexOf(targetElement) : watches.length - 1;
 
-		switch (itemDndSector) {
-			case ListViewItemDragAndDropSector.TOP:
-			case ListViewItemDragAndDropSector.CENTER_TOP:
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
 				targetPosition -= 1; break;
 		}
 
-		if (sourcePosition > targetPosition) {
+		if (sourcePosition >= targetPosition) {
 			targetPosition += 1;
 		}
 

@@ -36,7 +36,7 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
-import { ElementsDragAndDropData, ListViewItemDragAndDropSector, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -716,7 +716,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): boolean | IListDragOverReaction {
+	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
 				return false;
@@ -724,26 +724,26 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		}
 
 		let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
-		switch (itemDndSector) {
-			case ListViewItemDragAndDropSector.TOP:
-			case ListViewItemDragAndDropSector.CENTER_TOP:
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
 				dropEffectPosition = ListDragOverEffectPosition.Before; break;
-			case ListViewItemDragAndDropSector.CENTER_BOTTOM:
-			case ListViewItemDragAndDropSector.BOTTOM:
+			case ListViewTargetSector.CENTER_BOTTOM:
+			case ListViewTargetSector.BOTTOM:
 				dropEffectPosition = ListDragOverEffectPosition.After; break;
 		}
 
 		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] } as IListDragOverReaction;
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): void {
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
 		const targetEditorIndex = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
 
 		let targetIndex = targetEditorIndex;
-		switch (itemDndSector) {
-			case ListViewItemDragAndDropSector.TOP:
-			case ListViewItemDragAndDropSector.CENTER_TOP:
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
 				targetIndex -= 1; break;
 		}
 
@@ -751,7 +751,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 			let offset = 0;
 			data.elements.forEach((oe: OpenEditor) => {
 				// Moving an editor which is located before the target location does not change the index of the target
-				if (oe.group.getIndexOfEditor(oe.editor) > targetEditorIndex) {
+				if (oe.group.getIndexOfEditor(oe.editor) >= targetEditorIndex) {
 					offset += 1;
 				}
 				oe.group.moveEditor(oe.editor, group, { index: targetIndex + offset, preserveFocus: true });

@@ -26,7 +26,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
-import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewItemDragAndDropSector, ListView } from './listView';
+import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListViewTargetSector, ListView } from './listView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
@@ -1311,8 +1311,8 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		this.dnd.onDragStart?.(data, originalEvent);
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): boolean | IListDragOverReaction {
-		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent, itemDndSector);
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		return this.dnd.onDragOver(data, targetElement, targetIndex, targetSector, originalEvent);
 	}
 
 	onDragLeave(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
@@ -1323,8 +1323,8 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		this.dnd.onDragEnd?.(originalEvent);
 	}
 
-	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): void {
-		this.dnd.drop(data, targetElement, targetIndex, originalEvent, itemDndSector);
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
+		this.dnd.drop(data, targetElement, targetIndex, targetSector, originalEvent);
 	}
 
 	dispose(): void {
