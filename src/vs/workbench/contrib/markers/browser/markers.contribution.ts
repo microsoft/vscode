@@ -9,7 +9,7 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -348,7 +348,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
 			id: Markers.MARKER_COPY_ACTION_ID,
-			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
+			title: localize2('copyMarker', 'Copy'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when,
@@ -388,7 +388,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.MarkerFocusContextKey,
@@ -410,7 +410,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.RelatedInformationFocusContextKey,

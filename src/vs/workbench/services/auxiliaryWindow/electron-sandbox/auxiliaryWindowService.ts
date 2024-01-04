@@ -8,11 +8,10 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CodeWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
@@ -22,6 +21,7 @@ import { Barrier } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { getZoomLevel } from 'vs/base/browser/browser';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -84,13 +84,12 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 	protected override createContainer(auxiliaryWindow: NativeCodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions) {
 
-		// Zoom level
+		// Zoom level (either explicitly provided or inherited from main window)
 		let windowZoomLevel: number;
 		if (typeof options?.zoomLevel === 'number') {
 			windowZoomLevel = options.zoomLevel;
 		} else {
-			const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-			windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+			windowZoomLevel = getZoomLevel(mainWindow);
 		}
 
 		applyZoom(windowZoomLevel, auxiliaryWindow);

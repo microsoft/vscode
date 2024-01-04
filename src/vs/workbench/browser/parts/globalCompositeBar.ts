@@ -35,7 +35,7 @@ import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSessionAccount, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { dirname } from 'vs/base/common/resources';
@@ -26,7 +26,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
-export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
+export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWorkspace', 'Add Folder to Workspace...');
 
 export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
