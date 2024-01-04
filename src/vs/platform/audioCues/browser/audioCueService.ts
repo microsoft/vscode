@@ -12,6 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { observableFromEvent, derived } from 'vs/base/common/observable';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -30,7 +31,6 @@ export interface IAudioCueOptions {
 	allowManyInParallel?: boolean;
 	source?: string;
 	userGesture?: boolean;
-	dynamicAlertMessage?: string;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -45,17 +45,20 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService) {
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService) {
 		super();
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		if (this.cueIsEnabled(cue)) {
 			this.sendAudioCueTelemetry(cue, options.source);
+			this.logService.trace(`Playing cue: ${cue.name}`);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
-		const alertMessage = options.dynamicAlertMessage || cue.alertMessage;
+		const alertMessage = cue.alertMessage;
 		if (this.alertIsEnabled(cue) && alertMessage) {
+			this.logService.trace(`Alert: ${alertMessage}`);
 			this.accessibilityService.alert(alertMessage);
 		}
 	}
@@ -72,6 +75,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		const alerts = cueArray.filter(cue => this.alertIsEnabled(cue)).map(c => c.alertMessage);
 		if (alerts.length) {
 			this.accessibilityService.alert(alerts.join(', '));
+			this.logService.trace(`Alert: ${alerts.join(', ')}`);
 		}
 	}
 
@@ -315,6 +319,29 @@ export class SoundSource {
 	}
 }
 
+export const enum AccessibilityAlertSettingId {
+	Save = 'accessibility.alert.save',
+	Format = 'accessibility.alert.format',
+	Clear = 'accessibility.alert.clear',
+	Breakpoint = 'accessibility.alert.breakpoint',
+	Error = 'accessibility.alert.error',
+	Warning = 'accessibility.alert.warning',
+	FoldedArea = 'accessibility.alert.foldedArea',
+	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
+	TerminalBell = 'accessibility.alert.terminalBell',
+	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
+	TaskCompleted = 'accessibility.alert.taskCompleted',
+	TaskFailed = 'accessibility.alert.taskFailed',
+	ChatRequestSent = 'accessibility.alert.chatRequestSent',
+	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
+	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
+	OnDebugBreak = 'accessibility.alert.onDebugBreak',
+	NoInlayHints = 'accessibility.alert.noInlayHints',
+	LineHasBreakpoint = 'accessibility.alert.lineHasBreakpoint',
+	ChatResponsePending = 'accessibility.alert.chatResponsePending'
+}
+
+
 export class AudioCue {
 	private static _audioCues = new Set<AudioCue>();
 	private static register(options: {
@@ -327,7 +354,7 @@ export class AudioCue {
 			randomOneOf: Sound[];
 		};
 		settingsKey: string;
-		alertSettingsKey?: string;
+		alertSettingsKey?: AccessibilityAlertSettingId;
 		alertMessage?: string;
 	}): AudioCue {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
@@ -344,28 +371,28 @@ export class AudioCue {
 		name: localize('audioCues.lineHasError.name', 'Error on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
-		alertSettingsKey: 'alert.lineHasError',
+		alertSettingsKey: AccessibilityAlertSettingId.Error,
 		alertMessage: localize('audioCues.lineHasError.alertMessage', 'Error')
 	});
 	public static readonly warning = AudioCue.register({
 		name: localize('audioCues.lineHasWarning.name', 'Warning on Line'),
 		sound: Sound.warning,
 		settingsKey: 'audioCues.lineHasWarning',
-		alertSettingsKey: 'alert.lineHasWarning',
+		alertSettingsKey: AccessibilityAlertSettingId.Warning,
 		alertMessage: localize('audioCues.lineHasWarning.alertMessage', 'Warning')
 	});
 	public static readonly foldedArea = AudioCue.register({
 		name: localize('audioCues.lineHasFoldedArea.name', 'Folded Area on Line'),
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
-		alertSettingsKey: 'alert.lineHasFoldedArea',
+		alertSettingsKey: AccessibilityAlertSettingId.FoldedArea,
 		alertMessage: localize('audioCues.lineHasFoldedArea.alertMessage', 'Folded')
 	});
 	public static readonly break = AudioCue.register({
 		name: localize('audioCues.lineHasBreakpoint.name', 'Breakpoint on Line'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
-		alertSettingsKey: 'alert.lineHasBreakpoint',
+		alertSettingsKey: AccessibilityAlertSettingId.Breakpoint,
 		alertMessage: localize('audioCues.lineHasBreakpoint.alertMessage', 'Breakpoint')
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
@@ -378,7 +405,7 @@ export class AudioCue {
 		name: localize('audioCues.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.terminalQuickFix',
-		alertSettingsKey: 'alert.terminalQuickFix',
+		alertSettingsKey: AccessibilityAlertSettingId.TerminalQuickFix,
 		alertMessage: localize('audioCues.terminalQuickFix.alertMessage', 'Quick Fix')
 	});
 
@@ -386,7 +413,7 @@ export class AudioCue {
 		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.onDebugBreak',
-		alertSettingsKey: 'alert.onDebugBreak',
+		alertSettingsKey: AccessibilityAlertSettingId.OnDebugBreak,
 		alertMessage: localize('audioCues.onDebugBreak.alertMessage', 'Breakpoint')
 	});
 
@@ -394,7 +421,7 @@ export class AudioCue {
 		name: localize('audioCues.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.noInlayHints',
-		alertSettingsKey: 'alert.noInlayHints',
+		alertSettingsKey: AccessibilityAlertSettingId.NoInlayHints,
 		alertMessage: localize('audioCues.noInlayHints.alertMessage', 'No Inlay Hints')
 	});
 
@@ -402,7 +429,7 @@ export class AudioCue {
 		name: localize('audioCues.taskCompleted', 'Task Completed'),
 		sound: Sound.taskCompleted,
 		settingsKey: 'audioCues.taskCompleted',
-		alertSettingsKey: 'alert.taskCompleted',
+		alertSettingsKey: AccessibilityAlertSettingId.TaskCompleted,
 		alertMessage: localize('audioCues.taskCompleted.alertMessage', 'Task Completed')
 	});
 
@@ -410,7 +437,7 @@ export class AudioCue {
 		name: localize('audioCues.taskFailed', 'Task Failed'),
 		sound: Sound.taskFailed,
 		settingsKey: 'audioCues.taskFailed',
-		alertSettingsKey: 'alert.taskFailed',
+		alertSettingsKey: AccessibilityAlertSettingId.TaskFailed,
 		alertMessage: localize('audioCues.taskFailed.alertMessage', 'Task Failed')
 	});
 
@@ -418,7 +445,7 @@ export class AudioCue {
 		name: localize('audioCues.terminalCommandFailed', 'Terminal Command Failed'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.terminalCommandFailed',
-		alertSettingsKey: 'alert.terminalCommandFailed',
+		alertSettingsKey: AccessibilityAlertSettingId.TerminalCommandFailed,
 		alertMessage: localize('audioCues.terminalCommandFailed.alertMessage', 'Command Failed')
 	});
 
@@ -426,7 +453,7 @@ export class AudioCue {
 		name: localize('audioCues.terminalBell', 'Terminal Bell'),
 		sound: Sound.terminalBell,
 		settingsKey: 'audioCues.terminalBell',
-		alertSettingsKey: 'alert.terminalBell',
+		alertSettingsKey: AccessibilityAlertSettingId.TerminalBell,
 		alertMessage: localize('audioCues.terminalBell.alertMessage', 'Terminal Bell')
 	});
 
@@ -434,7 +461,7 @@ export class AudioCue {
 		name: localize('audioCues.notebookCellCompleted', 'Notebook Cell Completed'),
 		sound: Sound.taskCompleted,
 		settingsKey: 'audioCues.notebookCellCompleted',
-		alertSettingsKey: 'alert.notebookCellCompleted',
+		alertSettingsKey: AccessibilityAlertSettingId.NotebookCellCompleted,
 		alertMessage: localize('audioCues.notebookCellCompleted.alertMessage', 'Notebook Cell Completed')
 	});
 
@@ -442,7 +469,7 @@ export class AudioCue {
 		name: localize('audioCues.notebookCellFailed', 'Notebook Cell Failed'),
 		sound: Sound.taskFailed,
 		settingsKey: 'audioCues.notebookCellFailed',
-		alertSettingsKey: 'alert.notebookCellFailed',
+		alertSettingsKey: AccessibilityAlertSettingId.NotebookCellFailed,
 		alertMessage: localize('audioCues.notebookCellFailed.alertMessage', 'Notebook Cell Failed')
 	});
 
@@ -468,7 +495,7 @@ export class AudioCue {
 		name: localize('audioCues.chatRequestSent', 'Chat Request Sent'),
 		sound: Sound.chatRequestSent,
 		settingsKey: 'audioCues.chatRequestSent',
-		alertSettingsKey: 'alert.chatRequestSent',
+		alertSettingsKey: AccessibilityAlertSettingId.ChatRequestSent,
 		alertMessage: localize('audioCues.chatRequestSent.alertMessage', 'Chat Request Sent')
 	});
 
@@ -489,7 +516,7 @@ export class AudioCue {
 		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
 		sound: Sound.chatResponsePending,
 		settingsKey: 'audioCues.chatResponsePending',
-		alertSettingsKey: 'alert.chatResponsePending',
+		alertSettingsKey: AccessibilityAlertSettingId.ChatResponsePending,
 		alertMessage: localize('audioCues.chatResponsePending.alertMessage', 'Chat Response Pending')
 	});
 
@@ -497,7 +524,7 @@ export class AudioCue {
 		name: localize('audioCues.clear', 'Clear'),
 		sound: Sound.clear,
 		settingsKey: 'audioCues.clear',
-		alertSettingsKey: 'alert.clear',
+		alertSettingsKey: AccessibilityAlertSettingId.Clear,
 		alertMessage: localize('audioCues.clear.alertMessage', 'Clear')
 	});
 
@@ -505,7 +532,7 @@ export class AudioCue {
 		name: localize('audioCues.save', 'Save'),
 		sound: Sound.save,
 		settingsKey: 'audioCues.save',
-		alertSettingsKey: 'alert.save',
+		alertSettingsKey: AccessibilityAlertSettingId.Save,
 		alertMessage: localize('audioCues.save.alertMessage', 'Save')
 	});
 
@@ -513,7 +540,7 @@ export class AudioCue {
 		name: localize('audioCues.format', 'Format'),
 		sound: Sound.format,
 		settingsKey: 'audioCues.format',
-		alertSettingsKey: 'alert.format',
+		alertSettingsKey: AccessibilityAlertSettingId.Format,
 		alertMessage: localize('audioCues.format.alertMessage', 'Format')
 	});
 

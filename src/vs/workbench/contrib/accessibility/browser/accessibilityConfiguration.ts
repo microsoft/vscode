@@ -8,6 +8,7 @@ import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegis
 import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { AccessibilityAlertSettingId } from 'vs/platform/audioCues/browser/audioCueService';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -52,26 +53,6 @@ export const enum AccessibilityVerbositySettingId {
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	Comments = 'accessibility.verbosity.comments'
-}
-
-export const enum AccessibilityAlertSettingId {
-	Save = 'accessibility.alert.save',
-	Format = 'accessibility.alert.format',
-	Clear = 'accessibility.alert.clear',
-	Breakpoint = 'accessibility.alert.breakpoint',
-	Error = 'accessibility.alert.error',
-	Warning = 'accessibility.alert.warning',
-	FoldedArea = 'accessibility.alert.foldedArea',
-	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
-	TerminalBell = 'accessibility.alert.terminalBell',
-	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
-	TaskCompleted = 'accessibility.alert.taskCompleted',
-	TaskFailed = 'accessibility.alert.taskFailed',
-	ChatRequestSent = 'accessibility.alert.chatRequestSent',
-	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
-	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
-	OnDebugBreak = 'accessibility.alert.onDebugBreak',
-	LineHasBreakpoint = 'accessibility.alert.lineHasBreakpoint'
 }
 
 export const enum AccessibleViewProviderId {
@@ -230,6 +211,18 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityAlertSettingId.ChatRequestSent]: {
 			'markdownDescription': localize('alert.chatRequestSent', "Alerts when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.ChatResponsePending]: {
+			'markdownDescription': localize('alert.chatResponsePending', "Alerts when a chat response is pending. Also see {0}.", '`#audioCues.chatResponsePending#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.NoInlayHints]: {
+			'markdownDescription': localize('alert.noInlayHints', "Alerts when there are no inlay hints. Also see {0}.", '`#audioCues.noInlayHints#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']
