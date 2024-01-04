@@ -81,6 +81,7 @@ export class MainThreadTextEditorProperties {
 			insertSpaces: modelOptions.insertSpaces,
 			tabSize: modelOptions.tabSize,
 			indentSize: modelOptions.indentSize,
+			originalIndentSize: modelOptions.originalIndentSize,
 			cursorStyle: cursorStyle,
 			lineNumbers: lineNumbers
 		};

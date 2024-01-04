@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -124,7 +124,7 @@ registerAction2(class ToggleLineNumberFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbersFromEditorTitle',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{
@@ -151,7 +151,7 @@ registerAction2(class ToggleCellToolbarPositionFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleCellToolbarPositionFromEditorTitle',
-			title: { value: localize('notebook.toggleCellToolbarPosition', "Toggle Cell Toolbar Position"), original: 'Toggle Cell Toolbar Position' },
+			title: localize2('notebook.toggleCellToolbarPosition', 'Toggle Cell Toolbar Position'),
 			menu: [{
 				id: MenuId.NotebookEditorLayoutConfigure,
 				group: 'notebookLayoutDetails',
@@ -171,7 +171,7 @@ registerAction2(class ToggleBreadcrumbFromEditorTitle extends Action2 {
 	constructor() {
 		super({
 			id: 'breadcrumbs.toggleFromEditorTitle',
-			title: { value: localize('notebook.toggleBreadcrumb', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
+			title: localize2('notebook.toggleBreadcrumb', 'Toggle Breadcrumbs'),
 			menu: [{
 				id: MenuId.NotebookEditorLayoutConfigure,
 				group: 'notebookLayoutDetails',

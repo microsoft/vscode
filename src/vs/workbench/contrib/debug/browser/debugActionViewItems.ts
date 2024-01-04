@@ -130,13 +130,16 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		selectBoxContainer.style.borderLeft = `1px solid ${asCssVariable(selectBorder)}`;
 		this.container.style.backgroundColor = asCssVariable(selectBackground);
 
-		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
-			this.providers = providers;
-			if (this.providers.length > 0) {
+		const configManager = this.debugService.getConfigurationManager();
+		const updateDynamicConfigs = () => configManager.getDynamicProviders().then(providers => {
+			if (providers.length !== this.providers.length) {
+				this.providers = providers;
 				this.updateOptions();
 			}
 		});
 
+		this.toDispose.push(configManager.onDidChangeConfigurationProviders(updateDynamicConfigs));
+		updateDynamicConfigs();
 		this.updateOptions();
 	}
 
@@ -174,6 +177,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 	override dispose(): void {
 		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 	}
 
 	private updateOptions(): void {

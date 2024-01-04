@@ -15,7 +15,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { EventType, ModifierKeyEmitter, addDisposableListener, addDisposableThrottledListener, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -39,6 +39,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
 import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 
 enum HostShutdownReason {
 
@@ -202,6 +203,26 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}, { window: mainWindow, disposables: this._store }));
 
 		return Event.latch(emitter.event, undefined, this._store);
+	}
+
+	@memoize
+	get onDidChangeFullScreen(): Event<number> {
+		const emitter = this._register(new Emitter<number>());
+
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			const windowId = getWindowId(window);
+			const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
+
+			// Fullscreen (Browser)
+			for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
+				disposables.add(addDisposableListener(window.document, event, () => emitter.fire(windowId)));
+			}
+
+			// Fullscreen (Native)
+			disposables.add(addDisposableThrottledListener(viewport, EventType.RESIZE, () => emitter.fire(windowId), undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
+		}, { window: mainWindow, disposables: this._store }));
+
+		return emitter.event;
 	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

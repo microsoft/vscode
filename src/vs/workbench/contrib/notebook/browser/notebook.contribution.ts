@@ -686,11 +686,13 @@ class NotebookAccessibilityHelpContribution extends Disposable {
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(105, 'notebook', async accessor => {
-			const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-			if (!codeEditor) {
-				return;
+			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()
+				|| accessor.get(ICodeEditorService).getFocusedCodeEditor()
+				|| accessor.get(IEditorService).activeEditorPane;
+
+			if (activeEditor) {
+				runAccessibilityHelpAction(accessor, activeEditor);
 			}
-			runAccessibilityHelpAction(accessor, codeEditor);
 		}, NOTEBOOK_IS_ACTIVE_EDITOR));
 	}
 }
@@ -919,6 +921,12 @@ configurationRegistry.registerConfiguration({
 			default: 30,
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			minimum: 1,
+		},
+		[NotebookSetting.LinkifyOutputFilePaths]: {
+			description: nls.localize('notebook.disableOutputFilePathLinks', "Control whether to disable filepath links in the output of notebook cells."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookOutputLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),

@@ -791,7 +791,7 @@ export enum SelectionDirection {
 	RTL = 1
 }
 
-export enum ShowAiIconMode {
+export enum ShowLightbulbIconMode {
 	Off = 'off',
 	OnCode = 'onCode',
 	On = 'on'

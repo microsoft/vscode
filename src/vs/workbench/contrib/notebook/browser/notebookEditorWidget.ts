@@ -372,6 +372,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				|| e.outputFontFamily
 				|| e.outputWordWrap
 				|| e.outputScrolling
+				|| e.outputLinkifyFilePaths
 			) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
@@ -403,7 +404,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
-		this.layoutService.mainContainer.appendChild(this._overlayContainer);
+		if (creationOptions.codeWindow) {
+			this.layoutService.getContainer(creationOptions.codeWindow).appendChild(this._overlayContainer);
+		} else {
+			this.layoutService.mainContainer.appendChild(this._overlayContainer);
+		}
+
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._isVisible = true;

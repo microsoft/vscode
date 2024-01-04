@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService, InlineChatResponseType, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatResponse, IInlineChatService, InlineChatResponseType, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -114,6 +114,11 @@ class SessionWholeRange {
 		this._onDidChange.fire(this);
 	}
 
+	get trackedInitialRange(): Range {
+		const [first] = this._decorationIds;
+		return this._textModel.getDecorationRange(first) ?? new Range(1, 1, 1, 1);
+	}
+
 	get value(): Range {
 		let result: Range | undefined;
 		for (const id of this._decorationIds) {
@@ -156,6 +161,7 @@ export class Session {
 			extension: provider.debugName,
 			startTime: this._startTime.toISOString(),
 			edits: false,
+			finishedByEdit: false,
 			rounds: '',
 			undos: '',
 			editMode
@@ -306,10 +312,10 @@ export class ReplyResponse {
 	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
 	readonly workspaceEdit: WorkspaceEdit | undefined;
 
-	readonly responseType: InlineChateResponseTypes;
+	readonly responseType: InlineChatResponseTypes;
 
 	constructor(
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse | IInlineChatMessageResponse,
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
 		readonly mdContent: IMarkdownString,
 		localUri: URI,
 		readonly modelAltVersionId: number,
@@ -326,7 +332,6 @@ export class ReplyResponse {
 		if (raw.type === InlineChatResponseType.EditorEdit) {
 			//
 			editsMap.get(localUri)!.push(raw.edits);
-
 
 		} else if (raw.type === InlineChatResponseType.BulkEdit) {
 			//
@@ -352,17 +357,15 @@ export class ReplyResponse {
 			}
 		}
 
-		if (editsMap.size === 0) {
-			this.responseType = InlineChateResponseTypes.OnlyMessages;
-		} else if (editsMap.size === 1 && editsMap.has(localUri)) {
-			this.responseType = InlineChateResponseTypes.OnlyEdits;
-		} else {
-			this.responseType = InlineChateResponseTypes.Mixed;
-		}
-
 		let needsWorkspaceEdit = false;
 
 		for (const [uri, edits] of editsMap) {
+
+			const flatEdits = edits.flat();
+			if (flatEdits.length === 0) {
+				editsMap.delete(uri);
+				continue;
+			}
 
 			const isLocalUri = isEqual(uri, localUri);
 			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isLocalUri);
@@ -377,7 +380,7 @@ export class ReplyResponse {
 
 				untitledTextModel.resolve().then(async () => {
 					const model = untitledTextModel.textEditorModel!;
-					model.applyEdits(edits.flat().map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+					model.applyEdits(flatEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 				});
 			}
 		}
@@ -392,6 +395,19 @@ export class ReplyResponse {
 				}
 			}
 			this.workspaceEdit = { edits: workspaceEdits };
+		}
+
+
+		const hasEdits = editsMap.size > 0;
+		const hasMessage = mdContent.value.length > 0;
+		if (hasEdits && hasMessage) {
+			this.responseType = InlineChatResponseTypes.Mixed;
+		} else if (hasEdits) {
+			this.responseType = InlineChatResponseTypes.OnlyEdits;
+		} else if (hasMessage) {
+			this.responseType = InlineChatResponseTypes.OnlyMessages;
+		} else {
+			this.responseType = InlineChatResponseTypes.Empty;
 		}
 	}
 }
@@ -507,8 +523,6 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
 		}
 
-		// expand to whole lines
-		wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
 
 		// install managed-marker for the decoration range
 		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);

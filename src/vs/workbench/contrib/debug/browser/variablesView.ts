@@ -212,22 +212,31 @@ export class VariablesView extends ViewPane {
 			return;
 		}
 
-		const toDispose = new DisposableStore();
+		return openContextMenuForVariableTreeElement(this.contextKeyService, this.menuService, this.contextMenuService, MenuId.DebugVariablesContext, e);
+	}
+}
 
-		try {
-			const contextKeyService = await getContextForVariableMenuWithDataAccess(this.contextKeyService, variable);
-			const menu = toDispose.add(this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService));
+export async function openContextMenuForVariableTreeElement(parentContextKeyService: IContextKeyService, menuService: IMenuService, contextMenuService: IContextMenuService, menuId: MenuId, e: ITreeContextMenuEvent<IExpression | IScope>) {
+	const variable = e.element;
+	if (!(variable instanceof Variable) || !variable.value) {
+		return;
+	}
 
-			const context: IVariablesContext = getVariablesContext(variable);
-			const secondary: IAction[] = [];
-			createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => e.anchor,
-				getActions: () => secondary
-			});
-		} finally {
-			toDispose.dispose();
-		}
+	const toDispose = new DisposableStore();
+
+	try {
+		const contextKeyService = await getContextForVariableMenuWithDataAccess(parentContextKeyService, variable);
+		const menu = toDispose.add(menuService.createMenu(menuId, contextKeyService));
+
+		const context: IVariablesContext = getVariablesContext(variable);
+		const secondary: IAction[] = [];
+		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary: [], secondary }, 'inline');
+		contextMenuService.showContextMenu({
+			getAnchor: () => e.anchor,
+			getActions: () => secondary
+		});
+	} finally {
+		toDispose.dispose();
 	}
 }
 

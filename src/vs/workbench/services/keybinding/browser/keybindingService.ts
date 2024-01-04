@@ -241,14 +241,18 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => disposables.add(this._registerKeyListeners(window)), { window: mainWindow, disposables: this._store }));
 
-		this._register(browser.onDidChangeFullscreen(() => {
+		this._register(browser.onDidChangeFullscreen(windowId => {
+			if (windowId !== mainWindow.vscodeWindowId) {
+				return;
+			}
+
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
 			if (BrowserFeatures.keyboard === KeyboardSupport.None) {
 				return;
 			}
 
-			if (browser.isFullscreen()) {
+			if (browser.isFullscreen(mainWindow)) {
 				keyboard?.lock(['Escape']);
 			} else {
 				keyboard?.unlock();
@@ -461,7 +465,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			return false;
 		}
 
-		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen()) {
+		if (BrowserFeatures.keyboard === KeyboardSupport.FullScreen && browser.isFullscreen(mainWindow)) {
 			return false;
 		}
 
