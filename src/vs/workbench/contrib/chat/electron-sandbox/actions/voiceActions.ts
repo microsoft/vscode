@@ -73,9 +73,9 @@ class VoiceSession extends Disposable {
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private _disposables = new DisposableStore();
 	constructor(
-		private readonly _speechService: ISpeechService,
-		private readonly _editorService: IEditorService,
-		private readonly _terminalService: ITerminalService
+		@ISpeechService private readonly _speechService: ISpeechService,
+		@IEditorService readonly _editorService: IEditorService,
+		@ITerminalService readonly _terminalService: ITerminalService
 	) {
 		super();
 	}
