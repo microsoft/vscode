@@ -71,7 +71,7 @@ import { StandaloneQuickInputService } from 'vs/editor/standalone/browser/quickI
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, ISaveAudioCueService as ISaveAudioCueService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -1074,12 +1074,8 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 }
 
-class StandaloneAccessibleNotificationService implements IAccessibleNotificationService {
+class StandaloneSaveAudioCueService implements ISaveAudioCueService {
 	_serviceBrand: undefined;
-
-	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void {
-		// NOOP
-	}
 }
 
 export interface IEditorOverrideServices {
@@ -1120,7 +1116,7 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
-registerSingleton(IAccessibleNotificationService, StandaloneAccessibleNotificationService, InstantiationType.Eager);
+registerSingleton(ISaveAudioCueService, StandaloneSaveAudioCueService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

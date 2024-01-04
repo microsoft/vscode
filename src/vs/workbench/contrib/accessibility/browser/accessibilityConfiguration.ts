@@ -70,7 +70,8 @@ export const enum AccessibilityAlertSettingId {
 	ChatRequestSent = 'accessibility.alert.chatRequestSent',
 	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
 	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
-	OnDebugBreak = 'accessibility.alert.onDebugBreak'
+	OnDebugBreak = 'accessibility.alert.onDebugBreak',
+	LineHasBreakpoint = 'accessibility.alert.lineHasBreakpoint'
 }
 
 export const enum AccessibleViewProviderId {
@@ -229,6 +230,12 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityAlertSettingId.ChatRequestSent]: {
 			'markdownDescription': localize('alert.chatRequestSent', "Alerts when a chat request is sent. Also see {0}.", '`#audioCues.chatRequestSent#`'),
+			'type': 'boolean',
+			'default': true,
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.LineHasBreakpoint]: {
+			'markdownDescription': localize('alert.lineHasBreakpoint', "Alerts when on a line with a breakpoint. Also see {0}.", '`#audioCues.lineHasBreakpoint#`'),
 			'type': 'boolean',
 			'default': true,
 			tags: ['accessibility']

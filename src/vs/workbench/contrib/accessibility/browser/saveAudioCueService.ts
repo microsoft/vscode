@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { ISaveAudioCueService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
+export class SaveAudioCueService extends Disposable implements ISaveAudioCueService {
 	declare readonly _serviceBrand: undefined;
 	constructor(
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
@@ -20,9 +20,6 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 	}
 }
 
-export class TestAccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
-
+export class TestAccessibleNotificationService extends Disposable implements ISaveAudioCueService {
 	declare readonly _serviceBrand: undefined;
-
-	notify(event: AccessibleNotificationEvent, userGesture?: boolean): void { }
 }

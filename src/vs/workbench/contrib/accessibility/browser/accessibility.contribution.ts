@@ -13,13 +13,13 @@ import { UnfocusedViewDimmingContribution } from 'vs/workbench/contrib/accessibi
 import { HoverAccessibleViewContribution, InlineCompletionsAccessibleViewContribution, NotificationAccessibleViewContribution } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
 import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/comments.contribution';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
+import { ISaveAudioCueService } from 'vs/platform/accessibility/common/accessibility';
+import { SaveAudioCueService } from 'vs/workbench/contrib/accessibility/browser/saveAudioCueService';
 import { EditorAccessibilityHelpContribution } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);
-registerSingleton(IAccessibleNotificationService, AccessibleNotificationService, InstantiationType.Delayed);
+registerSingleton(ISaveAudioCueService, SaveAudioCueService, InstantiationType.Delayed);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(EditorAccessibilityHelpContribution, LifecyclePhase.Eventually);

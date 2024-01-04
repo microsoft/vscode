@@ -30,6 +30,7 @@ export interface IAudioCueOptions {
 	allowManyInParallel?: boolean;
 	source?: string;
 	userGesture?: boolean;
+	dynamicAlertMessage?: string;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -53,8 +54,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			this.sendAudioCueTelemetry(cue, options.source);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
-		if (this.alertIsEnabled(cue) && cue.alertMessage) {
-			this.accessibilityService.alert(cue.alertMessage);
+		const alertMessage = options.dynamicAlertMessage || cue.alertMessage;
+		if (this.alertIsEnabled(cue) && alertMessage) {
+			this.accessibilityService.alert(alertMessage);
 		}
 	}
 
@@ -200,7 +202,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(cue.settingsKey)
 			),
-			() => this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(cue.alertSettingsKey)
+			() => cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(cue.alertSettingsKey) : false
 		);
 		return derived(reader => {
 			/** @description audio cue enabled */
@@ -325,7 +327,7 @@ export class AudioCue {
 			randomOneOf: Sound[];
 		};
 		settingsKey: string;
-		alertSettingsKey: string;
+		alertSettingsKey?: string;
 		alertMessage?: string;
 	}): AudioCue {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
@@ -370,8 +372,6 @@ export class AudioCue {
 		name: localize('audioCues.lineHasInlineSuggestion.name', 'Inline Suggestion on Line'),
 		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
-		alertSettingsKey: 'alert.lineHasInlineSuggestion',
-		alertMessage: localize('audioCues.lineHasInlineSuggestion.alertMessage', 'Inline Suggestion')
 	});
 
 	public static readonly terminalQuickFix = AudioCue.register({
@@ -450,23 +450,18 @@ export class AudioCue {
 		name: localize('audioCues.diffLineInserted', 'Diff Line Inserted'),
 		sound: Sound.diffLineInserted,
 		settingsKey: 'audioCues.diffLineInserted',
-		alertSettingsKey: 'alert.diffLineInserted',
-		alertMessage: localize('audioCues.diffLineInserted.alertMessage', '+')
 	});
 
 	public static readonly diffLineDeleted = AudioCue.register({
 		name: localize('audioCues.diffLineDeleted', 'Diff Line Deleted'),
 		sound: Sound.diffLineDeleted,
 		settingsKey: 'audioCues.diffLineDeleted',
-		alertSettingsKey: 'alert.diffLineDeleted',
-		alertMessage: localize('audioCues.diffLineDeleted.alertMessage', '-')
 	});
 
 	public static readonly diffLineModified = AudioCue.register({
 		name: localize('audioCues.diffLineModified', 'Diff Line Modified'),
 		sound: Sound.diffLineModified,
 		settingsKey: 'audioCues.diffLineModified',
-		alertSettingsKey: 'alert.diffLineModified',
 	});
 
 	public static readonly chatRequestSent = AudioCue.register({
@@ -488,8 +483,6 @@ export class AudioCue {
 				Sound.chatResponseReceived4
 			]
 		},
-		alertSettingsKey: 'alert.chatResponseReceived',
-		alertMessage: localize('audioCues.chatResponseReceived.alertMessage', 'Chat Response Received')
 	});
 
 	public static readonly chatResponsePending = AudioCue.register({
@@ -528,7 +521,7 @@ export class AudioCue {
 		public readonly sound: SoundSource,
 		public readonly name: string,
 		public readonly settingsKey: string,
-		public readonly alertSettingsKey: string,
+		public readonly alertSettingsKey?: string,
 		public readonly alertMessage?: string
 	) { }
 }

@@ -47,13 +47,8 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
 
-export const IAccessibleNotificationService = createDecorator<IAccessibleNotificationService>('accessibleNotificationService');
-export interface IAccessibleNotificationService {
+export const ISaveAudioCueService = createDecorator<ISaveAudioCueService>('saveAudioCueService');
+export interface ISaveAudioCueService {
 	readonly _serviceBrand: undefined;
 }
 
-export const enum AccessibleNotificationEvent {
-	Clear = 'clear',
-	Save = 'save',
-	Format = 'format'
-}
