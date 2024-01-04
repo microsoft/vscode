@@ -111,6 +111,9 @@ export class WorkbenchButtonBar extends ButtonBar {
 				btn.element.title = action.label;
 
 			}
+			// When the title isn't shown, this is needed for some
+			// screen readers to announce a description of the button #201527
+			btn.element.ariaLabel = btn.element.title;
 			btn.onDidClick(async () => {
 				this._actionRunner.run(action);
 			});
