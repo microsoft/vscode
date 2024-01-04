@@ -278,6 +278,17 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private updateContent(newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>) {
+		if (newMap.size !== this.currentStickyLines.size) {
+			// update scrollTop for nb Editor to account for sticky scroll height
+			if (newMap.size < this.currentStickyLines.size) {
+				// compute scrollTop change based on dif between new and old sticky height
+				this.notebookEditor.setScrollTop(this.notebookEditor.scrollTop + (this.currentStickyLines.size - newMap.size) * 22);
+			} else if (newMap.size > this.currentStickyLines.size) {
+				// compute scrollTop change based on dif between new and old sticky height
+				this.notebookEditor.setScrollTop(this.notebookEditor.scrollTop - (newMap.size - this.currentStickyLines.size) * 22);
+			}
+		}
+
 		this.setCurrentStickyLines(newMap);
 		this.updateDisplay();
 	}
