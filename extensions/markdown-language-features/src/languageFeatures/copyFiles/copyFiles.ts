@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
-import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
-import { getParentDocumentUri } from '../../util/document';
 
 type OverwriteBehavior = 'overwrite' | 'nameIncrementally';
 
-interface CopyFileConfiguration {
+export interface CopyFileConfiguration {
 	readonly destination: Record<string, string>;
 	readonly overwriteBehavior: OverwriteBehavior;
 }
 
-function getCopyFileConfiguration(document: vscode.TextDocument): CopyFileConfiguration {
+export function getCopyFileConfiguration(document: vscode.TextDocument): CopyFileConfiguration {
 	const config = vscode.workspace.getConfiguration('markdown', document);
 	return {
 		destination: config.get<Record<string, string>>('copyFiles.destination') ?? {},
@@ -30,72 +28,7 @@ function readOverwriteBehavior(config: vscode.WorkspaceConfiguration): Overwrite
 	}
 }
 
-export class NewFilePathGenerator {
-
-	private readonly _usedPaths = new Set<string>();
-
-	async getNewFilePath(
-		document: vscode.TextDocument,
-		file: vscode.DataTransferFile,
-		token: vscode.CancellationToken,
-	): Promise<{ readonly uri: vscode.Uri; readonly overwrite: boolean } | undefined> {
-		const config = getCopyFileConfiguration(document);
-		const desiredPath = getDesiredNewFilePath(config, document, file);
-
-		const root = Utils.dirname(desiredPath);
-		const ext = Utils.extname(desiredPath);
-		let baseName = Utils.basename(desiredPath);
-		baseName = baseName.slice(0, baseName.length - ext.length);
-		for (let i = 0; ; ++i) {
-			if (token.isCancellationRequested) {
-				return undefined;
-			}
-
-			const name = i === 0 ? baseName : `${baseName}-${i}`;
-			const uri = vscode.Uri.joinPath(root, name + ext);
-			if (this._wasPathAlreadyUsed(uri)) {
-				continue;
-			}
-
-			// Try overwriting if it already exists
-			if (config.overwriteBehavior === 'overwrite') {
-				this._usedPaths.add(uri.toString());
-				return { uri, overwrite: true };
-			}
-
-			// Otherwise we need to check the fs to see if it exists
-			try {
-				await vscode.workspace.fs.stat(uri);
-			} catch {
-				if (!this._wasPathAlreadyUsed(uri)) {
-					// Does not exist
-					this._usedPaths.add(uri.toString());
-					return { uri, overwrite: false };
-				}
-			}
-		}
-	}
-
-	private _wasPathAlreadyUsed(uri: vscode.Uri) {
-		return this._usedPaths.has(uri.toString());
-	}
-}
-
-function getDesiredNewFilePath(config: CopyFileConfiguration, document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
-	const docUri = getParentDocumentUri(document.uri);
-	for (const [rawGlob, rawDest] of Object.entries(config.destination)) {
-		for (const glob of parseGlob(rawGlob)) {
-			if (picomatch.isMatch(docUri.path, glob, { dot: true })) {
-				return resolveCopyDestination(docUri, file.name, rawDest, uri => vscode.workspace.getWorkspaceFolder(uri)?.uri);
-			}
-		}
-	}
-
-	// Default to next to current file
-	return vscode.Uri.joinPath(Utils.dirname(docUri), file.name);
-}
-
-function parseGlob(rawGlob: string): Iterable<string> {
+export function parseGlob(rawGlob: string): Iterable<string> {
 	if (rawGlob.startsWith('/')) {
 		// Anchor to workspace folders
 		return (vscode.workspace.workspaceFolders ?? []).map(folder => vscode.Uri.joinPath(folder.uri, rawGlob).path);
@@ -165,7 +98,7 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 		['fileExtName', path.extname(fileName).replace('.', '')], // File extension (without dot): png
 	]);
 
-	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}])+?)\/(?<replacement>(?:\\\/|[^\}])+?)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {
+	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}\/])+)\/(?<replacement>(?:\\\/|[^\}\/])*)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {
 		if (groups?.['escape']) {
 			return '$';
 		}
@@ -176,7 +109,11 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 		}
 
 		if (pattern && replacement) {
-			return entry.replace(new RegExp(replaceTransformEscapes(pattern)), replaceTransformEscapes(replacement));
+			try {
+				return entry.replace(new RegExp(replaceTransformEscapes(pattern)), replaceTransformEscapes(replacement));
+			} catch (e) {
+				console.log(`Error applying 'resolveCopyDestinationSetting' transform: ${pattern} -> ${replacement}`);
+			}
 		}
 
 		return entry;
@@ -186,4 +123,3 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 function replaceTransformEscapes(str: string): string {
 	return str.replaceAll(/\\\//g, '/');
 }
-
