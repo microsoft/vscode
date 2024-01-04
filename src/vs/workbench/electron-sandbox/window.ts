@@ -1142,7 +1142,7 @@ class ResetZoomStatusEntry extends Disposable {
 					ariaLabel: text,
 					command: 'workbench.action.zoomReset',
 					kind: 'prominent'
-				}, 'status.resetWindowZoom', StatusbarAlignment.LEFT);
+				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
 			}
 		} else {
 			this.resetZoomStatusEntry.clear();
