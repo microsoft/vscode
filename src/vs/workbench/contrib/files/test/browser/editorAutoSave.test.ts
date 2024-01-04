@@ -23,8 +23,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { ISaveAudioCueService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/saveAudioCueService';
+import { AudioCueService, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 suite('EditorAutoSave', () => {
 
@@ -44,7 +43,7 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(ISaveAudioCueService, disposables.add(new TestAccessibleNotificationService()));
+		instantiationService.stub(IAudioCueService, disposables.add(instantiationService.createInstance(AudioCueService)));
 		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,

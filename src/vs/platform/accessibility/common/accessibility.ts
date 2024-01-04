@@ -47,8 +47,3 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
 
-export const ISaveAudioCueService = createDecorator<ISaveAudioCueService>('saveAudioCueService');
-export interface ISaveAudioCueService {
-	readonly _serviceBrand: undefined;
-}
-
