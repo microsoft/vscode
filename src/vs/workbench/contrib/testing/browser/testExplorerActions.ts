@@ -76,6 +76,7 @@ const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.provi
 
 const LABEL_RUN_TESTS = { value: localize('runSelectedTests', 'Run Tests'), original: 'Run Tests' };
 const LABEL_DEBUG_TESTS = { value: localize('debugSelectedTests', 'Debug Tests'), original: 'Debug Tests' };
+const LABEL_COVERAGE_TESTS = { value: localize('coverageSelectedTests', 'Run Tests with Coverage'), original: 'Run Tests withCoverage' };
 
 export class HideTestAction extends Action2 {
 	constructor() {
@@ -152,13 +153,10 @@ const testItemInlineAndInContext = (order: ActionOrder, when?: ContextKeyExpress
 	}
 ];
 
-export class DebugAction extends ViewAction<TestingExplorerView> {
-	constructor() {
+abstract class RunVisibleAction extends ViewAction<TestingExplorerView> {
+	constructor(private readonly bitset: TestRunProfileBitset, desc: Readonly<IAction2Options>) {
 		super({
-			id: TestCommandId.DebugAction,
-			title: localize('debug test', 'Debug Test'),
-			icon: icons.testingDebugIcon,
-			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
+			...desc,
 			viewId: Testing.ExplorerViewId,
 		});
 	}
@@ -171,7 +169,29 @@ export class DebugAction extends ViewAction<TestingExplorerView> {
 		return accessor.get(ITestService).runTests({
 			tests: include,
 			exclude,
-			group: TestRunProfileBitset.Debug,
+			group: this.bitset,
+		});
+	}
+}
+
+export class DebugAction extends RunVisibleAction {
+	constructor() {
+		super(TestRunProfileBitset.Debug, {
+			id: TestCommandId.DebugAction,
+			title: localize('debug test', 'Debug Test'),
+			icon: icons.testingDebugIcon,
+			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
+		});
+	}
+}
+
+export class CoverageAction extends RunVisibleAction {
+	constructor() {
+		super(TestRunProfileBitset.Coverage, {
+			id: TestCommandId.RunWithCoverageAction,
+			title: localize('run with cover test', 'Run Test with Coverage'),
+			icon: icons.testingCoverageIcon,
+			menu: testItemInlineAndInContext(ActionOrder.Coverage, TestingContextKeys.hasCoverableTests.isEqualTo(true)),
 		});
 	}
 }
@@ -212,26 +232,13 @@ export class RunUsingProfileAction extends Action2 {
 	}
 }
 
-export class RunAction extends ViewAction<TestingExplorerView> {
+export class RunAction extends RunVisibleAction {
 	constructor() {
-		super({
+		super(TestRunProfileBitset.Run, {
 			id: TestCommandId.RunAction,
 			title: localize('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
 			menu: testItemInlineAndInContext(ActionOrder.Run, TestingContextKeys.hasRunnableTests.isEqualTo(true)),
-			viewId: Testing.ExplorerViewId,
-		});
-	}
-
-	/**
-	 * @override
-	 */
-	public runInView(accessor: ServicesAccessor, view: TestingExplorerView, ...elements: TestItemTreeElement[]): Promise<unknown> {
-		const { include, exclude } = view.getTreeIncludeExclude(elements.map(e => e.test));
-		return accessor.get(ITestService).runTests({
-			tests: include,
-			exclude,
-			group: TestRunProfileBitset.Run,
 		});
 	}
 }
@@ -587,6 +594,16 @@ export class DebugSelectedAction extends ExecuteSelectedAction {
 	}
 }
 
+export class CoverageSelectedAction extends ExecuteSelectedAction {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageSelectedAction,
+			title: LABEL_COVERAGE_TESTS,
+			icon: icons.testingCoverageAllIcon,
+		}, TestRunProfileBitset.Coverage);
+	}
+}
+
 const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): Promise<R> => {
 	return progress.withProgress(
 		{
@@ -655,6 +672,24 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 			},
 			TestRunProfileBitset.Debug,
 			localize('noDebugTestProvider', 'No debuggable tests found in this workspace. You may need to install a test provider extension'),
+		);
+	}
+}
+
+export class CoverageAllAction extends RunOrDebugAllTestsAction {
+	constructor() {
+		super(
+			{
+				id: TestCommandId.RunAllWithCoverageAction,
+				title: localize('runAllWithCoverage', 'Run All Tests with Coverage'),
+				icon: icons.testingCoverageIcon,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA),
+				},
+			},
+			TestRunProfileBitset.Coverage,
+			localize('noCoverageTestProvider', 'No tests with coverage runners found in this workspace. You may need to install a test provider extension'),
 		);
 	}
 }
@@ -1060,6 +1095,21 @@ export class DebugAtCursor extends ExecuteTestAtCursor {
 	}
 }
 
+export class CoverageAtCursor extends ExecuteTestAtCursor {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageAtCursor,
+			title: localize2('testing.coverageAtCursor', 'Run Test at Cursor with Coverage'),
+			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC),
+			},
+		}, TestRunProfileBitset.Coverage);
+	}
+}
+
 abstract class ExecuteTestsUnderUriAction extends Action2 {
 	constructor(options: IAction2Options, protected readonly group: TestRunProfileBitset) {
 		super({
@@ -1108,6 +1158,16 @@ class DebugTestsUnderUri extends ExecuteTestsUnderUriAction {
 			title: LABEL_DEBUG_TESTS,
 			category,
 		}, TestRunProfileBitset.Debug);
+	}
+}
+
+class CoverageTestsUnderUri extends ExecuteTestsUnderUriAction {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageByUri,
+			title: LABEL_COVERAGE_TESTS,
+			category,
+		}, TestRunProfileBitset.Coverage);
 	}
 }
 
@@ -1189,7 +1249,6 @@ export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 }
 
 export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
-
 	constructor() {
 		super({
 			id: TestCommandId.DebugCurrentFile,
@@ -1201,6 +1260,21 @@ export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyF),
 			},
 		}, TestRunProfileBitset.Debug);
+	}
+}
+
+export class CoverageCurrentFile extends ExecuteTestsInCurrentFile {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageCurrentFile,
+			title: localize2('testing.coverageCurrentFile', 'Run Tests with Coverage in Current File'),
+			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF),
+			},
+		}, TestRunProfileBitset.Coverage);
 	}
 }
 
@@ -1381,6 +1455,27 @@ export class DebugLastRun extends RunOrDebugLastRun {
 	}
 }
 
+export class CoverageLastRun extends RunOrDebugLastRun {
+	constructor() {
+		super({
+			id: TestCommandId.CoverageLastRun,
+			title: localize2('testing.coverageLastRun', 'Rerun Last Run with Coverage'),
+			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyL),
+			},
+		});
+	}
+
+	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
+		return service.runTests({
+			group: TestRunProfileBitset.Coverage,
+			tests: internalTests,
+		});
+	}
+}
+
 export class SearchForTestExtension extends Action2 {
 	constructor() {
 		super({
@@ -1543,6 +1638,13 @@ export const allTestActions = [
 	ConfigureTestProfilesAction,
 	ContinuousRunTestAction,
 	ContinuousRunUsingProfileTestAction,
+	CoverageAction,
+	CoverageAllAction,
+	CoverageAtCursor,
+	CoverageCurrentFile,
+	CoverageLastRun,
+	CoverageSelectedAction,
+	CoverageTestsUnderUri,
 	DebugAction,
 	DebugAllAction,
 	DebugAtCursor,

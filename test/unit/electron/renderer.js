@@ -123,7 +123,7 @@ function initLoader(opts) {
 
 function createCoverageReport(opts) {
 	if (opts.coverage) {
-		return coverage.createReport(opts.run || opts.runGlob, opts.coveragePath);
+		return coverage.createReport(opts.run || opts.runGlob, opts.coveragePath, opts.coverageFormats);
 	}
 	return Promise.resolve(undefined);
 }
