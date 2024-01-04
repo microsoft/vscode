@@ -388,8 +388,25 @@ function sanitizeRenderedMarkdown(
 			}
 			e.keepAttr = false;
 			return;
+		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
+			if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
+				e.keepAttr = true;
+				return;
+			}
+			e.keepAttr = false;
 		}
 	});
+
+	dompurify.addHook('uponSanitizeElement', (element, e) => {
+		if (e.tagName === 'input') {
+			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
+				element.setAttribute('disabled', '');
+			} else {
+				element.parentElement?.removeChild(element);
+			}
+		}
+	});
+
 
 	const hook = DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes);
 
@@ -405,10 +422,12 @@ export const allowedMarkdownAttr = [
 	'align',
 	'autoplay',
 	'alt',
+	'checked',
 	'class',
 	'controls',
 	'data-code',
 	'data-href',
+	'disabled',
 	'draggable',
 	'height',
 	'href',
@@ -420,6 +439,7 @@ export const allowedMarkdownAttr = [
 	'style',
 	'target',
 	'title',
+	'type',
 	'width',
 	'start',
 ];

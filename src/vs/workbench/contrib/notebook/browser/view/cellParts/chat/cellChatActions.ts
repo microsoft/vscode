@@ -297,6 +297,14 @@ registerAction2(class extends NotebookCellAction {
 		if (!ctrl) {
 			return;
 		}
+
+		context.notebookEditor.getCellsInRange().forEach(cell => {
+			const cellCtrl = NotebookCellChatController.get(cell);
+			if (cellCtrl) {
+				cellCtrl.dismiss(false);
+			}
+		});
+
 		ctrl.show();
 	}
 });

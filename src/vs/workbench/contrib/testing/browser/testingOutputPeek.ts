@@ -46,9 +46,9 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IPeekViewService, PeekViewWidget, peekViewResultsBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
 import { MenuEntryActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -2474,7 +2474,7 @@ export class GoToNextMessageAction extends Action2 {
 		super({
 			id: GoToNextMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToNextMessage', "Go to Next Test Failure"), original: 'Go to Next Test Failure' },
+			title: localize2('testing.goToNextMessage', 'Go to Next Test Failure'),
 			icon: Codicon.arrowDown,
 			category: Categories.Test,
 			keybinding: {
@@ -2507,7 +2507,7 @@ export class GoToPreviousMessageAction extends Action2 {
 		super({
 			id: GoToPreviousMessageAction.ID,
 			f1: true,
-			title: { value: localize('testing.goToPreviousMessage', "Go to Previous Test Failure"), original: 'Go to Previous Test Failure' },
+			title: localize2('testing.goToPreviousMessage', 'Go to Previous Test Failure'),
 			icon: Codicon.arrowUp,
 			category: Categories.Test,
 			keybinding: {
@@ -2540,7 +2540,7 @@ export class OpenMessageInEditorAction extends Action2 {
 		super({
 			id: OpenMessageInEditorAction.ID,
 			f1: false,
-			title: { value: localize('testing.openMessageInEditor', "Open in Editor"), original: 'Open in Editor' },
+			title: localize2('testing.openMessageInEditor', 'Open in Editor'),
 			icon: Codicon.goToFile,
 			category: Categories.Test,
 			menu: [{ id: MenuId.TestPeekTitle }],
@@ -2558,7 +2558,7 @@ export class ToggleTestingPeekHistory extends Action2 {
 		super({
 			id: ToggleTestingPeekHistory.ID,
 			f1: true,
-			title: { value: localize('testing.toggleTestingPeekHistory', "Toggle Test History in Peek"), original: 'Toggle Test History in Peek' },
+			title: localize2('testing.toggleTestingPeekHistory', 'Toggle Test History in Peek'),
 			icon: Codicon.history,
 			category: Categories.Test,
 			menu: [{

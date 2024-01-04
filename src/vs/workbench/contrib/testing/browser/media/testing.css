@@ -376,7 +376,6 @@
 }
 
 .test-coverage-bars .bar {
-	width: 16px;
 	height: 8px;
 	border: 1px solid currentColor;
 	border-radius: 2px;

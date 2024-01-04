@@ -2964,8 +2964,7 @@
           50,
           72
         ],
-        "editor.wordWrap": "wordWrapColumn",
-        "editor.wordWrapColumn": 72,
+        "editor.wordWrap": "off",
         "workbench.editor.restoreViewState": false
       },
       "[git-rebase]": {

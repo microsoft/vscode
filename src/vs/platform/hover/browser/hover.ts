@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -43,10 +44,6 @@ export interface IHoverService {
 	 * simultaneously. #188822
 	 */
 	showAndFocusLastHover(): void;
-}
-
-export interface IHoverWidget extends IDisposable {
-	readonly isDisposed: boolean;
 }
 
 export interface IHoverOptions {

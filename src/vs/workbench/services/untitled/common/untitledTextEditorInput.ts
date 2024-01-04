@@ -18,7 +18,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { dispose, IReference } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IReference } from 'vs/base/common/lifecycle';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 /**
@@ -37,10 +37,11 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	private modelResolve: Promise<void> | undefined = undefined;
+	private readonly modelDisposables = this._register(new DisposableStore());
 	private cachedUntitledTextEditorModelReference: IReference<IUntitledTextEditorModel> | undefined = undefined;
 
 	constructor(
-		readonly model: IUntitledTextEditorModel,
+		protected model: IUntitledTextEditorModel,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,
@@ -54,16 +55,31 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService, textResourceConfigurationService);
 
 		this.registerModelListeners(model);
+
+		this._register(this.textFileService.untitled.onDidCreate(model => this.onDidCreateUntitledModel(model)));
 	}
 
 	private registerModelListeners(model: IUntitledTextEditorModel): void {
+		this.modelDisposables.clear();
 
 		// re-emit some events from the model
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
+		this.modelDisposables.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this.modelDisposables.add(model.onDidChangeName(() => this._onDidChangeLabel.fire()));
 
 		// a reverted untitled text editor model renders this input disposed
-		this._register(model.onDidRevert(() => this.dispose()));
+		this.modelDisposables.add(model.onDidRevert(() => this.dispose()));
+	}
+
+	private onDidCreateUntitledModel(model: IUntitledTextEditorModel): void {
+		if (isEqual(model.resource, this.model.resource) && model !== this.model) {
+
+			// Ensure that we keep our model up to date with
+			// the actual model from the service so that we
+			// never get out of sync with the truth.
+
+			this.model = model;
+			this.registerModelListeners(model);
+		}
 	}
 
 	override getName(): string {
@@ -115,6 +131,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): Promise<void> {
 		return this.model.setEncoding(encoding);
 	}
+
+	get hasLanguageSetExplicitly() { return this.model.hasLanguageSetExplicitly; }
+
+	get hasAssociatedFilePath() { return this.model.hasAssociatedFilePath; }
 
 	setLanguageId(languageId: string, source?: string): void {
 		this.model.setLanguageId(languageId, source);
