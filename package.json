@@ -180,7 +180,7 @@
     "husky": "^0.13.1",
     "innosetup": "6.0.5",
     "istanbul-lib-coverage": "^3.2.0",
-    "istanbul-lib-instrument": "^5.2.0",
+    "istanbul-lib-instrument": "^6.0.1",
     "istanbul-lib-report": "^3.0.0",
     "istanbul-lib-source-maps": "^4.0.1",
     "istanbul-reports": "^3.1.5",
