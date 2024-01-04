@@ -12,7 +12,7 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListDragAndDropPosition } from 'vs/base/browser/ui/list/listView';
 import { IListOptions, IListStyles, isActionItem, isButton, isInputElement, isMonacoCustomToggle, isMonacoEditor, isStickyScrollElement, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
@@ -81,8 +81,8 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 		this.dnd.onDragStart?.(asTreeDragAndDropData(data), originalEvent);
 	}
 
-	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, raw = true): boolean | IListDragOverReaction {
-		const result = this.dnd.onDragOver(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
+	onDragOver(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, dropPosition: ListDragAndDropPosition | undefined, raw = true): boolean | IListDragOverReaction {
+		const result = this.dnd.onDragOver(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent, dropPosition);
 		const didChangeAutoExpandNode = this.autoExpandNode !== targetNode;
 
 		if (didChangeAutoExpandNode) {
@@ -124,7 +124,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 			const parentNode = model.getNode(parentRef);
 			const parentIndex = parentRef && model.getListIndex(parentRef);
 
-			return this.onDragOver(data, parentNode, parentIndex, originalEvent, false);
+			return this.onDragOver(data, parentNode, parentIndex, originalEvent, dropPosition, false);
 		}
 
 		const model = this.modelProvider();
@@ -135,11 +135,11 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 		return { ...result, feedback: range(start, start + length) };
 	}
 
-	drop(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent): void {
+	drop(data: IDragAndDropData, targetNode: ITreeNode<T, TFilterData> | undefined, targetIndex: number | undefined, originalEvent: DragEvent, dropPosition: ListDragAndDropPosition | undefined): void {
 		this.autoExpandDisposable.dispose();
 		this.autoExpandNode = undefined;
 
-		this.dnd.drop(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent);
+		this.dnd.drop(asTreeDragAndDropData(data), targetNode && targetNode.element, targetIndex, originalEvent, dropPosition);
 	}
 
 	onDragEnd(originalEvent: DragEvent): void {

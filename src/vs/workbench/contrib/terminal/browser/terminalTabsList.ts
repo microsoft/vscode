@@ -26,7 +26,7 @@ import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/w
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
@@ -636,7 +636,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 		return {
 			feedback: targetIndex ? [targetIndex] : undefined,
 			accept: true,
-			effect: ListDragOverEffect.Move
+			effect: { type: ListDragOverEffectType.Move, position: ListDragOverEffectPosition.Over }
 		};
 	}
 

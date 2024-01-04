@@ -26,7 +26,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
-import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { IListView, IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListDragAndDropPosition, ListView } from './listView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 interface ITraitChangeEvent {
@@ -965,12 +965,25 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (styles.listDropOverBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
 				.monaco-list${suffix} .monaco-list-rows.drop-target,
-				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-list${suffix} .monaco-list-row.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }
 			`);
+		}
+
+		if (styles.listDropBetweenBackground) {
+			content.push(`
+			.monaco-list${suffix} .monaco-list-row.drop-target-after + .monaco-list-row::before,
+			.monaco-list${suffix} .monaco-list-row.drop-target-before::before {
+				content: ""; position: absolute; top: 0px; left: 0px; width: 100%; height: 1px;
+				background-color: ${styles.listDropBetweenBackground};
+			}`);
+			content.push(`.monaco-list${suffix} .monaco-list-row:last-child.drop-target-after::after {
+				content: ""; position: absolute; bottom: 0px; left: 0px; width: 100%; height: 1px;
+				background-color: ${styles.listDropBetweenBackground};
+			}`);
 		}
 
 		if (styles.tableColumnsBorder) {
@@ -1059,7 +1072,8 @@ export interface IListStyles {
 	listInactiveFocusBackground: string | undefined;
 	listHoverBackground: string | undefined;
 	listHoverForeground: string | undefined;
-	listDropBackground: string | undefined;
+	listDropOverBackground: string | undefined;
+	listDropBetweenBackground: string | undefined;
 	listFocusOutline: string | undefined;
 	listInactiveFocusOutline: string | undefined;
 	listSelectionOutline: string | undefined;
@@ -1081,7 +1095,8 @@ export const unthemedListStyles: IListStyles = {
 	listInactiveSelectionBackground: '#3F3F46',
 	listInactiveSelectionIconForeground: '#FFFFFF',
 	listHoverBackground: '#2A2D2E',
-	listDropBackground: '#383B3D',
+	listDropOverBackground: '#383B3D',
+	listDropBetweenBackground: '',
 	treeIndentGuidesStroke: '#a9a9a9',
 	treeInactiveIndentGuidesStroke: Color.fromHex('#a9a9a9').transparent(0.4).toString(),
 	tableColumnsBorder: Color.fromHex('#cccccc').transparent(0.2).toString(),
@@ -1293,8 +1308,8 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		this.dnd.onDragStart?.(data, originalEvent);
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent);
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent, dropPosition: ListDragAndDropPosition | undefined): boolean | IListDragOverReaction {
+		return this.dnd.onDragOver(data, targetElement, targetIndex, originalEvent, dropPosition);
 	}
 
 	onDragLeave(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
@@ -1305,8 +1320,8 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 		this.dnd.onDragEnd?.(originalEvent);
 	}
 
-	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
-		this.dnd.drop(data, targetElement, targetIndex, originalEvent);
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent, dropPosition: ListDragAndDropPosition | undefined): void {
+		this.dnd.drop(data, targetElement, targetIndex, originalEvent, dropPosition);
 	}
 
 	dispose(): void {

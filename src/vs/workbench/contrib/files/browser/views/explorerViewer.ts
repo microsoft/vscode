@@ -6,7 +6,7 @@
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
-import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from 'vs/platform/files/common/files';
@@ -1133,7 +1133,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const isNative = data instanceof NativeDragAndDropData;
-		const effect = (isNative || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+		const effectType = (isNative || isCopy) ? ListDragOverEffectType.Copy : ListDragOverEffectType.Move;
+		const effect = { type: effectType, position: ListDragOverEffectPosition.Over };
 
 		// Native DND
 		if (isNative) {
