@@ -20,7 +20,7 @@ import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCover
 import { AbstractFileCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { ICoveredCount } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export interface TestCoverageBarsOptions {
 	/**
