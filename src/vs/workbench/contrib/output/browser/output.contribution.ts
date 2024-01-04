@@ -272,7 +272,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
-						order: 4
+						order: 4,
+						isHiddenByDefault: true
 					}],
 					icon: Codicon.goToFile,
 					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
@@ -295,7 +296,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
-						order: 5
+						order: 5,
+						isHiddenByDefault: true
 					}],
 					icon: Codicon.window,
 					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
