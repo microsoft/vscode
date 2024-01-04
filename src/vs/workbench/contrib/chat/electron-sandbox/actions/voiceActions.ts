@@ -110,6 +110,7 @@ class VoiceSession extends Disposable {
 					break;
 				case SpeechToTextStatus.Stopped:
 					console.log('stopped', e.text);
+					this.stop();
 					break;
 			}
 		}));
