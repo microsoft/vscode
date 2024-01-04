@@ -6,7 +6,7 @@
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
-import { ListDragAndDropPosition } from 'vs/base/browser/ui/list/listView';
+import { ListViewItemDragAndDropSector } from 'vs/base/browser/ui/list/listView';
 import { Event } from 'vs/base/common/event';
 
 export const enum TreeVisibility {
@@ -218,7 +218,7 @@ export const TreeDragOverReactions = {
 };
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
-	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent, dropPosition: ListDragAndDropPosition | undefined): boolean | ITreeDragOverReaction;
+	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, originalEvent: DragEvent, itemDndSector: ListViewItemDragAndDropSector | undefined): boolean | ITreeDragOverReaction;
 }
 
 export class TreeError extends Error {

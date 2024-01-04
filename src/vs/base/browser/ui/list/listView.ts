@@ -48,7 +48,7 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];
 }
 
-export const enum ListDragAndDropPosition {
+export const enum ListViewItemDragAndDropSector {
 	// drop position relative to the top of the item
 	TOP = 0, 				// [0%-25%)
 	CENTER_TOP = 1, 		// [25%-50%)
@@ -1193,9 +1193,9 @@ export class ListView<T> implements IListView<T> {
 			}
 		}
 
-		const dropPosition = this.getDragAndDropPosition(event);
+		const itemDndSector = this.getItemDragAndDropSector(event);
 
-		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent, dropPosition);
+		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent, itemDndSector);
 		this.canDrop = typeof result === 'boolean' ? result : result.accept;
 
 		if (!this.canDrop) {
@@ -1289,11 +1289,11 @@ export class ListView<T> implements IListView<T> {
 			return;
 		}
 
-		const dropPosition = this.getDragAndDropPosition(event);
+		const itemDndSector = this.getItemDragAndDropSector(event);
 
 		event.browserEvent.preventDefault();
 		dragData.update(event.browserEvent.dataTransfer);
-		this.dnd.drop(dragData, event.element, event.index, event.browserEvent, dropPosition);
+		this.dnd.drop(dragData, event.element, event.index, event.browserEvent, itemDndSector);
 	}
 
 	private onDragEnd(event: DragEvent): void {
@@ -1359,7 +1359,7 @@ export class ListView<T> implements IListView<T> {
 
 	// Util
 
-	private getDragAndDropPosition(event: IListDragEvent<T>): ListDragAndDropPosition | undefined {
+	private getItemDragAndDropSector(event: IListDragEvent<T>): ListViewItemDragAndDropSector | undefined {
 		if (!event.element || event.index === undefined) {
 			return undefined;
 		}
