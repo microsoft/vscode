@@ -1059,7 +1059,7 @@ class StandaloneAudioService implements IAudioCueService {
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
 	}
 
-	cueIsEnabled(cue: AudioCue): boolean {
+	isEnabled(cue: AudioCue): boolean {
 		return false;
 	}
 

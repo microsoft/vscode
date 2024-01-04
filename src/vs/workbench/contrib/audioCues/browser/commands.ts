@@ -35,8 +35,8 @@ export class ShowAudioCueHelp extends Action2 {
 
 		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
 			label: accessibilityService.isScreenReaderOptimized() ?
-				`${cue.name}${audioCueService.cueIsEnabled(cue) ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
-				: `${audioCueService.cueIsEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
+				`${cue.name}${audioCueService.isEnabled(cue) ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
+				: `${audioCueService.isEnabled(cue) ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
 				iconClass: ThemeIcon.asClassName(Codicon.settingsGear),

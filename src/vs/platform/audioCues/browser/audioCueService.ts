@@ -20,7 +20,7 @@ export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue, options?: IAudioCueOptions): Promise<void>;
 	playAudioCues(cues: (AudioCue | { cue: AudioCue; source: string })[]): Promise<void>;
-	cueIsEnabled(cue: AudioCue): boolean;
+	isEnabled(cue: AudioCue): boolean;
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
@@ -51,7 +51,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
-		if (this.cueIsEnabled(cue)) {
+		if (this.isEnabled(cue)) {
 			this.sendAudioCueTelemetry(cue, options.source);
 			this.logService.trace(`Playing cue: ${cue.name}`);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
@@ -69,7 +69,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cueArray.filter(cue => this.cueIsEnabled(cue)).map(cue => cue.sound.getSound()));
+		const sounds = new Set(cueArray.filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 
 		const alerts = cueArray.filter(cue => this.alertIsEnabled(cue)).map(c => c.alertMessage);
@@ -220,11 +220,11 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	});
 
-	public alertIsEnabled(cue: AudioCue): boolean {
+	private alertIsEnabled(cue: AudioCue): boolean {
 		return this.isAlertEnabledCache.get(cue).get() ?? false;
 	}
 
-	public cueIsEnabled(cue: AudioCue): boolean {
+	public isEnabled(cue: AudioCue): boolean {
 		return this.isCueEnabledCache.get(cue).get() ?? false;
 	}
 
