@@ -74,6 +74,8 @@ class VoiceSession extends Disposable {
 		@ITerminalService readonly _terminalService: ITerminalService
 	) {
 		super();
+		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
+		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 	}
 	start(): void {
 		this.stop();
