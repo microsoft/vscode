@@ -404,8 +404,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
-		console.log('creation', creationOptions.codeWindow);
-
 		if (creationOptions.codeWindow) {
 			this.layoutService.getContainer(creationOptions.codeWindow).appendChild(this._overlayContainer);
 		} else {
