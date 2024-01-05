@@ -11,22 +11,13 @@ import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, getExtensionId, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogger } from 'vs/platform/log/common/log';
 
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const useId = localize('useId', "Make sure you use the full extension ID, including the publisher, e.g.: {0}", 'ms-dotnettools.csharp');
-
-
-function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
-	if (withVersion) {
-		return `${manifest.publisher}.${manifest.name}@${manifest.version}`;
-	} else {
-		return `${manifest.publisher}.${manifest.name}`;
-	}
-}
 
 type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
 type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
@@ -74,7 +65,7 @@ export class ExtensionManagementCLI {
 		for (const extension of extensions) {
 			if (lastId !== extension.identifier.id) {
 				lastId = extension.identifier.id;
-				this.logger.info(getId(extension.manifest, showVersions));
+				this.logger.info(showVersions ? `${lastId}@${extension.manifest.version}` : lastId);
 			}
 		}
 	}
@@ -269,17 +260,17 @@ export class ExtensionManagementCLI {
 	}
 
 	public async uninstallExtensions(extensions: (string | URI)[], force: boolean, profileLocation?: URI): Promise<void> {
-		const getExtensionId = async (extensionDescription: string | URI): Promise<string> => {
+		const getId = async (extensionDescription: string | URI): Promise<string> => {
 			if (extensionDescription instanceof URI) {
 				const manifest = await this.extensionManagementService.getManifest(extensionDescription);
-				return getId(manifest);
+				return getExtensionId(manifest.publisher, manifest.name);
 			}
 			return extensionDescription;
 		};
 
 		const uninstalledExtensions: ILocalExtension[] = [];
 		for (const extension of extensions) {
-			const id = await getExtensionId(extension);
+			const id = await getId(extension);
 			const installed = await this.extensionManagementService.getInstalled(undefined, profileLocation);
 			const extensionsToUninstall = installed.filter(e => areSameExtensions(e.identifier, { id }));
 			if (!extensionsToUninstall.length) {
