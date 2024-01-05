@@ -3085,7 +3085,9 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private storeTreeViewState() {
-		this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (this.tree) {
+			this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 
 	private updateChildren(element?: ISCMRepository) {
