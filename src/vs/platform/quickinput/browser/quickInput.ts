@@ -530,6 +530,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private _ok: boolean | 'default' = 'default';
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
+	private _customButtonIcon: ThemeIcon | undefined;
 	private _customButtonHover: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
@@ -746,6 +747,15 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 
 	set customLabel(label: string | undefined) {
 		this._customButtonLabel = label;
+		this.update();
+	}
+
+	get customIcon() {
+		return this._customButtonIcon;
+	}
+
+	set customIcon(icon: ThemeIcon | undefined) {
+		this._customButtonIcon = icon;
 		this.update();
 	}
 
@@ -1115,6 +1125,11 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this.selectedItemsToConfirm = null;
 			}
 		}
+
+		if (this.customIcon) {
+			this.ui.customButton.icon = this.customIcon;
+		}
+
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
 		if (!visibilities.inputBox) {
