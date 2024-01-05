@@ -530,49 +530,47 @@ export class QuickInputList {
 			}
 		}));
 
-		if (options.hoverDelegate) {
-			const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
-			// onMouseOver triggers every time a new element has been moused over
-			// even if it's on the same list item.
-			this.disposables.push(this.list.onMouseOver(async e => {
-				// If we hover over an anchor element, we don't want to show the hover because
-				// the anchor may have a tooltip that we want to show instead.
-				if (e.browserEvent.target instanceof HTMLAnchorElement) {
-					delayer.cancel();
-					return;
-				}
-				if (
-					// anchors are an exception as called out above so we skip them here
-					!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
-					// check if the mouse is still over the same element
-					dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
-				) {
-					return;
-				}
-				try {
-					await delayer.trigger(async () => {
-						if (e.element) {
-							this.showHover(e.element);
-						}
-					});
-				} catch (e) {
-					// Ignore cancellation errors due to mouse out
-					if (!isCancellationError(e)) {
-						throw e;
-					}
-				}
-			}));
-			this.disposables.push(this.list.onMouseOut(e => {
-				// onMouseOut triggers every time a new element has been moused over
-				// even if it's on the same list item. We only want one event, so we
-				// check if the mouse is still over the same element.
-				if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
-					return;
-				}
+		const delayer = new ThrottledDelayer(options.hoverDelegate.delay);
+		// onMouseOver triggers every time a new element has been moused over
+		// even if it's on the same list item.
+		this.disposables.push(this.list.onMouseOver(async e => {
+			// If we hover over an anchor element, we don't want to show the hover because
+			// the anchor may have a tooltip that we want to show instead.
+			if (e.browserEvent.target instanceof HTMLAnchorElement) {
 				delayer.cancel();
-			}));
-			this.disposables.push(delayer);
-		}
+				return;
+			}
+			if (
+				// anchors are an exception as called out above so we skip them here
+				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				// check if the mouse is still over the same element
+				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
+			) {
+				return;
+			}
+			try {
+				await delayer.trigger(async () => {
+					if (e.element) {
+						this.showHover(e.element);
+					}
+				});
+			} catch (e) {
+				// Ignore cancellation errors due to mouse out
+				if (!isCancellationError(e)) {
+					throw e;
+				}
+			}
+		}));
+		this.disposables.push(this.list.onMouseOut(e => {
+			// onMouseOut triggers every time a new element has been moused over
+			// even if it's on the same list item. We only want one event, so we
+			// check if the mouse is still over the same element.
+			if (dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)) {
+				return;
+			}
+			delayer.cancel();
+		}));
+		this.disposables.push(delayer);
 		this.disposables.push(this._listElementChecked.event(_ => this.fireCheckedEvents()));
 		this.disposables.push(
 			this._onChangedAllVisibleChecked,
@@ -830,9 +828,6 @@ export class QuickInputList {
 	 * @param element The element to show the hover for
 	 */
 	private showHover(element: IListElement): void {
-		if (this.options.hoverDelegate === undefined) {
-			return;
-		}
 		if (this._lastHover && !this._lastHover.isDisposed) {
 			this.options.hoverDelegate.onDidHideHover?.();
 			this._lastHover?.dispose();

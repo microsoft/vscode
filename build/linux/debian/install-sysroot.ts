@@ -45,6 +45,7 @@ function getElectronVersion(): Record<string, string> {
 }
 
 function getSha(filename: fs.PathLike): string {
+	// CodeQL [SM04514] Hash logic cannot be changed due to external dependency, also the code is only used during build.
 	const hash = createHash('sha1');
 	// Read file 1 MB at a time
 	const fd = fs.openSync(filename, 'r');

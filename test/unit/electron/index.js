@@ -39,11 +39,13 @@ const minimist = require('minimist');
  * tfs: string;
  * build: boolean;
  * coverage: boolean;
+ * coveragePath: string;
+ * coverageFormats: string | string[];
  * help: boolean;
  * }}
  */
 const args = minimist(process.argv.slice(2), {
-	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs'],
+	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
 	boolean: ['build', 'coverage', 'help', 'dev'],
 	alias: {
 		'grep': ['g', 'f'],

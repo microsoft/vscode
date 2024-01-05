@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IsAuxiliaryWindowFocusedContext, IsFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { IsMainWindowFullscreenContext } from 'vs/workbench/common/contextkeys';
 import { IsMacNativeContext, IsDevelopmentContext, IsWebContext, IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -35,7 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { getActiveElement, getActiveWindow } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -267,7 +266,7 @@ class QuickPickRecentAction extends BaseOpenRecentAction {
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenRecent',
-			title: { value: localize('quickOpenRecent', "Quick Open Recent..."), original: 'Quick Open Recent...' },
+			title: localize2('quickOpenRecent', 'Quick Open Recent...'),
 			category: Categories.File,
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
@@ -298,7 +297,7 @@ class ToggleFullScreenAction extends Action2 {
 				}
 			},
 			precondition: IsIOSContext.toNegated(),
-			toggled: IsFullscreenContext,
+			toggled: IsMainWindowFullscreenContext,
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,
 				group: '1_toggle_view',
@@ -321,9 +320,8 @@ export class ReloadWindowAction extends Action2 {
 	constructor() {
 		super({
 			id: ReloadWindowAction.ID,
-			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
+			title: localize2('reloadWindow', 'Reload Window'),
 			category: Categories.Developer,
-			precondition: IsAuxiliaryWindowFocusedContext.toNegated(),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -336,9 +334,7 @@ export class ReloadWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		if (getActiveWindow() === mainWindow) {
-			return hostService.reload(); // only supported for main window
-		}
+		return hostService.reload();
 	}
 }
 
@@ -406,7 +402,7 @@ class BlurAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.blur',
-			title: { value: localize('blur', "Remove keyboard focus from focused element"), original: 'Remove keyboard focus from focused element' }
+			title: localize2('blur', 'Remove keyboard focus from focused element')
 		});
 	}
 

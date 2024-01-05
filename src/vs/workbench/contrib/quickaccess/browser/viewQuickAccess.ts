@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewDescriptorService, IViewsService, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
@@ -232,7 +232,7 @@ export class OpenViewPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenViewPickerAction.ID,
-			title: { value: localize('openView', "Open View"), original: 'Open View' },
+			title: localize2('openView', 'Open View'),
 			category: Categories.View,
 			f1: true
 		});
@@ -255,7 +255,7 @@ export class QuickAccessViewPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: QuickAccessViewPickerAction.ID,
-			title: { value: localize('quickOpenView', "Quick Open View"), original: 'Quick Open View' },
+			title: localize2('quickOpenView', 'Quick Open View'),
 			category: Categories.View,
 			f1: false, // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 			keybinding: {

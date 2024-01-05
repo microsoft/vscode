@@ -47,7 +47,7 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 		const untitledTextEditorInput = editorInput as UntitledTextEditorInput;
 
 		let resource = untitledTextEditorInput.resource;
-		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
+		if (untitledTextEditorInput.hasAssociatedFilePath) {
 			resource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
 		}
 
@@ -59,7 +59,7 @@ export class UntitledTextEditorInputSerializer implements IEditorSerializer {
 		const languageIdCandidate = untitledTextEditorInput.getLanguageId();
 		if (languageIdCandidate !== PLAINTEXT_LANGUAGE_ID) {
 			languageId = languageIdCandidate;
-		} else if (untitledTextEditorInput.model.hasLanguageSetExplicitly) {
+		} else if (untitledTextEditorInput.hasLanguageSetExplicitly) {
 			languageId = languageIdCandidate;
 		}
 

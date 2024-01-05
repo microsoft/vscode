@@ -81,6 +81,8 @@ export interface ICodeWindow extends IBaseWindow {
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
+	notifyZoomLevel(zoomLevel: number | undefined): void;
+
 	serializeWindowState(): IWindowState;
 }
 
@@ -131,6 +133,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	zoomLevel?: number;
 	readonly display?: number;
 }
 
