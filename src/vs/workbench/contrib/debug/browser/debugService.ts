@@ -40,7 +40,7 @@ import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugCo
 import { DebugMemoryFileSystemProvider } from 'vs/workbench/contrib/debug/browser/debugMemory';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_HAS_DEBUGGED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, DEBUG_MEMORY_SCHEME, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_HAS_DEBUGGED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, DEBUG_MEMORY_SCHEME, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, DEBUG_SCHEME, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -1037,7 +1037,7 @@ export class DebugService implements IDebugService {
 		return breakpoints;
 	}
 
-	async updateBreakpoints(uri: uri, data: Map<string, DebugProtocol.Breakpoint>, sendOnResourceSaved: boolean): Promise<void> {
+	async updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
 		this.model.updateBreakpoints(data);
 		this.debugStorage.storeBreakpoints(this.model);
 		if (sendOnResourceSaved) {
@@ -1049,15 +1049,17 @@ export class DebugService implements IDebugService {
 	}
 
 	async removeBreakpoints(id?: string): Promise<void> {
-		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		const breakpoints = this.model.getBreakpoints();
+		const toRemove = breakpoints.filter(bp => !id || bp.getId() === id);
 		// note: using the debugger-resolved uri for aria to reflect UI state
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
-		const urisToClear = distinct(toRemove, bp => bp.originalUri.toString()).map(bp => bp.originalUri);
+		const urisToClear = new Set(toRemove.map(bp => bp.originalUri.toString()));
 
 		this.model.removeBreakpoints(toRemove);
+		this.unlinkDependentBreakpoints(breakpoints, toRemove).forEach(uri => urisToClear.add(uri.toString()));
 
 		this.debugStorage.storeBreakpoints(this.model);
-		await Promise.all(urisToClear.map(uri => this.sendBreakpoints(uri)));
+		await Promise.all([...urisToClear].map(uri => this.sendBreakpoints(URI.parse(uri))));
 	}
 
 	setBreakpointsActivated(activated: boolean): Promise<void> {
@@ -1151,6 +1153,25 @@ export class DebugService implements IDebugService {
 			// the configurationDone request was introduced.
 			await this.sendExceptionBreakpoints(session);
 		}
+	}
+
+	/**
+	 * Removes the condition of triggered breakpoints that depended on
+	 * breakpoints in `removedBreakpoints`. Returns the URIs of resources that
+	 * had their breakpoints changed in this way.
+	 */
+	private unlinkDependentBreakpoints(allBreakpoints: readonly IBreakpoint[], removedBreakpoints: readonly IBreakpoint[]): uri[] {
+		const affectedUris: uri[] = [];
+		for (const removed of removedBreakpoints) {
+			for (const existing of allBreakpoints) {
+				if (!removedBreakpoints.includes(existing) && existing.triggeredBy?.matches(removed)) {
+					this.model.updateBreakpoints(new Map([[existing.getId(), { triggeredBy: undefined }]]));
+					affectedUris.push(existing.originalUri);
+				}
+			}
+		}
+
+		return affectedUris;
 	}
 
 	private async makeDependentBreakpointsMatchEnablement(enable: boolean, breakpoint: Breakpoint) {

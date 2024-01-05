@@ -562,6 +562,8 @@ export interface IBreakpointReference {
 }
 
 export interface IBreakpoint extends IBaseBreakpoint {
+	/** Colum number where the breakpoint was first set by the user. */
+	readonly originalColumn?: number;
 	/** URI where the breakpoint was first set by the user. */
 	readonly originalUri: uri;
 	/** URI where the breakpoint is currently shown; may be moved by debugger */

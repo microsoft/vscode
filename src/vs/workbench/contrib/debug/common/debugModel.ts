@@ -891,6 +891,10 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return this._uri;
 	}
 
+	get originalColumn() {
+		return this._column;
+	}
+
 	get lineNumber(): number {
 		return this.verified && this.data && typeof this.data.line === 'number' ? this.data.line : this._lineNumber;
 	}
@@ -1008,7 +1012,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 			this.logMessage = data.logMessage;
 		}
 		if (!isUndefinedOrNull(data.triggeredBy)) {
-			this.triggeredBy = new BreakpointReference(data.triggeredBy.uri, data.triggeredBy.lineNumber, data.triggeredBy.column);
+			this.triggeredBy = new BreakpointReference(data.triggeredBy.uri, data.triggeredBy.lineNumber, data.triggeredBy.originalColumn);
 		} else {
 			this.triggeredBy = undefined;
 		}
@@ -1019,7 +1023,12 @@ export class BreakpointReference implements IBreakpointReference {
 	constructor(public uri: uri, public lineNumber: number, public column?: number) { }
 
 	matches(bp: IBreakpoint): boolean {
-		return bp.uri.toString() === this.uri?.toString() && bp.lineNumber === this.lineNumber && bp.column === this.column;
+		// prefer to store and match the original column as the reference, since
+		// start-of-line breakpoints can be moved to a more specific location
+		// within the line, which could ordinarily prevent matching.
+		return bp.uri.toString() === this.uri?.toString()
+			&& bp.lineNumber === this.lineNumber
+			&& (bp.originalColumn === this.column);
 	}
 }
 
