@@ -1004,6 +1004,7 @@ export class DebugService implements IDebugService {
 			this.model.setEnablement(breakpoint, enable);
 			this.debugStorage.storeBreakpoints(this.model);
 			if (breakpoint instanceof Breakpoint) {
+				await this.makeDependentBreakpointsMatchEnablement(enable, breakpoint);
 				await this.sendBreakpoints(breakpoint.originalUri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				await this.sendFunctionBreakpoints();
@@ -1150,6 +1151,25 @@ export class DebugService implements IDebugService {
 			// the configurationDone request was introduced.
 			await this.sendExceptionBreakpoints(session);
 		}
+	}
+
+	private async makeDependentBreakpointsMatchEnablement(enable: boolean, breakpoint: Breakpoint) {
+		if (enable) {
+			/** If the breakpoint is being enabled, also ensure its triggerer is enabled */
+			if (breakpoint.triggeredBy) {
+				const trigger = this.model.getBreakpoints().find(bp => breakpoint.triggeredBy!.matches(bp));
+				if (trigger && !trigger.enabled) {
+					await this.enableOrDisableBreakpoints(enable, trigger);
+				}
+			}
+		}
+
+
+		/** Makes its triggeree states match the state of this breakpoint */
+		await Promise.all(this.model.getBreakpoints()
+			.filter(bp => bp.triggeredBy?.matches(breakpoint) && bp.enabled !== enable)
+			.map(bp => this.enableOrDisableBreakpoints(enable, bp))
+		);
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {

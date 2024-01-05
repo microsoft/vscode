@@ -76,7 +76,7 @@ export class DebugStorage extends Disposable {
 
 	private parseBreakpointRef(breakpoint: any): IBreakpointReference | undefined {
 		if (breakpoint.waitFor) {
-			return new BreakpointReference(breakpoint.waitFor.uri, breakpoint.waitFor.lineNumber, breakpoint.waitFor.column);
+			return new BreakpointReference(URI.parse(breakpoint.waitFor.uri), breakpoint.waitFor.lineNumber, breakpoint.waitFor.column);
 		}
 		return undefined;
 	}

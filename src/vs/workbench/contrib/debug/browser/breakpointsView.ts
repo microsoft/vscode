@@ -1206,7 +1206,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string; icon: ThemeIcon; showAdapterUnverifiedMessage?: boolean } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService: ILabelService): { message?: string; icon: ThemeIcon; showAdapterUnverifiedMessage?: boolean } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;
@@ -1321,9 +1321,8 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		if (breakpoint.hitCondition) {
 			messages.push(localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
 		}
-
 		if (triggeredByBreakpoint) {
-			messages.push(localize('triggeredBy', "Hit after breakpoint: {0}:{1}", triggeredByBreakpoint.uri.toString(), triggeredByBreakpoint.lineNumber));
+			messages.push(localize('triggeredBy', "Hit after breakpoint: {0}", `${labelService.getUriLabel(triggeredByBreakpoint.uri, { relative: true })}: ${triggeredByBreakpoint.lineNumber}`));
 		}
 
 		return {

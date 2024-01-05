@@ -83,7 +83,8 @@ export function createBreakpointDecorations(accessor: ServicesAccessor, model: I
 function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: ITextModel, breakpoint: IBreakpoint, state: State, breakpointsActivated: boolean, showBreakpointsInOverviewRuler: boolean, hasOtherBreakpointsOnLine: boolean): IModelDecorationOptions {
 	const debugService = accessor.get(IDebugService);
 	const languageService = accessor.get(ILanguageService);
-	const { icon, message, showAdapterUnverifiedMessage } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, undefined);
+	const labelService = accessor.get(ILabelService);
+	const { icon, message, showAdapterUnverifiedMessage } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, labelService);
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
 	let unverifiedMessage: string | undefined;
