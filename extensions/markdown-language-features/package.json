@@ -503,11 +503,21 @@
             "%configuration.copyIntoWorkspace.never%"
           ]
         },
+        "markdown.editor.filePaste.videoSnippet": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.videoSnippet%",
+          "default": "<video controls src=\"${src}\" title=\"${title}\"></video>"
+        },
+        "markdown.editor.filePaste.audioSnippet": {
+          "type": "string",
+          "markdownDescription": "%configuration.markdown.editor.filePaste.audioSnippet%",
+          "default": "<audio controls src=\"${src}\" title=\"${title}\"></audio>"
+        },
         "markdown.editor.pasteUrlAsFormattedLink.enabled": {
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": "never",
+          "default": "smart",
           "enum": [
             "always",
             "smart",
