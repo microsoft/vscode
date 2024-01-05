@@ -1063,6 +1063,10 @@ class StandaloneAudioService implements IAudioCueService {
 		return false;
 	}
 
+	isAlertEnabled(cue: AudioCue): boolean {
+		return false;
+	}
+
 	onEnabledChanged(cue: AudioCue): Event<void> {
 		return Event.None;
 	}
