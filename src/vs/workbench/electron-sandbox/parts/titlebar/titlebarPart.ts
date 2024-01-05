@@ -305,6 +305,7 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 	constructor(
 		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
+		private readonly mainTitlebar: BrowserTitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -324,6 +325,10 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		const id = AuxiliaryNativeTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
+
+	override get hasNoElementsToZoom(): boolean {
+		return this.mainTitlebar.hasNoElementsToZoom;
+	}
 }
 
 export class NativeTitleService extends BrowserTitleService {
@@ -333,6 +338,6 @@ export class NativeTitleService extends BrowserTitleService {
 	}
 
 	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): AuxiliaryNativeTitlebarPart {
-		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer);
+		return this.instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
 	}
 }
