@@ -19,7 +19,8 @@ export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue, options?: IAudioCueOptions): Promise<void>;
 	playAudioCues(cues: (AudioCue | { cue: AudioCue; source: string })[]): Promise<void>;
-	isEnabled(cue: AudioCue): boolean;
+	isCueEnabled(cue: AudioCue): boolean;
+	isAlertEnabled(cue: AudioCue): boolean;
 	onEnabledChanged(cue: AudioCue): Event<void>;
 
 	playSound(cue: Sound, allowManyInParallel?: boolean): Promise<void>;
@@ -50,11 +51,11 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		const alertMessage = cue.alertMessage;
-		if (this.alertIsEnabled(cue) && alertMessage) {
+		if (this.isAlertEnabled(cue) && alertMessage) {
 			this.accessibilityService.alert(alertMessage);
 		}
 
-		if (this.isEnabled(cue)) {
+		if (this.isCueEnabled(cue)) {
 			this.sendAudioCueTelemetry(cue, options.source);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
@@ -65,13 +66,13 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			this.sendAudioCueTelemetry('cue' in cue ? cue.cue : cue, 'source' in cue ? cue.source : undefined);
 		}
 		const cueArray = cues.map(c => 'cue' in c ? c.cue : c);
-		const alerts = cueArray.filter(cue => this.alertIsEnabled(cue)).map(c => c.alertMessage);
+		const alerts = cueArray.filter(cue => this.isAlertEnabled(cue)).map(c => c.alertMessage);
 		if (alerts.length) {
 			this.accessibilityService.alert(alerts.join(', '));
 		}
 
 		// Some audio cues might reuse sounds. Don't play the same sound twice.
-		const sounds = new Set(cueArray.filter(cue => this.isEnabled(cue)).map(cue => cue.sound.getSound()));
+		const sounds = new Set(cueArray.filter(cue => this.isCueEnabled(cue)).map(cue => cue.sound.getSound()));
 		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
 
 	}
@@ -217,11 +218,11 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	});
 
-	private alertIsEnabled(cue: AudioCue): boolean {
+	public isAlertEnabled(cue: AudioCue): boolean {
 		return this.isAlertEnabledCache.get(cue).get() ?? false;
 	}
 
-	public isEnabled(cue: AudioCue): boolean {
+	public isCueEnabled(cue: AudioCue): boolean {
 		return this.isCueEnabledCache.get(cue).get() ?? false;
 	}
 

@@ -10,9 +10,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
-import { AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -54,8 +52,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 	}
 
@@ -76,30 +73,9 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 				content.push(AccessibilityHelpNLS.editableEditor);
 			}
 		}
-		const saveAudioCue = this._configurationService.getValue(AudioCue.save.settingsKey);
-		switch (saveAudioCue) {
-			case 'never':
-				content.push(AccessibilityHelpNLS.saveAudioCueDisabled);
-				break;
-			case 'always':
-				content.push(AccessibilityHelpNLS.saveAudioCueAlways);
-				break;
-			case 'userGesture':
-				content.push(AccessibilityHelpNLS.saveAudioCueUserGesture);
-				break;
-		}
-		const formatAudioCue = this._configurationService.getValue(AudioCue.format.settingsKey);
-		switch (formatAudioCue) {
-			case 'never':
-				content.push(AccessibilityHelpNLS.formatAudioCueDisabled);
-				break;
-			case 'always':
-				content.push(AccessibilityHelpNLS.formatAudioCueAlways);
-				break;
-			case 'userGesture':
-				content.push(AccessibilityHelpNLS.formatAudioCueUserGesture);
-				break;
-		}
+
+		content.push(AccessibilityHelpNLS.listAudioCues);
+		content.push(AccessibilityHelpNLS.listAlerts);
 
 		const commentCommandInfo = getCommentCommandInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (commentCommandInfo) {
