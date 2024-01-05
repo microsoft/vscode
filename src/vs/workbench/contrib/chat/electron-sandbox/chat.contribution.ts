@@ -5,7 +5,6 @@
 
 import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, StopListeningInInlineChatAction, StopListeningInQuickChatAction, StopListeningInChatEditorAction, StopListeningInChatViewAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { StartEditorSpeechToTextAction, StartTerminalSpeechToTextAction } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceActions';
 
 registerAction2(StartVoiceChatAction);
 
@@ -21,5 +20,3 @@ registerAction2(StopListeningInChatEditorAction);
 registerAction2(StopListeningInQuickChatAction);
 registerAction2(StopListeningInInlineChatAction);
 
-registerAction2(StartTerminalSpeechToTextAction);
-registerAction2(StartEditorSpeechToTextAction);
