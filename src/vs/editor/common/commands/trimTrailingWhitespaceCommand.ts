@@ -100,12 +100,17 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[], t
 		}
 
 		if (!trimInRegexesAndStrings) {
-			model.tokenization.forceTokenization(lineNumber);
+			if (!model.tokenization.hasSemanticTokensForLine(lineNumber)) {
+				// We don't want to force line tokenization, as that can be expensive, but we also don't want to trim
+				// trailing whitespace in lines that are not tokenized yet, as that can be wrong and trim whitespace from
+				// lines that the user requested we don't. So we bail out if there are no semantic tokens for this line.
+				continue;
+			}
+
 			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const fromColumnType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(fromColumn));
 
 			if (fromColumnType === StandardTokenType.String || fromColumnType === StandardTokenType.RegEx) {
-				// Never trim trailing whitespace from strings and regexes, as they're likely intentional
 				continue;
 			}
 		}

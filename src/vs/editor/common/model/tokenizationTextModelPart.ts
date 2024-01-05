@@ -179,6 +179,10 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		return this._semanticTokens.isComplete();
 	}
 
+	public hasSemanticTokensForLine(lineNumber: number): boolean {
+		return this._semanticTokens.hasSemanticTokensForLine(lineNumber);
+	}
+
 	public hasSomeSemanticTokens(): boolean {
 		return !this._semanticTokens.isEmpty();
 	}

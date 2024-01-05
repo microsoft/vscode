@@ -33,6 +33,12 @@ export interface ITokenizationTextModelPart {
 	hasCompleteSemanticTokens(): boolean;
 
 	/**
+	 * Returns true if `getLineTokens` will return accurate tokens for `lineNumber`.
+	 * @internal
+	 */
+	hasSemanticTokensForLine(lineNumber: number): boolean;
+
+	/**
 	 * @internal
 	 */
 	hasSomeSemanticTokens(): boolean;
