@@ -93,16 +93,22 @@ export function createInsertUriListEdit(
 	}
 
 	const edits: vscode.SnippetTextEdit[] = [];
-	let placeHolderValue = ranges.length;
 
 	let insertedLinkCount = 0;
 	let insertedImageCount = 0;
 	let insertedAudioVideoCount = 0;
 
-	for (const range of ranges) {
+	// Use 1 for all empty ranges but give non-empty range unique indices starting after 1
+	let placeHolderStartIndex = 1 + entries.length;
+
+	// Sort ranges by start position
+	const orderedRanges = [...ranges].sort((a, b) => a.start.compareTo(b.start));
+	const allRangesAreEmpty = orderedRanges.every(range => range.isEmpty);
+
+	for (const range of orderedRanges) {
 		const snippet = createUriListSnippet(document.uri, entries, {
-			placeholderText: !range.isEmpty ? document.getText(range) : undefined,
-			placeholderStartIndex: placeHolderValue,
+			placeholderText: range.isEmpty ? undefined : document.getText(range),
+			placeholderStartIndex: allRangesAreEmpty ? 1 : placeHolderStartIndex,
 		});
 		if (!snippet) {
 			continue;
@@ -112,7 +118,8 @@ export function createInsertUriListEdit(
 		insertedImageCount += snippet.insertedImageCount;
 		insertedAudioVideoCount += snippet.insertedAudioVideoCount;
 
-		placeHolderValue--;
+		placeHolderStartIndex += entries.length;
+
 		edits.push(new vscode.SnippetTextEdit(range, snippet.snippet));
 	}
 
