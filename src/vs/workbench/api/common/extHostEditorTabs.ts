@@ -29,10 +29,9 @@ class ExtHostEditorTab {
 	private _input: AnyTabInput | undefined;
 	private _parentGroup: ExtHostEditorTabGroup;
 	private readonly _activeTabIdGetter: () => string;
-	private readonly _revealCallback: () => void;
 
-	constructor(dto: IEditorTabDto, parentGroup: ExtHostEditorTabGroup, activeTabIdGetter: () => string, revealCallback: () => void) {
-		this._revealCallback = revealCallback;
+	constructor(dto: IEditorTabDto, parentGroup: ExtHostEditorTabGroup, activeTabIdGetter: () => string) {
+		this._activeTabIdGetter = activeTabIdGetter;
 		this._parentGroup = parentGroup;
 		this.acceptDtoUpdate(dto);
 	}
@@ -63,9 +62,6 @@ class ExtHostEditorTab {
 				},
 				get group() {
 					return that._parentGroup.apiObject;
-				},
-				reveal() {
-					that._revealCallback();
 				}
 			};
 			this._apiObject = Object.freeze<vscode.Tab>(obj);
@@ -117,18 +113,16 @@ class ExtHostEditorTabGroup {
 	private _tabs: ExtHostEditorTab[] = [];
 	private _activeTabId: string = '';
 	private _activeGroupIdGetter: () => number | undefined;
-	private readonly _revealCallback: (id: string) => void;
 
-	constructor(dto: IEditorTabGroupDto, activeGroupIdGetter: () => number | undefined, revealCallback: (id: string) => void) {
+	constructor(dto: IEditorTabGroupDto, activeGroupIdGetter: () => number | undefined) {
 		this._dto = dto;
 		this._activeGroupIdGetter = activeGroupIdGetter;
-		this._revealCallback = revealCallback;
 		// Construct all tabs from the given dto
 		for (const tabDto of dto.tabs) {
 			if (tabDto.isActive) {
 				this._activeTabId = tabDto.id;
 			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId(), () => this._revealCallback(tabDto.id)));
+			this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId()));
 		}
 	}
 
@@ -171,7 +165,7 @@ class ExtHostEditorTabGroup {
 	acceptTabOperation(operation: TabOperation): ExtHostEditorTab {
 		// In the open case we add the tab to the group
 		if (operation.kind === TabModelOperationKind.TAB_OPEN) {
-			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId(), () => this._revealCallback(operation.tabDto.id));
+			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId());
 			// Insert tab at editor index
 			this._tabs.splice(operation.index, 0, tab);
 			if (operation.tabDto.isActive) {
@@ -302,7 +296,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId, (id) => this._proxy.$revealTab(id));
+			const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId);
 			if (diff.added.includes(group.groupId)) {
 				opened.push(group.apiObject);
 			} else {
