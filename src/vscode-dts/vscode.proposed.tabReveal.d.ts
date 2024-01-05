@@ -28,7 +28,7 @@ declare module 'vscode' {
 		 * @param preserveFocus When `true` focus will remain in its current position.
 		 * @returns A promise that resolves when the tab has been moved.
 		 */
-		move(tab: Tab, viewColumn: ViewColumn, index?: number, preserveFocus?: boolean): Thenable<boolean>;
+		move(tab: Tab, viewColumn: ViewColumn, index?: number, preserveFocus?: boolean): Thenable<void>;
 
 	}
 }

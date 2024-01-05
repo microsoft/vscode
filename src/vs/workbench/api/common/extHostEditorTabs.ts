@@ -270,7 +270,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					this._proxy.$revealTab(extHostTab.tabId, preserveFocus);
 					return;
 				},
-				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index?: number, preserveFocus?: boolean) => {
+				move: async (tab: vscode.Tab, viewColumn: vscode.ViewColumn, index?: number, preserveFocus?: boolean) => {
 					const extHostTab = this._findExtHostTabFromApi(tab);
 					if (!extHostTab) {
 						throw new Error('Invalid tab');
