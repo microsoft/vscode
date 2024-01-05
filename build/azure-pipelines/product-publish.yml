@@ -1,5 +1,3 @@
-pool: 1es-windows-2019-x64
-
 steps:
   - task: NodeTool@0
     inputs:
