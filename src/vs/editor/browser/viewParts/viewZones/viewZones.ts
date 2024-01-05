@@ -374,7 +374,7 @@ export class ViewZones extends ViewPart {
 			let newHeight = 0;
 			let newDisplay = 'none';
 			if (visibleZones.hasOwnProperty(id)) {
-				newTop = visibleZones[id].verticalOffset - ctx.bigNumbersDelta;
+				newTop = visibleZones[id].verticalOffset;
 				newHeight = visibleZones[id].height;
 				newDisplay = 'block';
 				// zone is visible
