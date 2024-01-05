@@ -16,7 +16,7 @@ import { importCss } from 'vs/base/browser/importCss';
 importCss('./breadcrumbsWidget.css', import.meta.url)
 
 export abstract class BreadcrumbsItem {
-	dispose(): void { }
+	abstract dispose(): void;
 	abstract equals(other: BreadcrumbsItem): boolean;
 	abstract render(container: HTMLElement): void;
 }

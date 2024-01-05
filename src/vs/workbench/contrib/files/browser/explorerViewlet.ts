@@ -36,7 +36,7 @@ import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { focusWindow, isMouseEvent } from 'vs/base/browser/dom';
+import { isMouseEvent } from 'vs/base/browser/dom';
 import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/explorerviewlet.css', import.meta.url)
@@ -242,7 +242,6 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			explorerView.setExpanded(true);
 		}
 		if (explorerView?.isExpanded()) {
-			focusWindow(explorerView.element);
 			explorerView.focus();
 		} else {
 			super.focus();

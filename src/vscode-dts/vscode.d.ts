@@ -2012,10 +2012,10 @@ declare module 'vscode' {
 
 		/**
 		 * A set of file filters that are used by the dialog. Each entry is a human-readable label,
-		 * like "TypeScript", and an array of extensions, e.g.
+		 * like "TypeScript", and an array of extensions, for example:
 		 * ```ts
 		 * {
-		 * 	'Images': ['png', 'jpg']
+		 * 	'Images': ['png', 'jpg'],
 		 * 	'TypeScript': ['ts', 'tsx']
 		 * }
 		 * ```
@@ -2047,10 +2047,10 @@ declare module 'vscode' {
 
 		/**
 		 * A set of file filters that are used by the dialog. Each entry is a human-readable label,
-		 * like "TypeScript", and an array of extensions, e.g.
+		 * like "TypeScript", and an array of extensions, for example:
 		 * ```ts
 		 * {
-		 * 	'Images': ['png', 'jpg']
+		 * 	'Images': ['png', 'jpg'],
 		 * 	'TypeScript': ['ts', 'tsx']
 		 * }
 		 * ```
@@ -13648,6 +13648,29 @@ declare module 'vscode' {
 		 * Event that fires when the current workspace has been trusted.
 		 */
 		export const onDidGrantWorkspaceTrust: Event<void>;
+
+		/**
+		 * Saves the editor identified by the given resource and returns the resulting resource or `undefined`
+		 * if save was not successful or no editor with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved.
+		 *
+		 * @param uri the associated uri for the opened editor to save.
+		 * @returns A thenable that resolves when the save operation has finished.
+		 */
+		export function save(uri: Uri): Thenable<Uri | undefined>;
+
+		/**
+		 * Saves the editor identified by the given resource to a new file name as provided by the user and
+		 * returns the resulting resource or `undefined` if save was not successful or cancelled or no editor
+		 * with the given resource was found.
+		 *
+		 * **Note** that an editor with the provided resource must be opened in order to be saved as.
+		 *
+		 * @param uri the associated uri for the opened editor to save as.
+		 * @returns A thenable that resolves when the save-as operation has finished.
+		 */
+		export function saveAs(uri: Uri): Thenable<Uri | undefined>;
 	}
 
 	/**

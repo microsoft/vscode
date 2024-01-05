@@ -10,6 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Location, ProviderResult } from 'vs/editor/common/languages';
+import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -51,6 +52,7 @@ export interface IChatResponse {
 export interface IChatResponseProgressFileTreeData {
 	label: string;
 	uri: URI;
+	type?: FileType;
 	children?: IChatResponseProgressFileTreeData[];
 }
 
@@ -200,7 +202,7 @@ export interface IChatVoteAction {
 	reportIssue?: boolean;
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	// Keyboard shortcut or context menu
 	Action = 1,
 	Toolbar = 2
@@ -209,7 +211,7 @@ export enum InteractiveSessionCopyKind {
 export interface IChatCopyAction {
 	kind: 'copy';
 	codeBlockIndex: number;
-	copyType: InteractiveSessionCopyKind;
+	copyKind: ChatAgentCopyKind;
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;

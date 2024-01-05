@@ -22,6 +22,8 @@ import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./standaloneQuickInput.css', import.meta.url)
 
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 class EditorScopedQuickInputService extends QuickInputService {
 
@@ -32,9 +34,18 @@ class EditorScopedQuickInputService extends QuickInputService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(instantiationService, contextKeyService, themeService, new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService));
+		super(
+			instantiationService,
+			contextKeyService,
+			themeService,
+			new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService),
+			configurationService,
+			hoverService
+		);
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);
@@ -53,6 +64,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 				get onDidLayoutContainer() { return Event.map(editor.onDidLayoutChange, dimension => ({ container: widget.getDomNode(), dimension })); },
 				get onDidChangeActiveContainer() { return Event.None; },
 				get onDidAddContainer() { return Event.None; },
+				get whenActiveContainerStylesLoaded() { return Promise.resolve(); },
 				get mainContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				get activeContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				focus: () => editor.focus()

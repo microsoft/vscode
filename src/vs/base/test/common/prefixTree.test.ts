@@ -5,9 +5,12 @@
 
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('WellDefinedPrefixTree', () => {
 	let tree: WellDefinedPrefixTree<number>;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		tree = new WellDefinedPrefixTree<number>();

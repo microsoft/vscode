@@ -6,7 +6,7 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Disposable, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +31,7 @@ importCss('./media/developer.css', import.meta.url)
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
-	title: { value: localize('workbench.action.terminal.showTextureAtlas', "Show Terminal Texture Atlas"), original: 'Show Terminal Texture Atlas' },
+	title: localize2('workbench.action.terminal.showTextureAtlas', 'Show Terminal Texture Atlas'),
 	category: Categories.Developer,
 	precondition: ContextKeyExpr.or(TerminalContextKeys.isOpen),
 	run: async (c, accessor) => {
@@ -63,7 +63,7 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalCommandId.WriteDataToTerminal,
-	title: { value: localize('workbench.action.terminal.writeDataToTerminal', "Write Data to Terminal"), original: 'Write Data to Terminal' },
+	title: localize2('workbench.action.terminal.writeDataToTerminal', 'Write Data to Terminal'),
 	category: Categories.Developer,
 	run: async (c, accessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
@@ -99,7 +99,7 @@ registerTerminalAction({
 
 registerTerminalAction({
 	id: TerminalCommandId.RestartPtyHost,
-	title: { value: localize('workbench.action.terminal.restartPtyHost', "Restart Pty Host"), original: 'Restart Pty Host' },
+	title: localize2('workbench.action.terminal.restartPtyHost', 'Restart Pty Host'),
 	category: Categories.Developer,
 	run: async (c, accessor) => {
 		const logService = accessor.get(ITerminalLogService);

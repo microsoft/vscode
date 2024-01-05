@@ -424,7 +424,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[NotebookSetting.gotoSymbolsAllSymbols]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled the Go to Symbol Quick Pick will display full code symbols from the notebook, as well as Markdown headers.")
 		},
 	}

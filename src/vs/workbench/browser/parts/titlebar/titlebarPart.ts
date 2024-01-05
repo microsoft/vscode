@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
@@ -18,7 +18,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getActiveWindow, getWindowId } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -33,7 +33,7 @@ import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
 import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/commandCenterControl';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
@@ -49,7 +49,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { IEditorCommandsContext, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, IEditorPartOptionsChangeEvent, IToolbarActions } from 'vs/workbench/common/editor';
 import { mainWindow } from 'vs/base/browser/window';
 import { ACCOUNTS_ACTIVITY_TILE_ACTION, GLOBAL_ACTIVITY_TITLE_ACTION } from 'vs/workbench/browser/parts/titlebar/titlebarActions';
 import { IView } from 'vs/base/browser/ui/grid/grid';
@@ -84,9 +84,11 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	readonly mainPart = this._register(this.createMainTitlebarPart());
 
 	constructor(
-		@IInstantiationService protected readonly instantiationService: IInstantiationService
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IStorageService storageService: IStorageService,
+		@IThemeService themeService: IThemeService
 	) {
-		super();
+		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
 	}
@@ -171,7 +173,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	get minimumHeight(): number {
 		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? 35 : 30;
 
-		return value / (this.useCounterZoom ? getZoomFactor() : 1);
+		return value / (this.useCounterZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 
 	get maximumHeight(): number { return this.minimumHeight; }
@@ -239,7 +241,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
@@ -257,8 +259,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private registerListeners(targetWindowId: number): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.hostService.onDidChangeActiveWindow(() => getActiveWindow().vscodeWindowId === targetWindowId ? this.onFocus() : this.onBlur()));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
+		this._register(this.editorGroupService.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
 	}
 
 	private onBlur(): void {
@@ -271,6 +274,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.isInactive = false;
 
 		this.updateStyles();
+	}
+
+	private onEditorPartConfigurationChange({ oldPartOptions, newPartOptions }: IEditorPartOptionsChangeEvent): void {
+		if (
+			oldPartOptions.editorActionsLocation !== newPartOptions.editorActionsLocation ||
+			oldPartOptions.showTabs !== newPartOptions.showTabs
+		) {
+			if (this.titleBarStyle !== 'native' && this.actionToolBar) {
+				this.createActionToolBar();
+				this.createActionToolBarMenus({ editorActions: true });
+				this._onDidChange.fire(undefined);
+			}
+		}
 	}
 
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -288,15 +304,11 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Actions
 		if (this.titleBarStyle !== 'native' && this.actionToolBar) {
-			const affectsEditorActions = event.affectsConfiguration('workbench.editor.editorActionsLocation') || event.affectsConfiguration('workbench.editor.showTabs');
 			const affectsLayoutControl = event.affectsConfiguration('workbench.layoutControl.enabled');
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
-			if (affectsEditorActions) {
-				this.createActionToolBar();
-			}
 
-			if (affectsEditorActions || affectsLayoutControl || affectsActivityControl) {
-				this.createActionToolBarMenus({ editorActions: affectsEditorActions, layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
+			if (affectsLayoutControl || affectsActivityControl) {
+				this.createActionToolBarMenus({ layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
 
 				this._onDidChange.fire(undefined);
 			}
@@ -415,16 +427,35 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.primaryWindowControls = append(primaryControlLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container.primary'));
 		append(primaryControlLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.secondary'));
 
-		// Context menu on title
-		[EventType.CONTEXT_MENU, EventType.MOUSE_DOWN].forEach(event => {
-			this._register(addDisposableListener(this.rootContainer, event, e => {
-				if (e.type === EventType.CONTEXT_MENU || (e.target === this.title && e.metaKey)) {
-					EventHelper.stop(e);
+		// Context menu over title bar: depending on the OS and the location of the click this will either be
+		// the overall context menu for the entire title bar or a specific title context menu.
+		// Windows / Linux: we only support the overall context menu on the title bar
+		// macOS: we support both the overall context menu and the title context menu.
+		//        in addition, we allow Cmd+click to bring up the title context menu.
+		{
+			this._register(addDisposableListener(this.rootContainer, EventType.CONTEXT_MENU, e => {
+				EventHelper.stop(e);
 
-					this.onContextMenu(e, e.target === this.title ? MenuId.TitleBarTitleContext : MenuId.TitleBarContext);
+				let targetMenu: MenuId;
+				if (isMacintosh && e.target instanceof HTMLElement && isAncestor(e.target, this.title)) {
+					targetMenu = MenuId.TitleBarTitleContext;
+				} else {
+					targetMenu = MenuId.TitleBarContext;
 				}
+
+				this.onContextMenu(e, targetMenu);
 			}));
-		});
+
+			if (isMacintosh) {
+				this._register(addDisposableListener(this.title, EventType.MOUSE_DOWN, e => {
+					if (e.metaKey) {
+						EventHelper.stop(e, true /* stop bubbling to prevent command center from opening */);
+
+						this.onContextMenu(e, MenuId.TitleBarTitleContext);
+					}
+				}, true /* capture phase to prevent command center from opening */));
+			}
+		}
 
 		// Focus action
 		const that = this;
@@ -433,7 +464,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			constructor() {
 				super({
 					id: `workbench.action.focusTitleBar`,
-					title: { value: localize('focusTitleBar', "Focus Title Bar"), original: 'Focus Title Bar' },
+					title: localize2('focusTitleBar', 'Focus Title Bar'),
 					category: Categories.View,
 					f1: true,
 				});
@@ -646,7 +677,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected onContextMenu(e: MouseEvent, menuId: MenuId): void {
-		const event = new StandardMouseEvent(getWindow(this.rootContainer), e);
+		const event = new StandardMouseEvent(getWindow(this.element), e);
 
 		// Show it
 		this.contextMenuService.showContextMenu({
@@ -691,9 +722,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the title bar
 
-		const zoomFactor = getZoomFactor();
+		const zoomFactor = getZoomFactor(getWindow(this.element));
 
-		const noMenubar = this.currentMenubarVisibility === 'hidden' || (!isWeb && isMacintosh);
+		const noMenubar = this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh);
 		const noCommandCenter = !this.isCommandCenterVisible;
 		const noToolBarActions = !this.layoutControlEnabled && !this.editorActionsEnabled && !this.activityActionsEnabled;
 
@@ -710,7 +741,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			const zoomFactor = getZoomFactor();
+			const zoomFactor = getZoomFactor(getWindow(this.element));
 
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
 			this.rootContainer.classList.toggle('counter-zoom', this.useCounterZoom);

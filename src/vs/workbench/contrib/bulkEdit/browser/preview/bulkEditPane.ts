@@ -105,6 +105,7 @@ export class BulkEditPane extends ViewPane {
 	override dispose(): void {
 		this._tree.dispose();
 		this._disposables.dispose();
+		super.dispose();
 	}
 
 	protected override renderBody(parent: HTMLElement): void {

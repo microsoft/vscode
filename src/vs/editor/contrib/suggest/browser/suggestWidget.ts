@@ -285,6 +285,9 @@ export class SuggestWidget implements IDisposable {
 				applyStatusBarStyle();
 				applyIconStyle();
 			}
+			if (this._completionModel && (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight))) {
+				this._list.splice(0, this._list.length, this._completionModel.items);
+			}
 		}));
 
 		this._ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
@@ -721,9 +724,13 @@ export class SuggestWidget implements IDisposable {
 			} else {
 				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
 			}
-			this._positionDetails();
+			if (!this._details.widget.isEmpty) {
+				this._positionDetails();
+				this.element.domNode.classList.add('shows-details');
+			} else {
+				this._details.hide();
+			}
 			this.editor.focus();
-			this.element.domNode.classList.add('shows-details');
 		});
 	}
 
@@ -775,7 +782,7 @@ export class SuggestWidget implements IDisposable {
 			// no special positioning when widget isn't showing list
 			return;
 		}
-		if (this._isDetailsVisible()) {
+		if (this._isDetailsVisible() && !this._details.widget.isEmpty) {
 			this._details.show();
 		}
 		this._positionDetails();

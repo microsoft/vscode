@@ -14,6 +14,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { CopyPasteController } from 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteController';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -227,8 +228,10 @@ if (PasteAction) {
 		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			const result = focusedEditor.getContainerDomNode().ownerDocument.execCommand('paste');
-			// Use the clipboard service if document.execCommand('paste') was not successful
-			if (!result && platform.isWeb) {
+			if (result) {
+				return CopyPasteController.get(focusedEditor)?.finishedPaste() ?? Promise.resolve();
+			} else if (platform.isWeb) {
+				// Use the clipboard service if document.execCommand('paste') was not successful
 				return (async () => {
 					const clipboardText = await clipboardService.readText();
 					if (clipboardText !== '') {

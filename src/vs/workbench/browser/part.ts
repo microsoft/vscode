@@ -11,7 +11,7 @@ import { ISerializableView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/part.css', import.meta.url)
@@ -190,7 +190,7 @@ export interface IMultiWindowPart {
 	readonly element: HTMLElement;
 }
 
-export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Disposable {
+export abstract class MultiWindowParts<T extends IMultiWindowPart> extends Component {
 
 	protected readonly _parts = new Set<T>();
 	get parts() { return Array.from(this._parts); }

@@ -47,7 +47,7 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/con
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -384,7 +384,7 @@ export class InteractiveEditor extends EditorPane {
 			cellEditorContributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				SelectionClipboardContributionID,
 				ContextMenuController.ID,
-				ModesHoverController.ID,
+				HoverController.ID,
 				MarkerController.ID
 			]),
 			options: this._notebookOptions
@@ -401,7 +401,7 @@ export class InteractiveEditor extends EditorPane {
 					ParameterHintsController.ID,
 					SnippetController2.ID,
 					TabCompletionController.ID,
-					ModesHoverController.ID,
+					HoverController.ID,
 					MarkerController.ID
 				])
 			}

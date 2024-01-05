@@ -19,11 +19,13 @@ import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/quickInput.css', import.meta.url)
 
+import { IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
+import { IAction } from 'vs/base/common/actions';
 
 const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
 
-export function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string | undefined {
+function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string | undefined {
 	if (!iconPath) {
 		return undefined;
 	}
@@ -40,6 +42,22 @@ export function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): 
 	}
 
 	return iconClass;
+}
+
+export function quickInputButtonToAction(button: IQuickInputButton, id: string, run: () => unknown): IAction {
+	let cssClasses = button.iconClass || getIconClass(button.iconPath);
+	if (button.alwaysVisible) {
+		cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
+	}
+
+	return {
+		id,
+		label: '',
+		tooltip: button.tooltip || '',
+		class: cssClasses,
+		enabled: true,
+		run
+	};
 }
 
 export function renderQuickInputDescription(description: string, container: HTMLElement, actionHandler: { callback: (content: string) => void; disposables: DisposableStore }) {

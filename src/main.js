@@ -31,6 +31,7 @@ import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js'
 import { stripComments } from './vs/base/common/stripComments.js';
 import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
 /** @type {Partial<IProductConfiguration>} */
+// @ts-ignore
 import { app, protocol, crashReporter, Menu } from 'electron';
 
 
@@ -522,6 +523,7 @@ function registerListeners() {
 	 * @type {string[]}
 	 */
 	const macOpenFiles = [];
+	// @ts-ignore
 	global['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
@@ -548,6 +550,7 @@ function registerListeners() {
 		app.on('open-url', onOpenUrl);
 	});
 
+	// @ts-ignore
 	global['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 

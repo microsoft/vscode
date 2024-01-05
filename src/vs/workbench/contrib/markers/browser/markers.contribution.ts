@@ -9,7 +9,7 @@ import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/co
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Marker, RelatedInformation, ResourceMarkers } from 'vs/workbench/contrib/markers/browser/markersModel';
 import { MarkersView } from 'vs/workbench/contrib/markers/browser/markersView';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -348,7 +348,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 		const when = ContextKeyExpr.and(FocusedViewContext.isEqualTo(Markers.MARKERS_VIEW_ID), MarkersContextKeys.MarkersTreeVisibilityContextKey, MarkersContextKeys.RelatedInformationFocusContextKey.toNegated());
 		super({
 			id: Markers.MARKER_COPY_ACTION_ID,
-			title: { value: localize('copyMarker', "Copy"), original: 'Copy' },
+			title: localize2('copyMarker', 'Copy'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when,
@@ -388,7 +388,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.MARKER_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.MarkerFocusContextKey,
@@ -410,7 +410,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: Markers.RELATED_INFORMATION_COPY_MESSAGE_ACTION_ID,
-			title: { value: localize('copyMessage', "Copy Message"), original: 'Copy Message' },
+			title: localize2('copyMessage', 'Copy Message'),
 			menu: {
 				id: MenuId.ProblemsPanelContext,
 				when: MarkersContextKeys.RelatedInformationFocusContextKey,
@@ -559,7 +559,7 @@ registerAction2(class extends Action2 {
 class MarkersStatusBarContributions extends Disposable implements IWorkbenchContribution {
 
 	private markersStatusItem: IStatusbarEntryAccessor;
-	private markersStatusItemOff: IStatusbarEntryAccessor;
+	private markersStatusItemOff: IStatusbarEntryAccessor | undefined;
 
 	constructor(
 		@IMarkerService private readonly markerService: IMarkerService,
@@ -568,15 +568,33 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	) {
 		super();
 		this.markersStatusItem = this._register(this.statusbarService.addEntry(this.getMarkersItem(), 'status.problems', StatusbarAlignment.LEFT, 50 /* Medium Priority */));
-		this.markersStatusItemOff = this._register(this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'error-kind', StatusbarAlignment.LEFT, 49));
+
+		const addStatusBarEntry = () => {
+			this.markersStatusItemOff = this.statusbarService.addEntry(this.getMarkersItemTurnedOff(), 'status.problemsVisibility', StatusbarAlignment.LEFT, 49);
+		};
+
+		// Add the status bar entry if the problems is not visible
+		let config = this.configurationService.getValue('problems.visibility');
+		if (!config) {
+			addStatusBarEntry();
+		}
+
 		this._register(this.markerService.onMarkerChanged(() => {
 			this.markersStatusItem.update(this.getMarkersItem());
-			this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
 		}));
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('problems.visibility')) {
 				this.markersStatusItem.update(this.getMarkersItem());
-				this.markersStatusItemOff.update(this.getMarkersItemTurnedOff());
+
+				// Update based on what setting was changed to.
+				config = this.configurationService.getValue('problems.visibility');
+				if (!config && !this.markersStatusItemOff) {
+					addStatusBarEntry();
+				} else if (config && this.markersStatusItemOff) {
+					this.markersStatusItemOff.dispose();
+					this.markersStatusItemOff = undefined;
+				}
 			}
 		}));
 	}
@@ -594,16 +612,13 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 	}
 
 	private getMarkersItemTurnedOff(): IStatusbarEntry {
-		const config = this.configurationService.getValue('problems.visibility');
-		if (config) {
-			return { name: '', text: '', ariaLabel: '', tooltip: '', command: '' };
-		}
-
+		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
+		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = 'problems.visibility';
-		const tooltip = !config ? localize('problemsOff', "Problems have been turned off.") : '';
+		const configureSettingsLabel = '@id:problems.visibility';
+		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
 		return {
-			name: localize('status.problems.off', "Problems"),
+			name: localize('status.problemsVisibility', "Problems Visibility"),
 			text: '$(whole-word)',
 			ariaLabel: tooltip,
 			tooltip,
@@ -679,8 +694,12 @@ class ActivityUpdater extends Disposable implements IWorkbenchContribution {
 	private updateBadge(): void {
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
-		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		if (total > 0) {
+			const message = localize('totalProblems', 'Total {0} Problems', total);
+			this.activity.value = this.activityService.showViewActivity(Markers.MARKERS_VIEW_ID, { badge: new NumberBadge(total, () => message) });
+		} else {
+			this.activity.value = undefined;
+		}
 	}
 }
 

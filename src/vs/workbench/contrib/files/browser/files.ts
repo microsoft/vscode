@@ -60,6 +60,9 @@ export interface IExplorerView {
 	isItemVisible(item: ExplorerItem): boolean;
 	isItemCollapsed(item: ExplorerItem): boolean;
 	hasFocus(): boolean;
+	getFocus(): ExplorerItem[];
+	focusNext(): void;
+	focusLast(): void;
 }
 
 function getFocus(listService: IListService): unknown | undefined {

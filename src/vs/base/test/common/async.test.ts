@@ -93,6 +93,27 @@ suite('Async', () => {
 			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
 		});
 
+		test('execution order (async with late listener)', async function () {
+			const order: string[] = [];
+
+			const cancellablePromise = async.createCancelablePromise(async token => {
+				order.push('in callback');
+
+				await async.timeout(0);
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
+				cancellablePromise.cancel();
+				order.push('afterCancel');
+			});
+
+			order.push('afterCreate');
+
+			const promise = cancellablePromise
+				.then(undefined, err => null)
+				.then(() => order.push('finally'));
+
+			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+		});
+
 		test('get inner result', async function () {
 			const promise = async.createCancelablePromise(token => {
 				return async.timeout(12).then(_ => 1234);

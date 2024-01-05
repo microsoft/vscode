@@ -100,9 +100,9 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async (e) => {
-			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added.length > 0 && !this.isInitialized) {
+			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added?.length && !this.isInitialized) {
 				this.onSessionChange(e.event.added[0]);
-			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed.length > 0) {
+			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed?.length) {
 				this.contextKey.set(false);
 			}
 		}));

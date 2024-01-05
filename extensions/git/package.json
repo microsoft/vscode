@@ -24,8 +24,6 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
-    "scmInputBoxActionButton",
-    "scmInputBoxValueProvider",
     "contribSourceControlInputBoxMenu"
   ],
   "categories": [
@@ -97,6 +95,12 @@
       {
         "command": "git.close",
         "title": "%command.close%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.closeOtherRepositories",
+        "title": "%command.closeOtherRepositories%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -699,7 +703,7 @@
       {
         "command": "git.timeline.openCommit",
         "title": "%command.timelineOpenCommit%",
-        "icon": "$(tasklist)",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       },
       {
@@ -765,13 +769,13 @@
       {
         "command": "git.viewChanges",
         "title": "%command.viewChanges%",
-        "icon": "$(tasklist)",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
-        "icon": "$(tasklist)",
+        "icon": "$(diff-multiple)",
         "category": "Git"
       }
     ],
@@ -828,6 +832,10 @@
         {
           "command": "git.close",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.closeOtherRepositories",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
           "command": "git.refresh",
@@ -1338,8 +1346,13 @@
       "scm/sourceControl": [
         {
           "command": "git.close",
-          "group": "navigation",
+          "group": "navigation@1",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "git.closeOtherRepositories",
+          "group": "navigation@2",
+          "when": "scmProvider == git && gitOpenRepositoryCount > 1"
         }
       ],
       "scm/resourceGroup/context": [
@@ -2948,8 +2961,10 @@
     "configurationDefaults": {
       "[git-commit]": {
         "editor.rulers": [
+          50,
           72
         ],
+        "editor.wordWrap": "off",
         "workbench.editor.restoreViewState": false
       },
       "[git-rebase]": {

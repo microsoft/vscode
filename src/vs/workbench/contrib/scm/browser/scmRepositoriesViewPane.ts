@@ -29,6 +29,7 @@ import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/scm.css', import.meta.url)
 
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -76,7 +77,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		updateProviderCountVisibility();
 
 		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
+		const renderer = this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService));
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer], {
@@ -149,7 +150,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.repositoryMenu;
+		const menu = menus.repositoryContextMenu;
 		const actions = collectContextMenuActions(menu);
 
 		this.contextMenuService.showContextMenu({

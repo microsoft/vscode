@@ -71,10 +71,10 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { DEFAULT_ICON, ICONS } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-import { WorkbenchIconSelectBox } from 'vs/workbench/browser/iconSelectBox';
+import { WorkbenchIconSelectBox } from 'vs/workbench/services/userDataProfile/browser/iconSelectBox';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -582,13 +582,13 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				sticky: true,
 			}, async progress => {
 				const reportProgress = (message: string) => progress.report({ message: localize('create from profile', "Create Profile: {0}", message) });
-				const profile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags, icon: options?.icon }, reportProgress);
-				if (profile) {
+				const createdProfile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags, icon: options?.icon }, reportProgress);
+				if (createdProfile) {
 					reportProgress(localize('progress extensions', "Applying Extensions..."));
-					await this.instantiationService.createInstance(ExtensionsResource).copy(this.userDataProfileService.currentProfile, profile, false);
+					await this.instantiationService.createInstance(ExtensionsResource).copy(profile, createdProfile, false);
 
 					reportProgress(localize('switching profile', "Switching Profile..."));
-					await this.userDataProfileManagementService.switchProfile(profile);
+					await this.userDataProfileManagementService.switchProfile(createdProfile);
 				}
 			});
 		} finally {

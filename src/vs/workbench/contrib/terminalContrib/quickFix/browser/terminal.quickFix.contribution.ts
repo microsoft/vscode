@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -76,7 +76,7 @@ registerTerminalContribution(TerminalQuickFixContribution.ID, TerminalQuickFixCo
 // Actions
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowQuickFixes,
-	title: { value: localize('workbench.action.terminal.showQuickFixes', "Show Terminal Quick Fixes"), original: 'Show Terminal Quick Fixes' },
+	title: localize2('workbench.action.terminal.showQuickFixes', 'Show Terminal Quick Fixes'),
 	precondition: TerminalContextKeys.focus,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.Period,

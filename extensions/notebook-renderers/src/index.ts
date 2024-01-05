@@ -176,7 +176,9 @@ function renderError(
 		const stackTrace = formatStackTrace(err.stack);
 
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-		const content = createOutputContent(outputInfo.id, stackTrace ?? '', { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml });
+		const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml, linkifyFilePaths: ctx.settings.linkifyFilePaths };
+
+		const content = createOutputContent(outputInfo.id, stackTrace ?? '', outputOptions);
 		const contentParent = document.createElement('div');
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
@@ -279,7 +281,7 @@ function scrollingEnabled(output: OutputItem, options: RenderOptions) {
 function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error };
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error, linkifyFilePaths: ctx.settings.linkifyFilePaths };
 
 	outputElement.classList.add('output-stream');
 
@@ -330,7 +332,8 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 
 	const text = outputInfo.text();
 	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
-	const content = createOutputContent(outputInfo.id, text, { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false });
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, linkifyFilePaths: ctx.settings.linkifyFilePaths };
+	const content = createOutputContent(outputInfo.id, text, outputOptions);
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
 		content.classList.add('word-wrap');

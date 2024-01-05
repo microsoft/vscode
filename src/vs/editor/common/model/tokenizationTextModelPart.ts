@@ -463,7 +463,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
-			if (!this._backgroundTokenizer.value) {
+			if (!this._backgroundTokenizer.value && !this._textModel.isTooLargeForTokenization()) {
 				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();

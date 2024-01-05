@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import 'vs/css!./output';
 import * as nls from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -117,7 +117,6 @@ export class OutputViewPane extends ViewPane {
 		super.layoutBody(height, width);
 		this.editor.layout(new Dimension(width, height));
 	}
-
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);

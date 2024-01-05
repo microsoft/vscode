@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { mainWindow } from 'vs/base/browser/window';
+import { ILayoutOffsetInfo, ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -19,6 +19,7 @@ class StandaloneLayoutService implements ILayoutService {
 	readonly onDidLayoutContainer = Event.None;
 	readonly onDidChangeActiveContainer = Event.None;
 	readonly onDidAddContainer = Event.None;
+	readonly whenActiveContainerStylesLoaded = Promise.resolve();
 
 	get mainContainer(): HTMLElement {
 		return firstOrDefault(this._codeEditorService.listCodeEditors())?.getContainerDomNode() ?? mainWindow.document.body;

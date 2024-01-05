@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
@@ -42,13 +42,14 @@ import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/actions.css', import.meta.url)
 
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class InspectContextKeysAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.inspectContextKeys',
-			title: { value: localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
+			title: localize2('inspect context keys', 'Inspect Context Keys'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -114,7 +115,7 @@ class ToggleScreencastModeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
-			title: { value: localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
+			title: localize2('toggle screencast mode', 'Toggle Screencast Mode'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -459,7 +460,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.removeLargeStorageDatabaseEntries',
-			title: { value: localize('removeLargeStorageDatabaseEntries', "Remove Large Storage Database Entries..."), original: 'Remove Large Storage Database Entries...' },
+			title: localize2('removeLargeStorageDatabaseEntries', 'Remove Large Storage Database Entries...'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -470,6 +471,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const userDataProfileService = accessor.get(IUserDataProfileService);
 		const dialogService = accessor.get(IDialogService);
+		const environmentService = accessor.get(IEnvironmentService);
 
 		interface IStorageItem extends IQuickPickItem {
 			readonly key: string;
@@ -488,7 +490,7 @@ class RemoveLargeStorageEntriesAction extends Action2 {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
 				for (const key of storageService.keys(scope, target)) {
 					const value = storageService.get(key, scope);
-					if (value && value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD) {
+					if (value && (!environmentService.isBuilt /* show all keys in dev */ || value.length > RemoveLargeStorageEntriesAction.SIZE_THRESHOLD)) {
 						items.push({
 							key,
 							scope,
@@ -568,7 +570,7 @@ class StartTrackDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.startTrackDisposables',
-			title: { value: localize('startTrackDisposables', "Start Tracking Disposables"), original: 'Start Tracking Disposables' },
+			title: localize2('startTrackDisposables', 'Start Tracking Disposables'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: ContextKeyExpr.and(DisposablesSnapshotStateContext.isEqualTo('pending').negate(), DisposablesSnapshotStateContext.isEqualTo('started').negate())
@@ -591,7 +593,7 @@ class SnapshotTrackedDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.snapshotTrackedDisposables',
-			title: { value: localize('snapshotTrackedDisposables', "Snapshot Tracked Disposables"), original: 'Snapshot Tracked Disposables' },
+			title: localize2('snapshotTrackedDisposables', 'Snapshot Tracked Disposables'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('started')
@@ -611,7 +613,7 @@ class StopTrackDisposables extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.stopTrackDisposables',
-			title: { value: localize('stopTrackDisposables', "Stop Tracking Disposables"), original: 'Stop Tracking Disposables' },
+			title: localize2('stopTrackDisposables', 'Stop Tracking Disposables'),
 			category: Categories.Developer,
 			f1: true,
 			precondition: DisposablesSnapshotStateContext.isEqualTo('pending')

@@ -35,6 +35,9 @@ import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/searchEditor.css', import.meta.url)
 
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export type SearchConfiguration = {
 	query: string;
@@ -57,6 +60,8 @@ export type SearchConfiguration = {
 
 export const SEARCH_EDITOR_EXT = '.code-search';
 
+const SearchEditorIcon = registerIcon('search-editor-label-icon', Codicon.search, localize('searchEditorLabelIcon', 'Icon of the search editor label.'));
+
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = SearchEditorInputTypeId;
 
@@ -66,6 +71,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get editorId(): string | undefined {
 		return this.typeId;
+	}
+
+	override getIcon(): ThemeIcon {
+		return SearchEditorIcon;
 	}
 
 	override get capabilities(): EditorInputCapabilities {

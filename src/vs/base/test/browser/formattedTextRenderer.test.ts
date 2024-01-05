@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { renderFormattedText, renderText } from 'vs/base/browser/formattedTextRenderer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('FormattedTextRenderer', () => {
 	const store = new DisposableStore();
@@ -127,4 +128,6 @@ suite('FormattedTextRenderer', () => {
 		assert.strictEqual(result.children.length, 0);
 		assert.strictEqual(result.innerHTML, '**bold**');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -928,7 +928,7 @@ export interface IFileEditorInput extends EditorInput, IEncodingSupport, ILangua
 	isResolved(): boolean;
 }
 
-export interface IFileEditorInputOptions extends ITextEditorOptions {
+export interface IFileLimitedEditorInputOptions extends IEditorOptions {
 
 	/**
 	 * If provided, the size of the file will be checked against the limits
@@ -936,6 +936,8 @@ export interface IFileEditorInputOptions extends ITextEditorOptions {
 	 */
 	readonly limits?: IFileReadLimits;
 }
+
+export interface IFileEditorInputOptions extends ITextEditorOptions, IFileLimitedEditorInputOptions { }
 
 export function createTooLargeFileError(group: IEditorGroup, input: EditorInput, options: IEditorOptions | undefined, message: string, preferencesService: IPreferencesService): Error {
 	return createEditorOpenError(message, [
