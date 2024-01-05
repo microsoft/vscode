@@ -72,7 +72,6 @@ export class NotebookVariablesView extends ViewPane {
 			{
 				identityProvider: { getId: (e: INotebookVariableElement) => e.id },
 				horizontalScrolling: false,
-				supportDynamicHeights: true,
 				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: new NotebookVariableAccessibilityProvider(),
 				setRowLineHeight: false,
@@ -80,11 +79,41 @@ export class NotebookVariablesView extends ViewPane {
 
 		this.tree.layout();
 		this.tree?.setChildren(null, []);
+
+		this.tree.onDidChangeCollapseState(e => {
+			if (!e.node.collapsed && e.node.element && this.activeNotebook) {
+				this.updateChildren(this.activeNotebook, e.node.element);
+			}
+		});
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree?.layout(height, width);
+	}
+
+	private async updateChildren(notebook: NotebookTextModel, element: INotebookVariableElement) {
+		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
+		if (selectedKernel && selectedKernel.hasVariableProvider) {
+
+			let children: IObjectTreeElement<INotebookVariableElement>[] = [];
+			if (element.hasNamedChildren) {
+				const variables = selectedKernel.provideVariables(notebook.uri, element.label, 'named', 0, CancellationToken.None);
+				const childNodes = await variables
+					.map(variable => { return this.createTreeItem(variable); })
+					.toPromise();
+				children = children.concat(childNodes);
+			}
+			if (element.indexedChildrenCount > 0) {
+				const variables = selectedKernel.provideVariables(notebook.uri, element.label, 'indexed', 0, CancellationToken.None);
+				const childNodes = await variables
+					.map(variable => { return this.createTreeItem(variable); })
+					.toPromise();
+				children = children.concat(childNodes);
+			}
+
+			this.tree?.setChildren(element, children);
+		}
 	}
 
 	private handleActiveEditorChange() {
@@ -138,7 +167,9 @@ export class NotebookVariablesView extends ViewPane {
 					element: {
 						id: `${this.index + 1}-placeholder`,
 						label: ' ',
-						value: 'loading...',
+						value: '...',
+						indexedChildrenCount: 0,
+						hasNamedChildren: false,
 					}
 				}
 			];
@@ -149,12 +180,12 @@ export class NotebookVariablesView extends ViewPane {
 				id: `${this.index++}`,
 				label: variable.variable.name,
 				value: variable.variable.value,
+				indexedChildrenCount: variable.indexedChildrenCount,
+				hasNamedChildren: variable.namedChildrenCount > 0,
 			},
 			children,
 			collapsed
 		};
-
-
 
 		return element;
 	}

@@ -15,6 +15,8 @@ export interface INotebookVariableElement {
 	readonly id: string;
 	readonly label: string;
 	readonly value: string;
+	readonly indexedChildrenCount: number;
+	readonly hasNamedChildren: boolean;
 }
 
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
@@ -43,8 +45,8 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		return { wrapper };
 	}
 
-	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: { wrapper: HTMLElement }, height: number | undefined): void {
-		templateData.wrapper.innerText = `${element.element.label} - ${element.element.value}`;
+	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, templateData: { wrapper: HTMLElement }): void {
+		templateData.wrapper.innerText = `${element.element.label}: ${element.element.value}`;
 	}
 
 	disposeTemplate(): void {
