@@ -15,7 +15,7 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
@@ -76,7 +76,7 @@ registerTerminalContribution(TerminalSuggestContribution.ID, TerminalSuggestCont
 // Actions
 registerActiveInstanceAction({
 	id: TerminalCommandId.SelectPrevSuggestion,
-	title: { value: localize('workbench.action.terminal.selectPrevSuggestion', "Select the Previous Suggestion"), original: 'Select the Previous Suggestion' },
+	title: localize2('workbench.action.terminal.selectPrevSuggestion', 'Select the Previous Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -89,7 +89,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.SelectPrevPageSuggestion,
-	title: { value: localize('workbench.action.terminal.selectPrevPageSuggestion', "Select the Previous Page Suggestion"), original: 'Select the Previous Page Suggestion' },
+	title: localize2('workbench.action.terminal.selectPrevPageSuggestion', 'Select the Previous Page Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -102,7 +102,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.SelectNextSuggestion,
-	title: { value: localize('workbench.action.terminal.selectNextSuggestion', "Select the Next Suggestion"), original: 'Select the Next Suggestion' },
+	title: localize2('workbench.action.terminal.selectNextSuggestion', 'Select the Next Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -115,7 +115,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.SelectNextPageSuggestion,
-	title: { value: localize('workbench.action.terminal.selectNextPageSuggestion', "Select the Next Page Suggestion"), original: 'Select the Next Page Suggestion' },
+	title: localize2('workbench.action.terminal.selectNextPageSuggestion', 'Select the Next Page Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -128,7 +128,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.AcceptSelectedSuggestion,
-	title: { value: localize('workbench.action.terminal.acceptSelectedSuggestion', "Accept Selected Suggestion"), original: 'Accept Selected Suggestion' },
+	title: localize2('workbench.action.terminal.acceptSelectedSuggestion', 'Accept Selected Suggestion'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {
@@ -142,7 +142,7 @@ registerActiveInstanceAction({
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.HideSuggestWidget,
-	title: { value: localize('workbench.action.terminal.hideSuggestWidget', "Hide Suggest Widget"), original: 'Hide Suggest Widget' },
+	title: localize2('workbench.action.terminal.hideSuggestWidget', 'Hide Suggest Widget'),
 	f1: false,
 	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus, TerminalContextKeys.isOpen, TerminalContextKeys.suggestWidgetVisible),
 	keybinding: {

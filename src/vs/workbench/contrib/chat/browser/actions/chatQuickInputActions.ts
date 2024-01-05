@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Selection } from 'vs/editor/common/core/selection';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -109,7 +109,7 @@ class QuickChatGlobalAction extends Action2 {
 	constructor() {
 		super({
 			id: ASK_QUICK_QUESTION_ACTION_ID,
-			title: { value: localize('quickChat', "Quick Chat"), original: 'Quick Chat' },
+			title: localize2('quickChat', 'Quick Chat'),
 			precondition: CONTEXT_PROVIDER_EXISTS,
 			icon: Codicon.commentDiscussion,
 			f1: false,
