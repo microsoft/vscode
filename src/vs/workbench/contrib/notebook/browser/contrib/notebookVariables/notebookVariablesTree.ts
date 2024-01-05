@@ -10,14 +10,7 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { localize } from 'vs/nls';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-
-export interface INotebookVariableElement {
-	readonly id: string;
-	readonly label: string;
-	readonly value: string;
-	readonly indexedChildrenCount: number;
-	readonly hasNamedChildren: boolean;
-}
+import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
