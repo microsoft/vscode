@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -73,7 +73,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusPanel',
-			title: { value: localize('focusPanel', "Focus into Panel"), original: 'Focus into Panel' },
+			title: localize2('focusPanel', "Focus into Panel"),
 			category: Categories.View,
 			f1: true,
 		});
@@ -281,7 +281,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleMaximizedPanel',
-			title: { value: localize('toggleMaximizedPanel', "Toggle Maximized Panel"), original: 'Toggle Maximized Panel' },
+			title: localize2('toggleMaximizedPanel', 'Toggle Maximized Panel'),
 			tooltip: localize('maximizePanel', "Maximize Panel Size"),
 			category: Categories.View,
 			f1: true,
@@ -323,7 +323,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closePanel',
-			title: { value: localize('closePanel', "Close Panel"), original: 'Close Panel' },
+			title: localize2('closePanel', 'Close Panel'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
@@ -345,7 +345,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeAuxiliaryBar',
-			title: { value: localize('closeSecondarySideBar', "Close Secondary Side Bar"), original: 'Close Secondary Side Bar' },
+			title: localize2('closeSecondarySideBar', 'Close Secondary Side Bar'),
 			category: Categories.View,
 			icon: closeIcon,
 			menu: [{
@@ -383,7 +383,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: TogglePanelAction.ID,
-				title: { value: localize('hidePanel', "Hide Panel"), original: 'Hide Panel' },
+				title: localize2('hidePanel', 'Hide Panel'),
 			},
 			when: ContextKeyExpr.and(PanelVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Panel))),
 			order: 2

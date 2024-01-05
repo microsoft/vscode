@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IEditorGroupsContainer, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';

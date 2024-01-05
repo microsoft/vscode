@@ -8,7 +8,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { AuxiliaryWindow, BrowserAuxiliaryWindowService, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -22,6 +21,8 @@ import { Barrier } from 'vs/base/common/async';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { getZoomLevel } from 'vs/base/browser/browser';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -84,13 +85,12 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 	protected override createContainer(auxiliaryWindow: NativeCodeWindow, disposables: DisposableStore, options?: IAuxiliaryWindowOpenOptions) {
 
-		// Zoom level
+		// Zoom level (either explicitly provided or inherited from main window)
 		let windowZoomLevel: number;
 		if (typeof options?.zoomLevel === 'number') {
 			windowZoomLevel = options.zoomLevel;
 		} else {
-			const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-			windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+			windowZoomLevel = getZoomLevel(getActiveWindow());
 		}
 
 		applyZoom(windowZoomLevel, auxiliaryWindow);

@@ -19,7 +19,7 @@ import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMe
 import { areSameExtensions, getGalleryExtensionId, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
 import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
@@ -983,7 +983,7 @@ if (isWeb) {
 		constructor() {
 			super({
 				id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
-				title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
+				title: localize2('openInstalledWebExtensionsResource', 'Open Installed Web Extensions Resource'),
 				category: Categories.Developer,
 				f1: true,
 				precondition: IsWebContext

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -110,7 +110,7 @@ export class GoToFileAction extends Action2 {
 	constructor() {
 		super({
 			id: 'multiDiffEditor.goToFile',
-			title: { value: localize('goToFile', "Open File"), original: 'Open File' },
+			title: localize2('goToFile', 'Open File'),
 			icon: Codicon.goToFile,
 			precondition: EditorContextKeys.inMultiDiffEditor,
 			menu: {
@@ -133,7 +133,7 @@ export class CollapseAllAction extends Action2 {
 	constructor() {
 		super({
 			id: 'multiDiffEditor.collapseAll',
-			title: { value: localize('collapseAllDiffs', "Collapse All Diffs"), original: 'Collapse All Diffs' },
+			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
 			menu: {
@@ -160,7 +160,7 @@ export class ExpandAllAction extends Action2 {
 	constructor() {
 		super({
 			id: 'multiDiffEditor.expandAll',
-			title: { value: localize('ExpandAllDiffs', "Expand All Diffs"), original: 'Expand All Diffs' },
+			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
 			menu: {

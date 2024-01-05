@@ -159,10 +159,17 @@ export class DiffEditorViewZones extends Disposable {
 
 			const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;
 			if (deletedCodeLineBreaksComputer) {
+				const originalModel = this._editors.original.getModel()!;
 				for (const a of alignmentsVal) {
 					if (a.diff) {
 						for (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {
-							deletedCodeLineBreaksComputer?.addRequest(this._editors.original.getModel()!.getLineContent(i), null, null);
+							// `i` can be out of bound when the diff has not been updated yet.
+							// In this case, we do an early return.
+							// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.
+							if (i > originalModel.getLineCount()) {
+								return { orig: origViewZones, mod: modViewZones };
+							}
+							deletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);
 						}
 					}
 				}
@@ -186,8 +193,15 @@ export class DiffEditorViewZones extends Disposable {
 
 						const deletedCodeDomNode = document.createElement('div');
 						deletedCodeDomNode.classList.add('view-lines', 'line-delete', 'monaco-mouse-cursor-text');
+						const originalModel = this._editors.original.getModel()!;
+						// `a.originalRange` can be out of bound when the diff has not been updated yet.
+						// In this case, we do an early return.
+						// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.
+						if (a.originalRange.endLineNumberExclusive - 1 > originalModel.getLineCount()) {
+							return { orig: origViewZones, mod: modViewZones };
+						}
 						const source = new LineSource(
-							a.originalRange.mapToLineArray(l => this._editors.original.getModel()!.tokenization.getLineTokens(l)),
+							a.originalRange.mapToLineArray(l => originalModel.tokenization.getLineTokens(l)),
 							a.originalRange.mapToLineArray(_ => lineBreakData[lineBreakDataIdx++]),
 							mightContainNonBasicASCII,
 							mightContainRTL,
@@ -551,7 +565,10 @@ function computeRangeAlignment(
 					// There is some unmodified text on this line before the diff
 					emitAlignment(i.originalRange.startLineNumber, i.modifiedRange.startLineNumber);
 				}
-				if (i.originalRange.endColumn < originalEditor.getModel()!.getLineMaxColumn(i.originalRange.endLineNumber)) {
+				const originalModel = originalEditor.getModel()!;
+				// When the diff is invalid, the ranges might be out of bounds (this should be fixed in the diff model by applying edits directly).
+				const maxColumn = i.originalRange.endLineNumber <= originalModel.getLineCount() ? originalModel.getLineMaxColumn(i.originalRange.endLineNumber) : Number.MAX_SAFE_INTEGER;
+				if (i.originalRange.endColumn < maxColumn) {
 					// // There is some unmodified text on this line after the diff
 					emitAlignment(i.originalRange.endLineNumber, i.modifiedRange.endLineNumber);
 				}
