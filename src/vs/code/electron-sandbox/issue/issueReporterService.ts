@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { Button, ButtonWithDropdown, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
+import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { mainWindow } from 'vs/base/browser/window';
-import { Action } from 'vs/base/common/actions';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
@@ -18,7 +17,6 @@ import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import { localize } from 'vs/nls';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
@@ -52,13 +50,11 @@ export class IssueReporter extends Disposable {
 	private hasBeenSubmitted = false;
 	private delayedSubmit = new Delayer<void>(300);
 	private readonly previewButton!: Button;
-	private readonly previewButtonWithDropdown!: ButtonWithDropdown;
 
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IIssueMainService private readonly issueMainService: IIssueMainService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IIssueMainService private readonly issueMainService: IIssueMainService
 	) {
 		super();
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -75,34 +71,8 @@ export class IssueReporter extends Disposable {
 		});
 
 		//TODO: Handle case where extension is not activated
-
-		const mainAction = new Action('main', 'Main Action', undefined, true, () => {
-			// Main action logic here
-		});
-
-		// Create the dropdown actions
-		const dropdownActions = [
-			new Action('action1', 'Action 1', undefined, true, () => {
-				// Action 1 logic here
-			}),
-			new Action('action2', 'Action 2', undefined, true, () => {
-				// Action 1 logic here
-			}),
-			// Add more actions as needed
-		];
-
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.previewButtonWithDropdown = new ButtonWithDropdown(issueReporterElement,
-				{
-					actions: dropdownActions,
-					addPrimaryActionToDropdown: false,
-					contextMenuProvider: this.contextMenuService,
-					title: 'temp',
-					supportIcons: true,
-					...unthemedButtonStyles
-				});
-
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
 		}
@@ -420,12 +390,6 @@ export class IssueReporter extends Disposable {
 		});
 
 		this.previewButton.onDidClick(async () => {
-			this.delayedSubmit.trigger(async () => {
-				this.createIssue();
-			});
-		});
-
-		this.previewButtonWithDropdown.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
 				this.createIssue();
 			});
@@ -812,7 +776,6 @@ export class IssueReporter extends Disposable {
 		hide(workspaceBlock);
 		hide(extensionsBlock);
 		hide(experimentsBlock);
-		hide(problemSource);
 		hide(extensionSelector);
 		hide(extensionDataTextArea);
 		hide(extensionDataBlock);
