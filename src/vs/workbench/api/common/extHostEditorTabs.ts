@@ -29,9 +29,10 @@ class ExtHostEditorTab {
 	private _input: AnyTabInput | undefined;
 	private _parentGroup: ExtHostEditorTabGroup;
 	private readonly _activeTabIdGetter: () => string;
+	private readonly _revealCallback: () => void;
 
-	constructor(dto: IEditorTabDto, parentGroup: ExtHostEditorTabGroup, activeTabIdGetter: () => string) {
-		this._activeTabIdGetter = activeTabIdGetter;
+	constructor(dto: IEditorTabDto, parentGroup: ExtHostEditorTabGroup, activeTabIdGetter: () => string, revealCallback: () => void) {
+		this._revealCallback = revealCallback;
 		this._parentGroup = parentGroup;
 		this.acceptDtoUpdate(dto);
 	}
@@ -62,6 +63,9 @@ class ExtHostEditorTab {
 				},
 				get group() {
 					return that._parentGroup.apiObject;
+				},
+				reveal() {
+					that._revealCallback();
 				}
 			};
 			this._apiObject = Object.freeze<vscode.Tab>(obj);
@@ -113,16 +117,18 @@ class ExtHostEditorTabGroup {
 	private _tabs: ExtHostEditorTab[] = [];
 	private _activeTabId: string = '';
 	private _activeGroupIdGetter: () => number | undefined;
+	private readonly _revealCallback: (id: string) => void;
 
-	constructor(dto: IEditorTabGroupDto, activeGroupIdGetter: () => number | undefined) {
+	constructor(dto: IEditorTabGroupDto, activeGroupIdGetter: () => number | undefined, revealCallback: (id: string) => void) {
 		this._dto = dto;
 		this._activeGroupIdGetter = activeGroupIdGetter;
+		this._revealCallback = revealCallback;
 		// Construct all tabs from the given dto
 		for (const tabDto of dto.tabs) {
 			if (tabDto.isActive) {
 				this._activeTabId = tabDto.id;
 			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId()));
+			this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId(), () => this._revealCallback(tabDto.id)));
 		}
 	}
 
@@ -165,7 +171,7 @@ class ExtHostEditorTabGroup {
 	acceptTabOperation(operation: TabOperation): ExtHostEditorTab {
 		// In the open case we add the tab to the group
 		if (operation.kind === TabModelOperationKind.TAB_OPEN) {
-			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId());
+			const tab = new ExtHostEditorTab(operation.tabDto, this, () => this.activeTabId(), () => this._revealCallback(operation.tabDto.id));
 			// Insert tab at editor index
 			this._tabs.splice(operation.index, 0, tab);
 			if (operation.tabDto.isActive) {
@@ -262,14 +268,22 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 						return this._closeTabs(tabsOrTabGroups as vscode.Tab[], preserveFocus);
 					}
 				},
-				// move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean) => {
-				// 	const extHostTab = this._findExtHostTabFromApi(tab);
-				// 	if (!extHostTab) {
-				// 		throw new Error('Invalid tab');
-				// 	}
-				// 	this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preserveFocus);
-				// 	return;
-				// }
+				reveal: async (tab: vscode.Tab, preserveFocus?: boolean) => {
+					const extHostTab = this._findExtHostTabFromApi(tab);
+					if (!extHostTab) {
+						throw new Error('Invalid tab');
+					}
+					this._proxy.$revealTab(extHostTab.tabId, preserveFocus);
+					return;
+				},
+				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index?: number, preserveFocus?: boolean) => {
+					const extHostTab = this._findExtHostTabFromApi(tab);
+					if (!extHostTab) {
+						throw new Error('Invalid tab');
+					}
+					this._proxy.$moveTab(extHostTab.tabId, index ?? -1, typeConverters.ViewColumn.from(viewColumn), preserveFocus);
+					return;
+				}
 			};
 			this._apiObject = Object.freeze(obj);
 		}
@@ -288,7 +302,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId);
+			const group = new ExtHostEditorTabGroup(tabGroup, () => this._activeGroupId, (id) => this._proxy.$revealTab(id));
 			if (diff.added.includes(group.groupId)) {
 				opened.push(group.apiObject);
 			} else {
