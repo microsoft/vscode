@@ -376,8 +376,9 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				};
 			}
 			if (expand && message !== undefined) {
-				const aiCodeAction = new VsCodeCodeAction(action, action.description, vscode.CodeActionKind.QuickFix);
+				const aiCodeAction = new VsCodeCodeAction(action, title, vscode.CodeActionKind.QuickFix);
 				aiCodeAction.edit = getEditForCodeAction(this.client, action);
+				aiCodeAction.edit?.insert(document.uri, diagnostic.range.start, '');
 				aiCodeAction.diagnostics = [diagnostic];
 				aiCodeAction.command = {
 					command: CompositeCommand.ID,
