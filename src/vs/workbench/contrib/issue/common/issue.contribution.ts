@@ -55,7 +55,6 @@ interface OpenIssueReporterArgs {
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
 	readonly extensionData?: string;
-	// readonly command?: boolean;
 }
 
 export class BaseIssueContribution implements IWorkbenchContribution {
