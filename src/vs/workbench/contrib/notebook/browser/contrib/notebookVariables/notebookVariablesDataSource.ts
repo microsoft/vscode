@@ -15,8 +15,8 @@ export interface INotebookScope {
 
 export interface INotebookVariableElement {
 	type: 'variable';
-	readonly id: string;
-	readonly label: string;
+	readonly id: number;
+	readonly name: string;
 	readonly value: string;
 	readonly indexedChildrenCount: number;
 	readonly hasNamedChildren: boolean;
@@ -50,14 +50,14 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 			let children: INotebookVariableElement[] = [];
 			if (parent.hasNamedChildren) {
-				const variables = selectedKernel.provideVariables(this.notebook.uri, parent.label, 'named', 0, CancellationToken.None);
+				const variables = selectedKernel.provideVariables(this.notebook.uri, parent.id, 'named', 0, CancellationToken.None);
 				const childNodes = await variables
 					.map(variable => { return this.createVariableElement(variable); })
 					.toPromise();
 				children = children.concat(childNodes);
 			}
 			if (parent.indexedChildrenCount > 0) {
-				const variables = selectedKernel.provideVariables(this.notebook.uri, parent.label, 'indexed', 0, CancellationToken.None);
+				const variables = selectedKernel.provideVariables(this.notebook.uri, parent.id, 'indexed', 0, CancellationToken.None);
 				const childNodes = await variables
 					.map(variable => { return this.createVariableElement(variable); })
 					.toPromise();
@@ -85,16 +85,10 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		return [];
 	}
 
-	private index = 0;
 	private createVariableElement(variable: VariablesResult): INotebookVariableElement {
-
 		return {
 			type: 'variable',
-			id: `${this.index++}`, // TODO : get an ID from extHost
-			label: variable.variable.name,
-			value: variable.variable.value,
-			indexedChildrenCount: variable.indexedChildrenCount,
-			hasNamedChildren: variable.namedChildrenCount > 0
+			...variable
 		};
 	}
 }

@@ -72,7 +72,6 @@ export class NotebookVariablesView extends ViewPane {
 			{
 				accessibilityProvider: new NotebookVariableAccessibilityProvider(),
 				identityProvider: { getId: (e: INotebookVariableElement) => e.id },
-				hideTwistiesOfChildlessElements: true,
 			});
 
 		this.tree.layout();

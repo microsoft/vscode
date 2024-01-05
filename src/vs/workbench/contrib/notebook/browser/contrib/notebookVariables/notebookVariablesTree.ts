@@ -39,7 +39,7 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 	}
 
 	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, templateData: { wrapper: HTMLElement }): void {
-		templateData.wrapper.innerText = `${element.element.label}: ${element.element.value}`;
+		templateData.wrapper.innerText = `${element.element.name}: ${element.element.value}`;
 	}
 
 	disposeTemplate(): void {
@@ -54,6 +54,6 @@ export class NotebookVariableAccessibilityProvider implements IListAccessibility
 	}
 
 	getAriaLabel(element: INotebookVariableElement): string {
-		return localize('notebookVariableAriaLabel', "Variable {0}, value {1}", element.label, element.value);
+		return localize('notebookVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 	}
 }
