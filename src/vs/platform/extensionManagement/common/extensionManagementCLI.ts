@@ -205,12 +205,13 @@ export class ExtensionManagementCLI {
 		this.logger.info(localize('updateExtensionsNewVersionsAvailable', "Updating extensions: {0}", extensionsToUpdate.map(ext => ext.extension.identifier.id).join(', ')));
 		const installationResult = await this.extensionManagementService.installGalleryExtensions(extensionsToUpdate);
 
-		const failed: string[] = installationResult.filter(ext => ext.error).map(ext => ext.identifier.id);
-		if (failed.length) {
-			throw new Error(localize('updateExtensionsFailed', "Failed updating extensions: {0}", failed.join(', ')));
+		for (const extensionResult of installationResult) {
+			if (extensionResult.error) {
+				this.logger.error(localize('errorUpdatingExtension', "Error while updating extension {0}: {1}", extensionResult.identifier.id, getErrorMessage(extensionResult.error)));
+			} else {
+				this.logger.info(localize('successUpdate', "Extension '{0}' v{1} was successfully updated.", extensionResult.identifier.id, extensionResult.local?.manifest.version));
+			}
 		}
-
-		this.logger.info(localize('updateExtensionsDone', "Successfully updated {0} extensions", extensionsToUpdate.length));
 	}
 
 	private async installVSIX(vsix: URI, installOptions: InstallOptions, force: boolean, installedExtensions: ILocalExtension[]): Promise<IExtensionManifest | null> {
