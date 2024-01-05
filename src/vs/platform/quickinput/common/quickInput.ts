@@ -15,7 +15,6 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { ThemeIcon } from 'vs/base/common/themables';
 
 export interface IQuickPickItemHighlights {
 	label?: IMatch[];
@@ -403,12 +402,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	/**
 	 * The label for the custom button. The custom button is a button with text rendered to the right of the input.
 	 */
-	customLabel: string | undefined;
-
-	/**
-	 * The icon for the custom button. Note: do not set customLabel if you set customIcon, otherwise the label formatting will be wrong.
-	 */
-	customIcon: ThemeIcon | undefined;
+	customLabel: string | IMarkdownString | undefined;
 
 	/**
 	 * The hover text for the custom button. The custom button is a button with text rendered to the right of the input.

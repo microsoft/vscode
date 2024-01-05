@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMatch } from 'vs/base/common/filters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
@@ -21,7 +22,7 @@ import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/pl
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
-import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon, searchExternalIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatch, Match, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -87,7 +88,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
 		}
 		picker.customButton = true;
-		picker.customIcon = searchExternalIcon;
+		picker.customLabel = <IMarkdownString>{
+			value: '$(link-external)',
+			supportThemeIcons: true
+		};
 		picker.onDidCustom(() => {
 			this.moveToSearchViewlet(this.searchModel, undefined);
 			picker.hide();
