@@ -166,7 +166,7 @@ export class ViewCursor {
 				left -= paddingLeft;
 			}
 
-			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
+			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber);
 			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
 		}
 
@@ -196,7 +196,7 @@ export class ViewCursor {
 			textContentClassName = this._getTokenClassName(position);
 		}
 
-		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
+		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber);
 		let height = this._lineHeight;
 
 		// Underline might interfere with clicking

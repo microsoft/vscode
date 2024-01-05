@@ -15,12 +15,12 @@ import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
@@ -81,8 +81,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 
 class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IFilesConfigurationService private readonly fileConfigurationService: IFilesConfigurationService,
 	) {
 		super();
 		this.registerActions();
@@ -94,6 +95,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 		this.registerClearOutputAction();
 		this.registerToggleAutoScrollAction();
 		this.registerOpenActiveOutputFileAction();
+		this.registerOpenActiveOutputFileInAuxWindowAction();
 		this.registerShowLogsAction();
 		this.registerOpenLogFileAction();
 	}
@@ -260,47 +262,75 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerOpenActiveOutputFileAction(): void {
+		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `workbench.action.openActiveLogOutputFile`,
-					title: nls.localize2('openActiveOutputFile', "Open Output as Editor"),
+					title: nls.localize2('openActiveOutputFile', "Open Output in Editor"),
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
 						group: 'navigation',
-						order: 4
+						order: 4,
+						isHiddenByDefault: true
 					}],
 					icon: Codicon.goToFile,
 					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
-				const outputService = accessor.get(IOutputService);
-				const editorService = accessor.get(IEditorService);
-				const fileConfigurationService = accessor.get(IFilesConfigurationService);
-				const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor(outputService);
-				if (fileOutputChannelDescriptor) {
-					await fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.file, true);
-					await editorService.openEditor({
-						resource: fileOutputChannelDescriptor.file,
-						options: {
-							pinned: true,
-						}
-					});
-				}
-			}
-			private getFileOutputChannelDescriptor(outputService: IOutputService): IFileOutputChannelDescriptor | null {
-				const channel = outputService.getActiveChannel();
-				if (channel) {
-					const descriptor = outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
-					if (descriptor?.file) {
-						return <IFileOutputChannelDescriptor>descriptor;
-					}
-				}
-				return null;
+			async run(): Promise<void> {
+				that.openActiveOutoutFile();
 			}
 		}));
+	}
+
+	private registerOpenActiveOutputFileInAuxWindowAction(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.action.openActiveLogOutputFileInNewWindow`,
+					title: nls.localize2('openActiveOutputFileInNewWindow', "Open Output in New Window"),
+					menu: [{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
+						group: 'navigation',
+						order: 5,
+						isHiddenByDefault: true
+					}],
+					icon: Codicon.emptyWindow,
+					precondition: CONTEXT_ACTIVE_FILE_OUTPUT
+				});
+			}
+			async run(): Promise<void> {
+				that.openActiveOutoutFile(AUX_WINDOW_GROUP);
+			}
+		}));
+	}
+
+	private async openActiveOutoutFile(group?: AUX_WINDOW_GROUP_TYPE): Promise<void> {
+		const fileOutputChannelDescriptor = this.getFileOutputChannelDescriptor();
+		if (fileOutputChannelDescriptor) {
+			await this.fileConfigurationService.updateReadonly(fileOutputChannelDescriptor.file, true);
+			await this.editorService.openEditor({
+				resource: fileOutputChannelDescriptor.file,
+				options: {
+					pinned: true,
+				},
+			}, group);
+		}
+	}
+
+	private getFileOutputChannelDescriptor(): IFileOutputChannelDescriptor | null {
+		const channel = this.outputService.getActiveChannel();
+		if (channel) {
+			const descriptor = this.outputService.getChannelDescriptors().filter(c => c.id === channel.id)[0];
+			if (descriptor?.file) {
+				return <IFileOutputChannelDescriptor>descriptor;
+			}
+		}
+		return null;
 	}
 
 	private registerShowLogsAction(): void {

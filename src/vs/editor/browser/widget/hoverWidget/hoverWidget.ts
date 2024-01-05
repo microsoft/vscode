@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./hover';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverTarget, IHoverOptions } from 'vs/platform/hover/browser/hover';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -16,12 +17,13 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { status } from 'vs/base/browser/ui/aria/aria';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 const $ = dom.$;
 type TargetRect = {
@@ -40,7 +42,7 @@ const enum Constants {
 	HoverWindowEdgeMargin = 2,
 }
 
-export class HoverWidget extends Widget {
+export class HoverWidget extends Widget implements IHoverWidget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _lockMouseTracker: CompositeMouseTracker;
 

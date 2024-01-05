@@ -15,13 +15,13 @@ import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
-import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchDetailsIcon, searchOpenInFileIcon, searchSeeMoreIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatch, Match, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -220,6 +220,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					highlights: {
 						label: match
 					},
+					buttons: [{
+						iconClass: ThemeIcon.asClassName(searchSeeMoreIcon),
+						tooltip: localize('showMore', "See in Search Panel"),
+					}],
 					ariaLabel: `Match at location ${element.range().startLineNumber}:${element.range().startColumn} - ${previewText}`,
 					accept: async (keyMods, event) => {
 						await this.handleAccept(fileMatch, {
@@ -228,6 +232,10 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 							preserveFocus: event.inBackground,
 							forcePinned: event.inBackground
 						});
+					},
+					trigger: (): TriggerAction => {
+						this.moveToSearchViewlet(this.searchModel, element);
+						return TriggerAction.CLOSE_PICKER;
 					}
 				});
 			}
