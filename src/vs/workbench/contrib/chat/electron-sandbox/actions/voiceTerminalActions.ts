@@ -13,7 +13,6 @@ import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbe
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
-
 export class StartTerminalSpeechToTextAction extends Action2 {
 
 	static readonly ID = 'workbench.action.startTerminalSpeechToText';
