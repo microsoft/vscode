@@ -1953,6 +1953,8 @@ export class SearchModel extends Disposable {
 	private readonly _onSearchResultChanged = this._register(new PauseableEmitter<IChangeEvent>({
 		merge: mergeSearchResultEvents
 	}));
+	private readonly _onSearchComplete: Emitter<{ completed?: ISearchComplete }> = this._register(new Emitter<{ completed?: ISearchComplete }>());
+	readonly onSearchComplete: Event<{ completed?: ISearchComplete }> = this._onSearchComplete.event;
 	readonly onSearchResultChanged: Event<IChangeEvent> = this._onSearchResultChanged.event;
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
@@ -2145,7 +2147,7 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | null, duration: number, searchInstanceID: string): ISearchComplete | null {
+	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string): ISearchComplete | undefined {
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
@@ -2176,6 +2178,7 @@ export class SearchModel extends Disposable {
 				"searchOnTypeEnabled" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
+		this._onSearchComplete.fire({ completed });
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),
@@ -2193,9 +2196,11 @@ export class SearchModel extends Disposable {
 			this.onSearchCompleted(
 				this.searchCancelledForNewSearch
 					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
-					: null,
+					: undefined,
 				duration, '');
 			this.searchCancelledForNewSearch = false;
+		} else {
+			this._onSearchComplete.fire({ completed: undefined });
 		}
 	}
 

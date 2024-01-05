@@ -333,11 +333,18 @@ export class SearchView extends ViewPane {
 	}
 
 	public async importSearchResult(searchModel: SearchModel): Promise<void> {
+		let progressComplete: () => void;
+		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
+			return new Promise<void>(resolve => progressComplete = resolve);
+		});
 		// experimental: used by the quick access search to overwrite a search result
 		searchModel.transferSearchResult(this.viewModel);
-
 		this.onSearchResultsChanged();
 		this.refreshInputs();
+
+		searchModel.onSearchComplete(() => {
+			this.onSearchComplete(progressComplete);
+		});
 
 		const collapseResults = this.searchConfig.collapseResults;
 		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
@@ -1563,6 +1570,124 @@ export class SearchView extends ViewPane {
 		}
 	}
 
+	private onSearchComplete(progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+
+		this.state = SearchUIState.Idle;
+
+		// Complete up to 100% as needed
+		progressComplete();
+
+		// Do final render, then expand if just 1 file with less than 50 matches
+		this.onSearchResultsChanged();
+
+		const collapseResults = this.searchConfig.collapseResults;
+		if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
+			const onlyMatch = this.viewModel.searchResult.matches()[0];
+			if (onlyMatch.count() < 50) {
+				this.tree.expand(onlyMatch);
+			}
+		}
+
+		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
+
+		const hasResults = !this.viewModel.searchResult.isEmpty();
+		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
+			return;
+		}
+
+		if (!hasResults) {
+			const hasExcludes = !!excludePatternText;
+			const hasIncludes = !!includePatternText;
+			let message: string;
+
+			if (!completed) {
+				message = SEARCH_CANCELLED_MESSAGE;
+			} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
+				if (hasIncludes && hasExcludes) {
+					message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+				} else if (hasIncludes) {
+					message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
+				} else if (hasExcludes) {
+					message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
+				} else {
+					message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
+				}
+			} else {
+				if (hasIncludes && hasExcludes) {
+					message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
+				} else if (hasIncludes) {
+					message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
+				} else if (hasExcludes) {
+					message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
+				} else {
+					message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
+				}
+			}
+
+			// Indicate as status to ARIA
+			aria.status(message);
+
+			const messageEl = this.clearMessage();
+			dom.append(messageEl, message);
+
+			if (!completed) {
+				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
+					nls.localize('rerunSearch.message', "Search again"),
+					() => this.triggerQueryChange({ preserveFocus: false })));
+				dom.append(messageEl, searchAgainButton.element);
+			} else if (hasIncludes || hasExcludes) {
+				const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
+				dom.append(messageEl, searchAgainButton.element);
+			} else {
+				const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
+				dom.append(messageEl, openSettingsButton.element);
+			}
+
+			if (completed) {
+				dom.append(messageEl, $('span', undefined, ' - '));
+
+				const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
+				dom.append(messageEl, learnMoreButton.element);
+			}
+
+			if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+				this.showSearchWithoutFolderMessage();
+			}
+			this.reLayout();
+		} else {
+			this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
+
+			// Indicate final search result count for ARIA
+			aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
+		}
+
+
+		if (completed && completed.limitHit) {
+			completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
+		}
+
+		if (completed && completed.messages) {
+			for (const message of completed.messages) {
+				this.addMessage(message);
+			}
+		}
+
+		this.reLayout();
+	}
+
+	private onSearchError(e: any, progressComplete: () => void, excludePatternText?: string, includePatternText?: string, completed?: ISearchComplete) {
+		this.state = SearchUIState.Idle;
+		if (errors.isCancellationError(e)) {
+			return this.onSearchComplete(progressComplete, excludePatternText, includePatternText, completed);
+		} else {
+			progressComplete();
+			this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
+			this.viewModel.searchResult.clear();
+
+			return Promise.resolve();
+		}
+	}
+
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
@@ -1577,125 +1702,6 @@ export class SearchView extends ViewPane {
 			this.state = SearchUIState.SlowSearch;
 		}, 2000);
 
-		const onComplete = (completed?: ISearchComplete) => {
-			clearTimeout(slowTimer);
-			this.state = SearchUIState.Idle;
-
-			// Complete up to 100% as needed
-			progressComplete();
-
-			// Do final render, then expand if just 1 file with less than 50 matches
-			this.onSearchResultsChanged();
-
-			const collapseResults = this.searchConfig.collapseResults;
-			if (collapseResults !== 'alwaysCollapse' && this.viewModel.searchResult.matches().length === 1) {
-				const onlyMatch = this.viewModel.searchResult.matches()[0];
-				if (onlyMatch.count() < 50) {
-					this.tree.expand(onlyMatch);
-				}
-			}
-
-			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-
-			const hasResults = !this.viewModel.searchResult.isEmpty();
-			if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
-				return;
-			}
-
-			if (!hasResults) {
-				const hasExcludes = !!excludePatternText;
-				const hasIncludes = !!includePatternText;
-				let message: string;
-
-				if (!completed) {
-					message = SEARCH_CANCELLED_MESSAGE;
-				} else if (this.inputPatternIncludes.onlySearchInOpenEditors()) {
-					if (hasIncludes && hasExcludes) {
-						message = nls.localize('noOpenEditorResultsIncludesExcludes', "No results found in open editors matching '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-					} else if (hasIncludes) {
-						message = nls.localize('noOpenEditorResultsIncludes', "No results found in open editors matching '{0}' - ", includePatternText);
-					} else if (hasExcludes) {
-						message = nls.localize('noOpenEditorResultsExcludes', "No results found in open editors excluding '{0}' - ", excludePatternText);
-					} else {
-						message = nls.localize('noOpenEditorResultsFound', "No results found in open editors. Review your settings for configured exclusions and check your gitignore files - ");
-					}
-				} else {
-					if (hasIncludes && hasExcludes) {
-						message = nls.localize('noResultsIncludesExcludes', "No results found in '{0}' excluding '{1}' - ", includePatternText, excludePatternText);
-					} else if (hasIncludes) {
-						message = nls.localize('noResultsIncludes', "No results found in '{0}' - ", includePatternText);
-					} else if (hasExcludes) {
-						message = nls.localize('noResultsExcludes', "No results found excluding '{0}' - ", excludePatternText);
-					} else {
-						message = nls.localize('noResultsFound', "No results found. Review your settings for configured exclusions and check your gitignore files - ");
-					}
-				}
-
-				// Indicate as status to ARIA
-				aria.status(message);
-
-				const messageEl = this.clearMessage();
-				dom.append(messageEl, message);
-
-				if (!completed) {
-					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(
-						nls.localize('rerunSearch.message', "Search again"),
-						() => this.triggerQueryChange({ preserveFocus: false })));
-					dom.append(messageEl, searchAgainButton.element);
-				} else if (hasIncludes || hasExcludes) {
-					const searchAgainButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('rerunSearchInAll.message', "Search again in all files"), this.onSearchAgain.bind(this)));
-					dom.append(messageEl, searchAgainButton.element);
-				} else {
-					const openSettingsButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.message', "Open Settings"), this.onOpenSettings.bind(this)));
-					dom.append(messageEl, openSettingsButton.element);
-				}
-
-				if (completed) {
-					dom.append(messageEl, $('span', undefined, ' - '));
-
-					const learnMoreButton = this.messageDisposables.add(new SearchLinkButton(nls.localize('openSettings.learnMore', "Learn More"), this.onLearnMore.bind(this)));
-					dom.append(messageEl, learnMoreButton.element);
-				}
-
-				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					this.showSearchWithoutFolderMessage();
-				}
-				this.reLayout();
-			} else {
-				this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
-
-				// Indicate final search result count for ARIA
-				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
-			}
-
-
-			if (completed && completed.limitHit) {
-				completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
-			}
-
-			if (completed && completed.messages) {
-				for (const message of completed.messages) {
-					this.addMessage(message);
-				}
-			}
-
-			this.reLayout();
-		};
-
-		const onError = (e: any) => {
-			clearTimeout(slowTimer);
-			this.state = SearchUIState.Idle;
-			if (errors.isCancellationError(e)) {
-				return onComplete(undefined);
-			} else {
-				progressComplete();
-				this.searchWidget.searchInput?.showMessage({ content: e.message, type: MessageType.ERROR });
-				this.viewModel.searchResult.clear();
-
-				return Promise.resolve();
-			}
-		};
-
 		this._visibleMatches = 0;
 
 		this._refreshResultsScheduler.schedule();
@@ -1705,7 +1711,13 @@ export class SearchView extends ViewPane {
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
 		const result = this.viewModel.search(query);
-		return result.asyncResults.then(onComplete, onError);
+		return result.asyncResults.then((complete) => {
+			clearTimeout(slowTimer);
+			this.onSearchComplete(progressComplete, excludePatternText, includePatternText, complete);
+		}, (e) => {
+			clearTimeout(slowTimer);
+			this.onSearchError(e, progressComplete, excludePatternText, includePatternText);
+		});
 	}
 
 	private onOpenSettings(e: dom.EventLike): void {
