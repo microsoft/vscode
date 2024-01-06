@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
+import { findLastIdx } from 'vs/base/common/arraysFind';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
-import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { stringHash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
+import { stringHash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
+import { autorun } from 'vs/base/common/observable';
 import * as resources from 'vs/base/common/resources';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI, URI as uri } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as nls from 'vs/nls';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointReference, IBreakpointsChangeEvent, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
-import { getUriFromSource, Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
+import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILogService } from 'vs/platform/log/common/log';
-import { autorun } from 'vs/base/common/observable';
-import { findLastIdx } from 'vs/base/common/arraysFind';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -769,7 +769,6 @@ function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: D
 export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	private sessionData = new Map<string, IBreakpointSessionData>();
-	private sessionHitData = new Map<string, boolean>();
 	protected data: IBreakpointSessionData | undefined;
 
 	constructor(
@@ -788,7 +787,6 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 	setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
 		if (!data) {
 			this.sessionData.delete(sessionId);
-			this.sessionHitData.delete(sessionId);
 		} else {
 			data.sessionId = sessionId;
 			this.sessionData.set(sessionId, data);
@@ -868,6 +866,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
+	private sessionsDidTrigger?: Set<string>;
 
 	constructor(
 		private readonly _uri: uri,
@@ -882,17 +881,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
 		id = generateUuid(),
-		public triggeredBy: IBreakpointReference | undefined = undefined
+		public triggeredBy: string | undefined = undefined
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
 
 	get originalUri() {
 		return this._uri;
-	}
-
-	get originalColumn() {
-		return this._column;
 	}
 
 	get lineNumber(): number {
@@ -979,15 +974,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		result.lineNumber = this._lineNumber;
 		result.column = this._column;
 		result.adapterData = this.adapterData;
-
-		if (this.triggeredBy) {
-			const wf = Object.create(null);
-			wf.uri = this.triggeredBy?.uri.toString();
-			wf.lineNumber = this.triggeredBy?.lineNumber;
-			wf.column = this.triggeredBy?.column;
-			result.waitFor = wf;
-		}
-
+		result.triggeredBy = this.triggeredBy;
 		return result;
 	}
 
@@ -995,40 +982,35 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
+	public setSessionDidTrigger(sessionId: string): void {
+		this.sessionsDidTrigger ??= new Set();
+		this.sessionsDidTrigger.add(sessionId);
+	}
+
+	public getSessionDidTrigger(sessionId: string): boolean {
+		return !!this.sessionsDidTrigger?.has(sessionId);
+	}
+
 	update(data: IBreakpointUpdateData): void {
-		if (!isUndefinedOrNull(data.lineNumber)) {
+		if (data.hasOwnProperty('lineNumber') && !isUndefinedOrNull(data.lineNumber)) {
 			this._lineNumber = data.lineNumber;
 		}
-		if (!isUndefinedOrNull(data.column)) {
+		if (data.hasOwnProperty('column')) {
 			this._column = data.column;
 		}
-		if (!isUndefinedOrNull(data.condition)) {
+		if (data.hasOwnProperty('condition')) {
 			this.condition = data.condition;
 		}
-		if (!isUndefinedOrNull(data.hitCondition)) {
+		if (data.hasOwnProperty('hitCondition')) {
 			this.hitCondition = data.hitCondition;
 		}
-		if (!isUndefinedOrNull(data.logMessage)) {
+		if (data.hasOwnProperty('logMessage')) {
 			this.logMessage = data.logMessage;
 		}
-		if (!isUndefinedOrNull(data.triggeredBy)) {
-			this.triggeredBy = new BreakpointReference(data.triggeredBy.uri, data.triggeredBy.lineNumber, data.triggeredBy.originalColumn);
-		} else {
-			this.triggeredBy = undefined;
+		if (data.hasOwnProperty('triggeredBy')) {
+			this.triggeredBy = data.triggeredBy;
+			this.sessionsDidTrigger = undefined;
 		}
-	}
-}
-
-export class BreakpointReference implements IBreakpointReference {
-	constructor(public uri: uri, public lineNumber: number, public column?: number) { }
-
-	matches(bp: IBreakpoint): boolean {
-		// prefer to store and match the original column as the reference, since
-		// start-of-line breakpoints can be moved to a more specific location
-		// within the line, which could ordinarily prevent matching.
-		return bp.uri.toString() === this.uri?.toString()
-			&& bp.lineNumber === this.lineNumber
-			&& (bp.originalColumn === this.column);
 	}
 }
 
@@ -1509,11 +1491,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => {
-			let triggeredBy = undefined;
-			if (rawBp!.triggeredBy) {
-				triggeredBy = new BreakpointReference(rawBp.triggeredBy.uri, rawBp.triggeredBy.lineNumber, rawBp.triggeredBy.column);
-			}
-			return new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id, triggeredBy);
+			return new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id, rawBp.triggeredBy);
 		});
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;

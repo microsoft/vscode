@@ -350,38 +350,38 @@ suite('Debug - Breakpoints', () => {
 		const breakpoints = model.getBreakpoints();
 		const ls = new MockLabelService();
 
-		let result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0], ls);
+		let result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0], ls, model);
 		assert.strictEqual(result.message, 'Condition: x > 5');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-conditional');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[1], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[1], ls, model);
 		assert.strictEqual(result.message, 'Disabled Breakpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-disabled');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[2], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[2], ls, model);
 		assert.strictEqual(result.message, 'Log Message: hello');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-log');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[3], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[3], ls, model);
 		assert.strictEqual(result.message, 'Hit Count: 12');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-conditional');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[4], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[4], ls, model);
 		assert.strictEqual(result.message, ls.getUriLabel(breakpoints[4].uri));
 		assert.strictEqual(result.icon.id, 'debug-breakpoint');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, false, breakpoints[2], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, false, breakpoints[2], ls, model);
 		assert.strictEqual(result.message, 'Disabled Logpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-log-disabled');
 
 		model.addDataBreakpoint('label', 'id', true, ['read'], 'read');
 		const dataBreakpoints = model.getDataBreakpoints();
-		result = getBreakpointMessageAndIcon(State.Stopped, true, dataBreakpoints[0], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, dataBreakpoints[0], ls, model);
 		assert.strictEqual(result.message, 'Data Breakpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-data');
 
 		const functionBreakpoint = model.addFunctionBreakpoint('foo', '1');
-		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint, ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint, ls, model);
 		assert.strictEqual(result.message, 'Function Breakpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-function');
 
@@ -392,15 +392,15 @@ suite('Debug - Breakpoints', () => {
 		data.set(functionBreakpoint.getId(), { verified: true });
 		model.setBreakpointSessionData('mocksessionid', { supportsFunctionBreakpoints: false, supportsDataBreakpoints: true, supportsLogPoints: true }, data);
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[0], ls, model);
 		assert.strictEqual(result.message, 'Unverified Breakpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-unverified');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint, ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint, ls, model);
 		assert.strictEqual(result.message, 'Function breakpoints not supported by this debug type');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-function-unverified');
 
-		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[2], ls);
+		result = getBreakpointMessageAndIcon(State.Stopped, true, breakpoints[2], ls, model);
 		assert.strictEqual(result.message, 'Log Message: hello, world');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-log');
 	});
@@ -421,7 +421,9 @@ suite('Debug - Breakpoints', () => {
 		const breakpoints = model.getBreakpoints();
 
 		const instantiationService = new TestInstantiationService();
-		instantiationService.stub(IDebugService, new MockDebugService());
+		const debugService = new MockDebugService();
+		debugService.getModel = () => model;
+		instantiationService.stub(IDebugService, debugService);
 		instantiationService.stub(ILabelService, new MockLabelService());
 		instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 		let decorations = instantiationService.invokeFunction(accessor => createBreakpointDecorations(accessor, textModel, breakpoints, State.Running, true, true));

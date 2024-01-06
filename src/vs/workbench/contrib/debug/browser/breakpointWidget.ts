@@ -227,7 +227,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 	private createTriggerBreakpointInput(container: HTMLElement) {
 		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp !== this.breakpoint);
 
-		const index = breakpoints.findIndex((bp) => { return this.breakpoint?.triggeredBy?.matches(bp); });
+		const index = breakpoints.findIndex((bp) => this.breakpoint?.triggeredBy === bp.getId());
 		let select = 0;
 		if (index > -1) {
 			select = index + 1;
@@ -387,8 +387,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			let condition = this.breakpoint && this.breakpoint.condition;
 			let hitCondition = this.breakpoint && this.breakpoint.hitCondition;
 			let logMessage = this.breakpoint && this.breakpoint.logMessage;
-			let triggeredBy = this.breakpoint && this.breakpoint.triggeredBy &&
-				this.debugService.getModel().getBreakpoints().find(b => this.breakpoint!.triggeredBy!.matches(b));
+			let triggeredBy = this.breakpoint && this.breakpoint.triggeredBy;
 
 			this.rememberInput();
 
@@ -402,7 +401,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				logMessage = this.logMessageInput;
 			}
 			if (this.context === Context.TRIGGER_POINT) {
-				triggeredBy = this.triggeredByBreakpointInput;
+				// currently, trigger points don't support additional conditions:
+				condition = undefined;
+				hitCondition = undefined;
+				logMessage = undefined;
+				triggeredBy = this.triggeredByBreakpointInput?.getId();
 			}
 
 			if (this.breakpoint) {

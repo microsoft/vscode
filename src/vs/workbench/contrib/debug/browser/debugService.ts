@@ -1164,7 +1164,7 @@ export class DebugService implements IDebugService {
 		const affectedUris: uri[] = [];
 		for (const removed of removedBreakpoints) {
 			for (const existing of allBreakpoints) {
-				if (!removedBreakpoints.includes(existing) && existing.triggeredBy?.matches(removed)) {
+				if (!removedBreakpoints.includes(existing) && existing.triggeredBy === removed.getId()) {
 					this.model.updateBreakpoints(new Map([[existing.getId(), { triggeredBy: undefined }]]));
 					affectedUris.push(existing.originalUri);
 				}
@@ -1178,7 +1178,7 @@ export class DebugService implements IDebugService {
 		if (enable) {
 			/** If the breakpoint is being enabled, also ensure its triggerer is enabled */
 			if (breakpoint.triggeredBy) {
-				const trigger = this.model.getBreakpoints().find(bp => breakpoint.triggeredBy!.matches(bp));
+				const trigger = this.model.getBreakpoints().find(bp => breakpoint.triggeredBy === bp.getId());
 				if (trigger && !trigger.enabled) {
 					await this.enableOrDisableBreakpoints(enable, trigger);
 				}
@@ -1188,16 +1188,17 @@ export class DebugService implements IDebugService {
 
 		/** Makes its triggeree states match the state of this breakpoint */
 		await Promise.all(this.model.getBreakpoints()
-			.filter(bp => bp.triggeredBy?.matches(breakpoint) && bp.enabled !== enable)
+			.filter(bp => bp.triggeredBy === breakpoint.getId() && bp.enabled !== enable)
 			.map(bp => this.enableOrDisableBreakpoints(enable, bp))
 		);
 	}
 
-	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
-		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true, excludeDependent: true });
+	public async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
+		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true });
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (!s.configuration.noDebug) {
-				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);
+				const sessionBps = breakpointsToSend.filter(bp => !bp.triggeredBy || bp.getSessionDidTrigger(s.getId()));
+				await s.sendBreakpoints(modelUri, sessionBps, sourceModified);
 			}
 		});
 	}

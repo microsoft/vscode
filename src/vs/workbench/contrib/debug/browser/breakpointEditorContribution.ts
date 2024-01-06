@@ -84,7 +84,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 	const debugService = accessor.get(IDebugService);
 	const languageService = accessor.get(ILanguageService);
 	const labelService = accessor.get(ILabelService);
-	const { icon, message, showAdapterUnverifiedMessage } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, labelService);
+	const { icon, message, showAdapterUnverifiedMessage } = getBreakpointMessageAndIcon(state, breakpointsActivated, breakpoint, labelService, debugService.getModel());
 	let glyphMarginHoverMessage: MarkdownString | undefined;
 
 	let unverifiedMessage: string | undefined;
@@ -526,7 +526,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				// Candidate decoration has a breakpoint attached when a breakpoint is already at that location and we did not yet set a decoration there
 				// In practice this happens for the first breakpoint that was set on a line
 				// We could have also rendered this first decoration as part of desiredBreakpointDecorations however at that moment we have no location information
-				const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService).icon : icons.breakpoint.disabled;
+				const icon = candidate.breakpoint ? getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), candidate.breakpoint, this.labelService, this.debugService.getModel()).icon : icons.breakpoint.disabled;
 				const contextMenuActions = () => this.getContextMenuActions(candidate.breakpoint ? [candidate.breakpoint] : [], activeCodeEditor.getModel().uri, candidate.range.startLineNumber, candidate.range.startColumn);
 				const inlineWidget = new InlineBreakpointWidget(activeCodeEditor, decorationId, ThemeIcon.asClassName(icon), candidate.breakpoint, this.debugService, this.contextMenuService, contextMenuActions);
 

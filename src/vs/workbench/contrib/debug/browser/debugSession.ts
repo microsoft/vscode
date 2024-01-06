@@ -1324,24 +1324,17 @@ export class DebugSession implements IDebugSession, IDisposable {
 		// find the current breakpoints
 
 		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
-		const uriBreakpoints = new Map<URI, IBreakpoint[]>();
+		const urisToResend = new Set<string>();
 		this.model.getBreakpoints({ dependentOnly: true, enabledOnly: true }).forEach(bp => {
 			breakpoints.forEach(cbp => {
-				if (bp.enabled && bp.triggeredBy?.matches(cbp)) {
-					const uri = bp.uri;
-					if (!uriBreakpoints.has(uri)) {
-						uriBreakpoints.set(uri, []);
-					}
-					uriBreakpoints.get(uri)?.push(bp);
+				if (bp.enabled && bp.triggeredBy === cbp.getId()) {
+					bp.setSessionDidTrigger(this.getId());
+					urisToResend.add(bp.uri.toString());
 				}
 			});
 		});
 
-		if (uriBreakpoints.size > 0) {
-			uriBreakpoints.forEach((bps, uri, _) => {
-				this.sendBreakpoints(uri, bps, false);
-			});
-		}
+		urisToResend.forEach((uri) => this.debugService.sendBreakpoints(URI.parse(uri), undefined, this));
 	}
 
 	private getBreakpointsAtPosition(uri: URI, startLineNumber: number, endLineNumber: number, startColumn: number, endColumn: number): IBreakpoint[] {

@@ -531,7 +531,7 @@ export interface IBreakpointData {
 	readonly condition?: string;
 	readonly logMessage?: string;
 	readonly hitCondition?: string;
-	readonly triggeredBy?: IBreakpoint;
+	readonly triggeredBy?: string;
 }
 
 export interface IBreakpointUpdateData {
@@ -540,7 +540,7 @@ export interface IBreakpointUpdateData {
 	readonly logMessage?: string;
 	readonly lineNumber?: number;
 	readonly column?: number;
-	readonly triggeredBy?: IBreakpoint;
+	readonly triggeredBy?: string;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -554,16 +554,7 @@ export interface IBaseBreakpoint extends IEnablement {
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
 
-export interface IBreakpointReference {
-	readonly lineNumber: number;
-	readonly column?: number;
-	readonly uri: uri;
-	matches(bp: IBreakpoint): boolean;
-}
-
 export interface IBreakpoint extends IBaseBreakpoint {
-	/** Colum number where the breakpoint was first set by the user. */
-	readonly originalColumn?: number;
 	/** URI where the breakpoint was first set by the user. */
 	readonly originalUri: uri;
 	/** URI where the breakpoint is currently shown; may be moved by debugger */
@@ -574,9 +565,15 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
-	readonly triggeredBy?: IBreakpointReference;
+	/** An ID of the breakpoint that triggers this breakpoint. */
+	readonly triggeredBy?: string;
 	/** Pending on the trigger breakpoint, which means this breakpoint is not yet sent to DA */
 	readonly pending: boolean;
+
+	/** Marks that a session did trigger the breakpoint. */
+	setSessionDidTrigger(sessionId: string): void;
+	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
+	getSessionDidTrigger(sessionId: string): boolean;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -652,7 +649,7 @@ export interface IEvaluate {
 export interface IDebugModel extends ITreeElement {
 	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
 	getSessions(includeInactive?: boolean): IDebugSession[];
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; dependentOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
@@ -1151,6 +1148,11 @@ export interface IDebugService {
 	 * If session is not passed, sends all breakpoints to each session.
 	 */
 	sendAllBreakpoints(session?: IDebugSession): Promise<any>;
+
+	/**
+	 * Sends breakpoints of the given source to the passed session.
+	 */
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean, session?: IDebugSession): Promise<any>;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
