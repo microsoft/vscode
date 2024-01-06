@@ -75,5 +75,5 @@ steps:
       PROVISION_TENANT_ID: "$(PRSS_PROVISION_TENANT_ID)"
       PROVISION_AAD_USERNAME: "$(esrp-aad-username)"
       PROVISION_AAD_PASSWORD: "$(esrp-aad-password)"
+      AZURE_DOCUMENTDB_ENDPOINT: https://vscode.documents.azure.com:443/
     displayName: Process artifacts
-    retryCountOnTaskFailure: 3
