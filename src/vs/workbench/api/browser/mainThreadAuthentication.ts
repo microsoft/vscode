@@ -70,12 +70,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidChangeSessions(e => {
 			this._proxy.$onDidChangeAuthenticationSessions(e.providerId, e.label);
 		}));
-
-		this._proxy.$setProviders(this.authenticationService.declaredProviders);
-
-		this._register(this.authenticationService.onDidChangeDeclaredProviders(e => {
-			this._proxy.$setProviders(e);
-		}));
 	}
 
 	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): Promise<void> {
@@ -90,8 +84,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.unregisterAuthenticationProvider(id);
 	}
 
-	$ensureProvider(id: string): Promise<void> {
-		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
+	async $ensureProvider(id: string): Promise<void> {
+		if (!this.authenticationService.isAuthenticationProviderRegistered(id)) {
+			return await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
+		}
 	}
 
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): void {
