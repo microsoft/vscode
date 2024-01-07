@@ -33,6 +33,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecyc
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 import { localize } from 'vs/nls';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -206,7 +207,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.layoutService.isVisible(Parts.TITLEBAR_PART) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+		return this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
 	private shouldShowActivityBar(): boolean {

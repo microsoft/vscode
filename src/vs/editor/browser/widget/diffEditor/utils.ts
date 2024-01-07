@@ -309,7 +309,7 @@ export function observeHotReloadableExports(values: any[], reader: IReader | und
 	if (isHotReloadEnabled()) {
 		const o = observableSignalFromEvent(
 			'reload',
-			event => registerHotReloadHandler(oldExports => {
+			event => registerHotReloadHandler(({ oldExports }) => {
 				if (![...Object.values(oldExports)].some(v => values.includes(v))) {
 					return undefined;
 				}

@@ -33,7 +33,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { delta, distinct } from 'vs/base/common/arrays';
+import { delta, distinct, equals as arrayEquals } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
@@ -1017,6 +1017,17 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			throw new Error('Invalid configuration target');
 		}
 
+		if (overrides?.overrideIdentifiers?.length && overrides.overrideIdentifiers.length > 1) {
+			const configurationModel = this.getConfigurationModel(editableConfigurationTarget, overrides.resource);
+			if (configurationModel) {
+				const overrideIdentifiers = overrides.overrideIdentifiers.sort();
+				const existingOverrides = configurationModel.overrides.find(override => arrayEquals([...override.identifiers].sort(), overrideIdentifiers));
+				if (existingOverrides) {
+					overrides.overrideIdentifiers = existingOverrides.identifiers;
+				}
+			}
+		}
+
 		// Use same instance of ConfigurationEditing to make sure all writes go through the same queue
 		this.configurationEditing = this.configurationEditing ?? this.instantiationService.createInstance(ConfigurationEditing, (await this.remoteAgentService.getEnvironment())?.settingsPath ?? null);
 		await this.configurationEditing.writeConfiguration(editableConfigurationTarget, { key, value }, { scopes: overrides, ...options });
@@ -1038,6 +1049,15 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					return this.reloadWorkspaceFolderConfiguration(workspaceFolder);
 				}
 			}
+		}
+	}
+
+	private getConfigurationModel(target: EditableConfigurationTarget, resource?: URI | null): ConfigurationModel | undefined {
+		switch (target) {
+			case EditableConfigurationTarget.USER_LOCAL: return this._configuration.localUserConfiguration;
+			case EditableConfigurationTarget.USER_REMOTE: return this._configuration.remoteUserConfiguration;
+			case EditableConfigurationTarget.WORKSPACE: return this._configuration.workspaceConfiguration;
+			case EditableConfigurationTarget.WORKSPACE_FOLDER: return resource ? this._configuration.folderConfigurations.get(resource) : undefined;
 		}
 	}
 

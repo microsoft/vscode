@@ -27,8 +27,8 @@ import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatCopyAction, IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatService, IDocumentContext, ChatAgentCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -51,7 +51,7 @@ function isResponseFiltered(context: ICodeBlockActionContext) {
 }
 
 function getUsedDocuments(context: ICodeBlockActionContext): IDocumentContext[] | undefined {
-	return isResponseVM(context.element) ? context.element.response.usedContext?.documents : undefined;
+	return isResponseVM(context.element) ? context.element.usedContext?.documents : undefined;
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
@@ -111,11 +111,10 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
-					action: <IChatCopyAction>{
+					action: {
 						kind: 'copy',
-						responseId: context.element.providerResponseId,
 						codeBlockIndex: context.codeBlockIndex,
-						copyType: InteractiveSessionCopyKind.Toolbar,
+						copyKind: ChatAgentCopyKind.Toolbar,
 						copiedCharacters: context.code.length,
 						totalCharacters: context.code.length,
 						copiedText: context.code,
@@ -149,24 +148,21 @@ export function registerChatCodeBlockActions() {
 		const totalCharacters = editorModel.getValueLength();
 
 		// Report copy to extensions
-		if (context.element.providerResponseId) {
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction({
-				providerId: context.element.providerId,
-				agentId: context.element.agent?.id,
-				sessionId: context.element.sessionId,
-				requestId: context.element.requestId,
-				action: {
-					kind: 'copy',
-					codeBlockIndex: context.codeBlockIndex,
-					responseId: context.element.providerResponseId,
-					copyType: InteractiveSessionCopyKind.Action,
-					copiedText,
-					copiedCharacters: copiedText.length,
-					totalCharacters,
-				}
-			});
-		}
+		const chatService = accessor.get(IChatService);
+		chatService.notifyUserAction({
+			providerId: context.element.providerId,
+			agentId: context.element.agent?.id,
+			sessionId: context.element.sessionId,
+			requestId: context.element.requestId,
+			action: {
+				kind: 'copy',
+				codeBlockIndex: context.codeBlockIndex,
+				copyKind: ChatAgentCopyKind.Action,
+				copiedText,
+				copiedCharacters: copiedText.length,
+				totalCharacters,
+			}
+		});
 
 		// Copy full cell if no selection, otherwise fall back on normal editor implementation
 		if (noSelection) {
@@ -195,7 +191,7 @@ export function registerChatCodeBlockActions() {
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				keybinding: {
-					when: CONTEXT_IN_CHAT_SESSION,
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.WorkbenchContrib
@@ -337,7 +333,6 @@ export function registerChatCodeBlockActions() {
 					requestId: context.element.requestId,
 					action: {
 						kind: 'insert',
-						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
 					}
@@ -386,7 +381,6 @@ export function registerChatCodeBlockActions() {
 					requestId: context.element.requestId,
 					action: {
 						kind: 'insert',
-						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
 						newFile: true
@@ -472,7 +466,7 @@ export function registerChatCodeBlockActions() {
 				terminalGroupService.showPanel(true);
 			}
 
-			terminal.sendText(context.code, false, true);
+			terminal.runCommand(context.code, false);
 
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
@@ -482,7 +476,6 @@ export function registerChatCodeBlockActions() {
 					requestId: context.element.requestId,
 					action: {
 						kind: 'runInTerminal',
-						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						languageId: context.languageId,
 					}

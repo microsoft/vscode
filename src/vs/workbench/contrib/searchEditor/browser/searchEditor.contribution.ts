@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -169,7 +169,7 @@ CommandsRegistry.registerCommand(
 //#endregion
 
 //#region Actions
-const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
+const category = localize2('search', 'Search Editor');
 
 export type LegacySearchEditorArgs = Partial<{
 	query: string;
@@ -230,7 +230,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'search.searchEditor.action.deleteFileResults',
-			title: { value: localize('searchEditor.deleteResultBlock', "Delete File Results"), original: 'Delete File Results' },
+			title: localize2('searchEditor.deleteResultBlock', 'Delete File Results'),
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
@@ -253,7 +253,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: { value: localize('search.openNewSearchEditor', "New Search Editor"), original: 'New Search Editor' },
+			title: localize2('search.openNewSearchEditor', 'New Search Editor'),
 			category,
 			f1: true,
 			metadata: openArgMetadata
@@ -268,7 +268,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SearchEditorConstants.OpenEditorCommandId,
-			title: { value: localize('search.openSearchEditor', "Open Search Editor"), original: 'Open Search Editor' },
+			title: localize2('search.openSearchEditor', 'Open Search Editor'),
 			category,
 			f1: true,
 			metadata: openArgMetadata
@@ -283,7 +283,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewEditorToSideCommandId,
-			title: { value: localize('search.openNewEditorToSide', "Open New Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
+			title: localize2('search.openNewEditorToSide', 'Open New Search Editor to the Side'),
 			category,
 			f1: true,
 			metadata: openArgMetadata
@@ -298,7 +298,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenInEditorCommandId,
-			title: { value: localize('search.openResultsInEditor', "Open Results in Editor"), original: 'Open Results in Editor' },
+			title: localize2('search.openResultsInEditor', 'Open Results in Editor'),
 			category,
 			f1: true,
 			keybinding: {
@@ -325,7 +325,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: RerunSearchEditorSearchCommandId,
-			title: { value: localize('search.rerunSearchInEditor', "Search Again"), original: 'Search Again' },
+			title: localize2('search.rerunSearchInEditor', 'Search Again'),
 			category,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
@@ -357,7 +357,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FocusQueryEditorWidgetCommandId,
-			title: { value: localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input"), original: 'Focus Search Editor Input' },
+			title: localize2('search.action.focusQueryEditorWidget', 'Focus Search Editor Input'),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -380,7 +380,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FocusQueryEditorFilesToIncludeCommandId,
-			title: { value: localize('search.action.focusFilesToInclude', "Focus Search Editor Files to Include"), original: 'Focus Search Editor Files to Include' },
+			title: localize2('search.action.focusFilesToInclude', 'Focus Search Editor Files to Include'),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -399,7 +399,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FocusQueryEditorFilesToExcludeCommandId,
-			title: { value: localize('search.action.focusFilesToExclude', "Focus Search Editor Files to Exclude"), original: 'Focus Search Editor Files to Exclude' },
+			title: localize2('search.action.focusFilesToExclude', 'Focus Search Editor Files to Exclude'),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -418,7 +418,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSearchEditorCaseSensitiveCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorCaseSensitive', "Toggle Match Case"), original: 'Toggle Match Case' },
+			title: localize2('searchEditor.action.toggleSearchEditorCaseSensitive', 'Toggle Match Case'),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,
@@ -437,7 +437,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ToggleSearchEditorWholeWordCommandId,
-			title: { value: localize('searchEditor.action.toggleSearchEditorWholeWord', "Toggle Match Whole Word"), original: 'Toggle Match Whole Word' },
+			title: localize2('searchEditor.action.toggleSearchEditorWholeWord', 'Toggle Match Whole Word'),
 			category,
 			f1: true,
 			precondition: SearchEditorConstants.InSearchEditor,

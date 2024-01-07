@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, verifiedPublisherIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerColor, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { URI } from 'vs/base/common/uri';
@@ -709,7 +709,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 
 export class ExtensionStatusWidget extends ExtensionWidget {
 
-	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly renderDisposables = this._register(new MutableDisposable());
 
 	private readonly _onDidRender = this._register(new Emitter<void>());
 	readonly onDidRender: Event<void> = this._onDidRender.event;
@@ -726,6 +726,9 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 
 	render(): void {
 		reset(this.container);
+		this.renderDisposables.value = undefined;
+		const disposables = new DisposableStore();
+		this.renderDisposables.value = disposables;
 		const extensionStatus = this.extensionStatusAction.status;
 		if (extensionStatus) {
 			const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -733,12 +736,12 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 				markdown.appendMarkdown(`$(${extensionStatus.icon.id})&nbsp;`);
 			}
 			markdown.appendMarkdown(extensionStatus.message.value);
-			const rendered = this.renderDisposables.add(renderMarkdown(markdown, {
+			const rendered = disposables.add(renderMarkdown(markdown, {
 				actionHandler: {
 					callback: (content) => {
 						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 					},
-					disposables: this.renderDisposables
+					disposables
 				}
 			}));
 			append(this.container, rendered.element);

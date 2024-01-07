@@ -188,6 +188,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
+	async loadCertificates(): Promise<string[]> { return []; }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
 		if (this._requests.length === this.rateLimit) {

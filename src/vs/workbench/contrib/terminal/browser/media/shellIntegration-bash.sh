@@ -217,7 +217,7 @@ __vsc_precmd() {
 
 __vsc_preexec() {
 	__vsc_initialized=1
-	if [[ ! "$BASH_COMMAND" =~ ^__vsc_prompt* ]]; then
+	if [[ ! $BASH_COMMAND == __vsc_prompt* ]]; then
 		# Use history if it's available to verify the command as BASH_COMMAND comes in with aliases
 		# resolved
 		if [ "$__vsc_history_verify" = "1" ]; then
@@ -256,8 +256,8 @@ else
 		__vsc_preexec_all() {
 			if [ "$__vsc_in_command_execution" = "0" ]; then
 				__vsc_in_command_execution="1"
-				builtin eval "${__vsc_dbg_trap}"
 				__vsc_preexec
+				builtin eval "${__vsc_dbg_trap}"
 			fi
 		}
 		trap '__vsc_preexec_all "$_"' DEBUG

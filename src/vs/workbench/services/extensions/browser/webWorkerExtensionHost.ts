@@ -190,7 +190,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			resolveBarrier(data);
 		}));
 
-		this._layoutService.container.appendChild(iframe);
+		this._layoutService.mainContainer.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
 		// await MessagePort and use it to directly communicate
@@ -309,6 +309,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
+				sqmId: this._telemetryService.sqmId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},

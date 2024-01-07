@@ -830,7 +830,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
-		const firstIndex = this.view.firstVisibleIndex;
+		const firstIndex = this.view.firstMostlyVisibleIndex;
 		const elementHeight = this.view.elementHeight(viewIndex);
 
 		if (viewIndex <= firstIndex || (!firstLine && elementHeight >= this.view.renderHeight)) {
@@ -1330,11 +1330,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			content.push(`.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
-		if (styles.listDropBackground) {
+		if (styles.listDropOverBackground) {
 			content.push(`
 				.monaco-list${suffix}.drop-target,
 				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-rows.drop-target,
-				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+				.monaco-list${suffix} > div.monaco-scrollable-element > .monaco-list-row.drop-target { background-color: ${styles.listDropOverBackground} !important; color: inherit !important; }
 			`);
 		}
 

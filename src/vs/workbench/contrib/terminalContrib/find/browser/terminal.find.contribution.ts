@@ -7,7 +7,7 @@ import { IDimension } from 'vs/base/browser/dom';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -99,7 +99,7 @@ registerTerminalContribution(TerminalFindContribution.ID, TerminalFindContributi
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FindFocus,
-	title: { value: localize('workbench.action.terminal.focusFind', "Focus Find"), original: 'Focus Find' },
+	title: localize2('workbench.action.terminal.focusFind', 'Focus Find'),
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyF,
 		when: ContextKeyExpr.or(TerminalContextKeys.findFocus, TerminalContextKeys.focusInAny),
@@ -114,7 +114,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FindHide,
-	title: { value: localize('workbench.action.terminal.hideFind', "Hide Find"), original: 'Hide Find' },
+	title: localize2('workbench.action.terminal.hideFind', 'Hide Find'),
 	keybinding: {
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape],
@@ -130,7 +130,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.ToggleFindRegex,
-	title: { value: localize('workbench.action.terminal.toggleFindRegex', "Toggle Find Using Regex"), original: 'Toggle Find Using Regex' },
+	title: localize2('workbench.action.terminal.toggleFindRegex', 'Toggle Find Using Regex'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyR,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR },
@@ -147,7 +147,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.ToggleFindWholeWord,
-	title: { value: localize('workbench.action.terminal.toggleFindWholeWord', "Toggle Find Using Whole Word"), original: 'Toggle Find Using Whole Word' },
+	title: localize2('workbench.action.terminal.toggleFindWholeWord', 'Toggle Find Using Whole Word'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyW,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyW },
@@ -164,7 +164,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.ToggleFindCaseSensitive,
-	title: { value: localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle Find Using Case Sensitive"), original: 'Toggle Find Using Case Sensitive' },
+	title: localize2('workbench.action.terminal.toggleFindCaseSensitive', 'Toggle Find Using Case Sensitive'),
 	keybinding: {
 		primary: KeyMod.Alt | KeyCode.KeyC,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyC },
@@ -181,7 +181,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FindNext,
-	title: { value: localize('workbench.action.terminal.findNext', "Find Next"), original: 'Find Next' },
+	title: localize2('workbench.action.terminal.findNext', 'Find Next'),
 	keybinding: [
 		{
 			primary: KeyCode.F3,
@@ -208,7 +208,7 @@ registerActiveXtermAction({
 
 registerActiveXtermAction({
 	id: TerminalCommandId.FindPrevious,
-	title: { value: localize('workbench.action.terminal.findPrevious', "Find Previous"), original: 'Find Previous' },
+	title: localize2('workbench.action.terminal.findPrevious', 'Find Previous'),
 	keybinding: [
 		{
 			primary: KeyMod.Shift | KeyCode.F3,
@@ -236,7 +236,7 @@ registerActiveXtermAction({
 // Global workspace file search
 registerActiveInstanceAction({
 	id: TerminalCommandId.SearchWorkspace,
-	title: { value: localize('workbench.action.terminal.searchWorkspace', "Search Workspace"), original: 'Search Workspace' },
+	title: localize2('workbench.action.terminal.searchWorkspace', 'Search Workspace'),
 	keybinding: [
 		{
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF,

@@ -18,7 +18,7 @@ import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -29,7 +29,6 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -41,6 +40,7 @@ import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegis
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isNumber } from 'vs/base/common/types';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -169,7 +169,7 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(chatView.providerId)),
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
-			updateInput: text => chatView.updateInput(text),
+			updateInput: text => chatView.setInput(text),
 			getInput: () => chatView.getInput(),
 			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatView.resetInputPlaceholder()
@@ -183,7 +183,7 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: quickChatService.onDidClose,
 			focusInput: () => quickChat.focusInput(),
 			acceptInput: () => quickChat.acceptInput(),
-			updateInput: text => quickChat.updateInput(text),
+			updateInput: text => quickChat.setInput(text),
 			getInput: () => quickChat.getInput(),
 			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
 			clearInputPlaceholder: () => quickChat.resetInputPlaceholder()
@@ -474,7 +474,7 @@ export class StartVoiceChatAction extends Action2 {
 				group: 'navigation',
 				order: -1
 			}, {
-				id: MENU_INLINE_CHAT_WIDGET,
+				id: MENU_INLINE_CHAT_INPUT,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
@@ -486,7 +486,8 @@ export class StartVoiceChatAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const commandService = accessor.get(ICommandService);
 
-		if (isExecuteActionContext(context)) {
+		const widget = (context as IChatExecuteActionContext)?.widget;
+		if (widget) {
 			// if we already get a context when the action is executed
 			// from a toolbar within the chat widget, then make sure
 			// to move focus into the input field so that the controller
@@ -494,7 +495,7 @@ export class StartVoiceChatAction extends Action2 {
 			// TODO@bpasero this will actually not work if the button
 			// is clicked from the inline editor while focus is in a
 			// chat input field in a view or picker
-			context.widget.focusInput();
+			widget.focusInput();
 		}
 
 		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
@@ -653,7 +654,7 @@ export class StopListeningInInlineChatAction extends Action2 {
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 			icon: spinningLoading,
 			menu: [{
-				id: MENU_INLINE_CHAT_WIDGET,
+				id: MENU_INLINE_CHAT_INPUT,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 				group: 'main',
 				order: -1

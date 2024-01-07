@@ -5,7 +5,6 @@
 
 import { IObservable, ISettableObservable, derived, observableValue } from 'vs/base/common/observable';
 import { Constants } from 'vs/base/common/uint';
-import { IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { diffEditorDefaultOptions } from 'vs/editor/common/config/diffEditor';
 import { IDiffEditorBaseOptions, IDiffEditorOptions, IEditorOptions, ValidDiffEditorBaseOptions, clampedFloat, clampedInt, boolean as validateBooleanOption, stringSet as validateStringSetOption } from 'vs/editor/common/config/editorOptions';
 
@@ -14,16 +13,17 @@ export class DiffEditorOptions {
 
 	public get editorOptions(): IObservable<IEditorOptions, { changedOptions: IEditorOptions }> { return this._options; }
 
+	private readonly _diffEditorWidth = observableValue<number>(this, 0);
+
 	constructor(
-		options: Readonly<IDiffEditorConstructionOptions>,
-		private readonly diffEditorWidth: IObservable<number>,
+		options: Readonly<IDiffEditorOptions>,
 	) {
 		const optionsCopy = { ...options, ...validateDiffEditorOptions(options, diffEditorDefaultOptions) };
 		this._options = observableValue(this, optionsCopy);
 	}
 
 	public readonly couldShowInlineViewBecauseOfSize = derived(this, reader =>
-		this._options.read(reader).renderSideBySide && this.diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
+		this._options.read(reader).renderSideBySide && this._diffEditorWidth.read(reader) <= this._options.read(reader).renderSideBySideInlineBreakpoint
 	);
 
 	public readonly renderOverviewRuler = derived(this, reader => this._options.read(reader).renderOverviewRuler);
@@ -62,6 +62,10 @@ export class DiffEditorOptions {
 		const newDiffEditorOptions = validateDiffEditorOptions(changedOptions, this._options.get());
 		const newOptions = { ...this._options.get(), ...changedOptions, ...newDiffEditorOptions };
 		this._options.set(newOptions, undefined, { changedOptions: changedOptions });
+	}
+
+	public setWidth(width: number): void {
+		this._diffEditorWidth.set(width, undefined);
 	}
 }
 

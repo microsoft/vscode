@@ -66,7 +66,7 @@ export class QuickInputController extends Disposable {
 				// close, so we have to make sure to reparent it back to an
 				// existing parent to not loose functionality.
 				// (https://github.com/microsoft/vscode/issues/195870)
-				this.reparentUI(this.layoutService.container);
+				this.reparentUI(this.layoutService.mainContainer);
 			}
 		}));
 	}
@@ -103,13 +103,12 @@ export class QuickInputController extends Disposable {
 
 		const titleBar = dom.append(container, $('.quick-input-titlebar'));
 
-		const actionBarOption = this.options.hoverDelegate ? { hoverDelegate: this.options.hoverDelegate } : undefined;
-		const leftActionBar = this._register(new ActionBar(titleBar, actionBarOption));
+		const leftActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
 		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
 
 		const title = dom.append(titleBar, $('.quick-input-title'));
 
-		const rightActionBar = this._register(new ActionBar(titleBar, actionBarOption));
+		const rightActionBar = this._register(new ActionBar(titleBar, { hoverDelegate: this.options.hoverDelegate }));
 		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
@@ -406,7 +405,6 @@ export class QuickInputController extends Disposable {
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
 			input.matchOnLabel = (options.matchOnLabel === undefined) || options.matchOnLabel; // default to true
-			input.autoFocusOnList = (options.autoFocusOnList === undefined) || options.autoFocusOnList; // default to true
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;

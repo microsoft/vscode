@@ -5,7 +5,6 @@
 
 import * as browser from 'vs/base/browser/browser';
 import { IframeUtils } from 'vs/base/browser/iframe';
-import { $window } from 'vs/base/browser/window';
 import * as platform from 'vs/base/common/platform';
 
 export interface IMouseEvent {
@@ -46,7 +45,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
 
-	constructor(e: MouseEvent) {
+	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
 		this.browserEvent = e;
 		this.leftButton = e.button === 0;
@@ -75,7 +74,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow($window, e.view);
+		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(targetWindow, e.view);
 		this.posx -= iframeOffsets.left;
 		this.posy -= iframeOffsets.top;
 	}
@@ -93,8 +92,8 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 	public readonly dataTransfer: DataTransfer;
 
-	constructor(e: MouseEvent) {
-		super(e);
+	constructor(targetWindow: Window, e: MouseEvent) {
+		super(targetWindow, e);
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
 }

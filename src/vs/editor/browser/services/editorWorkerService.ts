@@ -213,16 +213,15 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 
 	async provideCompletionItems(model: ITextModel, position: Position): Promise<languages.CompletionList | undefined> {
 		type WordBasedSuggestionsConfig = {
-			wordBasedSuggestions?: boolean;
-			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments';
+			wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		};
 		const config = this._configurationService.getValue<WordBasedSuggestionsConfig>(model.uri, position, 'editor');
-		if (!config.wordBasedSuggestions) {
+		if (config.wordBasedSuggestions === 'off') {
 			return undefined;
 		}
 
 		const models: URI[] = [];
-		if (config.wordBasedSuggestionsMode === 'currentDocument') {
+		if (config.wordBasedSuggestions === 'currentDocument') {
 			// only current file and only if not too large
 			if (canSyncModel(this._modelService, model.uri)) {
 				models.push(model.uri);
@@ -236,7 +235,7 @@ class WordBasedCompletionItemProvider implements languages.CompletionItemProvide
 				if (candidate === model) {
 					models.unshift(candidate.uri);
 
-				} else if (config.wordBasedSuggestionsMode === 'allDocuments' || candidate.getLanguageId() === model.getLanguageId()) {
+				} else if (config.wordBasedSuggestions === 'allDocuments' || candidate.getLanguageId() === model.getLanguageId()) {
 					models.push(candidate.uri);
 				}
 			}

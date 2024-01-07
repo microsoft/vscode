@@ -7,7 +7,7 @@ import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -21,11 +21,13 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
-import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -83,8 +85,13 @@ export interface ITerminalInstanceService {
 	didRegisterBackend(remoteAuthority?: string): void;
 }
 
-export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
+export interface ITerminalConfigHelper {
+	config: ITerminalConfiguration;
 	panelContainer: HTMLElement | undefined;
+
+	configFontIsMonospace(): boolean;
+	getFont(w: Window): ITerminalFont;
+	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
 export const enum Direction {
@@ -111,7 +118,8 @@ export interface IMarkTracker {
 
 	scrollToLine(line: number, position: ScrollPosition): void;
 	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
-	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void;
+	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
+	showCommandGuide(command: ITerminalCommand | undefined): void;
 }
 
 export interface ITerminalGroup {
@@ -289,8 +297,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
-	revealActiveTerminal(): Promise<void>;
-	moveToEditor(source: ITerminalInstance): void;
+	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
+	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
+	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
@@ -412,7 +421,7 @@ export interface ICreateTerminalOptions {
 }
 
 export interface TerminalEditorLocation {
-	viewColumn: EditorGroupColumn;
+	viewColumn: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 	preserveFocus?: boolean;
 }
 
@@ -570,6 +579,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly injectedArgs: string[] | undefined;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
+	/**
+	 * The underlying disposable store, allowing objects who share the same lifecycle as the
+	 * terminal instance but are created externally to be managed by the instance.
+	 */
+	readonly store: DisposableStore;
+
 	readonly statusList: ITerminalStatusList;
 
 	/**
@@ -647,7 +662,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
-	onDidRunText: Event<void>;
+	onDidExecuteText: Event<void>;
+	onDidChangeTarget: Event<TerminalLocation | undefined>;
+	onDidSendText: Event<string>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
@@ -835,19 +852,24 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	pasteSelection(): Promise<void>;
 
 	/**
+	 * Override the copy on selection feature with a custom value.
+	 * @param value Whether to enable copySelection.
+	 */
+	overrideCopyOnSelection(value: boolean): IDisposable;
+
+	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
 	 * process (shell) of the terminal instance.
 	 *
 	 * @param text The text to send.
-	 * @param addNewLine Whether to add a new line to the text being sent, this is normally required
-	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
-	 * platform. This defaults to `true`.
+	 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+	 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 	 * @param bracketedPasteMode Whether to wrap the text in the bracketed paste mode sequence when
 	 * it's enabled. When true, the shell will treat the text as if it were pasted into the shell,
 	 * this may for example select the text and it will also ensure that the text will not be
 	 * interpreted as a shell keybinding.
 	 */
-	sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void>;
+	sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void>;
 
 	/**
 	 * Sends a path to the terminal instance, preparing it as needed based on the detected shell
@@ -855,13 +877,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * (shell) of the terminal instance.
 	 *
 	 * @param originalPath The path to send.
-	 * @param addNewLine Whether to add a new line to the path being sent, this is normally required
-	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
-	 * platform. This defaults to `true`.
+	 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+	 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 	 */
-	sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void>;
+	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, addNewLine?: boolean): void;
+	runCommand(command: string, shouldExecute?: boolean): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
@@ -960,14 +981,14 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	rename(title?: string): Promise<void>;
 
 	/**
-	 * Triggers a quick pick to change the icon of this terminal.
+	 * Sets or triggers a quick pick to change the icon of this terminal.
 	 */
-	changeIcon(): Promise<void>;
+	changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined>;
 
 	/**
-	 * Triggers a quick pick to change the color of the associated terminal tab icon.
+	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
-	changeColor(): Promise<void>;
+	changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined>;
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
@@ -982,34 +1003,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 
 	/**
-	 * Selects the previous suggestion if the suggest widget is visible.
+	 * Update the parent context key service to use for this terminal instance.
 	 */
-	selectPreviousSuggestion(): void;
-
-	/**
-	 * Selects the previous page suggestion if the suggest widget is visible.
-	 */
-	selectPreviousPageSuggestion(): void;
-
-	/**
-	 * Selects the next suggestion if the suggest widget is visible.
-	 */
-	selectNextSuggestion(): void;
-
-	/**
-	 * Selects the next page suggestion if the suggest widget is visible.
-	 */
-	selectNextPageSuggestion(): void;
-
-	/**
-	 * Accepts the current suggestion if the suggest widget is visible.
-	 */
-	acceptSelectedSuggestion(): Promise<void>;
-
-	/**
-	 * Hides the suggest widget.
-	 */
-	hideSuggestWidget(): void;
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
 }
 
 export const enum XtermTerminalConstants {

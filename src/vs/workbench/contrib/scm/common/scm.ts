@@ -13,12 +13,11 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
-import { ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -60,6 +59,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
 	readonly onDidChangeResourceGroups: Event<void>;
@@ -79,6 +79,11 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
+}
+
+export interface ISCMInputValueProviderContext {
+	readonly resourceGroupId: string;
+	readonly resources: readonly URI[];
 }
 
 export const enum InputValidationType {
@@ -104,12 +109,6 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
-}
-
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
 }
 
 export interface ISCMActionButtonDescriptor {
@@ -143,9 +142,6 @@ export interface ISCMInput {
 
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
-
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
 
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;
@@ -184,7 +180,9 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
+	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
+	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;

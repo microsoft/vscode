@@ -18,7 +18,11 @@ declare module 'vscode' {
 	}
 
 	export interface ChatResponseProviderMetadata {
-		// TODO: add way to compute token count
+		/**
+		 * The name of the model that is used for this chat access. It is expected that the model name can
+		 * be used to lookup properties like token limits and ChatML support
+		 */
+		// TODO@API rename to model
 		name: string;
 	}
 

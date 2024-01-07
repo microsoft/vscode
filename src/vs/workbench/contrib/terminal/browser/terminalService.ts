@@ -29,7 +29,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalConfigHelper, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -37,11 +37,11 @@ import { getColorStyleContent, getUriClasses } from 'vs/workbench/contrib/termin
 import { TerminalProfileQuickpick } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService, ShutdownReason, StartupKind, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -56,6 +56,7 @@ import { DetachedTerminal } from 'vs/workbench/contrib/terminal/browser/detached
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 import { mainWindow } from 'vs/base/browser/window';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -154,8 +155,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 	// Lazily initialized events that fire when the specified event fires on _any_ terminal
 	@memoize get onAnyInstanceDataInput() { return this.createOnInstanceEvent(e => e.onDidInputData); }
 	@memoize get onAnyInstanceIconChange() { return this.createOnInstanceEvent(e => e.onIconChanged); }
-	@memoize get onAnyInstanceMaximumDimensionsChange() { return this.createOnInstanceEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, this._store)); }
-	@memoize get onAnyInstancePrimaryStatusChange() { return this.createOnInstanceEvent(e => Event.map(e.statusList.onDidChangePrimaryStatus, () => e, this._store)); }
+	@memoize get onAnyInstanceMaximumDimensionsChange() { return this.createOnInstanceEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, e.store)); }
+	@memoize get onAnyInstancePrimaryStatusChange() { return this.createOnInstanceEvent(e => Event.map(e.statusList.onDidChangePrimaryStatus, () => e, e.store)); }
 	@memoize get onAnyInstanceProcessIdReady() { return this.createOnInstanceEvent(e => e.onProcessIdReady); }
 	@memoize get onAnyInstanceSelectionChange() { return this.createOnInstanceEvent(e => e.onDidChangeSelection); }
 	@memoize get onAnyInstanceTitleChange() { return this.createOnInstanceEvent(e => e.onTitleChanged); }
@@ -554,13 +555,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
-	async revealActiveTerminal(): Promise<void> {
+	async revealActiveTerminal(preserveFocus?: boolean): Promise<void> {
 		const instance = this.activeInstance;
 		if (!instance) {
 			return;
 		}
 		if (instance.target === TerminalLocation.Editor) {
-			await this._terminalEditorService.revealActiveEditor();
+			await this._terminalEditorService.revealActiveEditor(preserveFocus);
 		} else {
 			await this._terminalGroupService.showPanel();
 		}
@@ -762,7 +763,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
 
-	moveToEditor(source: ITerminalInstance): void {
+	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void {
 		if (source.target === TerminalLocation.Editor) {
 			return;
 		}
@@ -771,7 +772,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return;
 		}
 		sourceGroup.removeInstance(source);
-		this._terminalEditorService.openEditor(source);
+		this._terminalEditorService.openEditor(source, group ? { viewColumn: group } : undefined);
+
+	}
+
+	moveIntoNewEditor(source: ITerminalInstance): void {
+		this.moveToEditor(source, AUX_WINDOW_GROUP);
 	}
 
 	async moveToTerminalView(source?: ITerminalInstance | URI, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
@@ -968,7 +974,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
-			await instance.focusWhenReady();
+			await instance?.focusWhenReady();
 			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
@@ -1015,7 +1021,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 			options.colorProvider,
 			options.capabilities || new TerminalCapabilityStore(),
 			'',
-			undefined,
 			false,
 		);
 

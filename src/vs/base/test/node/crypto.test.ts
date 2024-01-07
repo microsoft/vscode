@@ -27,6 +27,6 @@ flakySuite('Crypto', () => {
 		const testFile = join(testDir, 'checksum.txt');
 		await Promises.writeFile(testFile, 'Hello World');
 
-		await checksum(testFile, '0a4d55a8d778e5022fab701977c5d840bbc486d0');
+		await checksum(testFile, 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e');
 	});
 });

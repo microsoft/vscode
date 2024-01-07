@@ -475,7 +475,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 		const resolveOptions: IStoredFileWorkingCopyResolveOptions = {
 			contents: options?.contents,
-			forceReadFromFile: options?.reload?.force
+			forceReadFromFile: options?.reload?.force,
+			limits: options?.limits
 		};
 
 		// Working copy exists

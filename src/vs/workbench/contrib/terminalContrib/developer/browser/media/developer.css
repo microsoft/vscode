@@ -27,6 +27,10 @@
 
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration {
 	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+	display: none !important;
+}
+.monaco-workbench .xterm.dev-mode:hover .xterm-sequence-decoration {
+	display: block !important;
 }
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.left {
 	direction: rtl;
@@ -42,4 +46,10 @@
 }
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.bottom.right {
 	transform: scale(.5) translate(50%, 50%);
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.color-0 {
+	color: #FF4444;
+}
+.monaco-workbench .xterm.dev-mode .xterm-sequence-decoration.color-1 {
+	color: #44FFFF;
 }

@@ -286,7 +286,7 @@ class CellOutputElement extends Disposable {
 			return;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getLayoutConfiguration().consolidatedOutputButton;
+		const useConsolidatedButton = this.notebookEditor.notebookOptions.getDisplayOptions().consolidatedOutputButton;
 
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');

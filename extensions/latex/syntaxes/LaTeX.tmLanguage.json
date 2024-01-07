@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/221a2443a5e8ac029685a0f872af39b23cc2b634",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/e0f2c26cdc94a9439acc565215c7bdbf379afb1f",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -1197,6 +1197,74 @@
 			"name": "meta.function.verbatim.latex"
 		},
 		{
+			"comment": "Captures \\command[option]{url}{optional category}{optional name}{text}",
+			"begin": "(?:\\s*)((\\\\)(?:href|hyperref|hyperimage))(?=\\[|\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.url.latex"
+				}
+			},
+			"end": "(\\})",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.arguments.end.latex"
+				}
+			},
+			"name": "meta.function.hyperlink.latex",
+			"patterns": [
+				{
+					"include": "#multiline-optional-arg-no-highlight"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(\\{)([^}]*)(\\})(?:\\{[^}]*\\}){2}?(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						},
+						"2": {
+							"name": "markup.underline.link.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.end.latex"
+						},
+						"4": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						}
+					},
+					"end": "(?=\\})",
+					"patterns": [
+						{
+							"include": "$base"
+						}
+					],
+					"contentName": "meta.variable.parameter.function.latex"
+				},
+				{
+					"begin": "(?:\\G|(?<=\\]))(?:(\\{)[^}]*(\\}))?(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						},
+						"2": {
+							"name": "punctuation.definition.arguments.end.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						}
+					},
+					"end": "(?=\\})",
+					"patterns": [
+						{
+							"include": "$base"
+						}
+					],
+					"contentName": "meta.variable.parameter.function.latex"
+				}
+			]
+		},
+		{
+			"match": "(?:\\s*)((\\\\)url)(\\{)([^}]*)(\\})",
+			"name": "meta.function.link.url.latex",
 			"captures": {
 				"1": {
 					"name": "support.function.url.latex"
@@ -1205,33 +1273,15 @@
 					"name": "punctuation.definition.function.latex"
 				},
 				"3": {
-					"patterns": [
-						{
-							"include": "#optional-arg"
-						}
-					]
-				},
-				"4": {
 					"name": "punctuation.definition.arguments.begin.latex"
 				},
 				"5": {
+					"name": "punctuation.definition.arguments.end.latex"
+				},
+				"'": {
 					"name": "markup.underline.link.latex"
-				},
-				"6": {
-					"name": "punctuation.definition.arguments.end.latex"
-				},
-				"7": {
-					"name": "punctuation.definition.arguments.begin.latex"
-				},
-				"8": {
-					"name": "entity.name.hyperlink.latex"
-				},
-				"9": {
-					"name": "punctuation.definition.arguments.end.latex"
 				}
-			},
-			"match": "(?:\\s*)((\\\\)(?:url|href|hyperref|hyperimage))(\\[[^\\[]*?\\])?(\\{)([^}]*)(\\})(?:\\{[^}]*\\}){2}?(?:(\\{)([^}]*)(\\}))?",
-			"name": "meta.function.link.url.latex"
+			}
 		},
 		{
 			"comment": "These two patterns match the \\begin{document} and \\end{document} commands, so that the environment matching pattern following them will ignore those commands.",
@@ -2069,36 +2119,6 @@
 					"include": "$base"
 				}
 			]
-		},
-		{
-			"begin": "(,,)",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.begin.latex"
-				}
-			},
-			"end": "(?<!\\\\)(\\`\\`)",
-			"endCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.end.latex"
-				}
-			},
-			"name": "string.quoted.double.latex"
-		},
-		{
-			"begin": "(?<!\\\\|\\\\catcode|\\\\string)(\\`\\`)",
-			"beginCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.begin.latex"
-				}
-			},
-			"end": "(?<!\\\\)(\\'\\'|\")",
-			"endCaptures": {
-				"1": {
-					"name": "punctuation.definition.string.end.latex"
-				}
-			},
-			"name": "string.quoted.double.latex"
 		},
 		{
 			"begin": "\\$\\$",

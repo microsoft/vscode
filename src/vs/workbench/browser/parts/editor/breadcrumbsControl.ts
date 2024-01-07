@@ -53,7 +53,7 @@ class OutlineItem extends BreadcrumbsItem {
 		super();
 	}
 
-	override dispose(): void {
+	dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -113,7 +113,7 @@ class FileItem extends BreadcrumbsItem {
 		super();
 	}
 
-	override dispose(): void {
+	dispose(): void {
 		this._disposables.dispose();
 	}
 
@@ -330,6 +330,9 @@ export class BreadcrumbsControl {
 					}
 					equals(other: BreadcrumbsItem): boolean {
 						return other === this;
+					}
+					dispose(): void {
+
 					}
 				}]);
 			} else {

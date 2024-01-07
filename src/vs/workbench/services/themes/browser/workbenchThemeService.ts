@@ -118,7 +118,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService languageService: ILanguageService
 	) {
-		this.container = layoutService.container;
+		this.container = layoutService.mainContainer;
 		this.settings = new ThemeConfiguration(configurationService);
 
 		this.colorThemeRegistry = new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
@@ -208,7 +208,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const initializeColorTheme = async () => {
 			const devThemes = this.colorThemeRegistry.findThemeByExtensionLocation(extDevLoc);
 			if (devThemes.length) {
-				return this.setColorTheme(devThemes[0].id, ConfigurationTarget.MEMORY);
+				const matchedColorTheme = devThemes.find(theme => theme.type === this.currentColorTheme.type);
+				return this.setColorTheme(matchedColorTheme ? matchedColorTheme.id : devThemes[0].id, undefined);
 			}
 
 			const preferredColorScheme = this.getPreferredColorScheme();

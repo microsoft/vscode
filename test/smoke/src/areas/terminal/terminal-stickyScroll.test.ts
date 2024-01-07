@@ -17,7 +17,7 @@ export function setup() {
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
 			await setTerminalTestSettings(app, [
-				['terminal.integrated.enableStickyScroll', 'true']
+				['terminal.integrated.stickyScroll.enabled', 'true']
 			]);
 		});
 

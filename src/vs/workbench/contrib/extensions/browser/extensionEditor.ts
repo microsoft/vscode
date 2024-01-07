@@ -3,74 +3,94 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/extensionEditor';
-import { localize } from 'vs/nls';
-import * as arrays from 'vs/base/common/arrays';
-import { OS, language } from 'vs/base/common/platform';
-import { Event, Emitter } from 'vs/base/common/event';
-import { Cache, CacheResult } from 'vs/base/common/cache';
-import { Action, IAction } from 'vs/base/common/actions';
-import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, toDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import { append, $, join, addDisposableListener, setParentFlowTo, reset, Dimension } from 'vs/base/browser/dom';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { ExtensionIdentifier, IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget, ExtensionWidget, ExtensionStatusWidget, ExtensionRecommendationWidget, SponsorWidget, onClick, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import {
-	UpdateAction, ReloadAction, EnableDropDownAction, DisableDropDownAction, ExtensionStatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
-	RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ToggleSyncExtensionAction, SetProductIconThemeAction,
-	ActionWithDropDownAction, InstallDropdownAction, InstallingLabelAction, UninstallAction, ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
-	InstallAnotherVersionAction, ExtensionEditorManageExtensionAction, WebInstallAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, SkipUpdateAction
-} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Color } from 'vs/base/common/color';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
-import { isUndefined } from 'vs/base/common/types';
-import { IWebviewService, IWebview, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
-import { generateUuid } from 'vs/base/common/uuid';
-import { platform } from 'vs/base/common/process';
-import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { $, Dimension, addDisposableListener, append, join, reset, setParentFlowTo } from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
-import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
+import { Action, IAction } from 'vs/base/common/actions';
+import * as arrays from 'vs/base/common/arrays';
+import { Cache, CacheResult } from 'vs/base/common/cache';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Color } from 'vs/base/common/color';
+import { getErrorMessage, isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas, matchesScheme } from 'vs/base/common/network';
+import { OS, language } from 'vs/base/common/platform';
+import { platform } from 'vs/base/common/process';
 import * as semver from 'vs/base/common/semver/semver';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { isUndefined } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
+import 'vs/css!./media/extensionEditor';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
+import { localize } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { getDefaultValue } from 'vs/platform/configuration/common/configurationRegistry';
+import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionIdentifier, IExtensionManifest, IKeyBinding, IView, IViewContainer } from 'vs/platform/extensions/common/extensions';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import {
+	ActionWithDropDownAction,
+	ClearLanguageAction,
+	DisableDropDownAction,
+	EnableDropDownAction,
+	ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
+	ExtensionEditorManageExtensionAction,
+	ExtensionStatusAction,
+	ExtensionStatusLabelAction,
+	InstallAnotherVersionAction,
+	InstallDropdownAction, InstallingLabelAction,
+	LocalInstallAction,
+	MigrateDeprecatedExtensionAction,
+	ReloadAction,
+	RemoteInstallAction,
+	SetColorThemeAction,
+	SetFileIconThemeAction,
+	SetLanguageAction,
+	SetProductIconThemeAction,
+	ToggleAutoUpdateForExtensionAction,
+	SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction,
+	UninstallAction,
+	UpdateAction,
+	WebInstallAction
+} from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { errorIcon, infoIcon, preReleaseIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
+import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
+import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, VerifiedPublisherWidget, onClick } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
+import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 
 class NavBar extends Disposable {
 
@@ -324,7 +344,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ReloadAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
@@ -347,7 +367,7 @@ export class ExtensionEditor extends EditorPane {
 			]),
 			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
 			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
+			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, [false, 'onlySelectedExtensions']),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
 
@@ -360,6 +380,9 @@ export class ExtensionEditor extends EditorPane {
 				}
 				if (action instanceof ActionWithDropDownAction) {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				}
+				if (action instanceof ToggleAutoUpdateForExtensionAction) {
+					return new CheckboxActionViewItem(undefined, action, { icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
 				}
 				return undefined;
 			},

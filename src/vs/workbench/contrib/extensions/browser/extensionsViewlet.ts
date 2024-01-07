@@ -203,7 +203,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 				constructor() {
 					super({
 						id: 'workbench.extensions.actions.installLocalExtensionsInRemote',
-						title: { value: localize('install remote in local', "Install Remote Extensions Locally..."), original: 'Install Remote Extensions Locally...' },
+						title: localize2('install remote in local', 'Install Remote Extensions Locally...'),
 						category: REMOTE_CATEGORY,
 						f1: true
 					});
@@ -849,7 +849,7 @@ export class StatusUpdater extends Disposable implements IWorkbenchContribution 
 		this.badgeHandle.clear();
 
 		const extensionsReloadRequired = this.extensionsWorkbenchService.installed.filter(e => e.reloadRequiredStatus !== undefined);
-		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !e.pinned && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
+		const outdated = this.extensionsWorkbenchService.outdated.reduce((r, e) => r + (this.extensionEnablementService.isEnabled(e.local!) && !extensionsReloadRequired.includes(e) ? 1 : 0), 0);
 		const newBadgeNumber = outdated + extensionsReloadRequired.length;
 		if (newBadgeNumber > 0) {
 			let msg = '';

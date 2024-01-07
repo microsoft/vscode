@@ -128,7 +128,7 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	public readonly relativePos: CoordinatesRelativeToEditor;
 
 	constructor(e: MouseEvent, isFromPointerCapture: boolean, editorViewDomNode: HTMLElement) {
-		super(e);
+		super(dom.getWindow(editorViewDomNode), e);
 		this.isFromPointerCapture = isFromPointerCapture;
 		this.pos = new PageCoordinates(this.posx, this.posy);
 		this.editorPos = createEditorPagePosition(editorViewDomNode);

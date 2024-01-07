@@ -662,7 +662,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		// (3) handle scrolling
 		this._linesContent.setLayerHinting(this._canUseLayerHinting);
 		this._linesContent.setContain('strict');
-		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop() - viewportData.bigNumbersDelta;
+		const adjustedScrollTop = this._context.viewLayout.getCurrentScrollTop();
 		this._linesContent.setTop(-adjustedScrollTop);
 		this._linesContent.setLeft(-this._context.viewLayout.getCurrentScrollLeft());
 	}

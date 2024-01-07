@@ -505,10 +505,11 @@ export class AccessibleView extends Disposable {
 			e.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
+			this._lastProvider = undefined;
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService)) {
+			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService, this._configurationService)) {
 				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl!;
@@ -766,7 +767,10 @@ export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	lineNumber?: number;
 }
 
-function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService): boolean {
+function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService, configurationService: IConfigurationService): boolean {
+	if (!configurationService.getValue(AccessibilityWorkbenchSettingId.AccessibleViewCloseOnKeyPress)) {
+		return false;
+	}
 	const standardKeyboardEvent = new StandardKeyboardEvent(event);
 	const resolveResult = keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
 

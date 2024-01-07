@@ -34,7 +34,6 @@
     "readonlyMessage",
     "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -53,8 +52,7 @@
     "workspaceTrust",
     "telemetry",
     "testingActiveProfile",
-    "windowActivity",
-    "interactiveUserActions"
+    "windowActivity"
   ],
   "private": true,
   "activationEvents": [],

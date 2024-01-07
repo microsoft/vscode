@@ -111,16 +111,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
+				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+					const eventDisposables = disposables.add(new DisposableStore());
+					eventDisposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+					eventDisposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 
-				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
-					const disposables = new DisposableStore();
-					disposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
-					disposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
-
-					this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => disposables.dispose()));
-
-					mouseBackForwardSupportListener.add(disposables);
-				}, this.layoutService.container));
+					mouseBackForwardSupportListener.add(eventDisposables);
+				}, { container: this.layoutService.mainContainer, disposables: this._store }));
 			}
 		};
 
@@ -942,11 +939,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// We want to seed history from opened editors
 			// too as well as previous stored state, so we
 			// need to wait for the editor groups being ready
-			if (this.editorGroupService.mainPart.isReady) {
+			if (this.editorGroupService.isReady) {
 				this.loadHistory();
 			} else {
 				(async () => {
-					await this.editorGroupService.mainPart.whenReady;
+					await this.editorGroupService.whenReady;
 
 					this.loadHistory();
 				})();

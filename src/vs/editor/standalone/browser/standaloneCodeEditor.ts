@@ -120,7 +120,7 @@ export interface IGlobalEditorOptions {
 	 * Controls whether completions should be computed based on words in the document.
 	 * Defaults to true.
 	 */
-	wordBasedSuggestions?: boolean;
+	wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 	/**
 	 * Controls whether word based completions should be included from opened documents of the same language or any language.
 	 */
