@@ -317,6 +317,9 @@ class ESRPClient {
 	}
 }
 
+const tmp = new Temp();
+process.on('exit', () => tmp.dispose());
+
 async function releaseAndProvision(
 	log: (...args: any[]) => void,
 	releaseTenantId: string,
@@ -339,9 +342,6 @@ async function releaseAndProvision(
 		log(`Already released and provisioned: ${result}`);
 		return result;
 	}
-
-	const tmp = new Temp();
-	process.on('exit', () => tmp.dispose());
 
 	const assetPath = tmp.tmpNameSync();
 	await download(url, assetPath);
@@ -414,7 +414,7 @@ async function main() {
 	const builds = await container.items.query<Build>('SELECT * FROM builds').fetchAll();
 
 	for (const build of builds.resources) {
-		const assetsToMigrate = build.assets.filter(asset => asset.url.startsWith('https://az764295.vo.msecnd.net/'));
+		const assetsToMigrate = build.assets.filter(asset => asset.url?.startsWith('https://az764295.vo.msecnd.net/'));
 		console.log(`Migrating ${build.id} (${assetsToMigrate.length} assets)...`);
 		await Promise.all(assetsToMigrate.map(asset => migrateAsset(client, build, asset)));
 		// await client.database('builds').container('stable').item(build.id).replace(build);

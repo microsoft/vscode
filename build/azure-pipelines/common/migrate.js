@@ -230,6 +230,8 @@ class ESRPClient {
         return JSON.parse(output);
     }
 }
+const tmp = new Temp();
+process.on('exit', () => tmp.dispose());
 async function releaseAndProvision(log, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName, provisionTenantId, provisionAADUsername, provisionAADPassword, version, quality, url) {
     const fileName = `${quality}/${version}/${path.basename(url)}`;
     const result = `${e('PRSS_CDN_URL')}/${fileName}`;
@@ -238,8 +240,6 @@ async function releaseAndProvision(log, releaseTenantId, releaseClientId, releas
         log(`Already released and provisioned: ${result}`);
         return result;
     }
-    const tmp = new Temp();
-    process.on('exit', () => tmp.dispose());
     const assetPath = tmp.tmpNameSync();
     await download(url, assetPath);
     const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
@@ -273,7 +273,7 @@ async function main() {
     const container = client.database('builds').container('stable');
     const builds = await container.items.query('SELECT * FROM builds').fetchAll();
     for (const build of builds.resources) {
-        const assetsToMigrate = build.assets.filter(asset => asset.url.startsWith('https://az764295.vo.msecnd.net/'));
+        const assetsToMigrate = build.assets.filter(asset => asset.url?.startsWith('https://az764295.vo.msecnd.net/'));
         console.log(`Migrating ${build.id} (${assetsToMigrate.length} assets)...`);
         await Promise.all(assetsToMigrate.map(asset => migrateAsset(client, build, asset)));
         // await client.database('builds').container('stable').item(build.id).replace(build);
