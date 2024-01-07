@@ -785,11 +785,12 @@ export function createRandomIPCHandle(): string {
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = createHash('md5').update(directoryPath).digest('hex');
+	const scope = createHash('sha256').update(directoryPath).digest('hex');
+	const scopeForSocket = scope.substr(0, 8);
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
-		return `\\\\.\\pipe\\${scope}-${version}-${type}-sock`;
+		return `\\\\.\\pipe\\${scopeForSocket}-${version}-${type}-sock`;
 	}
 
 	// Mac & Unix: Use socket file
@@ -799,7 +800,6 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 
 	const versionForSocket = version.substr(0, 4);
 	const typeForSocket = type.substr(0, 6);
-	const scopeForSocket = scope.substr(0, 8);
 
 	let result: string;
 	if (process.platform !== 'darwin' && XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {

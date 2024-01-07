@@ -11,7 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
@@ -22,6 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -89,7 +90,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		if (typeof options?.zoomLevel === 'number') {
 			windowZoomLevel = options.zoomLevel;
 		} else {
-			windowZoomLevel = getZoomLevel(mainWindow);
+			windowZoomLevel = getZoomLevel(getActiveWindow());
 		}
 
 		applyZoom(windowZoomLevel, auxiliaryWindow);

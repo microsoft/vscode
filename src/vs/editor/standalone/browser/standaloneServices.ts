@@ -1077,8 +1077,9 @@ class StandaloneAudioService implements IAudioCueService {
 class StandaloneAccessibleNotificationService implements IAccessibleNotificationService {
 	_serviceBrand: undefined;
 
-	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void { }
-	notifyLineChanges(event: AccessibleNotificationEvent[]): void { }
+	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void {
+		// NOOP
+	}
 }
 
 export interface IEditorOverrideServices {
