@@ -1490,9 +1490,11 @@ class RepositoryVisibilityActionController {
 }
 
 class SetListViewModeAction extends ViewAction<SCMViewPane>  {
-	constructor(menu: Partial<IAction2Options['menu']> = {}) {
+	constructor(
+		id = 'workbench.scm.action.setListViewMode',
+		menu: Partial<IAction2Options['menu']> = {}) {
 		super({
-			id: 'workbench.scm.action.setListViewMode',
+			id,
 			title: localize('setListViewMode', "View as List"),
 			viewId: VIEW_PANE_ID,
 			f1: false,
@@ -1509,26 +1511,31 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 
 class SetListViewModeNavigationAction extends SetListViewModeAction {
 	constructor() {
-		super({
-			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree)),
-			group: 'navigation',
-			order: -1000
-		});
+		super(
+			'workbench.scm.action.setListViewModeNavigation',
+			{
+				id: MenuId.SCMTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree)),
+				group: 'navigation',
+				order: -1000
+			});
 	}
 }
 
 class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
-	constructor(menu: Partial<IAction2Options['menu']> = {}) {
-		super({
-			id: 'workbench.scm.action.setTreeViewMode',
-			title: localize('setTreeViewMode', "View as Tree"),
-			viewId: VIEW_PANE_ID,
-			f1: false,
-			icon: Codicon.listFlat,
-			toggled: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
-			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
-		});
+	constructor(
+		id = 'workbench.scm.action.setTreeViewMode',
+		menu: Partial<IAction2Options['menu']> = {}) {
+		super(
+			{
+				id,
+				title: localize('setTreeViewMode', "View as Tree"),
+				viewId: VIEW_PANE_ID,
+				f1: false,
+				icon: Codicon.listFlat,
+				toggled: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
+				menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
+			});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
@@ -1538,12 +1545,14 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 
 class SetTreeViewModeNavigationAction extends SetTreeViewModeAction {
 	constructor() {
-		super({
-			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.List)),
-			group: 'navigation',
-			order: -1000
-		});
+		super(
+			'workbench.scm.action.setTreeViewModeNavigation',
+			{
+				id: MenuId.SCMTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.List)),
+				group: 'navigation',
+				order: -1000
+			});
 	}
 }
 
