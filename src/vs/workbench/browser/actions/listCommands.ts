@@ -255,14 +255,17 @@ function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unkno
 function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, any> | AsyncDataTree<any, any>, postRevealAction?: (focus: any) => void): void {
 	const focus = tree.getStickyScrollFocus();
 
-	if (!focus) {
+	if (focus.length === 0) {
 		throw new Error(`StickyScroll has no focus`);
 	}
+	if (focus.length > 1) {
+		throw new Error(`StickyScroll can only have a single focused item`);
+	}
 
-	tree.reveal(focus);
+	tree.reveal(focus[0]);
 	tree.domFocus();
-	tree.setFocus([focus]);
-	postRevealAction?.(focus);
+	tree.setFocus(focus);
+	postRevealAction?.(focus[0]);
 }
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
