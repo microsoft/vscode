@@ -284,8 +284,12 @@ export class InstantiationService implements IInstantiationService {
 								earlyListeners.set(key, list);
 							}
 							const event: Event<any> = (callback, thisArg, disposables) => {
-								const rm = list!.push([callback, thisArg, disposables]);
-								return toDisposable(rm);
+								if (idle.isInitialized) {
+									return idle.value[key](callback, thisArg, disposables);
+								} else {
+									const rm = list!.push([callback, thisArg, disposables]);
+									return toDisposable(rm);
+								}
 							};
 							return event;
 						}
