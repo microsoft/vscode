@@ -3535,9 +3535,9 @@ export class CommandCenter {
 		await repository.dropStash();
 	}
 
-	@command('git.stashOpen', { repository: true })
-	async stashOpen(repository: Repository): Promise<void> {
-		const placeHolder = l10n.t('Pick a stash to open');
+	@command('git.stashPreview', { repository: true })
+	async stashPreview(repository: Repository): Promise<void> {
+		const placeHolder = l10n.t('Pick a stash to preview');
 		const stash = await this.pickStash(repository, placeHolder);
 
 		if (!stash) {
