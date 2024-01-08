@@ -2103,6 +2103,11 @@
         {
           "command": "git.stashDropAll",
           "group": "4_drop@2"
+        },
+        {
+          "command": "git.stashPreview",
+          "when": "config.multiDiffEditor.experimental.enabled",
+          "group": "5_preview@1"
         }
       ],
       "git.tags": [
