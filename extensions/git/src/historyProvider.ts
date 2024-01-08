@@ -81,14 +81,16 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const refParentId = options.limit.id;
 		const refId = await this.repository.revParse(historyItemGroupId) ?? '';
 
-		const [summary, commits] = await Promise.all([
-			this.getSummaryHistoryItem(refId, refParentId),
-			this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true })
-		]);
+		const historyItems: SourceControlHistoryItem[] = [];
+		const commits = await this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true });
+
+		if (commits.length >= 2) {
+			const allChanges = await this.repository.diffBetweenShortStat(refParentId, refId);
+			historyItems.push({ id: refId, parentIds: [refParentId], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics: allChanges });
+		}
 
 		await ensureEmojis();
 
-		const historyItems = commits.length < 2 ? [] : [summary];
 		historyItems.push(...commits.map(commit => {
 			const newLineIndex = commit.message.indexOf('\n');
 			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
@@ -201,11 +203,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const color = Resource.getStatusColor(status);
 
 		return new FileDecoration(letter, tooltip, color);
-	}
-
-	private async getSummaryHistoryItem(refId: string, refParentId: string): Promise<SourceControlHistoryItem> {
-		const statistics = await this.repository.diffBetweenShortStat(refParentId, refId);
-		return { id: refId, parentIds: [refParentId], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
 	}
 
 	dispose(): void {
