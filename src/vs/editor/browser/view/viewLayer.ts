@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Represents a visible line
@@ -80,7 +82,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	public getLine(lineNumber: number): T {
 		const lineIndex = lineNumber - this._rendLineNumberStart;
 		if (lineIndex < 0 || lineIndex >= this._lines.length) {
-			throw new Error('Illegal value for lineNumber');
+			throw new BugIndicatingError('Illegal value for lineNumber');
 		}
 		return this._lines[lineIndex];
 	}
@@ -370,7 +372,7 @@ interface IRendererContext<T extends IVisibleLine> {
 
 class ViewLayerRenderer<T extends IVisibleLine> {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('editorViewLayer', { createHTML: value => value });
+	private static _ttPolicy = createTrustedTypesPolicy('editorViewLayer', { createHTML: value => value });
 
 	readonly domNode: HTMLElement;
 	readonly host: IVisibleLinesHost<T>;

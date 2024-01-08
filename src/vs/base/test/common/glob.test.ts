@@ -8,6 +8,7 @@ import * as glob from 'vs/base/common/glob';
 import { sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Glob', () => {
 
@@ -1156,4 +1157,6 @@ suite('Glob', () => {
 		assert.ok(!glob.patternsEquals(undefined, ['b']));
 		assert.ok(!glob.patternsEquals(['a'], undefined));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

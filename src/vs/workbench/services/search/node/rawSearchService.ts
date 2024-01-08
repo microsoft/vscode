@@ -81,7 +81,7 @@ export class SearchService implements IRawSearchService {
 
 	private getPlatformFileLimits(): { readonly maxFileSize: number } {
 		return {
-			maxFileSize: process.arch === 'ia32' ? 300 * ByteSize.MB : 16 * ByteSize.GB
+			maxFileSize: 16 * ByteSize.GB
 		};
 	}
 
@@ -362,8 +362,10 @@ export class SearchService implements IRawSearchService {
 				}
 
 				if (error) {
+					progressCallback({ message: 'Search finished. Error: ' + error.message });
 					e(error);
 				} else {
+					progressCallback({ message: 'Search finished. Stats: ' + JSON.stringify(complete.stats) });
 					c(complete);
 				}
 			});

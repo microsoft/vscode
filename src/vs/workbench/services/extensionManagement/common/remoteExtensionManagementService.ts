@@ -56,16 +56,13 @@ export class RemoteExtensionManagementService extends ProfileAwareExtensionManag
 		return profile?.extensionsResource;
 	}
 
-	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveData: boolean | ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
+	protected override async switchExtensionsProfile(previousProfileLocation: URI, currentProfileLocation: URI, preserveExtensions?: ExtensionIdentifier[]): Promise<DidChangeProfileEvent> {
 		const remoteProfiles = await this.remoteUserDataProfilesService.getRemoteProfiles();
 		const previousProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, previousProfileLocation));
 		const currentProfile = remoteProfiles.find(p => this.uriIdentityService.extUri.isEqual(p.extensionsResource, currentProfileLocation));
 		if (previousProfile?.id === currentProfile?.id) {
 			return { added: [], removed: [] };
 		}
-		if (preserveData === true && currentProfile?.isDefault) {
-			preserveData = false;
-		}
-		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveData);
+		return super.switchExtensionsProfile(previousProfileLocation, currentProfileLocation, preserveExtensions);
 	}
 }

@@ -159,12 +159,6 @@ const hostUtil = new class implements IHostUtils {
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}
-	async exists(_path: string): Promise<boolean> {
-		return true;
-	}
-	async realpath(path: string): Promise<string> {
-		return path;
-	}
 };
 
 

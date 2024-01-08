@@ -142,6 +142,18 @@ pre code {
 .vscode-dark td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
+
+@media (forced-colors: active) and (prefers-color-scheme: light){
+	body {
+		forced-color-adjust: none;
+	}
+}
+
+@media (forced-colors: active) and (prefers-color-scheme: dark){
+	body {
+		forced-color-adjust: none;
+	}
+}
 `;
 
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];

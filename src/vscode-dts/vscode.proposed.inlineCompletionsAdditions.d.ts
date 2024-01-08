@@ -5,7 +5,23 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
+	// https://github.com/microsoft/vscode/issues/124024 @hediet
+
+	export namespace languages {
+		/**
+		 * Registers an inline completion provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inline completion provider.
+		 * @param metadata Metadata about the provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider, metadata: InlineCompletionItemProviderMetadata): Disposable;
+	}
 
 	export interface InlineCompletionItem {
 		/**
@@ -13,6 +29,14 @@ declare module 'vscode' {
 		 * Defaults to `false`.
 		*/
 		completeBracketPairs?: boolean;
+	}
+
+	export interface InlineCompletionItemProviderMetadata {
+		/**
+		 * Specifies a list of extension ids that this provider yields to if they return a result.
+		 * If some inline completion provider registered by such an extension returns a result, this provider is not asked.
+		 */
+		yieldTo: string[];
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -37,11 +61,6 @@ declare module 'vscode' {
 		 * A list of commands associated with the inline completions of this list.
 		 */
 		commands?: Command[];
-
-		/**
-		 * When set, overrides the user setting of `editor.inlineSuggest.suppressSuggestions`.
-		 */
-		suppressSuggestions?: boolean;
 
 		/**
 		 * When set and the user types a suggestion without derivating from it, the inline suggestion is not updated.

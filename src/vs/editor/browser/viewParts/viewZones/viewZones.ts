@@ -181,7 +181,7 @@ export class ViewZones extends ViewPart {
 			});
 		}
 
-		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
+		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity, true);
 		const isVisible = zone.showInHiddenAreas || this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			isInHiddenArea: !isVisible,
@@ -374,7 +374,7 @@ export class ViewZones extends ViewPart {
 			let newHeight = 0;
 			let newDisplay = 'none';
 			if (visibleZones.hasOwnProperty(id)) {
-				newTop = visibleZones[id].verticalOffset - ctx.bigNumbersDelta;
+				newTop = visibleZones[id].verticalOffset;
 				newHeight = visibleZones[id].height;
 				newDisplay = 'block';
 				// zone is visible

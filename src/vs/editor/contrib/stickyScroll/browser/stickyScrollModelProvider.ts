@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { OutlineElement, OutlineGroup, OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
@@ -45,18 +45,20 @@ export interface IStickyModelProvider {
 	update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null>;
 }
 
-export class StickyModelProvider implements IStickyModelProvider {
+export class StickyModelProvider extends Disposable implements IStickyModelProvider {
 
 	private _modelProviders: IStickyModelCandidateProvider<any>[] = [];
 	private _modelPromise: CancelablePromise<any | null> | null = null;
-	private _updateScheduler: Delayer<StickyModel | null> = new Delayer<StickyModel | null>(300);
-	private readonly _store: DisposableStore;
+	private _updateScheduler: Delayer<StickyModel | null> = this._register(new Delayer<StickyModel | null>(300));
+	private readonly _updateOperation: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageConfigurationService readonly _languageConfigurationService: ILanguageConfigurationService,
 		@ILanguageFeaturesService readonly _languageFeaturesService: ILanguageFeaturesService,
-		defaultModel: string) {
+		defaultModel: string
+	) {
+		super();
 
 		const stickyModelFromCandidateOutlineProvider = new StickyModelFromCandidateOutlineProvider(_languageFeaturesService);
 		const stickyModelFromSyntaxFoldingProvider = new StickyModelFromCandidateSyntaxFoldingProvider(this._editor, _languageFeaturesService);
@@ -76,8 +78,6 @@ export class StickyModelProvider implements IStickyModelProvider {
 				this._modelProviders.push(stickyModelFromIndentationFoldingProvider);
 				break;
 		}
-
-		this._store = new DisposableStore();
 	}
 
 	private _cancelModelPromise(): void {
@@ -89,11 +89,11 @@ export class StickyModelProvider implements IStickyModelProvider {
 
 	public async update(textModel: ITextModel, textModelVersionId: number, token: CancellationToken): Promise<StickyModel | null> {
 
-		this._store.clear();
-		this._store.add({
+		this._updateOperation.clear();
+		this._updateOperation.add({
 			dispose: () => {
 				this._cancelModelPromise();
-				this._updateScheduler?.cancel();
+				this._updateScheduler.cancel();
 			}
 		});
 		this._cancelModelPromise();
@@ -113,12 +113,15 @@ export class StickyModelProvider implements IStickyModelProvider {
 				}
 				switch (status) {
 					case Status.CANCELED:
-						this._store.clear();
+						this._updateOperation.clear();
 						return null;
 					case Status.VALID:
 						return modelProvider.stickyModel;
 				}
 			}
+			return null;
+		}).catch((error) => {
+			onUnexpectedError(error);
 			return null;
 		});
 	}
@@ -157,7 +160,7 @@ abstract class StickyModelCandidateProvider<T> implements IStickyModelCandidateP
 	public abstract get provider(): LanguageFeatureRegistry<object> | null;
 
 	public computeStickyModel(textModel: ITextModel, modelVersionId: number, token: CancellationToken): { statusPromise: Promise<Status> | Status; modelPromise: CancelablePromise<T | null> | null } {
-		if (!this.isProviderValid(textModel)) {
+		if (token.isCancellationRequested || !this.isProviderValid(textModel)) {
 			return { statusPromise: this._invalid(), modelPromise: null };
 		}
 		const providerModelPromise = createCancelablePromise(token => this.createModelFromProvider(textModel, modelVersionId, token));

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { getWorkspaceIdentifier, getSingleFolderWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 
 suite('Workspaces', () => {
@@ -16,4 +17,6 @@ suite('Workspaces', () => {
 		// single folder identifier
 		assert.strictEqual(getSingleFolderWorkspaceIdentifier(URI.parse('vscode-remote:/hello/test'))?.id, '474434e4');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

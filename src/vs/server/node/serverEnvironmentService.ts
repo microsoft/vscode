@@ -9,6 +9,8 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { OPTIONS, OptionDescriptions } from 'vs/platform/environment/node/argv';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
+import { URI } from 'vs/base/common/uri';
 
 export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
@@ -48,6 +50,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
+	'use-test-resolver': { type: 'boolean' },
 
 	/* ----- extension management ----- */
 
@@ -56,6 +59,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'builtin-extensions-dir': OPTIONS['builtin-extensions-dir'],
 	'install-extension': OPTIONS['install-extension'],
 	'install-builtin-extension': OPTIONS['install-builtin-extension'],
+	'update-extensions': OPTIONS['update-extensions'],
 	'uninstall-extension': OPTIONS['uninstall-extension'],
 	'list-extensions': OPTIONS['list-extensions'],
 	'locate-extension': OPTIONS['locate-extension'],
@@ -157,14 +161,15 @@ export interface ServerParsedArgs {
 	'default-workspace'?: string;
 	'default-folder'?: string;
 
-	/** @deprecated, use default-workspace instead */
+	/** @deprecated use default-workspace instead */
 	workspace: string;
-	/** @deprecated, use default-folder instead */
+	/** @deprecated use default-folder instead */
 	folder: string;
 
 
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
+	'use-test-resolver'?: boolean;
 
 	/* ----- extension management ----- */
 
@@ -173,6 +178,7 @@ export interface ServerParsedArgs {
 	'builtin-extensions-dir'?: string;
 	'install-extension'?: string[];
 	'install-builtin-extension'?: string[];
+	'update-extensions'?: boolean;
 	'uninstall-extension'?: string[];
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];
@@ -209,5 +215,7 @@ export interface IServerEnvironmentService extends INativeEnvironmentService {
 }
 
 export class ServerEnvironmentService extends NativeEnvironmentService implements IServerEnvironmentService {
+	@memoize
+	override get userRoamingDataHome(): URI { return this.appSettingsHome; }
 	override get args(): ServerParsedArgs { return super.args as ServerParsedArgs; }
 }

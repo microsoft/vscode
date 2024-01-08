@@ -26,7 +26,7 @@ SetupIconFile={#RepoDir}\resources\win32\code.ico
 UninstallDisplayIcon={app}\{#ExeBasename}.exe
 ChangesEnvironment=true
 ChangesAssociations=true
-MinVersion=6.2
+MinVersion=10.0
 SourceDir={#SourceDir}
 AppVersion={#Version}
 VersionInfoVersion={#RawVersion}
@@ -1327,7 +1327,7 @@ begin
   #endif
 
   #if "user" == InstallTarget
-    #if "ia32" == Arch || "arm64" == Arch
+    #if "arm64" == Arch
       #define IncompatibleArchRootKey "HKLM32"
     #else
       #define IncompatibleArchRootKey "HKLM64"
@@ -1344,30 +1344,6 @@ begin
     end;
   #endif
 
-  if Result and IsWin64 then begin
-    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleArchAppId}', 2, 38) + '_is1';
-
-    if '{#Arch}' = 'ia32' then begin
-      Result := not RegKeyExists({#Uninstall64RootKey}, RegKey);
-      ThisArch := '32';
-      AltArch := '64';
-    end else begin
-      Result := not RegKeyExists({#Uninstall32RootKey}, RegKey);
-      ThisArch := '64';
-      AltArch := '32';
-    end;
-
-    if not Result and not WizardSilent() then begin
-      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
-    end;
-  end;
-
-  if IsNotBackgroundUpdate() and CheckForMutexes('{#TunnelMutex}') then
-  begin
-     MsgBox('{#NameShort} is still running a tunnel. Please stop the tunnel before installing.', mbInformation, MB_OK);
-		 Result := false
-  end;
-
 end;
 
 function WizardNotSilent(): Boolean;
@@ -1379,6 +1355,31 @@ end;
 
 var
 	ShouldRestartTunnelService: Boolean;
+
+function StopTunnelOtherProcesses(): Boolean;
+var
+	WaitCounter: Integer;
+	TaskKilled: Integer;
+begin
+	Log('Stopping all tunnel services (at ' + ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"') + ')');
+	ShellExec('', 'powershell.exe', '-Command "Get-WmiObject Win32_Process | Where-Object { $_.ExecutablePath -eq ' + ExpandConstant('''{app}\bin\{#TunnelApplicationName}.exe''') + ' } | Select @{Name=''Id''; Expression={$_.ProcessId}} | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, TaskKilled)
+
+	WaitCounter := 10;
+	while (WaitCounter > 0) and CheckForMutexes('{#TunnelMutex}') do
+	begin
+		Log('Tunnel process is is still running, waiting');
+		Sleep(500);
+		WaitCounter := WaitCounter - 1
+	end;
+
+	if CheckForMutexes('{#TunnelMutex}') then
+		begin
+			Log('Unable to stop tunnel processes');
+			Result := False;
+		end
+	else
+		Result := True;
+end;
 
 procedure StopTunnelServiceIfNeeded();
 var
@@ -1413,7 +1414,11 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   if IsNotBackgroundUpdate() then
     StopTunnelServiceIfNeeded();
-  Result := ''
+
+  if IsNotBackgroundUpdate() and not StopTunnelOtherProcesses() then
+     Result := '{#NameShort} is still running a tunnel process. Please stop the tunnel before installing.'
+  else
+  	Result := '';
 end;
 
 // VS Code will create a flag file before the update starts (/update=C:\foo\bar)
@@ -1505,11 +1510,12 @@ begin
     begin
       CreateMutex('{#AppMutex}-ready');
 
+      Log('Checking whether application is still running...');
       while (CheckForMutexes('{#AppMutex}')) do
       begin
-        Log('Application is still running, waiting');
         Sleep(1000)
       end;
+      Log('Application appears not to be running.');
 
       StopTunnelServiceIfNeeded();
 

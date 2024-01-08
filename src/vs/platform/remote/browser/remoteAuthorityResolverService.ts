@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
@@ -84,7 +85,7 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 		const connectionToken = await Promise.resolve(this._connectionTokens.get(authority) || this._connectionToken);
 		performance.mark(`code/didResolveConnectionToken/${authorityPrefix}`);
 		this._logService.info(`Resolved connection token (${authorityPrefix}) after ${sw.elapsed()} ms`);
-		const defaultPort = (/^https:/.test(window.location.href) ? 443 : 80);
+		const defaultPort = (/^https:/.test(mainWindow.location.href) ? 443 : 80);
 		const { host, port } = parseAuthorityWithOptionalPort(authority, defaultPort);
 		const result: ResolverResult = { authority: { authority, connectTo: new WebSocketRemoteConnection(host, port), connectionToken } };
 		RemoteAuthorities.set(authority, host, port);

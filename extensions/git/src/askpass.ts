@@ -18,6 +18,8 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
+	readonly featureDescription = 'git auth provider';
+
 	constructor(private ipc?: IIPCServer) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('askpass', this);
@@ -100,7 +102,7 @@ export class Askpass implements IIPCHandler, ITerminalEnvironmentProvider {
 			const options: InputBoxOptions = {
 				password: true,
 				placeHolder: l10n.t('Passphrase'),
-				prompt: `SSH Key: ${file}`,
+				prompt: file ? `SSH Key: ${file}` : undefined,
 				ignoreFocusOut: true
 			};
 

@@ -5,7 +5,9 @@
 
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
 
 export class Component extends Themable {
 
@@ -37,6 +39,14 @@ export class Component extends Themable {
 
 	protected getMemento(scope: StorageScope, target: StorageTarget): MementoObject {
 		return this.memento.getMemento(scope, target);
+	}
+
+	protected reloadMemento(scope: StorageScope): void {
+		return this.memento.reloadMemento(scope);
+	}
+
+	protected onDidChangeMementoValue(scope: StorageScope, disposables: DisposableStore): Event<IStorageValueChangeEvent> {
+		return this.memento.onDidChangeValue(scope, disposables);
 	}
 
 	protected saveState(): void {

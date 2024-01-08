@@ -90,4 +90,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 // Command Palette
 
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
-appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category, REVEAL_IN_OS_WHEN_CONTEXT);
+appendToCommandPalette({
+	id: REVEAL_IN_OS_COMMAND_ID,
+	title: { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' },
+	category: category
+}, REVEAL_IN_OS_WHEN_CONTEXT);

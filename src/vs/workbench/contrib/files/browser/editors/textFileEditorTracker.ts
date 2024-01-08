@@ -13,7 +13,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -47,7 +47,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 		this._register(this.hostService.onDidChangeFocus(hasFocus => hasFocus ? this.reloadVisibleTextFileEditors() : undefined));
 
 		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
+		this._register(this.lifecycleService.onDidShutdown(() => this.dispose()));
 	}
 
 	//#region Text File: Ensure every dirty text and untitled file is opened in an editor
@@ -69,7 +69,7 @@ export class TextFileEditorTracker extends Disposable implements IWorkbenchContr
 				return false; // resource must not be pending to save
 			}
 
-			if (resource.scheme !== Schemas.untitled && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY && !fileModel?.hasState(TextFileEditorModelState.ERROR)) {
+			if (resource.scheme !== Schemas.untitled && !fileModel?.hasState(TextFileEditorModelState.ERROR) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(resource)) {
 				// leave models auto saved after short delay unless
 				// the save resulted in an error and not for untitled
 				// that are not auto-saved anyway

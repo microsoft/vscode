@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { isLinuxSnap } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAsyncPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -24,7 +24,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.getPromptButtons(prompt);
@@ -78,11 +78,12 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 
 		const detailString = (useAgo: boolean): string => {
 			return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
-				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChromium: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
+				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nElectronBuildId: {4}\nChromium: {5}\nNode.js: {6}\nV8: {7}\nOS: {8}",
 				version,
 				this.productService.commit || 'Unknown',
 				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
 				process.versions['electron'],
+				process.versions['microsoft-build'],
 				process.versions['chrome'],
 				process.versions['node'],
 				process.versions['v8'],

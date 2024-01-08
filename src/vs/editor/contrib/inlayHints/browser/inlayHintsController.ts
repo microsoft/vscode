@@ -100,6 +100,7 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
+	private static readonly _MAX_LABEL_LEN = 43;
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -154,6 +155,37 @@ export class InlayHintsController implements IEditorContribution {
 		const model = this._editor.getModel();
 		if (!model || !this._languageFeaturesService.inlayHintsProvider.has(model)) {
 			return;
+		}
+
+		if (options.enabled === 'on') {
+			// different "on" modes: always
+			this._activeRenderMode = RenderMode.Normal;
+		} else {
+			// different "on" modes: offUnlessPressed, or onUnlessPressed
+			let defaultMode: RenderMode;
+			let altMode: RenderMode;
+			if (options.enabled === 'onUnlessPressed') {
+				defaultMode = RenderMode.Normal;
+				altMode = RenderMode.Invisible;
+			} else {
+				defaultMode = RenderMode.Invisible;
+				altMode = RenderMode.Normal;
+			}
+			this._activeRenderMode = defaultMode;
+
+			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
+				if (!this._editor.hasModel()) {
+					return;
+				}
+				const newRenderMode = e.altKey && e.ctrlKey && !(e.shiftKey || e.metaKey) ? altMode : defaultMode;
+				if (newRenderMode !== this._activeRenderMode) {
+					this._activeRenderMode = newRenderMode;
+					const model = this._editor.getModel();
+					const copies = this._copyInlayHintsWithCurrentAnchor(model);
+					this._updateHintsDecorators([model.getFullModelRange()], copies);
+					scheduler.schedule(0);
+				}
+			}));
 		}
 
 		// iff possible, quickly update from cache
@@ -226,41 +258,12 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		}));
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
+			cts?.cancel();
+
 			// update less aggressive when typing
 			const delay = Math.max(scheduler.delay, 1250);
 			scheduler.schedule(delay);
 		}));
-
-		if (options.enabled === 'on') {
-			// different "on" modes: always
-			this._activeRenderMode = RenderMode.Normal;
-		} else {
-			// different "on" modes: offUnlessPressed, or onUnlessPressed
-			let defaultMode: RenderMode;
-			let altMode: RenderMode;
-			if (options.enabled === 'onUnlessPressed') {
-				defaultMode = RenderMode.Normal;
-				altMode = RenderMode.Invisible;
-			} else {
-				defaultMode = RenderMode.Invisible;
-				altMode = RenderMode.Normal;
-			}
-			this._activeRenderMode = defaultMode;
-
-			this._sessionDisposables.add(ModifierKeyEmitter.getInstance().event(e => {
-				if (!this._editor.hasModel()) {
-					return;
-				}
-				const newRenderMode = e.altKey && e.ctrlKey && !(e.shiftKey || e.metaKey) ? altMode : defaultMode;
-				if (newRenderMode !== this._activeRenderMode) {
-					this._activeRenderMode = newRenderMode;
-					const model = this._editor.getModel();
-					const copies = this._copyInlayHintsWithCurrentAnchor(model);
-					this._updateHintsDecorators([model.getFullModelRange()], copies);
-					scheduler.schedule(0);
-				}
-			}));
-		}
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installDblClickGesture(() => scheduler.schedule(0)));
@@ -473,7 +476,19 @@ export class InlayHintsController implements IEditorContribution {
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
+
+		type ILineInfo = { line: number; totalLen: number };
+		let currentLineInfo: ILineInfo = { line: 0, totalLen: 0 };
+
 		for (const item of items) {
+
+			if (currentLineInfo.line !== item.anchor.range.startLineNumber) {
+				currentLineInfo = { line: item.anchor.range.startLineNumber, totalLen: 0 };
+			}
+
+			if (currentLineInfo.totalLen > InlayHintsController._MAX_LABEL_LEN) {
+				continue;
+			}
 
 			// whitespace leading the actual label
 			if (item.hint.paddingLeft) {
@@ -531,13 +546,26 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 
+				let textlabel = part.label;
+				currentLineInfo.totalLen += textlabel.length;
+				let tooLong = false;
+				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
+				if (over > 0) {
+					textlabel = textlabel.slice(0, -over) + '…';
+					tooLong = true;
+				}
+
 				addInjectedText(
 					item,
 					this._ruleFactory.createClassNameRef(cssProperties),
-					fixSpace(part.label),
+					fixSpace(textlabel),
 					isLast && !item.hint.paddingRight ? InjectedTextCursorStops.Right : InjectedTextCursorStops.None,
 					new RenderedInlayHintLabelPart(item, i)
 				);
+
+				if (tooLong) {
+					break;
+				}
 			}
 
 			// whitespace trailing the actual label
@@ -553,15 +581,12 @@ export class InlayHintsController implements IEditorContribution {
 		// collect all decoration ids that are affected by the ranges
 		// and only update those decorations
 		const decorationIdsToReplace: string[] = [];
-		for (const range of ranges) {
-
-			for (const { id } of this._editor.getDecorationsInRange(range) ?? []) {
-				const metadata = this._decorationsMetadata.get(id);
-				if (metadata) {
-					decorationIdsToReplace.push(id);
-					metadata.classNameRef.dispose();
-					this._decorationsMetadata.delete(id);
-				}
+		for (const [id, metadata] of this._decorationsMetadata) {
+			const range = this._editor.getModel()?.getDecorationRange(id);
+			if (range && ranges.some(r => r.containsRange(range))) {
+				decorationIdsToReplace.push(id);
+				metadata.classNameRef.dispose();
+				this._decorationsMetadata.delete(id);
 			}
 		}
 
@@ -646,7 +671,6 @@ function fixSpace(str: string): string {
 	const noBreakWhitespace = '\xa0';
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
-
 
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 

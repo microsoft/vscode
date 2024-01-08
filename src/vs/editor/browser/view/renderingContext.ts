@@ -22,7 +22,6 @@ export abstract class RestrictedRenderingContext {
 	public readonly scrollHeight: number;
 
 	public readonly visibleRange: Range;
-	public readonly bigNumbersDelta: number;
 
 	public readonly scrollTop: number;
 	public readonly scrollLeft: number;
@@ -40,7 +39,6 @@ export abstract class RestrictedRenderingContext {
 		this.scrollHeight = this._viewLayout.getScrollHeight();
 
 		this.visibleRange = this.viewportData.visibleRange;
-		this.bigNumbersDelta = this.viewportData.bigNumbersDelta;
 
 		const vInfo = this._viewLayout.getCurrentViewport();
 		this.scrollTop = vInfo.top;
@@ -122,7 +120,11 @@ export class LineVisibleRanges {
 	constructor(
 		public readonly outsideRenderedLine: boolean,
 		public readonly lineNumber: number,
-		public readonly ranges: HorizontalRange[]
+		public readonly ranges: HorizontalRange[],
+		/**
+		 * Indicates if the requested range does not end in this line, but continues on the next line.
+		 */
+		public readonly continuesOnNextLine: boolean,
 	) { }
 }
 

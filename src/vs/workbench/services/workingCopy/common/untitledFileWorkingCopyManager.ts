@@ -171,8 +171,10 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		}
 
 		// Handle untitled resource
-		else if (options.untitledResource?.scheme === Schemas.untitled) {
-			massagedOptions.untitledResource = options.untitledResource;
+		else {
+			if (options.untitledResource?.scheme === Schemas.untitled) {
+				massagedOptions.untitledResource = options.untitledResource;
+			}
 			massagedOptions.isScratchpad = options.isScratchpad;
 		}
 
@@ -191,7 +193,7 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 			do {
 				untitledResource = URI.from({
 					scheme: Schemas.untitled,
-					path: `Untitled-${counter}`,
+					path: options.isScratchpad ? `Scratchpad-${counter}` : `Untitled-${counter}`,
 					query: this.workingCopyTypeId ?
 						`typeId=${this.workingCopyTypeId}` : // distinguish untitled resources among others by encoding the `typeId` as query param
 						undefined							 // keep untitled resources for text files as they are (when `typeId === ''`)

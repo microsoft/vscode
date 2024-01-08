@@ -25,6 +25,7 @@ import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Editor - Range decorations', () => {
 
@@ -43,13 +44,13 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(ILanguageService, LanguageService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
-		model = aModel(URI.file('some_file'));
-		codeEditor = createTestCodeEditor(model);
+		model = disposables.add(aModel(URI.file('some_file')));
+		codeEditor = disposables.add(createTestCodeEditor(model));
 
 		instantiationService.stub(IEditorService, 'activeEditor', { get resource() { return codeEditor.getModel()!.uri; } });
 		instantiationService.stub(IEditorService, 'activeTextEditorControl', codeEditor);
 
-		testObject = instantiationService.createInstance(RangeHighlightDecorations);
+		testObject = disposables.add(instantiationService.createInstance(RangeHighlightDecorations));
 	});
 
 	teardown(() => {
@@ -57,6 +58,8 @@ suite('Editor - Range decorations', () => {
 		modelsToDispose.forEach(model => model.dispose());
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('highlight range for the resource if it is an active editor', function () {
 		const range: IRange = new Range(1, 1, 1, 1);

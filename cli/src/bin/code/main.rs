@@ -8,7 +8,7 @@ use std::process::Command;
 
 use clap::Parser;
 use cli::{
-	commands::{args, tunnels, update, version, CommandContext},
+	commands::{args, serve_web, tunnels, update, version, CommandContext},
 	constants::get_default_user_agent,
 	desktop, log,
 	state::LauncherPaths,
@@ -95,7 +95,13 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				args::VersionSubcommand::Show => version::show(context!()).await,
 			},
 
-			Some(args::Commands::CommandShell) => tunnels::command_shell(context!()).await,
+			Some(args::Commands::CommandShell(cs_args)) => {
+				tunnels::command_shell(context!(), cs_args).await
+			}
+
+			Some(args::Commands::ServeWeb(sw_args)) => {
+				serve_web::serve_web(context!(), sw_args).await
+			}
 
 			Some(args::Commands::Tunnel(tunnel_args)) => match tunnel_args.subcommand {
 				Some(args::TunnelSubcommand::Prune) => tunnels::prune(context!()).await,
@@ -111,6 +117,9 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				}
 				Some(args::TunnelSubcommand::Service(service_args)) => {
 					tunnels::service(context_no_logger(), service_args).await
+				}
+				Some(args::TunnelSubcommand::ForwardInternal(forward_args)) => {
+					tunnels::forward(context_no_logger(), forward_args).await
 				}
 				None => tunnels::serve(context_no_logger(), tunnel_args.serve_args).await,
 			},
@@ -133,7 +142,8 @@ fn make_logger(core: &args::CliCore) -> log::Logger {
 	let tracer = SdkTracerProvider::builder().build().tracer("codecli");
 	let mut log = log::Logger::new(tracer, log_level);
 	if let Some(f) = &core.global_options.log_to_file {
-		log = log.tee(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
+		log = log
+			.with_sink(log::FileLogSink::new(log_level, f).expect("expected to make file logger"))
 	}
 
 	log

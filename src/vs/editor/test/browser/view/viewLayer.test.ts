@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILine, RenderedLinesCollection } from 'vs/editor/browser/view/viewLayer';
 
 class TestLine implements ILine {
@@ -40,6 +41,8 @@ function assertState(col: RenderedLinesCollection<TestLine>, state: ILinesCollec
 }
 
 suite('RenderedLinesCollection onLinesDeleted', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelLinesDeleted(deleteFromLineNumber: number, deleteToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
 		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
@@ -316,6 +319,8 @@ suite('RenderedLinesCollection onLinesDeleted', () => {
 
 suite('RenderedLinesCollection onLineChanged', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function testOnModelLineChanged(changedLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
 		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
 		col._set(6, [
@@ -396,6 +401,8 @@ suite('RenderedLinesCollection onLineChanged', () => {
 });
 
 suite('RenderedLinesCollection onLinesInserted', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelLinesInserted(insertFromLineNumber: number, insertToLineNumber: number, expectedDeleted: string[], expectedState: ILinesCollectionState): void {
 		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));
@@ -672,6 +679,8 @@ suite('RenderedLinesCollection onLinesInserted', () => {
 
 
 suite('RenderedLinesCollection onTokensChanged', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testOnModelTokensChanged(changedFromLineNumber: number, changedToLineNumber: number, expectedPinged: boolean, expectedState: ILinesCollectionState): void {
 		const col = new RenderedLinesCollection<TestLine>(() => new TestLine('new'));

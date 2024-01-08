@@ -8,10 +8,12 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -21,19 +23,20 @@ import { IExtensionService, nullExtensionDescription } from 'vs/workbench/servic
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('NotebookProviderInfoStore', function () {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite() as Pick<DisposableStore, 'add'>;
 
 	test('Can\'t open untitled notebooks in test #119363', function () {
-		const disposables = new DisposableStore();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
 				override store() { }
+				override getObject() { return {}; }
 			},
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
 			},
-			instantiationService.createInstance(EditorResolverService),
+			disposables.add(instantiationService.createInstance(EditorResolverService)),
 			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() {
 				override onDidChangeScreenReaderOptimized: Event<void> = Event.None;
@@ -42,8 +45,10 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IFileService>() {
 				override hasProvider() { return true; }
 			},
-			new class extends mock<INotebookEditorModelResolverService>() { }
+			new class extends mock<INotebookEditorModelResolverService>() { },
+			new class extends mock<IUriIdentityService>() { }
 		);
+		disposables.add(store);
 
 		const fooInfo = new NotebookProviderInfo({
 			extension: nullExtensionDescription.identifier,
@@ -87,8 +92,6 @@ suite('NotebookProviderInfoStore', function () {
 		providers = store.getContributedNotebook(URI.parse('untitled:///test/nb.bar'));
 		assert.strictEqual(providers.length, 1);
 		assert.strictEqual(providers[0] === barInfo, true);
-
-		disposables.dispose();
 	});
 
 });

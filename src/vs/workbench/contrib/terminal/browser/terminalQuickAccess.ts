@@ -26,7 +26,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
-		@ITerminalEditorService private readonly _terminalService: ITerminalService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ICommandService private readonly _commandService: ICommandService,

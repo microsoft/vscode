@@ -21,17 +21,32 @@ export interface IRemoteTunnelService {
 	readonly onDidChangeTunnelStatus: Event<TunnelStatus>;
 	getTunnelStatus(): Promise<TunnelStatus>;
 
-	getSession(): Promise<IRemoteTunnelSession | undefined>;
-	readonly onDidChangeSession: Event<IRemoteTunnelSession | undefined>;
+	getMode(): Promise<TunnelMode>;
+	readonly onDidChangeMode: Event<TunnelMode>;
 
 	readonly onDidTokenFailed: Event<IRemoteTunnelSession | undefined>;
-	initialize(session: IRemoteTunnelSession | undefined): Promise<TunnelStatus>;
+	initialize(mode: TunnelMode): Promise<TunnelStatus>;
 
-	startTunnel(session: IRemoteTunnelSession): Promise<TunnelStatus>;
+	startTunnel(mode: ActiveTunnelMode): Promise<TunnelStatus>;
 	stopTunnel(): Promise<void>;
 	getTunnelName(): Promise<string | undefined>;
 
 }
+
+export interface ActiveTunnelMode {
+	readonly active: true;
+	readonly session: IRemoteTunnelSession;
+	readonly asService: boolean;
+}
+
+export interface InactiveTunnelMode {
+	readonly active: false;
+}
+
+export const INACTIVE_TUNNEL_MODE: InactiveTunnelMode = { active: false };
+
+/** Saved mode for the tunnel. */
+export type TunnelMode = ActiveTunnelMode | InactiveTunnelMode;
 
 export type TunnelStatus = TunnelStates.Connected | TunnelStates.Disconnected | TunnelStates.Connecting | TunnelStates.Uninitialized;
 
@@ -46,13 +61,14 @@ export namespace TunnelStates {
 	export interface Connected {
 		readonly type: 'connected';
 		readonly info: ConnectionInfo;
+		readonly serviceInstallFailed: boolean;
 	}
 	export interface Disconnected {
 		readonly type: 'disconnected';
 		readonly onTokenFailed?: IRemoteTunnelSession;
 	}
 	export const disconnected = (onTokenFailed?: IRemoteTunnelSession): Disconnected => ({ type: 'disconnected', onTokenFailed });
-	export const connected = (info: ConnectionInfo): Connected => ({ type: 'connected', info });
+	export const connected = (info: ConnectionInfo, serviceInstallFailed: boolean): Connected => ({ type: 'connected', info, serviceInstallFailed });
 	export const connecting = (progress?: string): Connecting => ({ type: 'connecting', progress });
 	export const uninitialized: Uninitialized = { type: 'uninitialized' };
 
