@@ -6,11 +6,11 @@
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ConfigurationTarget, isConfigured } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -20,20 +20,19 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-suite('ConfigurationService', () => {
+suite('ConfigurationService.test.ts', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let fileService: IFileService;
 	let settingsResource: URI;
-	const disposables: DisposableStore = new DisposableStore();
 
 	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
 		settingsResource = URI.file('settings.json');
 	});
-
-	teardown(() => disposables.clear());
 
 	test('simple', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "foo": "bar" }'));
@@ -200,11 +199,13 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.value, undefined);
 		assert.strictEqual(res.defaultValue, undefined);
 		assert.strictEqual(res.userValue, undefined);
+		assert.strictEqual(isConfigured(res), false);
 
 		res = testObject.inspect('lookup.service.testSetting');
 		assert.strictEqual(res.defaultValue, 'isSet');
 		assert.strictEqual(res.value, 'isSet');
 		assert.strictEqual(res.userValue, undefined);
+		assert.strictEqual(isConfigured(res), false);
 
 		await fileService.writeFile(settingsResource, VSBuffer.fromString('{ "lookup.service.testSetting": "bar" }'));
 
@@ -213,6 +214,7 @@ suite('ConfigurationService', () => {
 		assert.strictEqual(res.defaultValue, 'isSet');
 		assert.strictEqual(res.userValue, 'bar');
 		assert.strictEqual(res.value, 'bar');
+		assert.strictEqual(isConfigured(res), true);
 
 	}));
 

@@ -17,6 +17,8 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 	private env: { [key: string]: string };
 	private disposable: IDisposable = EmptyDisposable;
 
+	readonly featureDescription = 'git editor';
+
 	constructor(ipc?: IIPCServer) {
 		if (ipc) {
 			this.disposable = ipc.registerHandler('git-editor', this);

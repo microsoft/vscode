@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -11,6 +12,8 @@ import { CursorUndo, CursorUndoRedoController } from 'vs/editor/contrib/cursorUn
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('FindController', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const cursorUndoAction = new CursorUndo();
 

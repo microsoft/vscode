@@ -7,8 +7,17 @@ declare module 'vscode' {
 
 	// See https://github.com/microsoft/vscode/issues/63943
 
-	export interface ThreadFocus {
-		kind: 'thread';
+	export class ThreadFocus {
+		/**
+		 * Create a ThreadFocus
+		 * @param session
+		 * @param threadId
+		 * @param frameId
+		 */
+		constructor(
+			session: DebugSession,
+			threadId?: number);
+
 
 		/**
 		 * Debug session for thread.
@@ -21,8 +30,18 @@ declare module 'vscode' {
 		readonly threadId: number | undefined;
 	}
 
-	export interface StackFrameFocus {
-		kind: 'stackFrame';
+	export class StackFrameFocus {
+		/**
+		 * Create a StackFrameFocus
+		 * @param session
+		 * @param threadId
+		 * @param frameId
+		 */
+		constructor(
+			session: DebugSession,
+			threadId?: number,
+			frameId?: number);
+
 
 		/**
 		 * Debug session for thread.

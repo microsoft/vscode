@@ -28,7 +28,7 @@ class ToggleRenderWhitespaceAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '4_editor',
-				order: 3
+				order: 4
 			}
 		});
 	}

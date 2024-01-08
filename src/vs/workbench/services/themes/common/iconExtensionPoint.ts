@@ -97,9 +97,10 @@ export class IconExtensionPoint {
 					if (typeof defaultIcon === 'string') {
 						iconRegistry.registerIcon(id, { id: defaultIcon }, iconContribution.description);
 					} else if (typeof defaultIcon === 'object' && typeof defaultIcon.fontPath === 'string' && typeof defaultIcon.fontCharacter === 'string') {
-						const format = extname(defaultIcon.fontPath).substring(1);
-						if (['woff', 'woff2', 'ttf'].indexOf(format) === -1) {
-							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", format));
+						const fileExt = extname(defaultIcon.fontPath).substring(1);
+						const format = formatMap[fileExt];
+						if (!format) {
+							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", fileExt));
 							return;
 						}
 						const extensionLocation = extension.description.extensionLocation;
@@ -131,6 +132,12 @@ export class IconExtensionPoint {
 		});
 	}
 }
+
+const formatMap: Record<string, string> = {
+	'ttf': 'truetype',
+	'woff': 'woff',
+	'woff2': 'woff2'
+};
 
 function getFontId(description: IExtensionDescription, fontPath: string) {
 	return posix.join(description.identifier.value, fontPath);

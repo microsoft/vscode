@@ -20,45 +20,42 @@ declare module 'typescript/lib/tsserverlibrary' {
 			readonly _serverType?: ServerType;
 		}
 
-		interface GetMoveToRefactoringFileSuggestionsRequest extends Request {
-			command: 'getMoveToRefactoringFileSuggestions';
-			arguments: GetMoveToRefactoringFileSuggestionsRequestArgs;
+		export interface MapCodeRequestArgs {
+			/// The files and changes to try and apply/map.
+			mappings: MapCodeRequestDocumentMapping[];
+
+			/// Edits to apply to the current workspace before performing the mapping.
+			updates?: FileCodeEdits[]
 		}
 
-		type GetMoveToRefactoringFileSuggestionsRequestArgs = FileLocationOrRangeRequestArgs & {
-			triggerReason?: RefactorTriggerReason;
-			kind?: string;
-		};
+		export interface MapCodeRequestDocumentMapping {
+			/// The file for the request (absolute pathname required). Null/undefined
+			/// if specific file is unknown.
+			file?: string;
 
-		interface GetMoveToRefactoringFileSuggestionsResponse extends Response {
-			body?: {
-				newFilename: string;
-				files: string[];
-			};
+			/// Optional name of project that contains file
+			projectFileName?: string;
+
+			/// The specific code to map/insert/replace in the file.
+			contents: string[];
+
+			/// Areas of "focus" to inform the code mapper with. For example, cursor
+			/// location, current selection, viewport, etc. Nested arrays denote
+			/// priority: toplevel arrays are more important than inner arrays, and
+			/// inner array priorities are based on items within that array. Items
+			/// earlier in the arrays have higher priority.
+			focusLocations?: FileSpan[][];
 		}
 
-		interface GetEditsForMoveToFileRefactorRequest extends Request {
-			command: 'getEditsForMoveToFileRefactor';
-			arguments: GetEditsForMoveToFileRefactorRequestArgs;
+		export interface MapCodeRequest extends Request {
+			command: 'mapCode',
+			arguments: MapCodeRequestArgs;
 		}
 
-		interface GetEditsForMoveToFileRefactorResponse extends Response {
-			body?: RefactorEditInfo;
-		}
-
-		type GetEditsForMoveToFileRefactorRequestArgs = FileLocationOrRangeRequestArgs & {
-			refactor: string;
-			action: string;
-			filepath: string;
-		};
-
-		interface LinkedEditingRangesBody {
-			ranges: TextSpan[];
-			wordPattern?: string;
-		}
-
-		interface LinkedEditingRangeResponse extends Response {
-			readonly body: LinkedEditingRangesBody;
+		export interface MapCodeResponse extends Response {
+			body: FileCodeEdits[]
 		}
 	}
 }
+
+

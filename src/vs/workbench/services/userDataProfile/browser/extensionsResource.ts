@@ -7,16 +7,17 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension, InstallExtensionInfo } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileStorageService } from 'vs/platform/userDataProfile/common/userDataProfileStorageService';
 import { ITreeItemCheckboxState, TreeItemCollapsibleState } from 'vs/workbench/common/views';
-import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService, ProfileResourceType } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IProfileResource, IProfileResourceChildTreeItem, IProfileResourceInitializer, IProfileResourceTreeItem, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 
 interface IProfileExtension {
 	identifier: IExtensionIdentifier;
@@ -129,7 +130,7 @@ export class ExtensionsResource implements IProfileResource {
 					extensionsToEnableOrDisable.push({ extension: e.identifier, enable: !e.disabled });
 				}
 			}
-			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)));
+			const extensionsToUninstall: ILocalExtension[] = installedExtensions.filter(extension => !extension.isBuiltin && !profileExtensions.some(({ identifier }) => areSameExtensions(identifier, extension.identifier)) && !extension.isApplicationScoped);
 			for (const { extension, enable } of extensionsToEnableOrDisable) {
 				if (enable) {
 					this.logService.trace(`Importing Profile (${profile.name}): Enabling extension...`, extension.id);
@@ -142,32 +143,53 @@ export class ExtensionsResource implements IProfileResource {
 				}
 			}
 			if (extensionsToInstall.length) {
+				this.logService.info(`Importing Profile (${profile.name}): Started installing extensions.`);
 				const galleryExtensions = await this.extensionGalleryService.getExtensions(extensionsToInstall.map(e => ({ ...e.identifier, version: e.version, hasPreRelease: e.version ? undefined : e.preRelease })), CancellationToken.None);
+				const installExtensionInfos: InstallExtensionInfo[] = [];
 				await Promise.all(extensionsToInstall.map(async e => {
 					const extension = galleryExtensions.find(galleryExtension => areSameExtensions(galleryExtension.identifier, e.identifier));
 					if (!extension) {
 						return;
 					}
 					if (await this.extensionManagementService.canInstall(extension)) {
-						this.logService.trace(`Importing Profile (${profile.name}): Installing extension...`, extension.identifier.id, extension.version);
-						await this.extensionManagementService.installFromGallery(extension, {
-							isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
-							donotIncludePackAndDependencies: true,
-							installGivenVersion: !!e.version,
-							installPreReleaseVersion: e.preRelease,
-							profileLocation: profile.extensionsResource,
-							context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+						installExtensionInfos.push({
+							extension,
+							options: {
+								isMachineScoped: false,/* set isMachineScoped value to prevent install and sync dialog in web */
+								donotIncludePackAndDependencies: true,
+								installGivenVersion: !!e.version,
+								installPreReleaseVersion: e.preRelease,
+								profileLocation: profile.extensionsResource,
+								context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true }
+							}
 						});
-						this.logService.info(`Importing Profile (${profile.name}): Installed extension...`, extension.identifier.id, extension.version);
 					} else {
 						this.logService.info(`Importing Profile (${profile.name}): Skipped installing extension because it cannot be installed.`, extension.identifier.id);
 					}
 				}));
+				if (installExtensionInfos.length) {
+					await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
+				}
+				this.logService.info(`Importing Profile (${profile.name}): Finished installing extensions.`);
 			}
 			if (extensionsToUninstall.length) {
 				await Promise.all(extensionsToUninstall.map(e => this.extensionManagementService.uninstall(e)));
 			}
 		});
+	}
+
+	async copy(from: IUserDataProfile, to: IUserDataProfile, disableExtensions: boolean): Promise<void> {
+		await this.extensionManagementService.copyExtensions(from.extensionsResource, to.extensionsResource);
+		const extensionsToDisable = await this.withProfileScopedServices(from, async (extensionEnablementService) =>
+			extensionEnablementService.getDisabledExtensions());
+		if (disableExtensions) {
+			const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User, to.extensionsResource);
+			for (const extension of extensions) {
+				extensionsToDisable.push(extension.identifier);
+			}
+		}
+		await this.withProfileScopedServices(to, async (extensionEnablementService) =>
+			Promise.all(extensionsToDisable.map(extension => extensionEnablementService.disableExtension(extension))));
 	}
 
 	async getLocalExtensions(profile: IUserDataProfile): Promise<IProfileExtension[]> {
@@ -252,7 +274,10 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 						that.excludedExtensions.add(e.identifier.id.toLowerCase());
 					}
 				},
-				tooltip: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id)
+				tooltip: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
+				accessibilityInformation: {
+					label: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
+				}
 			} : undefined,
 			command: {
 				id: 'extension.open',
@@ -267,6 +292,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 		return extensions.length > 0;
 	}
 
+	abstract isFromDefaultProfile(): boolean;
 	abstract getContent(): Promise<string>;
 	protected abstract getExtensions(): Promise<IProfileExtension[]>;
 
@@ -279,6 +305,10 @@ export class ExtensionsResourceExportTreeItem extends ExtensionsResourceTreeItem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+	}
+
+	isFromDefaultProfile(): boolean {
+		return !this.profile.isDefault && !!this.profile.useDefaultFlags?.extensions;
 	}
 
 	protected getExtensions(): Promise<IProfileExtension[]> {
@@ -298,6 +328,10 @@ export class ExtensionsResourceImportTreeItem extends ExtensionsResourceTreeItem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+	}
+
+	isFromDefaultProfile(): boolean {
+		return false;
 	}
 
 	protected getExtensions(): Promise<IProfileExtension[]> {

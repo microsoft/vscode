@@ -5,8 +5,7 @@
 
 import 'vs/editor/browser/coreCommands';
 import 'vs/editor/browser/widget/codeEditorWidget';
-import 'vs/editor/browser/widget/diffEditorWidget';
-import 'vs/editor/browser/widget/diffNavigator';
+import 'vs/editor/browser/widget/diffEditor/diffEditor.contribution';
 import 'vs/editor/contrib/anchorSelect/browser/anchorSelect';
 import 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
 import 'vs/editor/contrib/caretOperations/browser/caretOperations';
@@ -16,12 +15,12 @@ import 'vs/editor/contrib/codeAction/browser/codeActionContributions';
 import 'vs/editor/contrib/codelens/browser/codelensController';
 import 'vs/editor/contrib/colorPicker/browser/colorContributions';
 import 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerActions';
-import 'vs/editor/contrib/copyPaste/browser/copyPasteContribution';
 import 'vs/editor/contrib/comment/browser/comment';
 import 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'vs/editor/contrib/cursorUndo/browser/cursorUndo';
 import 'vs/editor/contrib/dnd/browser/dnd';
-import 'vs/editor/contrib/dropIntoEditor/browser/dropIntoEditorContribution';
+import 'vs/editor/contrib/dropOrPasteInto/browser/copyPasteContribution';
+import 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorContribution';
 import 'vs/editor/contrib/find/browser/findController';
 import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/fontZoom/browser/fontZoom';
@@ -59,6 +58,7 @@ import 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import 'vs/editor/contrib/wordOperations/browser/wordOperations';
 import 'vs/editor/contrib/wordPartOperations/browser/wordPartOperations';
 import 'vs/editor/contrib/readOnlyMessage/browser/contribution';
+import 'vs/editor/contrib/diffEditorBreadcrumbs/browser/contribution';
 
 // Load up these strings even in VSCode, even if they are not used
 // in order to get them translated

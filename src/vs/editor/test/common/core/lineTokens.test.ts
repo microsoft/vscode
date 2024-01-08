@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 
 suite('LineTokens', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface ILineToken {
 		startIndex: number;

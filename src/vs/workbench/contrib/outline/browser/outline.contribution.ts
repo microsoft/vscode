@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IViewsRegistry, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { OutlinePane } from './outlinePane';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -25,7 +25,7 @@ const outlineViewIcon = registerIcon('outline-view-icon', Codicon.symbolClass, l
 
 Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 	id: IOutlinePane.Id,
-	name: localize('name', "Outline"),
+	name: localize2('name', "Outline"),
 	containerIcon: outlineViewIcon,
 	ctorDescriptor: new SyncDescriptor(OutlinePane),
 	canToggleVisibility: true,
@@ -65,17 +65,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'default': 'alwaysExpand'
 		},
 		[OutlineConfigKeys.problemsEnabled]: {
-			'description': localize('outline.showProblem', "Show errors and warnings on Outline elements."),
+			'markdownDescription': localize('outline.showProblem', "Show errors and warnings on Outline elements. Overwritten by `#problems.visibility#` when it is off."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsColors]: {
-			'description': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements."),
+			'markdownDescription': localize('outline.problem.colors', "Use colors for errors and warnings on Outline elements. Overwritten by `#problems.visibility#` when it is off."),
 			'type': 'boolean',
 			'default': true
 		},
 		[OutlineConfigKeys.problemsBadges]: {
-			'description': localize('outline.problems.badges', "Use badges for errors and warnings on Outline elements."),
+			'markdownDescription': localize('outline.problems.badges', "Use badges for errors and warnings on Outline elements. Overwritten by `#problems.visibility#` when it is off."),
 			'type': 'boolean',
 			'default': true
 		},

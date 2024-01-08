@@ -37,7 +37,7 @@ export class ReleaseNotesManager {
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -258,8 +258,6 @@ export class ReleaseNotesManager {
 					container.appendChild(label);
 
 					const beforeElement = document.querySelector("body > h1")?.nextElementSibling;
-					console.log(beforeElement);
-
 					if (beforeElement) {
 						document.body.insertBefore(container, beforeElement);
 					} else {

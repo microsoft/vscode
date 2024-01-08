@@ -71,7 +71,7 @@ export class CollapsedCodeCellExecutionIcon extends Disposable {
 		} else if (!state && lastRunSuccess === false) {
 			return <IExecutionItem>{
 				text: `$(${errorStateIcon.id})`,
-				tooltip: localize('notebook.cell.status.failed', "Failed"),
+				tooltip: localize('notebook.cell.status.failure', "Failure"),
 			};
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
 			return <IExecutionItem>{

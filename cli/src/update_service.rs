@@ -11,7 +11,7 @@ use crate::{
 	constants::VSCODE_CLI_UPDATE_ENDPOINT,
 	debug, log, options, spanf,
 	util::{
-		errors::{AnyError, CodeError, UpdatesNotConfigured, WrappedError},
+		errors::{AnyError, CodeError, WrappedError},
 		http::{BoxedHttp, SimpleResponse},
 		io::ReportCopyProgress,
 		tar, zipper,
@@ -19,6 +19,7 @@ use crate::{
 };
 
 /// Implementation of the VS Code Update service for use in the CLI.
+#[derive(Clone)]
 pub struct UpdateService {
 	client: BoxedHttp,
 	log: log::Logger,
@@ -54,6 +55,10 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 	}
 }
 
+fn get_update_endpoint() -> Result<&'static str, CodeError> {
+	VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
+}
+
 impl UpdateService {
 	pub fn new(log: log::Logger, http: BoxedHttp) -> Self {
 		UpdateService { client: http, log }
@@ -66,8 +71,7 @@ impl UpdateService {
 		quality: options::Quality,
 		version: &str,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -108,8 +112,7 @@ impl UpdateService {
 		target: TargetKind,
 		quality: options::Quality,
 	) -> Result<Release, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = target
 			.download_segment(platform)
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
@@ -144,8 +147,7 @@ impl UpdateService {
 
 	/// Gets the download stream for the release.
 	pub async fn get_download_stream(&self, release: &Release) -> Result<SimpleResponse, AnyError> {
-		let update_endpoint =
-			VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(UpdatesNotConfigured::no_url)?;
+		let update_endpoint = get_update_endpoint()?;
 		let download_segment = release
 			.target
 			.download_segment(release.platform)

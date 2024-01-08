@@ -57,13 +57,13 @@
 /* Icons */
 
 .monaco-workbench > .notifications-center .codicon.codicon-error {
-	color: var(--vscode-notificationsErrorIcon-foreground);
+	color: var(--vscode-notificationsErrorIcon-foreground) !important;
 }
 
 .monaco-workbench > .notifications-center .codicon.codicon-warning {
-	color: var(--vscode-notificationsWarningIcon-foreground);
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
 }
 
 .monaco-workbench > .notifications-center .codicon.codicon-info {
-	color: var(--vscode-notificationsInfoIcon-foreground);
+	color: var(--vscode-notificationsInfoIcon-foreground) !important;
 }

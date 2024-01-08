@@ -20,7 +20,6 @@ import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
 
 type ProviderHandle = number;
 
@@ -159,7 +158,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return commentController.value;
 		}
 
-		$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): void {
+		async $createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): Promise<void> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController) {
@@ -207,7 +206,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 						fileComments: rangesResult.fileComments || false
 					};
 				} else {
-					ranges = withNullAsUndefined(rangesResult);
+					ranges = rangesResult ?? undefined;
 				}
 				return ranges;
 			}).then(ranges => {
@@ -593,7 +592,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			private _id: string,
 			private _label: string
 		) {
-			proxy.$registerCommentController(this.handle, _id, _label);
+			proxy.$registerCommentController(this.handle, _id, _label, this._extension.identifier.value);
 
 			const that = this;
 			this.value = Object.freeze({
@@ -674,6 +673,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			checkProposedApiEnabled(extension, 'commentsDraftState');
 		}
 
+		if (vscodeComment.reactions?.some(reaction => reaction.reactors !== undefined)) {
+			checkProposedApiEnabled(extension, 'commentReactor');
+		}
+
 		return {
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
@@ -694,6 +697,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
 			count: reaction.count,
 			hasReacted: reaction.authorHasReacted,
+			reactors: reaction.reactors
 		};
 	}
 
@@ -702,7 +706,8 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			label: reaction.label || '',
 			count: reaction.count || 0,
 			iconPath: reaction.iconPath ? URI.revive(reaction.iconPath) : '',
-			authorHasReacted: reaction.hasReacted || false
+			authorHasReacted: reaction.hasReacted || false,
+			reactors: reaction.reactors
 		};
 	}
 

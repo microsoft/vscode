@@ -91,10 +91,15 @@ impl InstalledServer {
 	pub fn server_paths(&self, p: &LauncherPaths) -> ServerPaths {
 		let server_dir = self.get_install_folder(p);
 		ServerPaths {
-			executable: server_dir
-				.join(SERVER_FOLDER_NAME)
-				.join("bin")
-				.join(self.quality.server_entrypoint()),
+			// allow using the OSS server in development via an override
+			executable: if let Some(p) = option_env!("VSCODE_CLI_OVERRIDE_SERVER_PATH") {
+				PathBuf::from(p)
+			} else {
+				server_dir
+					.join(SERVER_FOLDER_NAME)
+					.join("bin")
+					.join(self.quality.server_entrypoint())
+			},
 			logfile: server_dir.join("log.txt"),
 			pidfile: server_dir.join("pid.txt"),
 			server_dir,

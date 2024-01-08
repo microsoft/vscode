@@ -9,6 +9,7 @@
 	"config.npm.packageManager.npm": "Use npm as the package manager for running scripts.",
 	"config.npm.packageManager.yarn": "Use yarn as the package manager for running scripts.",
 	"config.npm.packageManager.pnpm": "Use pnpm as the package manager for running scripts.",
+	"config.npm.packageManager.bun": "Use bun as the package manager for running scripts.",
 	"config.npm.packageManager.auto": "Auto-detect which package manager to use for running scripts based on lock files and installed package managers.",
 	"config.npm.exclude": "Configure glob patterns for folders that should be excluded from automatic script detection.",
 	"config.npm.enableScriptExplorer": "Enable an explorer view for npm scripts when there is no top-level 'package.json' file.",

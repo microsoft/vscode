@@ -1,0 +1,3 @@
+a2d51dc505ed544c52757f90bcdab44920132295fc7a67166eff86b6e0e24aa8  aarch64-linux-gnu.tar.gz
+032cf16bf8b965e1351305f10f3dedabf4f9868027ac6d0e8f52321ca0b70d4a  arm-rpi-linux-gnueabihf.tar.gz
+360475a764d0faf4d3743aa866347eff78072639d20660def83e1a03eadf534c  x86_64-linux-gnu.tar.gz

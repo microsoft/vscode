@@ -961,7 +961,7 @@ suite.skip('TST, perf', function () {
 	function perfTest(name: string, callback: Function) {
 		test(name, function () {
 			if (_profile) { console.profile(name); }
-			const sw = new StopWatch(true);
+			const sw = new StopWatch();
 			callback();
 			console.log(name, sw.elapsed());
 			if (_profile) { console.profileEnd(); }

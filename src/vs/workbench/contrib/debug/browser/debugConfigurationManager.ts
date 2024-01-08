@@ -12,7 +12,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as resources from 'vs/base/common/resources';
-import { withUndefinedAsNull } from 'vs/base/common/types';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -23,7 +23,6 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
@@ -60,6 +59,8 @@ export class ConfigurationManager implements IConfigurationManager {
 	private readonly _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
 	private debugConfigurationTypeContext: IContextKey<string>;
+	private readonly _onDidChangeConfigurationProviders = new Emitter<void>();
+	public readonly onDidChangeConfigurationProviders = this._onDidChangeConfigurationProviders.event;
 
 	constructor(
 		private readonly adapterManager: IAdapterManager,
@@ -74,8 +75,9 @@ export class ConfigurationManager implements IConfigurationManager {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.configProviders = [];
-		this.toDispose = [];
+		this.toDispose = [this._onDidChangeConfigurationProviders];
 		this.initLaunches();
+		this.setCompoundSchemaValues();
 		this.registerListeners();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		const previousSelectedType = this.storageService.get(DEBUG_SELECTED_TYPE, StorageScope.WORKSPACE);
@@ -92,9 +94,11 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable {
 		this.configProviders.push(debugConfigurationProvider);
+		this._onDidChangeConfigurationProviders.fire();
 		return {
 			dispose: () => {
 				this.unregisterDebugConfigurationProvider(debugConfigurationProvider);
+				this._onDidChangeConfigurationProviders.fire();
 			}
 		};
 	}
@@ -187,18 +191,24 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 
 			if (explicitTypes.length) {
-				return acc.concat(explicitTypes);
-			}
-
-			if (hasGenericEvent) {
+				explicitTypes.forEach(t => acc.add(t));
+			} else if (hasGenericEvent) {
 				const debuggerType = e.contributes?.debuggers?.[0].type;
-				return debuggerType ? acc.concat(debuggerType) : acc;
+				if (debuggerType) {
+					acc.add(debuggerType);
+				}
 			}
 
 			return acc;
-		}, [] as string[]);
+		}, new Set<string>());
 
-		return debugDynamicExtensionsTypes.map(type => {
+		for (const configProvider of this.configProviders) {
+			if (configProvider.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic) {
+				debugDynamicExtensionsTypes.add(configProvider.type);
+			}
+		}
+
+		return [...debugDynamicExtensionsTypes].map(type => {
 			return {
 				label: this.adapterManager.getDebuggerLabel(type)!,
 				getProvider: async () => {
@@ -209,24 +219,6 @@ export class ConfigurationManager implements IConfigurationManager {
 				pick: async () => {
 					// Do a late 'onDebugDynamicConfigurationsName' activation so extensions are not activated too early #108578
 					await this.adapterManager.activateDebuggers(onDebugDynamicConfigurationsName, type);
-					const disposables = new DisposableStore();
-					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
-					input.busy = true;
-					input.placeholder = nls.localize('selectConfiguration', "Select Launch Configuration");
-					input.show();
-
-					const chosenPromise = new Promise<IDynamicPickItem | undefined>(resolve => {
-						disposables.add(input.onDidAccept(() => resolve(input.activeItems[0])));
-						disposables.add(input.onDidTriggerItemButton(async (context) => {
-							resolve(undefined);
-							const { launch, config } = context.item;
-							await launch.openConfigFile({ preserveFocus: false, type: config.type, suppressInitialConfigs: true });
-							// Only Launch have a pin trigger button
-							await (launch as Launch).writeConfiguration(config);
-							await this.selectConfiguration(launch, config.name);
-							this.removeRecentDynamicConfigurations(config.name, config.type);
-						}));
-					});
 
 					const token = new CancellationTokenSource();
 					const picks: Promise<IDynamicPickItem[]>[] = [];
@@ -246,11 +238,31 @@ export class ConfigurationManager implements IConfigurationManager {
 						}
 					});
 
+					const disposables = new DisposableStore();
+					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
+					input.busy = true;
+					input.placeholder = nls.localize('selectConfiguration', "Select Launch Configuration");
+
+					const chosenPromise = new Promise<IDynamicPickItem | undefined>(resolve => {
+						disposables.add(input.onDidAccept(() => resolve(input.activeItems[0])));
+						disposables.add(input.onDidTriggerItemButton(async (context) => {
+							resolve(undefined);
+							const { launch, config } = context.item;
+							await launch.openConfigFile({ preserveFocus: false, type: config.type, suppressInitialConfigs: true });
+							// Only Launch have a pin trigger button
+							await (launch as Launch).writeConfiguration(config);
+							await this.selectConfiguration(launch, config.name);
+							this.removeRecentDynamicConfigurations(config.name, config.type);
+						}));
+						disposables.add(input.onDidHide(() => resolve(undefined)));
+					});
+
 					const nestedPicks = await Promise.all(picks);
 					const items = flatten(nestedPicks);
 
 					input.items = items;
 					input.busy = false;
+					input.show();
 					const chosen = await chosenPromise;
 
 					disposables.dispose();
@@ -283,7 +295,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	removeRecentDynamicConfigurations(name: string, type: string) {
 		const remaining = this.getRecentDynamicConfigurations().filter(c => c.name !== name || c.type !== type);
-		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.USER);
+		this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(remaining), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		if (this.selectedConfiguration.name === name && this.selectedType === type && this.selectedDynamic) {
 			this.selectConfiguration(undefined, undefined);
 		} else {
@@ -428,7 +440,7 @@ export class ConfigurationManager implements IConfigurationManager {
 				// We need to store the recently used dynamic configurations to be able to show them in UI #110009
 				recentDynamicProviders.unshift({ name, type: dynamicConfig.type });
 				recentDynamicProviders = distinct(recentDynamicProviders, t => `${t.name} : ${t.type}`);
-				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.USER);
+				this.storageService.store(DEBUG_RECENT_DYNAMIC_CONFIGURATIONS, JSON.stringify(recentDynamicProviders), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
 			// We could not find the configuration to select, pick the first one, or reset the selection if there is no launch configuration
@@ -619,7 +631,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		}, ACTIVE_GROUP);
 
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created
 		});
 	}
@@ -679,7 +691,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		}, ACTIVE_GROUP);
 
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created: false
 		});
 	}
@@ -719,7 +731,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 	async openConfigFile({ preserveFocus, type, useInitialContent }: { preserveFocus: boolean; type?: string; useInitialContent?: boolean }): Promise<{ editor: IEditorPane | null; created: boolean }> {
 		const editor = await this.preferencesService.openUserSettings({ jsonEditor: true, preserveFocus, revealSetting: { key: 'launch' } });
 		return ({
-			editor: withUndefinedAsNull(editor),
+			editor: editor ?? null,
 			created: false
 		});
 	}

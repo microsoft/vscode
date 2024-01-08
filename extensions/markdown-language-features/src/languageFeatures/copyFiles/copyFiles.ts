@@ -3,46 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'path';
-import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
-import { getParentDocumentUri } from './dropIntoEditor';
 
+type OverwriteBehavior = 'overwrite' | 'nameIncrementally';
 
-export async function getNewFileName(document: vscode.TextDocument, file: vscode.DataTransferFile): Promise<vscode.Uri> {
-	const desiredPath = getDesiredNewFilePath(document, file);
+export interface CopyFileConfiguration {
+	readonly destination: Record<string, string>;
+	readonly overwriteBehavior: OverwriteBehavior;
+}
 
-	const root = Utils.dirname(desiredPath);
-	const ext = path.extname(file.name);
-	const baseName = path.basename(file.name, ext);
-	for (let i = 0; ; ++i) {
-		const name = i === 0 ? baseName : `${baseName}-${i}`;
-		const uri = vscode.Uri.joinPath(root, `${name}${ext}`);
-		try {
-			await vscode.workspace.fs.stat(uri);
-		} catch {
-			// Does not exist
-			return uri;
-		}
+export function getCopyFileConfiguration(document: vscode.TextDocument): CopyFileConfiguration {
+	const config = vscode.workspace.getConfiguration('markdown', document);
+	return {
+		destination: config.get<Record<string, string>>('copyFiles.destination') ?? {},
+		overwriteBehavior: readOverwriteBehavior(config),
+	};
+}
+
+function readOverwriteBehavior(config: vscode.WorkspaceConfiguration): OverwriteBehavior {
+	switch (config.get('copyFiles.overwriteBehavior')) {
+		case 'overwrite': return 'overwrite';
+		default: return 'nameIncrementally';
 	}
 }
 
-function getDesiredNewFilePath(document: vscode.TextDocument, file: vscode.DataTransferFile): vscode.Uri {
-	const docUri = getParentDocumentUri(document);
-	const config = vscode.workspace.getConfiguration('markdown').get<Record<string, string>>('experimental.copyFiles.destination') ?? {};
-	for (const [rawGlob, rawDest] of Object.entries(config)) {
-		for (const glob of parseGlob(rawGlob)) {
-			if (picomatch.isMatch(docUri.path, glob)) {
-				return resolveCopyDestination(docUri, file.name, rawDest, uri => vscode.workspace.getWorkspaceFolder(uri)?.uri);
-			}
-		}
-	}
-
-	// Default to next to current file
-	return vscode.Uri.joinPath(Utils.dirname(docUri), file.name);
-}
-
-function parseGlob(rawGlob: string): Iterable<string> {
+export function parseGlob(rawGlob: string): Iterable<string> {
 	if (rawGlob.startsWith('/')) {
 		// Anchor to workspace folders
 		return (vscode.workspace.workspaceFolders ?? []).map(folder => vscode.Uri.joinPath(folder.uri, rawGlob).path);
@@ -73,7 +59,10 @@ export function resolveCopyDestination(documentUri: vscode.Uri, fileName: string
 
 
 function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string, dest: string, getWorkspaceFolder: GetWorkspaceFolder): string {
-	let outDest = dest;
+	let outDest = dest.trim();
+	if (!outDest) {
+		outDest = '${fileName}';
+	}
 
 	// Destination that start with `/` implicitly means go to workspace root
 	if (outDest.startsWith('/')) {
@@ -92,28 +81,45 @@ function resolveCopyDestinationSetting(documentUri: vscode.Uri, fileName: string
 	const workspaceFolder = getWorkspaceFolder(documentUri);
 
 	const vars = new Map<string, string>([
-		['documentDirName', documentDirName.path], //  Parent directory path
+		// Document
+		['documentDirName', documentDirName.path], // Absolute parent directory path
+		['documentRelativeDirName', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentDirName.path) : documentDirName.path], // Absolute parent directory path
 		['documentFileName', documentBaseName], // Full filename: file.md
 		['documentBaseName', documentBaseName.slice(0, documentBaseName.length - documentExtName.length)], // Just the name: file
-		['documentExtName', documentExtName.replace('.', '')], // Just the file ext: md
+		['documentExtName', documentExtName.replace('.', '')], // The document ext (without dot): md
+		['documentFilePath', documentUri.path], // Full document path
+		['documentRelativeFilePath', workspaceFolder ? path.posix.relative(workspaceFolder.path, documentUri.path) : documentUri.path], // Full document path relative to workspace
 
 		// Workspace
-		['documentWorkspaceFolder', (workspaceFolder ?? documentDirName).path],
+		['documentWorkspaceFolder', ((workspaceFolder ?? documentDirName).path)],
 
 		// File
-		['fileName', fileName],// Full file name
+		['fileName', fileName], // Full file name
+		['fileExtName', path.extname(fileName).replace('.', '')], // File extension (without dot): png
 	]);
 
-	return outDest.replaceAll(/\$\{(\w+)(?:\/([^\}]+?)\/([^\}]+?)\/)?\}/g, (_, name, pattern, replacement) => {
+	return outDest.replaceAll(/(?<escape>\\\$)|(?<!\\)\$\{(?<name>\w+)(?:\/(?<pattern>(?:\\\/|[^\}\/])+)\/(?<replacement>(?:\\\/|[^\}\/])*)\/)?\}/g, (match, _escape, name, pattern, replacement, _offset, _str, groups) => {
+		if (groups?.['escape']) {
+			return '$';
+		}
+
 		const entry = vars.get(name);
-		if (!entry) {
-			return '';
+		if (typeof entry !== 'string') {
+			return match;
 		}
 
 		if (pattern && replacement) {
-			return entry.replace(new RegExp(pattern), replacement);
+			try {
+				return entry.replace(new RegExp(replaceTransformEscapes(pattern)), replaceTransformEscapes(replacement));
+			} catch (e) {
+				console.log(`Error applying 'resolveCopyDestinationSetting' transform: ${pattern} -> ${replacement}`);
+			}
 		}
 
 		return entry;
 	});
+}
+
+function replaceTransformEscapes(str: string): string {
+	return str.replaceAll(/\\\//g, '/');
 }

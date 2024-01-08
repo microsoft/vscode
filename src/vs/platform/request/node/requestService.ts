@@ -57,7 +57,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 		@ILogService private readonly logService: ILogService,
 		@ILoggerService loggerService: ILoggerService
 	) {
-		super(!!environmentService.isRemoteServer, loggerService);
+		super(loggerService);
 		this.configure();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('http')) {
@@ -108,6 +108,11 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return undefined; // currently not implemented in node
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		const proxyAgent = await import('@vscode/proxy-agent');
+		return proxyAgent.loadSystemCertificates({ log: this.logService });
 	}
 }
 

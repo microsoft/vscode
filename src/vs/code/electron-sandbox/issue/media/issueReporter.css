@@ -73,6 +73,7 @@ textarea {
 	padding: 4px 10px;
 	align-self: flex-end;
 	margin-bottom: 10px;
+	font-size: 13px;
 }
 
 select {
@@ -97,6 +98,11 @@ textarea, input, select {
 html {
 	color: #CCCCCC;
 	height: 100%;
+}
+
+.extension-caption .codicon-modifier-spin {
+	padding-bottom: 3px;
+	margin-left: 2px;
 }
 
 /* Font Families (with CJK support) */

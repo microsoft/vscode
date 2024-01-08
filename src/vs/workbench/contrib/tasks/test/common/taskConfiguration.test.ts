@@ -1802,6 +1802,9 @@ suite('Task configuration conversions', () => {
 		parseContext.namedProblemMatchers = { 'real': namedProblemMatcher };
 		parseContext.uuidMap = new UUIDMap();
 	});
+	teardown(() => {
+		instantiationService.dispose();
+	});
 	suite('ProblemMatcherConverter.from', () => {
 		test('returns [] and an error for an unknown problem matcher', () => {
 			const result = (ProblemMatcherConverter.from('$fake', parseContext));

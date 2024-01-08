@@ -24,6 +24,7 @@ export function createSuggestItem(label: string | languages.CompletionItemLabel,
 		suggestions: [suggestion]
 	};
 	const provider: languages.CompletionItemProvider = {
+		_debugDisplayName: 'test',
 		provideCompletionItems(): any {
 			return;
 		}

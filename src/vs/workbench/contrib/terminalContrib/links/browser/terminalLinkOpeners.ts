@@ -23,6 +23,7 @@ import { QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 	constructor(
@@ -35,10 +36,15 @@ export class TerminalLocalFileLinkOpener implements ITerminalLinkOpener {
 			throw new Error('Tried to open file link without a resolved URI');
 		}
 		const linkSuffix = link.parsedLink ? link.parsedLink.suffix : getLinkSuffix(link.text);
-		const selection: ITextEditorSelection | undefined = linkSuffix?.row === undefined ? undefined : {
-			startLineNumber: linkSuffix?.row ?? 1,
-			startColumn: linkSuffix?.col ?? 1
-		};
+		let selection: ITextEditorSelection | undefined = link.selection;
+		if (!selection) {
+			selection = linkSuffix?.row === undefined ? undefined : {
+				startLineNumber: linkSuffix.row ?? 1,
+				startColumn: linkSuffix.col ?? 1,
+				endLineNumber: linkSuffix.rowEnd,
+				endColumn: linkSuffix.colEnd
+			};
+		}
 		await this._editorService.openEditor({
 			resource: link.uri,
 			options: { pinned: true, selection, revealIfOpened: true }
@@ -81,6 +87,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _getOS: () => OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -101,7 +108,14 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// - Grep output: <link>:<result line>
 		// This only happens when the colon is _not_ followed by a forward- or back-slash as that
 		// would break absolute Windows paths (eg. `C:/Users/...`).
-		text = text.replace(/:[^\\/][^\d]+$/, '');
+		text = text.replace(/:[^\\/\d][^\d]*$/, '');
+
+		// Remove any trailing periods after the line/column numbers, to prevent breaking the search feature, #200257
+		// Examples:
+		// "Check your code Test.tsx:12:45." -> Test.tsx:12:45
+		// "Check your code Test.tsx:12." -> Test.tsx:12
+
+		text = text.replace(/\.$/, '');
 
 		// If any of the names of the folders in the workspace matches
 		// a prefix of the link, remove that prefix and continue
@@ -113,7 +127,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		});
 		let cwdResolvedText = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, osPath)?.[0] || text;
+			cwdResolvedText = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, osPath, this._logService)?.[0] || text;
 		}
 
 		// Try open the cwd resolved link first

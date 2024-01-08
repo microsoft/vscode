@@ -587,22 +587,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	// constructors
 
 	static createUnloadedThemeForThemeType(themeType: ColorScheme, colorMap?: { [id: string]: string }): ColorThemeData {
-		if (!colorMap) {
-			if (themeType === ColorScheme.LIGHT) {
-				colorMap = {
-					'activityBar.background': '#f8f8f8',
-					'statusBar.background': '#f8f8f8',
-					'statusBar.noFolderBackground': '#f8f8f8'
-				};
-			} else {
-				colorMap = {
-					'activityBar.background': '#181818',
-					'statusBar.background': '#181818',
-					'statusBar.noFolderBackground': '#1f1f1f',
-				};
-			}
-
-		}
 		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType), colorMap);
 	}
 

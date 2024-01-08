@@ -150,7 +150,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		this._editorStyleSheets.delete(editorId);
 	}
 
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
+	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
@@ -169,6 +169,11 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			this._onDecorationTypeRegistered.fire(key);
 		}
 		provider.refCount++;
+		return {
+			dispose: () => {
+				this.removeDecorationType(key);
+			}
+		};
 	}
 
 	public listDecorationTypes(): string[] {
@@ -341,9 +346,8 @@ class RefCountedStyleSheet {
 		}
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	public insertRule(selector: string, rule: string): void {
+		dom.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
@@ -368,9 +372,8 @@ export class GlobalStyleSheet {
 	public unref(): void {
 	}
 
-	public insertRule(rule: string, index?: number): void {
-		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
-		sheet.insertRule(rule, index);
+	public insertRule(selector: string, rule: string): void {
+		dom.createCSSRule(selector, rule, this._styleSheet);
 	}
 
 	public removeRulesContainingSelector(ruleName: string): void {
@@ -585,7 +588,7 @@ export const _CSS_MAP: { [prop: string]: string } = {
 	cursor: 'cursor:{0};',
 	letterSpacing: 'letter-spacing:{0};',
 
-	gutterIconPath: 'background:{0} no-repeat;',
+	gutterIconPath: 'background:{0} center center no-repeat;',
 	gutterIconSize: 'background-size:{0};',
 
 	contentText: 'content:\'{0}\';',
@@ -709,15 +712,15 @@ class DecorationCSSRules {
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
-			sheet.insertRule(`${this._unThemedSelector} {${unthemedCSS}}`, 0);
+			sheet.insertRule(this._unThemedSelector, unthemedCSS);
 			hasContent = true;
 		}
 		if (lightCSS.length > 0) {
-			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector} {${lightCSS}}`, 0);
+			sheet.insertRule(`.vs${this._unThemedSelector}, .hc-light${this._unThemedSelector}`, lightCSS);
 			hasContent = true;
 		}
 		if (darkCSS.length > 0) {
-			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector} {${darkCSS}}`, 0);
+			sheet.insertRule(`.vs-dark${this._unThemedSelector}, .hc-black${this._unThemedSelector}`, darkCSS);
 			hasContent = true;
 		}
 		this._hasContent = hasContent;
@@ -786,7 +789,7 @@ class DecorationCSSRules {
 	}
 
 	/**
-	 * Build the CSS for decorations styled via `glpyhMarginClassName`.
+	 * Build the CSS for decorations styled via `glyphMarginClassName`.
 	 */
 	private getCSSTextForModelDecorationGlyphMarginClassName(opts: IThemeDecorationRenderOptions | undefined): string {
 		if (!opts) {

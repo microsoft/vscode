@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
 import { PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
@@ -54,7 +53,11 @@ export interface IssueReporterExtensionData {
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;
+	extensionData?: string;
+	extensionTemplate?: string;
 	hasIssueUriRequestHandler?: boolean;
+	hasIssueDataProviders?: boolean;
+	command?: boolean;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -65,10 +68,10 @@ export interface IssueReporterData extends WindowData {
 	experiments?: string;
 	restrictedMode: boolean;
 	isUnsupported: boolean;
-	isSandboxed: boolean; // TODO@bpasero remove me once sandbox is final
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
+	readonly command?: boolean;
 }
 
 export interface ISettingSearchResult {
@@ -124,11 +127,14 @@ export interface IIssueMainService {
 
 	// Used by the issue reporter
 
-	getSystemInfo(): Promise<SystemInfo>;
-	getPerformanceInfo(): Promise<PerformanceInfo>;
-	reloadWithExtensionsDisabled(): Promise<void>;
-	showConfirmCloseDialog(): Promise<void>;
-	showClipboardDialog(): Promise<boolean>;
-	getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<URI>;
-	closeReporter(): Promise<void>;
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	$reloadWithExtensionsDisabled(): Promise<void>;
+	$showConfirmCloseDialog(): Promise<void>;
+	$showClipboardDialog(): Promise<boolean>;
+	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$getIssueReporterData(extensionId: string): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string): Promise<string>;
+	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
+	$closeReporter(): Promise<void>;
 }

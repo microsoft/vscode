@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 
 
 suite('URI', () => {
@@ -467,6 +467,30 @@ suite('URI', () => {
 			with() { return this; },
 			toString() { return ''; }
 		}), true);
+	});
+
+	test('isUriComponents', function () {
+
+		assert.ok(isUriComponents(URI.file('a')));
+		assert.ok(isUriComponents(URI.file('a').toJSON()));
+		assert.ok(isUriComponents(URI.file('')));
+		assert.ok(isUriComponents(URI.file('').toJSON()));
+
+		assert.strictEqual(isUriComponents(1), false);
+		assert.strictEqual(isUriComponents(true), false);
+		assert.strictEqual(isUriComponents("true"), false);
+		assert.strictEqual(isUriComponents({}), false);
+		assert.strictEqual(isUriComponents({ scheme: '' }), true); // valid components but INVALID uri
+		assert.strictEqual(isUriComponents({ scheme: 'fo' }), true);
+		assert.strictEqual(isUriComponents({ scheme: 'fo', path: '/p' }), true);
+		assert.strictEqual(isUriComponents({ path: '/p' }), false);
+	});
+
+	test('from, from(strict), revive', function () {
+
+		assert.throws(() => URI.from({ scheme: '' }, true));
+		assert.strictEqual(URI.from({ scheme: '' }).scheme, 'file');
+		assert.strictEqual(URI.revive({ scheme: '' }).scheme, '');
 	});
 
 	test('Unable to open \'%A0.txt\': URI malformed #76506, part 2', function () {

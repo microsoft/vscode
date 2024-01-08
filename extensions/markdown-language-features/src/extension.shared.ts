@@ -7,9 +7,9 @@ import * as vscode from 'vscode';
 import { MdLanguageClient } from './client/client';
 import { CommandManager } from './commandManager';
 import { registerMarkdownCommands } from './commands/index';
-import { registerPasteSupport } from './languageFeatures/copyFiles/copyPaste';
+import { registerLinkPasteSupport } from './languageFeatures/copyFiles/pasteUrlProvider';
+import { registerResourceDropOrPasteSupport } from './languageFeatures/copyFiles/dropOrPasteResource';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
-import { registerDropIntoEditorSupport } from './languageFeatures/copyFiles/dropIntoEditor';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
 import { registerUpdateLinksOnRename } from './languageFeatures/linkUpdater';
 import { ILogger } from './logging';
@@ -56,9 +56,9 @@ function registerMarkdownLanguageFeatures(
 	return vscode.Disposable.from(
 		// Language features
 		registerDiagnosticSupport(selector, commandManager),
-		registerDropIntoEditorSupport(selector),
 		registerFindFileReferenceSupport(commandManager, client),
-		registerPasteSupport(selector),
+		registerResourceDropOrPasteSupport(selector),
+		registerLinkPasteSupport(selector),
 		registerUpdateLinksOnRename(client),
 	);
 }

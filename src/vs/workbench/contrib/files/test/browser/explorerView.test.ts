@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -15,16 +15,21 @@ import * as dom from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { provideDecorations } from 'vs/workbench/contrib/files/browser/views/explorerDecorationsProvider';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-const $ = dom.$;
-
-const fileService = new TestFileService();
-const configService = new TestConfigurationService();
-
-function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
-	return new ExplorerItem(toResource.call(this, path), fileService, configService, undefined, isFolder, isSymLink, false, name, mtime, isUnknown);
-}
+import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Files - ExplorerView', () => {
+
+	const $ = dom.$;
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const fileService = new TestFileService();
+	const configService = new TestConfigurationService();
+
+
+	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
+		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
+	}
 
 	test('getContext', async function () {
 		const d = new Date().getTime();
@@ -84,13 +89,16 @@ suite('Files - ExplorerView', () => {
 
 		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
 			container,
-			templateDisposables: new DisposableStore(),
-			elementDisposables: new DisposableStore(),
+			templateDisposables: ds.add(new DisposableStore()),
+			elementDisposables: ds.add(new DisposableStore()),
+			contribs: [],
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event
 			}
 		}, 1, false);
+
+		ds.add(navigationController);
 
 		assert.strictEqual(navigationController.count, 3);
 		assert.strictEqual(navigationController.index, 2);

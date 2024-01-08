@@ -12,7 +12,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -80,7 +80,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/>/g, '&gt;')
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
-		return `<a href="${href}" title="${title || href}">${text}</a>`;
+
+		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -195,7 +196,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
 		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
 		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}
@@ -387,8 +388,25 @@ function sanitizeRenderedMarkdown(
 			}
 			e.keepAttr = false;
 			return;
+		} else if (element.tagName === 'INPUT' && element.attributes.getNamedItem('type')?.value === 'checkbox') {
+			if ((e.attrName === 'type' && e.attrValue === 'checkbox') || e.attrName === 'disabled' || e.attrName === 'checked') {
+				e.keepAttr = true;
+				return;
+			}
+			e.keepAttr = false;
 		}
 	});
+
+	dompurify.addHook('uponSanitizeElement', (element, e) => {
+		if (e.tagName === 'input') {
+			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
+				element.setAttribute('disabled', '');
+			} else {
+				element.parentElement?.removeChild(element);
+			}
+		}
+	});
+
 
 	const hook = DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes);
 
@@ -404,10 +422,13 @@ export const allowedMarkdownAttr = [
 	'align',
 	'autoplay',
 	'alt',
+	'checked',
 	'class',
 	'controls',
 	'data-code',
 	'data-href',
+	'disabled',
+	'draggable',
 	'height',
 	'href',
 	'loop',
@@ -418,6 +439,7 @@ export const allowedMarkdownAttr = [
 	'style',
 	'target',
 	'title',
+	'type',
 	'width',
 	'start',
 ];
@@ -559,24 +581,25 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 }
 
 function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
-	const subtoken = token.tokens[0];
-	if (subtoken.type === 'text') {
-		const lines = subtoken.raw.split('\n');
-		const lastLine = lines[lines.length - 1];
-		if (lastLine.includes('`')) {
-			return completeCodespan(token);
-		} else if (lastLine.includes('**')) {
-			return completeDoublestar(token);
-		} else if (lastLine.match(/\*\w/)) {
-			return completeStar(token);
-		} else if (lastLine.match(/(^|\s)__\w/)) {
-			return completeDoubleUnderscore(token);
-		} else if (lastLine.match(/(^|\s)_\w/)) {
-			return completeUnderscore(token);
-		} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
-			return completeLinkTarget(token);
-		} else if (lastLine.match(/(^|\s)\[\w/)) {
-			return completeLinkText(token);
+	for (const subtoken of token.tokens) {
+		if (subtoken.type === 'text') {
+			const lines = subtoken.raw.split('\n');
+			const lastLine = lines[lines.length - 1];
+			if (lastLine.includes('`')) {
+				return completeCodespan(token);
+			} else if (lastLine.includes('**')) {
+				return completeDoublestar(token);
+			} else if (lastLine.match(/\*\w/)) {
+				return completeStar(token);
+			} else if (lastLine.match(/(^|\s)__\w/)) {
+				return completeDoubleUnderscore(token);
+			} else if (lastLine.match(/(^|\s)_\w/)) {
+				return completeUnderscore(token);
+			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+				return completeLinkTarget(token);
+			} else if (lastLine.match(/(^|\s)\[\w/)) {
+				return completeLinkText(token);
+			}
 		}
 	}
 
