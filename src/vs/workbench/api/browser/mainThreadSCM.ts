@@ -158,6 +158,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			id: historyItemGroupBase.id,
 			label: historyItemGroupBase.label,
 			icon: Codicon.arrowCircleDown,
+			direction: 'incoming',
 			ancestor: ancestor.id,
 			count: ancestor.behind,
 		};
@@ -167,6 +168,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
 			icon: Codicon.arrowCircleUp,
+			direction: 'outgoing',
 			ancestor: ancestor.id,
 			count: ancestor.ahead,
 		};

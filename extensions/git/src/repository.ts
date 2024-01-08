@@ -796,6 +796,9 @@ export class Repository implements Disposable {
 		return this.repository.dotGit;
 	}
 
+	private _historyProvider: GitHistoryProvider;
+	get historyProvider(): GitHistoryProvider { return this._historyProvider; }
+
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 
@@ -850,9 +853,9 @@ export class Repository implements Disposable {
 
 		this._sourceControl.quickDiffProvider = this;
 
-		const historyProvider = new GitHistoryProvider(this, logger);
-		this._sourceControl.historyProvider = historyProvider;
-		this.disposables.push(historyProvider);
+		this._historyProvider = new GitHistoryProvider(this, logger);
+		this._sourceControl.historyProvider = this._historyProvider;
+		this.disposables.push(this._historyProvider);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
