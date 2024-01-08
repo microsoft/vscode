@@ -224,8 +224,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	});
 
-	public isAlertEnabled(cue: AudioCue): boolean {
-		return this.isAlertEnabledCache.get(cue).get() ?? false;
+	public isAlertEnabled(cue: AudioCue, userGesture?: boolean): boolean {
+		return this.isAlertEnabledCache.get(cue, userGesture).get() ?? false;
 	}
 
 	public isCueEnabled(cue: AudioCue): boolean {
@@ -261,15 +261,15 @@ function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 
 class Cache<TArg, TValue> {
 	private readonly map = new Map<TArg, TValue>();
-	constructor(private readonly getValue: (value: TArg) => TValue) {
+	constructor(private readonly getValue: (value: TArg, optionalArg?: any) => TValue) {
 	}
 
-	public get(arg: TArg): TValue {
+	public get(arg: TArg, optionalArg?: any): TValue {
 		if (this.map.has(arg)) {
 			return this.map.get(arg)!;
 		}
 
-		const value = this.getValue(arg);
+		const value = this.getValue(arg, optionalArg);
 		this.map.set(arg, value);
 		return value;
 	}
