@@ -39,7 +39,7 @@ export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 		} else if (followup.kind === 'command') {
 			button.element.classList.add('interactive-followup-command');
 		}
-
+		button.element.ariaLabel = `Follow up question: ${followup.title}`;
 		const label = followup.kind === 'reply' ?
 			'$(sparkle) ' + (followup.title || followup.message) :
 			followup.title;
