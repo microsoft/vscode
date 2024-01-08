@@ -57,11 +57,11 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		const alertMessage = cue.alertMessage;
-		if (this.isAlertEnabled(cue) && alertMessage) {
+		if (this.isAlertEnabled(cue, options.userGesture) && alertMessage) {
 			this.accessibilityService.alert(alertMessage);
 		}
 
-		if (this.isCueEnabled(cue)) {
+		if (this.isCueEnabled(cue, options.userGesture)) {
 			this.sendAudioCueTelemetry(cue, options.source);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
@@ -228,8 +228,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		return this.isAlertEnabledCache.get(cue, userGesture).get() ?? false;
 	}
 
-	public isCueEnabled(cue: AudioCue): boolean {
-		return this.isCueEnabledCache.get(cue).get() ?? false;
+	public isCueEnabled(cue: AudioCue, userGesture?: boolean): boolean {
+		return this.isCueEnabledCache.get(cue, userGesture).get() ?? false;
 	}
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
