@@ -675,8 +675,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.stashOpen",
-        "title": "%command.stashOpen%",
+        "command": "git.stashPreview",
+        "title": "%command.stashPreview%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1264,7 +1264,7 @@
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         },
         {
-          "command": "git.openStash",
+          "command": "git.stashPreview",
           "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
