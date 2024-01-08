@@ -773,11 +773,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const disposables = new DisposableStore();
 		viewContainerModel.activeViewDescriptors.forEach((viewDescriptor, index) => {
 			if (!viewDescriptor.remoteAuthority) {
-				disposables.add(toDisposable(() => {
-					if (viewDescriptor.id === 'workbench.explorer.fileView') {
-						console.log('workbench.explorer.fileView.toggleVisibility');
-					}
-				}));
 				disposables.add(registerAction2(class extends ViewPaneContainerAction<ViewPaneContainer> {
 					constructor() {
 						super({
