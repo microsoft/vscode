@@ -798,12 +798,13 @@ function _doScore(
 		return Number.MIN_SAFE_INTEGER;
 	}
 
-	let score = 1;
-	let isGapLocation = false;
+	let score: number;
+	let isGapLocation: boolean;
 	if (wordPos === (patternPos - patternStart)) {
 		// common prefix: `foobar <-> foobaz`
 		//                            ^^^^^
 		score = pattern[patternPos] === word[wordPos] ? 7 : 5;
+		isGapLocation = false;
 
 	} else if (isUpperCaseAtPos(wordPos, word, wordLow) && (wordPos === 0 || !isUpperCaseAtPos(wordPos - 1, word, wordLow))) {
 		// hitting upper-case: `foo <-> forOthers`
@@ -815,20 +816,20 @@ function _doScore(
 		// hitting a separator: `. <-> foo.bar`
 		//                                ^
 		score = 5;
+		isGapLocation = false;
 
 	} else if (isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1)) {
 		// post separator: `foo <-> bar_foo`
 		//                              ^^^
 		score = 5;
 		isGapLocation = true;
+	} else {
+		score = 1;
+		isGapLocation = isUpperCaseAtPos(wordPos, word, wordLow);
 	}
 
 	if (score > 1 && patternPos === patternStart) {
 		outFirstMatchStrong[0] = true;
-	}
-
-	if (!isGapLocation) {
-		isGapLocation = isUpperCaseAtPos(wordPos, word, wordLow) || isSeparatorAtPos(wordLow, wordPos - 1) || isWhitespaceAtPos(wordLow, wordPos - 1);
 	}
 
 	//

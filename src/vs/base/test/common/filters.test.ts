@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
+import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScoreOptions, FuzzyScorer, IFilter, IMatch, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
 	const r = filter(word, wordToMatchAgainst);
@@ -572,22 +572,48 @@ suite('Filters', () => {
 		assertMatches('bar', 'foobar', 'foo^b^a^r', anyScore);
 	});
 
+	function assertScores(
+		filter: typeof fuzzyScore,
+		assertion: (a: number, b: number) => void,
+		pattern: string,
+		a: string,
+		b: string,
+		options?: FuzzyScoreOptions,
+	): void {
+		const patternLow = pattern.toLowerCase();
+		const aScore = filter(pattern, patternLow, 0, a, a.toLowerCase(), 0, options);
+		const bScore = filter(pattern, patternLow, 0, b, b.toLowerCase(), 0, options);
+		assert.ok(aScore);
+		assert.ok(bScore);
+		assertion(aScore[0], bScore[0]);
+	}
+
+	function assertLessThan(a: number, b: number, message?: string): void {
+		assert.ok(a < b, message);
+	}
+
 	test('configurable full match boost', function () {
 		const prefix = 'create';
 		const a = 'createModelServices';
 		const b = 'create';
 
-		const aBoost = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
-		const bBoost = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
-		assert.ok(aBoost);
-		assert.ok(bBoost);
-		assert.ok(aBoost[0] < bBoost[0]);
+		assertScores(fuzzyScore, assertLessThan, prefix, a, b, { boostFullMatch: true, firstMatchCanBeWeak: false });
+		assertScores(fuzzyScore, assert.strictEqual, prefix, a, b, { boostFullMatch: false, firstMatchCanBeWeak: false });
+	});
 
-		const aScore = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
-		const bScore = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: false, firstMatchCanBeWeak: true });
-		assert.ok(aScore);
-		assert.ok(bScore);
-		assert.ok(aScore[0] === bScore[0]);
+	test('pattern ending in uppercase character should not get extra boost', function () {
+		assertScores(fuzzyScore, assertLessThan, 'F', 'Foo', 'F', { boostFullMatch: true, firstMatchCanBeWeak: false });
+		assertScores(fuzzyScore, assert.strictEqual, 'F', 'Foo', 'F', { boostFullMatch: false, firstMatchCanBeWeak: false });
+
+		assertScores(fuzzyScore, assertLessThan, 'aB', 'aBc', 'aB', { boostFullMatch: true, firstMatchCanBeWeak: false });
+		assertScores(fuzzyScore, assert.strictEqual, 'aB', 'aBc', 'aB', { boostFullMatch: false, firstMatchCanBeWeak: false });
+
+		// matching `F` against `F` and `f` against `f` should have the same scores
+		const upperScore = fuzzyScore('F', 'f', 0, 'F', 'f', 0);
+		const lowerScore = fuzzyScore('f', 'f', 0, 'f', 'f', 0);
+		assert.ok(upperScore);
+		assert.ok(lowerScore);
+		assert.equal(upperScore[0], lowerScore[0]);
 	});
 
 	test('Unexpected suggest highlighting ignores whole word match in favor of matching first letter#147423', function () {
