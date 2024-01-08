@@ -30,6 +30,11 @@ export interface IAudioCueService {
 export interface IAudioCueOptions {
 	allowManyInParallel?: boolean;
 	source?: string;
+	/**
+	 * For actions like save or format, depending on the
+	 * configured value, we will only
+	 * play the sound if the user triggered the action.
+	 */
 	userGesture?: boolean;
 }
 
@@ -45,7 +50,8 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService) {
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+	) {
 		super();
 	}
 
