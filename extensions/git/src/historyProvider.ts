@@ -78,12 +78,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			throw new Error('Unsupported options.');
 		}
 
-		const optionsRef = options.limit.id;
-		const historyItemGroupIdRef = await this.repository.revParse(historyItemGroupId) ?? '';
+		const refParentId = options.limit.id;
+		const refId = await this.repository.revParse(historyItemGroupId) ?? '';
 
-		const [commits, summary] = await Promise.all([
-			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, shortStats: true, sortByAuthorDate: true }),
-			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
+		const [summary, commits] = await Promise.all([
+			this.getSummaryHistoryItem(refId, refParentId),
+			this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true })
 		]);
 
 		await ensureEmojis();
@@ -107,20 +107,15 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItems;
 	}
 
-	async provideHistoryItemChanges(historyItemId: string): Promise<SourceControlHistoryItemChange[]> {
-		// The "All Changes" history item uses a special id
-		// which is a commit range instead of a single commit id
-		let [originalRef, modifiedRef] = historyItemId.includes('..')
-			? historyItemId.split('..') : [undefined, historyItemId];
-
-		if (!originalRef) {
-			const commit = await this.repository.getCommit(modifiedRef);
-			originalRef = commit.parents.length > 0 ? commit.parents[0] : `${modifiedRef}^`;
+	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItemChange[]> {
+		if (!historyItemParentId) {
+			const commit = await this.repository.getCommit(historyItemId);
+			historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
 		}
 
 		const historyItemChangesUri: Uri[] = [];
 		const historyItemChanges: SourceControlHistoryItemChange[] = [];
-		const changes = await this.repository.diffBetween(originalRef, modifiedRef);
+		const changes = await this.repository.diffBetween(historyItemParentId, historyItemId);
 
 		for (const change of changes) {
 			const historyItemUri = change.uri.with({
@@ -130,8 +125,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			// History item change
 			historyItemChanges.push({
 				uri: historyItemUri,
-				originalUri: toGitUri(change.originalUri, originalRef),
-				modifiedUri: toGitUri(change.originalUri, modifiedRef),
+				originalUri: toGitUri(change.originalUri, historyItemParentId),
+				modifiedUri: toGitUri(change.originalUri, historyItemId),
 				renameUri: change.renameUri,
 			});
 
@@ -208,9 +203,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return new FileDecoration(letter, tooltip, color);
 	}
 
-	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
-		const statistics = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
+	private async getSummaryHistoryItem(refId: string, refParentId: string): Promise<SourceControlHistoryItem> {
+		const statistics = await this.repository.diffBetweenShortStat(refParentId, refId);
+		return { id: refId, parentIds: [refParentId], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
 	}
 
 	dispose(): void {

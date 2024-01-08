@@ -2220,7 +2220,7 @@ export interface ExtHostSCMShape {
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 	$provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
-	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
+	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
 	$resolveHistoryItemGroupBase(sourceControlHandle: number, historyItemGroupId: string, token: CancellationToken): Promise<SCMHistoryItemGroupDto | undefined>;
 	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }

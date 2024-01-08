@@ -1257,7 +1257,7 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMHistoryItemTreeElement(element)) {
 		const historyItemGroup = element.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
-		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}`;
+		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}/${element.parentIds.join(',')}`;
 	} else if (isSCMHistoryItemChangeTreeElement(element)) {
 		const historyItem = element.historyItem;
 		const historyItemGroup = historyItem.historyItemGroup;
@@ -1713,7 +1713,8 @@ class HistoryItemViewChangesAction extends Action2 {
 			return;
 		}
 
-		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id);
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 		if (!historyItemChanges || historyItemChanges.length === 0) {
 			return;
 		}
@@ -3417,13 +3418,17 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
-		let historyItemChanges = historyItemChangesMap.get(element.id);
+
+		const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
+		let historyItemChanges = historyItemChangesMap.get(`${element.id}/${historyItemParentId}`);
 
 		if (!historyItemChanges) {
-			historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id) ?? [];
+			const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
+			historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id, historyItemParentId) ?? [];
+
 			this.historyProviderCache.set(repository, {
 				...historyProviderCacheEntry,
-				historyItemChanges: historyItemChangesMap.set(element.id, historyItemChanges)
+				historyItemChanges: historyItemChangesMap.set(`${element.id}/${historyItemParentId}`, historyItemChanges)
 			});
 		}
 
