@@ -423,7 +423,11 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
-			const wholeRange = this._activeSession!.wholeRange;
+			if (!this._activeSession) {
+				return;
+			}
+
+			const wholeRange = this._activeSession.wholeRange;
 			let shouldFinishSession = false;
 			if (this._configurationService.getValue<boolean>(InlineChatConfigKeys.FinishOnType)) {
 				for (const { range } of e.changes) {
@@ -431,7 +435,7 @@ export class InlineChatController implements IEditorContribution {
 				}
 			}
 
-			this._activeSession!.recordExternalEditOccurred(shouldFinishSession);
+			this._activeSession.recordExternalEditOccurred(shouldFinishSession);
 
 			if (shouldFinishSession) {
 				this._log('text changed outside of whole range, FINISH session');
