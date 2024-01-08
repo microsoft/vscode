@@ -1793,8 +1793,6 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 		this.elements = elements;
 		this.state = state;
 
-		this.container.tabIndex = state ? 0 : -1;
-
 		if (state) {
 			const newFocusedIndex = clamp(previousIndex, 0, state.count - 1);
 			this.setFocus(newFocusedIndex);
@@ -1803,6 +1801,9 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 				this.view.domFocus();
 			}
 		}
+
+		// must come last as it calls blur()
+		this.container.tabIndex = state ? 0 : -1;
 	}
 
 	private setFocusedElement(stickyIndex: number): void {
