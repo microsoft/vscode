@@ -34,6 +34,7 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
 		|| !!argv['uninstall-extension']
+		|| !!argv['update-extensions']
 		|| !!argv['locate-extension']
 		|| !!argv['telemetry'];
 }
