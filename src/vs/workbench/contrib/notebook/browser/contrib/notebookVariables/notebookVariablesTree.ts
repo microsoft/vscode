@@ -10,12 +10,7 @@ import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { localize } from 'vs/nls';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-
-export interface INotebookVariableElement {
-	readonly id: string;
-	readonly label: string;
-	readonly value: string;
-}
+import { INotebookVariableElement } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 
 export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
@@ -43,8 +38,8 @@ export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariable
 		return { wrapper };
 	}
 
-	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: { wrapper: HTMLElement }, height: number | undefined): void {
-		templateData.wrapper.innerText = `${element.element.label} - ${element.element.value}`;
+	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, _index: number, templateData: { wrapper: HTMLElement }): void {
+		templateData.wrapper.innerText = `${element.element.name}: ${element.element.value}`;
 	}
 
 	disposeTemplate(): void {
@@ -59,6 +54,6 @@ export class NotebookVariableAccessibilityProvider implements IListAccessibility
 	}
 
 	getAriaLabel(element: INotebookVariableElement): string {
-		return localize('notebookVariableAriaLabel', "Variable {0}, value {1}", element.label, element.value);
+		return localize('notebookVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 	}
 }

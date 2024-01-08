@@ -26,7 +26,7 @@ export class ExtHostProfileContentHandlers implements ExtHostProfileContentHandl
 		this.proxy = mainContext.getProxy(MainContext.MainThreadProfileContentHandlers);
 	}
 
-	registrProfileContentHandler(
+	registerProfileContentHandler(
 		extension: IExtensionDescription,
 		id: string,
 		handler: vscode.ProfileContentHandler,

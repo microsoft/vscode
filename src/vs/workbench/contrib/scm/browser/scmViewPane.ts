@@ -1257,7 +1257,7 @@ function getSCMResourceId(element: TreeElement): string {
 	} else if (isSCMHistoryItemTreeElement(element)) {
 		const historyItemGroup = element.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
-		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}`;
+		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}/${element.parentIds.join(',')}`;
 	} else if (isSCMHistoryItemChangeTreeElement(element)) {
 		const historyItem = element.historyItem;
 		const historyItemGroup = historyItem.historyItemGroup;
@@ -1490,9 +1490,11 @@ class RepositoryVisibilityActionController {
 }
 
 class SetListViewModeAction extends ViewAction<SCMViewPane>  {
-	constructor(menu: Partial<IAction2Options['menu']> = {}) {
+	constructor(
+		id = 'workbench.scm.action.setListViewMode',
+		menu: Partial<IAction2Options['menu']> = {}) {
 		super({
-			id: 'workbench.scm.action.setListViewMode',
+			id,
 			title: localize('setListViewMode', "View as List"),
 			viewId: VIEW_PANE_ID,
 			f1: false,
@@ -1509,26 +1511,31 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 
 class SetListViewModeNavigationAction extends SetListViewModeAction {
 	constructor() {
-		super({
-			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree)),
-			group: 'navigation',
-			order: -1000
-		});
+		super(
+			'workbench.scm.action.setListViewModeNavigation',
+			{
+				id: MenuId.SCMTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree)),
+				group: 'navigation',
+				order: -1000
+			});
 	}
 }
 
 class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
-	constructor(menu: Partial<IAction2Options['menu']> = {}) {
-		super({
-			id: 'workbench.scm.action.setTreeViewMode',
-			title: localize('setTreeViewMode', "View as Tree"),
-			viewId: VIEW_PANE_ID,
-			f1: false,
-			icon: Codicon.listFlat,
-			toggled: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
-			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
-		});
+	constructor(
+		id = 'workbench.scm.action.setTreeViewMode',
+		menu: Partial<IAction2Options['menu']> = {}) {
+		super(
+			{
+				id,
+				title: localize('setTreeViewMode', "View as Tree"),
+				viewId: VIEW_PANE_ID,
+				f1: false,
+				icon: Codicon.listFlat,
+				toggled: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
+				menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
+			});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
@@ -1538,12 +1545,14 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 
 class SetTreeViewModeNavigationAction extends SetTreeViewModeAction {
 	constructor() {
-		super({
-			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.List)),
-			group: 'navigation',
-			order: -1000
-		});
+		super(
+			'workbench.scm.action.setTreeViewModeNavigation',
+			{
+				id: MenuId.SCMTitle,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.List)),
+				group: 'navigation',
+				order: -1000
+			});
 	}
 }
 
@@ -1713,7 +1722,8 @@ class HistoryItemViewChangesAction extends Action2 {
 			return;
 		}
 
-		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id);
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 		if (!historyItemChanges || historyItemChanges.length === 0) {
 			return;
 		}
@@ -3085,7 +3095,9 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private storeTreeViewState() {
-		this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (this.tree) {
+			this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 
 	private updateChildren(element?: ISCMRepository) {
@@ -3415,13 +3427,17 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
-		let historyItemChanges = historyItemChangesMap.get(element.id);
+
+		const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
+		let historyItemChanges = historyItemChangesMap.get(`${element.id}/${historyItemParentId}`);
 
 		if (!historyItemChanges) {
-			historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id) ?? [];
+			const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
+			historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id, historyItemParentId) ?? [];
+
 			this.historyProviderCache.set(repository, {
 				...historyProviderCacheEntry,
-				historyItemChanges: historyItemChangesMap.set(element.id, historyItemChanges)
+				historyItemChanges: historyItemChangesMap.set(`${element.id}/${historyItemParentId}`, historyItemChanges)
 			});
 		}
 

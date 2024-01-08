@@ -327,4 +327,4 @@ configurationRegistry.registerConfiguration({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Starting);

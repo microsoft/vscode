@@ -281,6 +281,10 @@ export function isStickyScrollElement(e: HTMLElement): boolean {
 	return isListElementDescendantOfClass(e, 'monaco-tree-sticky-row');
 }
 
+export function isStickyScrollContainer(e: HTMLElement): boolean {
+	return e.classList.contains('monaco-tree-sticky-container');
+}
+
 export function isButton(e: HTMLElement): boolean {
 	if ((e.tagName === 'A' && e.classList.contains('monaco-button')) ||
 		(e.tagName === 'DIV' && e.classList.contains('monaco-button-dropdown'))) {
@@ -716,7 +720,7 @@ export class MouseController<T> implements IDisposable {
 		return this.isSelectionSingleChangeEvent(event) || this.isSelectionRangeChangeEvent(event);
 	}
 
-	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+	protected onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -726,7 +730,7 @@ export class MouseController<T> implements IDisposable {
 		}
 	}
 
-	private onContextMenu(e: IListContextMenuEvent<T>): void {
+	protected onContextMenu(e: IListContextMenuEvent<T>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}

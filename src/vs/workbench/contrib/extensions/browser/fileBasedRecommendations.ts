@@ -136,6 +136,10 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	 * or prompt to search the marketplace if it has extensions that can support the file type
 	 */
 	private promptImportantRecommendations(uri: URI, model: ITextModel, extensionRecommendations?: IStringDictionary<IFileOpenCondition[]>): void {
+		if (model.isDisposed()) {
+			return;
+		}
+
 		const pattern = extname(uri).toLowerCase();
 		extensionRecommendations = extensionRecommendations ?? this.recommendationsByPattern.get(pattern) ?? this.fileOpenRecommendations;
 		const extensionRecommendationEntries = Object.entries(extensionRecommendations);

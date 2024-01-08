@@ -154,6 +154,26 @@
 	color: var(--vscode-chat-slashCommandForeground);
 }
 
+.monaco-editor .inline-chat .detectedIntent {
+	color: var(--vscode-descriptionForeground);
+	padding: 5px 0px 5px 5px;
+}
+
+.monaco-editor .inline-chat .detectedIntent.hidden {
+	display: none;
+}
+
+.monaco-editor .inline-chat .detectedIntent .slash-command-pill CODE {
+	border-radius: 3px;
+	padding: 0 1px;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+}
+
+.monaco-editor .inline-chat .detectedIntent .slash-command-pill a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
 
 /* .monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;

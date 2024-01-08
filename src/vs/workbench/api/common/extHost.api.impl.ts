@@ -877,7 +877,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerProfileContentHandler(id: string, handler: vscode.ProfileContentHandler) {
 				checkProposedApiEnabled(extension, 'profileContentHandlers');
-				return extHostProfileContentHandlers.registrProfileContentHandler(extension, id, handler);
+				return extHostProfileContentHandlers.registerProfileContentHandler(extension, id, handler);
 			},
 			registerQuickDiffProvider(selector: vscode.DocumentSelector, quickDiffProvider: vscode.QuickDiffProvider, label: string, rootUri?: vscode.Uri): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'quickDiffProvider');
