@@ -242,7 +242,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.triggeredByBreakpointInput = undefined;
 			} else {
 				this.triggeredByBreakpointInput = breakpoints[e.index - 1];
-				this.close(true);
 			}
 		});
 		this.toDispose.push(selectBreakpointBox);
@@ -262,7 +261,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 		const closeButton = new Button(this.selectBreakpointContainer, defaultButtonStyles);
 		closeButton.label = nls.localize('ok', "Ok");
-		this.toDispose.push(closeButton.onDidClick(() => this.close(false)));
+		this.toDispose.push(closeButton.onDidClick(() => this.close(true)));
 		this.toDispose.push(closeButton);
 	}
 
