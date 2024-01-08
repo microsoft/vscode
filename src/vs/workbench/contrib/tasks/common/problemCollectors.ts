@@ -438,7 +438,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			let markerChanged: IDisposable | undefined =
 				Event.debounce(this.markerService.onMarkerChanged, (last: readonly URI[] | undefined, e: readonly URI[]) => {
 					return (last ?? []).concat(e);
-				}, 500)(async (markerEvent) => {
+				}, 500, false, true)(async (markerEvent) => {
 					markerChanged?.dispose();
 					markerChanged = undefined;
 					if (!markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
@@ -450,8 +450,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 					}
 				});
 			setTimeout(async () => {
-				markerChanged?.dispose();
+				// Calling dispose below can trigger the debounce event (via flushOnListenerRemove), so we
+				// have to unset markerChanged first to make sure the handler above doesn't dispose it again.
+				const _markerChanged = markerChanged;
 				markerChanged = undefined;
+				_markerChanged?.dispose();
 			}, 600);
 		}));
 	}

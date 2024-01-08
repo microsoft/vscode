@@ -36,6 +36,10 @@ suite('NotebookExecutionService', () => {
 	let kernelService: INotebookKernelService;
 	let disposables: DisposableStore;
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
 	setup(function () {
 
 		disposables = new DisposableStore();
@@ -71,13 +75,9 @@ suite('NotebookExecutionService', () => {
 			}
 		});
 
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
 		contextKeyService = instantiationService.get(IContextKeyService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
@@ -174,7 +174,7 @@ class TestNotebookKernel implements INotebookKernel {
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
-	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
 		return AsyncIterableObject.EMPTY;
 	}
 	executeNotebookCellsRequest(): Promise<void> {

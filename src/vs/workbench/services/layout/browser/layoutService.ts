@@ -23,6 +23,17 @@ export const enum Parts {
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
 
+export const enum ZenModeSettings {
+	SHOW_TABS = 'zenMode.showTabs',
+	HIDE_LINENUMBERS = 'zenMode.hideLineNumbers',
+	HIDE_STATUSBAR = 'zenMode.hideStatusBar',
+	HIDE_ACTIVITYBAR = 'zenMode.hideActivityBar',
+	CENTER_LAYOUT = 'zenMode.centerLayout',
+	FULLSCREEN = 'zenMode.fullScreen',
+	RESTORE = 'zenMode.restore',
+	SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',
+}
+
 export const enum LayoutSettings {
 	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
@@ -104,11 +115,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emits when the zen mode is enabled or disabled.
 	 */
 	readonly onDidChangeZenMode: Event<boolean>;
-
-	/**
-	 * Emits when fullscreen is enabled or disabled.
-	 */
-	readonly onDidChangeFullscreen: Event<boolean>;
 
 	/**
 	 * Emits when the target window is maximized or unmaximized.
@@ -200,19 +206,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedPanel(): void;
 
 	/**
-	 * Returns true if the window has a border.
+	 * Returns true if the main window has a border.
 	 */
-	hasWindowBorder(): boolean;
+	hasMainWindowBorder(): boolean;
 
 	/**
-	 * Returns the window border width.
+	 * Returns the main window border radius if any.
 	 */
-	getWindowBorderWidth(): number;
-
-	/**
-	 * Returns the window border radius if any.
-	 */
-	getWindowBorderRadius(): string | undefined;
+	getMainWindowBorderRadius(): string | undefined;
 
 	/**
 	 * Returns true if the panel is maximized.

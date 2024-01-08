@@ -51,7 +51,6 @@ export interface ITerminalProfileResolverService {
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getDefaultIcon(): TerminalIcon & ThemeIcon;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
 /*
@@ -482,6 +481,7 @@ export const enum TerminalCommandId {
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
+	MoveIntoNewWindow = 'workbench.action.terminal.moveIntoNewWindow',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
 	SelectPrevSuggestion = 'workbench.action.terminal.selectPrevSuggestion',

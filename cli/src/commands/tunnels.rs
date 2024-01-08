@@ -533,7 +533,7 @@ async fn serve_with_csa(
 	{
 		vec.push(ShutdownRequest::ParentProcessKilled(p));
 	}
-	let shutdown = ShutdownRequest::create_rx(vec);
+	let mut shutdown = ShutdownRequest::create_rx(vec);
 
 	let server = loop {
 		if shutdown.is_open() {
@@ -576,12 +576,10 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-				&[CONTROL_PORT],
-			)
-			.await
+			tokio::select! {
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
+				_ = shutdown.wait() => return Ok(1),
+			}
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));

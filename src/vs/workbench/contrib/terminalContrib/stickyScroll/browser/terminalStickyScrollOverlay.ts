@@ -11,6 +11,7 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -27,7 +28,7 @@ import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalC
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
+import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -37,6 +38,10 @@ const enum OverlayState {
 
 const enum CssClasses {
 	Visible = 'visible'
+}
+
+const enum Constants {
+	StickyScrollPercentageCap = 0.4
 }
 
 export class TerminalStickyScrollOverlay extends Disposable {
@@ -54,7 +59,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
-	private _maxLineCount: number = 5;
+	private _rawMaxLineCount: number = 5;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -81,7 +86,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// React to configuration changes
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
-				this._maxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
+				this._rawMaxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
 			}
 		}));
 
@@ -249,10 +254,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// partial line can be drawn on the top.
 		const isPartialCommand = !('getOutput' in command);
 		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount) - rowOffset;
+		const maxLineCount = Math.min(this._rawMaxLineCount, Math.floor(xterm.rows * Constants.StickyScrollPercentageCap));
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
-		if (buffer.viewportY === stickyScrollLineStart) {
+		if (buffer.viewportY <= stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
 		}
@@ -280,11 +286,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		});
 
+		// If a partial command's sticky scroll would show nothing, just hide it. This is another
+		// edge case when using a pager or interactive editor.
+		if (isPartialCommand && removeAnsiEscapeCodes(content).length === 0) {
+			this._setVisible(false);
+			return;
+		}
+
 		// Write content if it differs
 		if (content && this._currentContent !== content) {
-			if (this._stickyScrollOverlay.rows !== stickyScrollLineCount) {
-				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
-			}
+			this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
@@ -446,7 +457,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			...this._xterm.getXtermTheme(),
 			background: isHovering
 				? theme.getColor(terminalStickyScrollHoverBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString()
-				: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
+				: theme.getColor(terminalStickyScrollBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};

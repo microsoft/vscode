@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IEditSessionsStorageService, Change, ChangeType, Folder, EditSession, FileType, EDIT_SESSION_SYNC_CATEGORY, EDIT_SESSIONS_CONTAINER_ID, EditSessionSchemaVersion, IEditSessionsLogService, EDIT_SESSIONS_VIEW_ICON, EDIT_SESSIONS_TITLE, EDIT_SESSIONS_SHOW_VIEW, EDIT_SESSIONS_DATA_VIEW_ID, decodeEditSessionFileContent, hashedEditSessionId, editSessionsLogId, EDIT_SESSIONS_PENDING } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -75,13 +75,13 @@ registerSingleton(IEditSessionsStorageService, EditSessionsWorkbenchService, Ins
 
 const continueWorkingOnCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession',
-	title: { value: localize('continue working on', "Continue Working On..."), original: 'Continue Working On...' },
+	title: localize2('continue working on', 'Continue Working On...'),
 	precondition: WorkspaceFolderCountContext.notEqualsTo('0'),
 	f1: true
 };
 const openLocalFolderCommand: IAction2Options = {
 	id: '_workbench.editSessions.actions.continueEditSession.openLocalFolder',
-	title: { value: localize('continue edit session in local folder', "Open In Local Folder"), original: 'Open In Local Folder' },
+	title: localize2('continue edit session in local folder', 'Open In Local Folder'),
 	category: EDIT_SESSION_SYNC_CATEGORY,
 	precondition: ContextKeyExpr.and(IsWebContext.toNegated(), VirtualWorkspaceContext)
 };
@@ -317,7 +317,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.showEditSessions',
-					title: { value: localize('show cloud changes', "Show Cloud Changes"), original: 'Show Cloud Changes' },
+					title: localize2('show cloud changes', 'Show Cloud Changes'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true
 				});
@@ -426,7 +426,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resumeLatest',
-					title: { value: localize('resume latest cloud changes', "Resume Latest Changes from Cloud"), original: 'Resume Latest Changes from Cloud' },
+					title: localize2('resume latest cloud changes', 'Resume Latest Changes from Cloud'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
 				});
@@ -440,7 +440,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.resumeFromSerializedPayload',
-					title: { value: localize('resume cloud changes', "Resume Changes from Serialized Data"), original: 'Resume Changes from Serialized Data' },
+					title: localize2('resume cloud changes', 'Resume Changes from Serialized Data'),
 					category: 'Developer',
 					f1: true,
 				});
@@ -462,7 +462,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			constructor() {
 				super({
 					id: 'workbench.editSessions.actions.storeCurrent',
-					title: { value: localize('store working changes in cloud', "Store Working Changes in Cloud"), original: 'Store Working Changes in Cloud' },
+					title: localize2('store working changes in cloud', 'Store Working Changes in Cloud'),
 					category: EDIT_SESSION_SYNC_CATEGORY,
 					f1: true,
 				});

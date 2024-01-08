@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationScope, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
@@ -97,12 +97,17 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 	private async migrateConfigurationsForFolderAndOverride(migration: ConfigurationMigration, resource?: URI): Promise<void> {
 		const inspectData = this.configurationService.inspect(migration.key, { resource });
 
-		const targetPairs: [keyof IConfigurationValue<any>, ConfigurationTarget][] = [
-			['userValue', ConfigurationTarget.USER],
-			['userLocalValue', ConfigurationTarget.USER_LOCAL],
-			['userRemoteValue', ConfigurationTarget.USER_REMOTE],
-			['workspaceValue', ConfigurationTarget.WORKSPACE],
-			['workspaceFolderValue', ConfigurationTarget.WORKSPACE_FOLDER],
+		const targetPairs: [keyof IConfigurationValue<any>, ConfigurationTarget][] = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? [
+			['user', ConfigurationTarget.USER],
+			['userLocal', ConfigurationTarget.USER_LOCAL],
+			['userRemote', ConfigurationTarget.USER_REMOTE],
+			['workspace', ConfigurationTarget.WORKSPACE],
+			['workspaceFolder', ConfigurationTarget.WORKSPACE_FOLDER],
+		] : [
+			['user', ConfigurationTarget.USER],
+			['userLocal', ConfigurationTarget.USER_LOCAL],
+			['userRemote', ConfigurationTarget.USER_REMOTE],
+			['workspace', ConfigurationTarget.WORKSPACE],
 		];
 		for (const [dataKey, target] of targetPairs) {
 			const migrationValues: [[string, ConfigurationValue], string[]][] = [];
@@ -134,11 +139,15 @@ export class ConfigurationMigrationWorkbenchContribution extends Disposable impl
 	}
 
 	private async runMigration(migration: ConfigurationMigration, overrides: IConfigurationOverrides, dataKey: keyof IConfigurationValue<any>, data?: IConfigurationValue<any>): Promise<ConfigurationKeyValuePairs | undefined> {
-		const value = (data ?? this.configurationService.inspect(migration.key, overrides))[dataKey];
+		const valueAccessor = (key: string) => getInspectValue(this.configurationService.inspect(key, overrides));
+		const getInspectValue = (data: IConfigurationValue<any>) => {
+			const inspectValue: { value?: any; override?: any } | undefined = data[dataKey];
+			return overrides.overrideIdentifier ? inspectValue?.override : inspectValue?.value;
+		};
+		const value = data ? getInspectValue(data) : valueAccessor(migration.key);
 		if (value === undefined) {
 			return undefined;
 		}
-		const valueAccessor = (key: string) => this.configurationService.inspect(key, overrides)[dataKey];
 		const result = await migration.migrateFn(value, valueAccessor);
 		return Array.isArray(result) ? result : [[migration.key, result]];
 	}

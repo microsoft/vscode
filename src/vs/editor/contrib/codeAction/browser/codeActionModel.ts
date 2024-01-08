@@ -10,7 +10,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ShowLightbulbIconMode } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -66,10 +66,21 @@ class CodeActionOracle extends Disposable {
 		if (!this._editor.hasModel()) {
 			return undefined;
 		}
-
-		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
+		if (trigger.type === CodeActionTriggerType.Invoke) {
+			return selection;
+		}
+		const enabled = this._editor.getOption(EditorOption.lightbulb).enabled;
+		if (enabled === ShowLightbulbIconMode.Off) {
+			return undefined;
+		} else if (enabled === ShowLightbulbIconMode.On) {
+			return selection;
+		} else if (enabled === ShowLightbulbIconMode.OnCode) {
+			const isSelectionEmpty = selection.isEmpty();
+			if (!isSelectionEmpty) {
+				return selection;
+			}
+			const model = this._editor.getModel();
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -133,7 +144,9 @@ const emptyCodeActionSet = Object.freeze<CodeActionSet>({
 	validActions: [],
 	dispose: () => { },
 	documentation: [],
-	hasAutoFix: false
+	hasAutoFix: false,
+	hasAIFix: false,
+	allAIFixes: false,
 });
 
 
@@ -163,7 +176,11 @@ export class CodeActionModel extends Disposable {
 		this._register(this._editor.onDidChangeModel(() => this._update()));
 		this._register(this._editor.onDidChangeModelLanguage(() => this._update()));
 		this._register(this._registry.onDidChange(() => this._update()));
-
+		this._register(this._editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.lightbulb)) {
+				this._update();
+			}
+		}));
 		this._update();
 	}
 
@@ -284,7 +301,7 @@ export class CodeActionModel extends Disposable {
 								});
 
 								// Only retriggers if actually found quickfix on the same line as cursor
-								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, dispose: () => { codeActionSet.dispose(); } };
+								return { validActions: filteredActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
 							}
 						}
 					}

@@ -21,7 +21,7 @@ suite('ExtHostTextEditor', () => {
 	], '\n', 1, 'text', false);
 
 	setup(() => {
-		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4, originalIndentSize: 'tabSize' }, [], 1);
 	});
 
 	test('disposed editor', () => {
@@ -48,7 +48,7 @@ suite('ExtHostTextEditor', () => {
 					applyCount += 1;
 					return Promise.resolve(true);
 				}
-			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);
+			}, new NullLogService(), new Lazy(() => doc.document), [], { cursorStyle: TextEditorCursorStyle.Line, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4, originalIndentSize: 'tabSize' }, [], 1);
 
 		await editor.value.edit(edit => { });
 		assert.strictEqual(applyCount, 0);
@@ -91,6 +91,7 @@ suite('ExtHostTextEditorOptions', () => {
 		opts = new ExtHostTextEditorOptions(mockProxy, '1', {
 			tabSize: 4,
 			indentSize: 4,
+			originalIndentSize: 'tabSize',
 			insertSpaces: false,
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
@@ -102,7 +103,7 @@ suite('ExtHostTextEditorOptions', () => {
 		calls = null!;
 	});
 
-	function assertState(opts: ExtHostTextEditorOptions, expected: IResolvedTextEditorConfiguration): void {
+	function assertState(opts: ExtHostTextEditorOptions, expected: Omit<IResolvedTextEditorConfiguration, 'originalIndentSize'>): void {
 		const actual = {
 			tabSize: opts.value.tabSize,
 			indentSize: opts.value.indentSize,
@@ -230,7 +231,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assert.deepStrictEqual(calls, [{ indentSize: 4 }]);
 	});
 
 	test('can change indentSize to positive integer', () => {
@@ -464,7 +465,7 @@ suite('ExtHostTextEditorOptions', () => {
 			cursorStyle: TextEditorCursorStyle.Line,
 			lineNumbers: RenderLineNumbersType.On
 		});
-		assert.deepStrictEqual(calls, []);
+		assert.deepStrictEqual(calls, [{ indentSize: 4 }]);
 	});
 
 	test('can do bulk updates 1', () => {

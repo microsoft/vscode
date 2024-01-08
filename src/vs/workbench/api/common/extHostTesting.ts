@@ -17,6 +17,7 @@ import { deepFreeze } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -54,13 +55,14 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
+		@ILogService logService: ILogService,
 		commands: ExtHostCommands,
 		private readonly editors: ExtHostDocumentsAndEditors,
 	) {
 		super();
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
 		this.observer = new TestObservers(this.proxy);
-		this.runTracker = new TestRunCoordinator(this.proxy);
+		this.runTracker = new TestRunCoordinator(this.proxy, logService);
 
 		commands.registerArgumentProcessor({
 			processArgument: arg => {
@@ -318,7 +320,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	 * tests change.
 	 */
 	public $acceptDiff(diff: TestsDiffOp.Serialized[]): void {
-		this.observer.applyDiff(diff.map(TestsDiffOp.deserialize));
+		this.observer.applyDiff(diff.map(d => TestsDiffOp.deserialize({ asCanonicalUri: u => u }, d)));
 	}
 
 	/**
@@ -465,6 +467,7 @@ class TestRunTracker extends Disposable {
 		private readonly dto: TestRunDto,
 		private readonly proxy: MainThreadTestingShape,
 		private readonly extension: IRelaxedExtensionDescription,
+		private readonly logService: ILogService,
 		parentToken?: CancellationToken,
 	) {
 		super();
@@ -496,7 +499,7 @@ class TestRunTracker extends Disposable {
 		const guardTestMutation = <Args extends unknown[]>(fn: (test: vscode.TestItem, ...args: Args) => void) =>
 			(test: vscode.TestItem, ...args: Args) => {
 				if (ended) {
-					console.warn(`Setting the state of test "${test.id}" is a no-op after the run ends.`);
+					this.logService.warn(`Setting the state of test "${test.id}" is a no-op after the run ends.`);
 					return;
 				}
 
@@ -665,7 +668,10 @@ export class TestRunCoordinator {
 		return this.tracked.values();
 	}
 
-	constructor(private readonly proxy: MainThreadTestingShape) { }
+	constructor(
+		private readonly proxy: MainThreadTestingShape,
+		private readonly logService: ILogService,
+	) { }
 
 	/**
 	 * Gets a coverage report for a given run and task ID.
@@ -740,7 +746,7 @@ export class TestRunCoordinator {
 	}
 
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, extension, token);
+		const tracker = new TestRunTracker(dto, this.proxy, extension, this.logService, token);
 		this.tracked.set(req, tracker);
 
 		let coverageReports: CoverageReportRecord | undefined;
@@ -1006,7 +1012,9 @@ class TestObservers {
 		tests: MirroredTestCollection;
 	};
 
-	constructor(private readonly proxy: MainThreadTestingShape) {
+	constructor(
+		private readonly proxy: MainThreadTestingShape,
+	) {
 	}
 
 	public checkout(): vscode.TestObserver {
@@ -1044,7 +1052,7 @@ class TestObservers {
 	}
 
 	private createObserverData() {
-		const tests = new MirroredTestCollection();
+		const tests = new MirroredTestCollection({ asCanonicalUri: u => u });
 		this.proxy.$subscribeToDiffs();
 		return { observers: 0, tests, };
 	}

@@ -28,7 +28,6 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	const promise = new Promise<T>((resolve, reject) => {
 		const subscription = source.token.onCancellationRequested(() => {
 			subscription.dispose();
-			source.dispose();
 			reject(new CancellationError());
 		});
 		Promise.resolve(thenable).then(value => {
@@ -45,6 +44,7 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 	return <CancelablePromise<T>>new class {
 		cancel() {
 			source.cancel();
+			source.dispose();
 		}
 		then<TResult1 = T, TResult2 = never>(resolve?: ((value: T) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 			return promise.then(resolve, reject);
@@ -426,7 +426,6 @@ export class ThrottledDelayer<T> {
  * A barrier that is initially closed and then becomes opened permanently.
  */
 export class Barrier {
-
 	private _isOpen: boolean;
 	private _promise: Promise<boolean>;
 	private _completePromise!: (v: boolean) => void;
@@ -633,7 +632,7 @@ export interface ILimiter<T> {
  * A helper to queue N promises and run them all with a max degree of parallelism. The helper
  * ensures that at any time no more than M promises are running at the same time.
  */
-export class Limiter<T> implements ILimiter<T>{
+export class Limiter<T> implements ILimiter<T> {
 
 	private _size = 0;
 	private runningPromises: number;

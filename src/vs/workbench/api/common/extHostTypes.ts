@@ -1007,7 +1007,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+		const value = values.map(s => s.replaceAll(/[|\\,]/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -3948,8 +3948,15 @@ export class TestTag implements vscode.TestTag {
 
 //#region Test Coverage
 export class CoveredCount implements vscode.CoveredCount {
-	constructor(public covered: number, public total: number) { }
+	constructor(public covered: number, public total: number) {
+	}
 }
+
+const validateCC = (cc?: vscode.CoveredCount) => {
+	if (cc && cc.covered > cc.total) {
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
+	}
+};
 
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
@@ -3991,7 +3998,11 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.CoveredCount,
 		public branchCoverage?: vscode.CoveredCount,
 		public functionCoverage?: vscode.CoveredCount,
-	) { }
+	) {
+		validateCC(statementCoverage);
+		validateCC(branchCoverage);
+		validateCC(functionCoverage);
+	}
 }
 
 export class StatementCoverage implements vscode.StatementCoverage {
@@ -4111,7 +4122,7 @@ export enum InteractiveSessionVoteDirection {
 	Up = 1
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	Action = 1,
 	Toolbar = 2
 }

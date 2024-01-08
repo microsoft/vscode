@@ -82,6 +82,7 @@ export interface NativeParsedArgs {
 	'pre-release'?: boolean;
 	'install-builtin-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
+	'update-extensions'?: boolean;
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
@@ -115,6 +116,7 @@ export interface NativeParsedArgs {
 	'profile'?: string;
 	'profile-temp'?: boolean;
 	'disable-chromium-sandbox'?: boolean;
+	sandbox?: boolean;
 
 	'enable-coi'?: boolean;
 

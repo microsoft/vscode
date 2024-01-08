@@ -18,6 +18,7 @@ import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import type { IFolderToOpen, IWorkspaceToOpen } from 'vs/platform/window/common/window';
 import type { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import type { IEmbedderTerminalOptions } from 'vs/workbench/services/terminal/common/embedderTerminalService';
+import type { IAuthenticationProvider } from 'vs/workbench/services/authentication/common/authentication';
 
 /**
  * The `IWorkbench` interface is the API facade for web embedders
@@ -354,6 +355,15 @@ export interface IWorkbenchConstructionOptions {
 
 	//#endregion
 
+	//#region Authentication Providers
+
+	/**
+	 * Optional authentication provider contributions. These take precedence over
+	 * any authentication providers contributed via extensions.
+	 */
+	readonly authenticationProviders?: readonly IAuthenticationProvider[];
+
+	//#endregion
 
 	//#region Development options
 

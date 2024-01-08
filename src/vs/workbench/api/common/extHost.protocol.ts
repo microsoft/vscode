@@ -55,7 +55,7 @@ import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } fr
 import { IChatAsyncContent, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -68,7 +68,7 @@ import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFil
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { RelatedInformationResult, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
@@ -80,7 +80,6 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { VariablesResult } from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -211,7 +210,7 @@ export interface MainThreadDecorationsShape extends IDisposable {
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
-	$onVirtualDocumentChange(uri: UriComponents, value: string): void;
+	$onVirtualDocumentChange(uri: UriComponents, value: string): Promise<void>;
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
@@ -231,6 +230,7 @@ export interface ITextEditorConfigurationUpdate {
 export interface IResolvedTextEditorConfiguration {
 	tabSize: number;
 	indentSize: number;
+	originalIndentSize: number | 'tabSize';
 	insertSpaces: boolean;
 	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: RenderLineNumbersType;
@@ -1113,6 +1113,14 @@ export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
 
 export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto;
 
+export interface VariablesResult {
+	id: number;
+	name: string;
+	value: string;
+	hasNamedChildren: boolean;
+	indexedChildrenCount: number;
+}
+
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
@@ -1162,6 +1170,7 @@ export interface MainThreadChatProviderShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
 
+	$prepareChatAccess(providerId: string): Promise<IChatResponseProviderMetadata | undefined>;
 	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
 }
 
@@ -1217,7 +1226,7 @@ export interface MainThreadInlineChatShape extends IDisposable {
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
-export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineChatBulkEditResponse, 'edits'> & { edits: IWorkspaceEditDto } | IInlineChatMessageResponse>;
+export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineChatBulkEditResponse, 'edits'> & { edits: IWorkspaceEditDto }>;
 
 export interface ExtHostInlineChatShape {
 	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
@@ -1286,7 +1295,6 @@ export interface ExtHostChatShape {
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
 	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$releaseSession(sessionId: number): void;
-	$onDidPerformUserAction(event: IChatUserActionEvent): Promise<void>;
 }
 
 export interface ExtHostUrlsShape {
@@ -1421,12 +1429,6 @@ export interface SCMActionButtonDto {
 	enabled: boolean;
 }
 
-export interface SCMInputActionButtonDto {
-	command: ICommandDto;
-	icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
-	enabled: boolean;
-}
-
 export interface SCMGroupFeatures {
 	hideWhenEmpty?: boolean;
 }
@@ -1496,15 +1498,10 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
-	$setInputBoxActionButton(sourceControlHandle: number, actionButton?: SCMInputActionButtonDto | null): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 
-	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
-
-	$registerSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number, sourceControlId: string, label: string, icon?: ThemeIcon | UriComponents | { light: UriComponents; dark: UriComponents }): void;
-	$unregisterSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number): void;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
@@ -1762,7 +1759,6 @@ export interface ExtHostAuthenticationShape {
 	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
-	$setProviders(providers: AuthenticationProviderInformation[]): Promise<void>;
 }
 
 export interface ExtHostAiRelatedInformationShape {
@@ -2219,13 +2215,12 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
-	$provideInputBoxValue(inputBoxValueProviderHandle: number, rootUri: UriComponents, context: any, token: CancellationToken): Promise<string | undefined>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 	$provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
-	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
+	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
 	$resolveHistoryItemGroupBase(sourceControlHandle: number, historyItemGroupId: string, token: CancellationToken): Promise<SCMHistoryItemGroupDto | undefined>;
 	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
@@ -2556,7 +2551,7 @@ export interface ExtHostNotebookKernelsShape {
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
 	$provideKernelSourceActions(handle: number, token: CancellationToken): Promise<notebookCommon.INotebookKernelSourceAction[]>;
-	$provideVariables(handle: number, requestId: string, notebookUri: UriComponents, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void>;
+	$provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void>;
 }
 
 export interface ExtHostInteractiveShape {
@@ -2838,7 +2833,7 @@ export const ExtHostContext = {
 	ExtHostUriOpeners: createProxyIdentifier<ExtHostUriOpenersShape>('ExtHostUriOpeners'),
 	ExtHostProfileContentHandlers: createProxyIdentifier<ExtHostProfileContentHandlersShape>('ExtHostProfileContentHandlers'),
 	ExtHostOutputService: createProxyIdentifier<ExtHostOutputServiceShape>('ExtHostOutputService'),
-	ExtHosLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),
+	ExtHostLabelService: createProxyIdentifier<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostNotebook: createProxyIdentifier<ExtHostNotebookShape>('ExtHostNotebook'),
 	ExtHostNotebookDocuments: createProxyIdentifier<ExtHostNotebookDocumentsShape>('ExtHostNotebookDocuments'),
 	ExtHostNotebookEditors: createProxyIdentifier<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),

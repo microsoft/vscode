@@ -22,7 +22,7 @@ export class ReferencesCodeLens extends vscode.CodeLens {
 	}
 }
 
-export abstract class TypeScriptBaseCodeLensProvider extends Disposable implements vscode.CodeLensProvider<ReferencesCodeLens>{
+export abstract class TypeScriptBaseCodeLensProvider extends Disposable implements vscode.CodeLensProvider<ReferencesCodeLens> {
 	protected changeEmitter = this._register(new vscode.EventEmitter<void>());
 	public onDidChangeCodeLenses = this.changeEmitter.event;
 

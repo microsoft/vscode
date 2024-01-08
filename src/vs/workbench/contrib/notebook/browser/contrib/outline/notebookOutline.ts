@@ -93,8 +93,10 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 		template.container.style.removeProperty('--outline-element-color');
 		template.decoration.innerText = '';
 		if (markerInfo) {
+			const problem = this._configurationService.getValue('problems.visibility');
 			const useBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
-			if (!useBadges) {
+
+			if (!useBadges || !problem) {
 				template.decoration.classList.remove('bubble');
 				template.decoration.innerText = '';
 			} else if (markerInfo.count === 0) {
@@ -105,8 +107,11 @@ class NotebookOutlineRenderer implements ITreeRenderer<OutlineEntry, FuzzyScore,
 				template.decoration.innerText = markerInfo.count > 9 ? '9+' : String(markerInfo.count);
 			}
 			const color = this._themeService.getColorTheme().getColor(markerInfo.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground);
+			if (problem === undefined) {
+				return;
+			}
 			const useColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
-			if (!useColors) {
+			if (!useColors || !problem) {
 				template.container.style.removeProperty('--outline-element-color');
 				template.decoration.style.setProperty('--outline-element-color', color?.toString() ?? 'inherit');
 			} else {
@@ -419,7 +424,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[NotebookSetting.gotoSymbolsAllSymbols]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			markdownDescription: localize('notebook.gotoSymbols.showAllSymbols', "When enabled the Go to Symbol Quick Pick will display full code symbols from the notebook, as well as Markdown headers.")
 		},
 	}

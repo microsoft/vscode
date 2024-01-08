@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { Lazy } from 'vs/base/common/lazy';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Lazy', () => {
 
@@ -27,4 +28,6 @@ suite('Lazy', () => {
 		assert.strictEqual(value.hasValue, true);
 		assert.throws(() => value.value, /\b1\b/);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

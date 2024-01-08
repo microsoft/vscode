@@ -37,6 +37,7 @@ export interface IFileStatus {
 export interface Stash {
 	index: number;
 	description: string;
+	branchName?: string;
 }
 
 interface MutableRemote extends Remote {
@@ -50,6 +51,8 @@ interface MutableRemote extends Remote {
  * Log file options.
  */
 export interface LogFileOptions {
+	/** Optional. Continue listing the history of a file beyond renames */
+	readonly follow?: boolean;
 	/** Optional. The maximum number of log entries to retrieve. */
 	readonly maxEntries?: number | string;
 	/** Optional. The Git sha (hash) to start retrieving log entries from. */
@@ -962,6 +965,38 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
+function parseGitStashes(raw: string): Stash[] {
+	const result: Stash[] = [];
+	const regex = /^stash@{(\d+)}:(.+)$/;
+	const descriptionRegex = /(WIP\s)*on([^:]+):(.*)$/i;
+
+	for (const stash of raw.split('\n').filter(s => !!s)) {
+		// Extract index and description
+		const match = regex.exec(stash);
+		if (!match) {
+			continue;
+		}
+
+		const [, index, description] = match;
+
+		// Extract branch name from description
+		const descriptionMatch = descriptionRegex.exec(description);
+		if (!descriptionMatch) {
+			result.push({ index: parseInt(index), description: description.trim() });
+			continue;
+		}
+
+		const [, wip, branchName, message] = descriptionMatch;
+		result.push({
+			index: parseInt(index),
+			description: wip ? `WIP (${message.trim()})` : message.trim(),
+			branchName: branchName.trim()
+		});
+	}
+
+	return result;
+}
+
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
@@ -1015,8 +1050,14 @@ export class Repository {
 			args.push(value);
 		}
 
-		const result = await this.exec(args, options);
-		return result.stdout.trim();
+		try {
+			const result = await this.exec(args, options);
+			return result.stdout.trim();
+		}
+		catch (err) {
+			this.logger.warn(`git config failed: ${err.message}`);
+			return '';
+		}
 	}
 
 	async getConfigs(scope: string): Promise<{ key: string; value: string }[]> {
@@ -1041,7 +1082,11 @@ export class Repository {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
-			args.push('--shortstat', '--diff-merges=first-parent');
+			args.push('--shortstat');
+
+			if (this._git.compareGitVersionTo('2.31') !== -1) {
+				args.push('--diff-merges=first-parent');
+			}
 		}
 
 		if (options?.reverse) {
@@ -1091,15 +1136,28 @@ export class Repository {
 			args.push('--author-date-order');
 		}
 
-		args.push('--', uri.fsPath);
-
-		const result = await this.exec(args);
-		if (result.exitCode) {
-			// No file history, e.g. a new file or untracked
-			return [];
+		if (options?.follow) {
+			args.push('--follow');
 		}
 
-		return parseGitCommits(result.stdout);
+		args.push('--', uri.fsPath);
+
+		try {
+			const result = await this.exec(args);
+			if (result.exitCode) {
+				// No file history, e.g. a new file or untracked
+				return [];
+			}
+
+			return parseGitCommits(result.stdout);
+		} catch (err) {
+			// Repository has no commits yet
+			if (/does not have any commits yet/.test(err.stderr)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async reflog(ref: string, pattern: string): Promise<string[]> {
@@ -2089,6 +2147,24 @@ export class Repository {
 		}
 	}
 
+	async showStash(index: number): Promise<string[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-only'];
+
+		try {
+			const result = await this.exec(args);
+
+			return result.stdout.trim()
+				.split('\n')
+				.filter(line => !!line);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				return undefined;
+			}
+
+			throw err;
+		}
+	}
+
 	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
@@ -2360,14 +2436,7 @@ export class Repository {
 
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list']);
-		const regex = /^stash@{(\d+)}:(.+)$/;
-		const rawStashes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
-
-		return rawStashes;
+		return parseGitStashes(result.stdout.trim());
 	}
 
 	async getRemotes(): Promise<Remote[]> {
@@ -2518,7 +2587,8 @@ export class Repository {
 			return branch;
 		}
 
-		return Promise.reject<Branch>(new Error('No such branch'));
+		this.logger.warn(`No such branch: ${name}.`);
+		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
 	async getDefaultBranch(): Promise<Branch> {
@@ -2596,7 +2666,13 @@ export class Repository {
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
+		const args = ['rev-list', '--count', '--left-right', range];
+
+		if (isWindows) {
+			args.splice(0, 0, '-c', 'core.longpaths=true');
+		}
+
+		const result = await this.exec(args);
 		const [ahead, behind] = result.stdout.trim().split('\t');
 
 		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
