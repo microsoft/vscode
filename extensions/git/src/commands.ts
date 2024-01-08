@@ -3535,6 +3535,31 @@ export class CommandCenter {
 		await repository.dropStash();
 	}
 
+	@command('git.stashPreview', { repository: true })
+	async stashPreview(repository: Repository): Promise<void> {
+		const placeHolder = l10n.t('Pick a stash to preview');
+		const stash = await this.pickStash(repository, placeHolder);
+
+		if (!stash) {
+			return;
+		}
+
+		const stashFiles = await repository.showStash(stash.index);
+
+		if (!stashFiles || stashFiles.length === 0) {
+			return;
+		}
+
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+
+		for (const file of stashFiles) {
+			const fileUri = Uri.file(path.join(repository.root, file));
+			args.push([fileUri, toGitUri(fileUri, `stash@{${stash.index}}`), fileUri]);
+		}
+
+		commands.executeCommand('vscode.changes', `Git Stash #${stash.index}: ${stash.description}`, args);
+	}
+
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
@@ -3543,9 +3568,10 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
+		const picks = stashes.map(stash => ({ label: `#${stash.index}: ${stash.description}`, description: stash.branchName, stash }));
 		const result = await window.showQuickPick(picks, { placeHolder });
-		return result && result.stash;
+
+		return result?.stash;
 	}
 
 	@command('git.timeline.openDiff', { repository: false })

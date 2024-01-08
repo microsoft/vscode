@@ -675,6 +675,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stashPreview",
+        "title": "%command.stashPreview%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.timeline.openDiff",
         "title": "%command.timelineOpenDiff%",
         "icon": "$(compare-changes)",
@@ -1256,6 +1262,10 @@
         {
           "command": "git.openRepositoriesInParentFolders",
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashPreview",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
           "command": "git.viewChanges",
@@ -2093,6 +2103,11 @@
         {
           "command": "git.stashDropAll",
           "group": "4_drop@2"
+        },
+        {
+          "command": "git.stashPreview",
+          "when": "config.multiDiffEditor.experimental.enabled",
+          "group": "5_preview@1"
         }
       ],
       "git.tags": [

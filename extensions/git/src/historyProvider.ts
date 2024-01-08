@@ -186,8 +186,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return undefined;
 		}
 
-		const commitCount = await this.repository.getCommitCount(`${refId1}...${refId2}`);
-		return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
+		try {
+			const commitCount = await this.repository.getCommitCount(`${refId1}...${refId2}`);
+			return { id: ancestor, ahead: commitCount.ahead, behind: commitCount.behind };
+		} catch (err) {
+			this.logger.error(`Failed to get ahead/behind for '${refId1}...${refId2}': ${err.message}`);
+		}
+
+		return undefined;
 	}
 
 	provideFileDecoration(uri: Uri): FileDecoration | undefined {

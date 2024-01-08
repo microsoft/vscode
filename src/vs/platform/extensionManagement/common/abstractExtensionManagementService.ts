@@ -359,7 +359,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 								error
 							});
 						}
-						this.logService.error('Error while installing the extension:', task.identifier.id);
+						this.logService.error('Error while installing the extension', task.identifier.id, getErrorMessage(error));
 						throw error;
 					} finally { extensionsToInstallMap.delete(task.identifier.id.toLowerCase()); }
 				}));
