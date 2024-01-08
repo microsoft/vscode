@@ -1264,6 +1264,10 @@
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         },
         {
+          "command": "git.openStash",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
           "command": "git.viewChanges",
           "when": "false"
         },
