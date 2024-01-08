@@ -3617,7 +3617,6 @@ export class CommandCenter {
 
 	@command('git.timeline.openCommit', { repository: false })
 	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		console.log('timelineOpenCommit', item);
 		if (!GitTimelineItem.is(item)) {
 			return;
 		}

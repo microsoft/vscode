@@ -24,7 +24,8 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
-    "contribSourceControlInputBoxMenu"
+    "contribSourceControlInputBoxMenu",
+    "contribSourceControlHistoryItemMenu"
   ],
   "categories": [
     "Other"
@@ -708,7 +709,7 @@
       },
       {
         "command": "git.timeline.openCommit",
-        "title": "%command.timelineOpenCommit%",
+        "title": "%command.openCommit%",
         "icon": "$(diff-multiple)",
         "category": "Git"
       },
@@ -781,6 +782,12 @@
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git"
+      },
+      {
+        "command": "git.openCommit",
+        "title": "%command.openCommit%",
         "icon": "$(diff-multiple)",
         "category": "Git"
       }
@@ -1274,6 +1281,10 @@
         {
           "command": "git.viewStagedChanges",
           "when": "false"
+        },
+        {
+          "command": "git.openCommit",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1749,6 +1760,20 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        }
+      ],
+      "scm/incoming/historyItem/context": [
+        {
+          "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        }
+      ],
+      "scm/outgoing/historyItem/context": [
+        {
+          "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
         }
       ],
       "editor/title": [

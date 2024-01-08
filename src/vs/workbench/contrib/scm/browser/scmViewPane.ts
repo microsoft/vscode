@@ -866,7 +866,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(historyItem.historyItemGroup.repository.provider);
 		if (menus.historyProviderMenu) {
-			templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.historyProviderMenu.getHistoryItemMenu(historyItem), templateData.actionBar));
+			const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem.historyItemGroup, historyItem);
+			templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(historyItemMenu, templateData.actionBar));
 		}
 
 		this.renderStatistics(node, index, templateData, height);
@@ -1689,52 +1690,52 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
-class HistoryItemViewChangesAction extends Action2 {
+// class HistoryItemViewChangesAction extends Action2 {
 
-	constructor() {
-		super({
-			id: `workbench.scm.action.historyItemViewChanges`,
-			title: localize('historyItemViewChanges', "View Changes"),
-			icon: Codicon.diffMultiple,
-			f1: false,
-			menu: {
-				id: MenuId.SCMHistoryItem,
-				group: 'inline',
-				when: ContextKeyExpr.has('config.multiDiffEditor.experimental.enabled'),
-			}
-		});
-	}
+// 	constructor() {
+// 		super({
+// 			id: `workbench.scm.action.historyItemViewChanges`,
+// 			title: localize('historyItemViewChanges', "View Changes"),
+// 			icon: Codicon.diffMultiple,
+// 			f1: false,
+// 			menu: {
+// 				id: MenuId.SCMIncomingHistoryItemContext,
+// 				group: 'inline',
+// 				when: ContextKeyExpr.has('config.multiDiffEditor.experimental.enabled'),
+// 			}
+// 		});
+// 	}
 
-	async run(accessor: ServicesAccessor, historyItem: SCMHistoryItemTreeElement): Promise<void> {
-		const commandService = accessor.get(ICommandService);
+// 	async run(accessor: ServicesAccessor, historyItem: SCMHistoryItemTreeElement): Promise<void> {
+// 		const commandService = accessor.get(ICommandService);
 
-		const historyProvider = historyItem.historyItemGroup.repository.provider.historyProvider;
-		if (!historyProvider) {
-			return;
-		}
+// 		const historyProvider = historyItem.historyItemGroup.repository.provider.historyProvider;
+// 		if (!historyProvider) {
+// 			return;
+// 		}
 
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
-		if (!historyItemChanges || historyItemChanges.length === 0) {
-			return;
-		}
+// 		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+// 		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+// 		if (!historyItemChanges || historyItemChanges.length === 0) {
+// 			return;
+// 		}
 
-		let [originalRef, modifiedRef] = historyItem.id.includes('..')
-			? historyItem.id.split('..').map(id => id.substring(0, 8)) : [undefined, historyItem.id.substring(0, 8)];
+// 		let [originalRef, modifiedRef] = historyItem.id.includes('..')
+// 			? historyItem.id.split('..').map(id => id.substring(0, 8)) : [undefined, historyItem.id.substring(0, 8)];
 
-		if (!originalRef) {
-			originalRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedRef}^`;
-		}
+// 		if (!originalRef) {
+// 			originalRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedRef}^`;
+// 		}
 
-		const title = localize('historyItemChangesTitle', "Changes ({0} ↔ {1})", originalRef, modifiedRef);
-		const args = historyItemChanges.map(change => [change.uri, change.originalUri, change.modifiedUri]);
+// 		const title = localize('historyItemChangesTitle', "Changes ({0} ↔ {1})", originalRef, modifiedRef);
+// 		const args = historyItemChanges.map(change => [change.uri, change.originalUri, change.modifiedUri]);
 
-		return commandService.executeCommand('_workbench.changes', title, args);
-	}
+// 		return commandService.executeCommand('_workbench.changes', title, args);
+// 	}
 
-}
+// }
 
-registerAction2(HistoryItemViewChangesAction);
+// registerAction2(HistoryItemViewChangesAction);
 
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
