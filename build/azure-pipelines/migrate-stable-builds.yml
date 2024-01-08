@@ -1,4 +1,5 @@
 pool: 1es-windows-2019-x64
+timeoutInMinutes: 360
 
 steps:
   - task: NodeTool@0
