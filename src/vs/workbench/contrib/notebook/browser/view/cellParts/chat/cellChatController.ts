@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, h } from 'vs/base/browser/dom';
+import { Dimension, getWindow, h } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -468,7 +468,7 @@ class EditStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(edit, speed, opts.token));
+			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(getWindow(editor.getContainerDomNode()), edit, speed, opts.token));
 		}
 	}
 

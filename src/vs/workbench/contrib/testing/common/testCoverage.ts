@@ -123,6 +123,23 @@ export class TestCoverage {
 	}
 }
 
+export const getTotalCoveragePercent = (statement: ICoveredCount, branch: ICoveredCount | undefined, function_: ICoveredCount | undefined) => {
+	let numerator = statement.covered;
+	let denominator = statement.total;
+
+	if (branch) {
+		numerator += branch.covered;
+		denominator += branch.total;
+	}
+
+	if (function_) {
+		numerator += function_.covered;
+		denominator += function_.total;
+	}
+
+	return denominator === 0 ? 1 : numerator / denominator;
+};
+
 export abstract class AbstractFileCoverage {
 	public readonly uri: URI;
 	public readonly statement: ICoveredCount;
@@ -134,20 +151,7 @@ export abstract class AbstractFileCoverage {
 	 * This is based on the Clover total coverage formula
 	 */
 	public get tpc() {
-		let numerator = this.statement.covered;
-		let denominator = this.statement.total;
-
-		if (this.branch) {
-			numerator += this.branch.covered;
-			denominator += this.branch.total;
-		}
-
-		if (this.function) {
-			numerator += this.function.covered;
-			denominator += this.function.total;
-		}
-
-		return denominator === 0 ? 1 : numerator / denominator;
+		return getTotalCoveragePercent(this.statement, this.branch, this.function);
 	}
 
 	constructor(coverage: IFileCoverage) {
@@ -166,6 +170,12 @@ export class ComputedFileCoverage extends AbstractFileCoverage { }
 
 export class FileCoverage extends AbstractFileCoverage {
 	private _details?: CoverageDetails[] | Promise<CoverageDetails[]>;
+	private resolved?: boolean;
+
+	/** Gets whether details are synchronously available */
+	public get hasSynchronousDetails() {
+		return this._details instanceof Array || this.resolved;
+	}
 
 	constructor(coverage: IFileCoverage, private readonly index: number, private readonly accessor: ICoverageAccessor) {
 		super(coverage);
@@ -179,7 +189,9 @@ export class FileCoverage extends AbstractFileCoverage {
 		this._details ??= this.accessor.resolveFileCoverage(this.index, token);
 
 		try {
-			return await this._details;
+			const d = await this._details;
+			this.resolved = true;
+			return d;
 		} catch (e) {
 			this._details = undefined;
 			throw e;

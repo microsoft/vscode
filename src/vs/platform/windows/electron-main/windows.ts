@@ -32,6 +32,7 @@ export interface IWindowsMainService {
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
 	readonly onDidMaximizeWindow: Event<ICodeWindow>;
 	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
+	readonly onDidChangeFullScreen: Event<ICodeWindow>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
@@ -131,7 +132,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		webPreferences: {
 			enableWebSQL: false,
 			spellcheck: false,
-			zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+			zoomFactor: zoomLevelToZoomFactor(windowState?.zoomLevel ?? windowSettings?.zoomLevel),
 			autoplayPolicy: 'user-gesture-required',
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098

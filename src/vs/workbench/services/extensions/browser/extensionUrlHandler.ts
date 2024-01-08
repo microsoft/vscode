@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -433,8 +433,8 @@ class ManageAuthorizedExtensionURIsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.manageAuthorizedExtensionURIs',
-			title: { value: localize('manage', "Manage Authorized Extension URIs..."), original: 'Manage Authorized Extension URIs...' },
-			category: { value: localize('extensions', "Extensions"), original: 'Extensions' },
+			title: localize2('manage', 'Manage Authorized Extension URIs...'),
+			category: localize2('extensions', 'Extensions'),
 			menu: {
 				id: MenuId.CommandPalette,
 				when: IsWebContext.toNegated()

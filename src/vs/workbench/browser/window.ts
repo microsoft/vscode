@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getActiveWindow, getWindow, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, detectFullscreen, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS, isMacintosh } from 'vs/base/common/platform';
+import { isIOS } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -35,11 +35,17 @@ export abstract class BaseWindow extends Disposable {
 	private static TIMEOUT_HANDLES = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
 	private static readonly TIMEOUT_DISPOSABLES = new Map<number, Set<IDisposable>>();
 
-	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
+	constructor(
+		targetWindow: CodeWindow,
+		dom = { getWindowsCount, getWindows }, /* for testing */
+		@IHostService protected readonly hostService: IHostService
+	) {
 		super();
 
 		this.enableWindowFocusOnElementFocus(targetWindow);
 		this.enableMultiWindowAwareTimeout(targetWindow, dom);
+
+		this.registerFullScreenListeners(targetWindow.vscodeWindowId);
 	}
 
 	//#region focus handling in multi-window applications
@@ -128,6 +134,16 @@ export abstract class BaseWindow extends Disposable {
 
 	//#endregion
 
+	private registerFullScreenListeners(targetWindowId: number): void {
+		this._register(this.hostService.onDidChangeFullScreen(windowId => {
+			if (windowId === targetWindowId) {
+				const targetWindow = getWindowById(targetWindowId);
+				if (targetWindow) {
+					setFullscreen(!!detectFullscreen(targetWindow.window), targetWindow.window);
+				}
+			}
+		}));
+	}
 }
 
 export class BrowserWindow extends BaseWindow {
@@ -141,9 +157,9 @@ export class BrowserWindow extends BaseWindow {
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService hostService: IHostService
 	) {
-		super(mainWindow);
+		super(mainWindow, undefined, hostService);
 
 		this.registerListeners();
 		this.create();
@@ -173,16 +189,6 @@ export class BrowserWindow extends BaseWindow {
 
 		// Prevent default navigation on drop
 		this._register(addDisposableListener(this.layoutService.mainContainer, EventType.DROP, e => EventHelper.stop(e, true)));
-
-		// Fullscreen (Browser)
-		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-			this._register(addDisposableListener(mainWindow.document, event, () => setFullscreen(!!detectFullscreen(mainWindow))));
-		}
-
-		// Fullscreen (Native)
-		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen(mainWindow));
-		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
 	private onWillShutdown(): void {

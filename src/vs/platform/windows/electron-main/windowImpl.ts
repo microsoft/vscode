@@ -98,6 +98,12 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
+	private readonly _onDidEnterFullScreen = this._register(new Emitter<void>());
+	readonly onDidEnterFullScreen = this._onDidEnterFullScreen.event;
+
+	private readonly _onDidLeaveFullScreen = this._register(new Emitter<void>());
+	readonly onDidLeaveFullScreen = this._onDidLeaveFullScreen.event;
+
 	//#endregion
 
 	abstract readonly id: number;
@@ -121,6 +127,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
 			this._lastFocusTime = Date.now();
 		}));
+		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
+		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => this._onDidLeaveFullScreen.fire()));
 
 		// Sheet Offsets
 		const useCustomTitleStyle = getTitleBarStyle(this.configurationService) === 'custom';
@@ -470,6 +478,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	private currentHttpProxy: string | undefined = undefined;
 	private currentNoProxy: string | undefined = undefined;
 
+	private customZoomLevel: number | undefined = undefined;
+
 	private readonly configObjectUrl = this._register(this.protocolMainService.createIPCObjectUrl<INativeWindowConfiguration>());
 	private pendingLoadConfig: INativeWindowConfiguration | undefined;
 	private wasLoaded = false;
@@ -670,14 +680,14 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}));
 
 		// Window Fullscreen
-		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => {
+		this._register(this.onDidEnterFullScreen(() => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		}));
 
-		this._register(Event.fromNodeEventEmitter(this._win, 'leave-full-screen')(() => {
+		this._register(this.onDidLeaveFullScreen(() => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
 			this.joinNativeFullScreenTransition?.complete();
@@ -1042,6 +1052,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		configuration.fullscreen = this.isFullScreen;
 		configuration.maximized = this._win.isMaximized();
 		configuration.partsSplash = this.themeMainService.getWindowSplash();
+		configuration.zoomLevel = this.getZoomLevel();
+		configuration.isCustomZoomLevel = typeof this.customZoomLevel === 'number';
+		if (configuration.isCustomZoomLevel && configuration.partsSplash) {
+			configuration.partsSplash.zoomLevel = configuration.zoomLevel;
+		}
 
 		// Update with latest perf marks
 		mark('code/willOpenNewWindow');
@@ -1141,7 +1156,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			const defaultState = defaultWindowState();
 
-			const res = {
+			return {
 				mode: WindowMode.Fullscreen,
 				display: display ? display.id : undefined,
 
@@ -1153,10 +1168,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				width: this.windowState.width || defaultState.width,
 				height: this.windowState.height || defaultState.height,
 				x: this.windowState.x || 0,
-				y: this.windowState.y || 0
+				y: this.windowState.y || 0,
+				zoomLevel: this.customZoomLevel
 			};
-
-			return res;
 		}
 
 		const state: IWindowState = Object.create(null);
@@ -1191,6 +1205,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			state.height = bounds.height;
 		}
 
+		state.zoomLevel = this.customZoomLevel;
+
 		return state;
 	}
 
@@ -1199,6 +1215,11 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		let hasMultipleDisplays = false;
 		if (state) {
+
+			// Window zoom
+			this.customZoomLevel = state.zoomLevel;
+
+			// Window dimensions
 			try {
 				const displays = screen.getAllDisplays();
 				hasMultipleDisplays = displays.length > 1;
@@ -1433,6 +1454,19 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.autoHideMenuBar = false;
 				break;
 		}
+	}
+
+	notifyZoomLevel(zoomLevel: number | undefined): void {
+		this.customZoomLevel = zoomLevel;
+	}
+
+	private getZoomLevel(): number | undefined {
+		if (typeof this.customZoomLevel === 'number') {
+			return this.customZoomLevel;
+		}
+
+		const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		return windowSettings?.zoomLevel;
 	}
 
 	close(): void {

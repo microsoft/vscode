@@ -31,6 +31,7 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
 				override store() { }
+				override getObject() { return {}; }
 			},
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;

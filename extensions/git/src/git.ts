@@ -2622,7 +2622,13 @@ export class Repository {
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
+		const args = ['rev-list', '--count', '--left-right', range];
+
+		if (isWindows) {
+			args.splice(0, 0, '-c', 'core.longpaths=true');
+		}
+
+		const result = await this.exec(args);
 		const [ahead, behind] = result.stdout.trim().split('\t');
 
 		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
