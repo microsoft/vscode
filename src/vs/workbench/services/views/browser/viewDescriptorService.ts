@@ -756,19 +756,28 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private registerViewsVisibilityActions(viewContainer: ViewContainer, { viewContainerModel, disposables }: { viewContainerModel: ViewContainerModel; disposables: DisposableStore }): void {
+		this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
 		this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
 		disposables.add(Event.any(
 			viewContainerModel.onDidChangeActiveViewDescriptors,
 			viewContainerModel.onDidAddVisibleViewDescriptors,
 			viewContainerModel.onDidRemoveVisibleViewDescriptors,
 			viewContainerModel.onDidMoveVisibleViewDescriptors
-		)(e => this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel))));
+		)(e => {
+			this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
+			this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
+		}));
 	}
 
 	private registerViewsVisibilityActionsForContainer(viewContainerModel: ViewContainerModel): IDisposable {
 		const disposables = new DisposableStore();
 		viewContainerModel.activeViewDescriptors.forEach((viewDescriptor, index) => {
 			if (!viewDescriptor.remoteAuthority) {
+				disposables.add(toDisposable(() => {
+					if (viewDescriptor.id === 'workbench.explorer.fileView') {
+						console.log('workbench.explorer.fileView.toggleVisibility');
+					}
+				}));
 				disposables.add(registerAction2(class extends ViewPaneContainerAction<ViewPaneContainer> {
 					constructor() {
 						super({
