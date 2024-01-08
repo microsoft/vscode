@@ -457,7 +457,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			));
 			actions.push(new Action(
 				'addTriggerByBreakpoint',
-				nls.localize('addTriggerByBreakpoint', "Add Wait for breakpoint.."),
+				nls.localize('addTriggerByBreakpoint', "Add Wait For Breakpoint.."),
 				undefined,
 				true,
 				() => Promise.resolve(this.showBreakpointWidget(lineNumber, column, BreakpointWidgetContext.TRIGGER_POINT))
