@@ -10,7 +10,7 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
-	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
+	getHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -21,7 +21,7 @@ export interface ISCMHistoryProvider {
 	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
-	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
+	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 	resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
@@ -57,6 +57,7 @@ export interface ISCMHistoryItemGroupDetails {
 export interface ISCMHistoryItemGroupEntry {
 	readonly id: string;
 	readonly label: string;
+	readonly direction: 'incoming' | 'outgoing';
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly description?: string;
 	readonly ancestor?: string;

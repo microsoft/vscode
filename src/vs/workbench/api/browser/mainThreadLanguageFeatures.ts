@@ -1009,7 +1009,7 @@ class MainThreadPasteEditProvider implements languages.DocumentPasteEditProvider
 		}
 
 		if (metadata.supportsPaste) {
-			this.provideDocumentPasteEdits = async (model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken) => {
+			this.provideDocumentPasteEdits = async (model: ITextModel, selections: Selection[], dataTransfer: IReadonlyVSDataTransfer, context: languages.DocumentPasteContext, token: CancellationToken) => {
 				const request = this.dataTransfers.add(dataTransfer);
 				try {
 					const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
