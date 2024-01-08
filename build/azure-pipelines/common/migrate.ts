@@ -388,6 +388,7 @@ interface Asset {
 
 interface Build {
 	readonly id: string;
+	readonly version: string;
 	readonly assets: Asset[];
 }
 
@@ -415,8 +416,9 @@ async function main() {
 
 	for (const build of builds.resources) {
 		const assetsToMigrate = build.assets.filter(asset => asset.url?.startsWith('https://az764295.vo.msecnd.net/'));
-		console.log(`Migrating ${build.id} (${assetsToMigrate.length} assets)...`);
+		console.log(`Migrating ${build.version} (${assetsToMigrate.length} assets)...`);
 		await Promise.all(assetsToMigrate.map(asset => migrateAsset(client, build, asset)));
+		console.log('SUCCESS', JSON.stringify(build));
 		// await client.database('builds').container('stable').item(build.id).replace(build);
 	}
 }
