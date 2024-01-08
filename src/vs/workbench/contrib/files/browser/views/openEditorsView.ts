@@ -738,27 +738,26 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
-		const targetEditorIndex = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+		let targetEditorIndex = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
 
-		let targetIndex = targetEditorIndex;
 		switch (targetSector) {
-			case ListViewTargetSector.TOP:
-			case ListViewTargetSector.CENTER_TOP:
-				targetIndex -= 1; break;
+			case ListViewTargetSector.BOTTOM:
+			case ListViewTargetSector.CENTER_BOTTOM:
+				targetEditorIndex++; break;
 		}
 
 		if (data instanceof ElementsDragAndDropData) {
-			let offset = 0;
-			data.elements.forEach((oe: OpenEditor) => {
-				// Moving an editor which is located before the target location does not change the index of the target
-				if (oe.group.getIndexOfEditor(oe.editor) >= targetEditorIndex) {
-					offset += 1;
+			for (const oe of data.elements) {
+				const sourceEditorIndex = oe.group.getIndexOfEditor(oe.editor);
+				if (sourceEditorIndex < targetEditorIndex) {
+					targetEditorIndex--;
 				}
-				oe.group.moveEditor(oe.editor, group, { index: targetIndex + offset, preserveFocus: true });
-			});
+				oe.group.moveEditor(oe.editor, group, { index: targetEditorIndex, preserveFocus: true });
+				targetEditorIndex++;
+			}
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index: targetIndex + 1 });
+			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index: targetEditorIndex });
 		}
 	}
 

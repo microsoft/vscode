@@ -693,9 +693,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, !!item, {
-			diffIdentityProvider: identityProvider
-		});
+		return this.tree.updateChildren(toRefresh, recursive, !!item);
 	}
 
 	override getOptimalWidth(): number {
@@ -807,13 +805,16 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			} catch (e) {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
-
-			for (const child of item.children.values()) {
-				if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
-					item = child;
-					break;
-				}
+			if (!item.children.size) {
 				item = null;
+			} else {
+				for (const child of item.children.values()) {
+					if (this.uriIdentityService.extUri.isEqualOrParent(resource, child.resource)) {
+						item = child;
+						break;
+					}
+					item = null;
+				}
 			}
 		}
 

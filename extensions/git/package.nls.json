@@ -104,6 +104,7 @@
 	"command.stashApplyLatest": "Apply Latest Stash",
 	"command.stashDrop": "Drop Stash...",
 	"command.stashDropAll": "Drop All Stashes...",
+	"command.stashPreview": "Preview Stash...",
 	"command.timelineOpenDiff": "Open Changes",
 	"command.timelineOpenCommit": "Open Commit",
 	"command.timelineCopyCommitId": "Copy Commit ID",

@@ -76,6 +76,7 @@ export abstract class InlineChatRunOptions {
 	existingSession?: Session;
 	isUnstashed?: boolean;
 	position?: IPosition;
+	withIntentDetection?: boolean;
 
 	static isInteractiveEditorOptions(options: any): options is InlineChatRunOptions {
 		const { initialSelection, initialRange, message, autoSend, position } = options;
@@ -376,6 +377,12 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 
+		this._sessionStore.add(this._zone.value.widget.onRequestWithoutIntentDetection(async () => {
+			options.withIntentDetection = false;
+
+			this.regenerate();
+		}));
+
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 		const updateWholeRangeDecoration = () => {
 			const newDecorations = this._strategy?.getWholeRangeDecoration() ?? [];
@@ -512,7 +519,9 @@ export class InlineChatController implements IEditorContribution {
 
 		if (message & Message.RERUN_INPUT && this._activeSession.lastExchange) {
 			const { lastExchange } = this._activeSession;
-			this._activeSession.addInput(lastExchange.prompt.retry());
+			if (options.withIntentDetection === undefined) { // @ulugbekna: if we're re-running with intent detection turned off, no need to update `attempt` #
+				this._activeSession.addInput(lastExchange.prompt.retry());
+			}
 			if (lastExchange.response instanceof ReplyResponse) {
 				try {
 					this._ignoreModelContentChanged = true;
@@ -564,7 +573,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.MAKE_REQUEST;
 	}
 
-	private async [State.MAKE_REQUEST](): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT> {
+	private async [State.MAKE_REQUEST](options: InlineChatRunOptions): Promise<State.APPLY_RESPONSE | State.PAUSE | State.CANCEL | State.ACCEPT | State.MAKE_REQUEST> {
 		assertType(this._editor.hasModel());
 		assertType(this._activeSession);
 		assertType(this._strategy);
@@ -588,8 +597,12 @@ export class InlineChatController implements IEditorContribution {
 			attempt: this._activeSession.lastInput.attempt,
 			selection: this._editor.getSelection(),
 			wholeRange: this._activeSession.wholeRange.trackedInitialRange,
-			live: this._activeSession.editMode !== EditMode.Preview // TODO@jrieken let extension know what document is used for previewing
+			live: this._activeSession.editMode !== EditMode.Preview, // TODO@jrieken let extension know what document is used for previewing
+			withIntentDetection: options.withIntentDetection ?? true /* use intent detection by default */,
 		};
+
+		// re-enable intent detection
+		delete options.withIntentDetection;
 
 		const modelAltVersionIdNow = this._activeSession.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
@@ -737,6 +750,8 @@ export class InlineChatController implements IEditorContribution {
 			return State.PAUSE;
 		} else if (message & Message.ACCEPT_SESSION) {
 			return State.ACCEPT;
+		} else if (message & Message.ACCEPT_INPUT) {
+			return State.MAKE_REQUEST;
 		} else {
 			return State.APPLY_RESPONSE;
 		}
@@ -861,6 +876,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private async[State.PAUSE]() {
 
+		this._sessionStore.clear();
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
 		this._ctxLastFeedbackKind.reset();

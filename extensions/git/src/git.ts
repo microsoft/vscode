@@ -37,6 +37,7 @@ export interface IFileStatus {
 export interface Stash {
 	index: number;
 	description: string;
+	branchName?: string;
 }
 
 interface MutableRemote extends Remote {
@@ -962,6 +963,38 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
+function parseGitStashes(raw: string): Stash[] {
+	const result: Stash[] = [];
+	const regex = /^stash@{(\d+)}:(.+)$/;
+	const descriptionRegex = /(WIP\s)*on([^:]+):(.*)$/i;
+
+	for (const stash of raw.split('\n').filter(s => !!s)) {
+		// Extract index and description
+		const match = regex.exec(stash);
+		if (!match) {
+			continue;
+		}
+
+		const [, index, description] = match;
+
+		// Extract branch name from description
+		const descriptionMatch = descriptionRegex.exec(description);
+		if (!descriptionMatch) {
+			result.push({ index: parseInt(index), description: description.trim() });
+			continue;
+		}
+
+		const [, wip, branchName, message] = descriptionMatch;
+		result.push({
+			index: parseInt(index),
+			description: wip ? `WIP (${message.trim()})` : message.trim(),
+			branchName: branchName.trim()
+		});
+	}
+
+	return result;
 }
 
 export interface PullOptions {
@@ -2114,6 +2147,24 @@ export class Repository {
 		}
 	}
 
+	async showStash(index: number): Promise<string[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-only'];
+
+		try {
+			const result = await this.exec(args);
+
+			return result.stdout.trim()
+				.split('\n')
+				.filter(line => !!line);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				return undefined;
+			}
+
+			throw err;
+		}
+	}
+
 	async getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean; similarityThreshold?: number; untrackedChanges?: 'mixed' | 'separate' | 'hidden'; cancellationToken?: CancellationToken }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
 		if (opts?.cancellationToken && opts?.cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
@@ -2385,14 +2436,7 @@ export class Repository {
 
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list']);
-		const regex = /^stash@{(\d+)}:(.+)$/;
-		const rawStashes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
-
-		return rawStashes;
+		return parseGitStashes(result.stdout.trim());
 	}
 
 	async getRemotes(): Promise<Remote[]> {
@@ -2622,7 +2666,13 @@ export class Repository {
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
+		const args = ['rev-list', '--count', '--left-right', range];
+
+		if (isWindows) {
+			args.splice(0, 0, '-c', 'core.longpaths=true');
+		}
+
+		const result = await this.exec(args);
 		const [ahead, behind] = result.stdout.trim().split('\t');
 
 		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };

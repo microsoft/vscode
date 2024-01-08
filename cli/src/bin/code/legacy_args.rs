@@ -60,6 +60,7 @@ pub fn try_parse_legacy(
 
 	// Now translate them to subcommands.
 	// --list-extensions        -> ext list
+	// --update-extensions      -> update
 	// --install-extension=id   -> ext install <id>
 	// --uninstall-extension=id -> ext uninstall <id>
 	// --status                 -> status
@@ -83,6 +84,14 @@ pub fn try_parse_legacy(
 					pre_release: args.contains_key("pre-release"),
 					force: args.contains_key("force"),
 				}),
+				desktop_code_options,
+			})),
+			..Default::default()
+		})
+	} else if let Some(_exts) = args.remove("update-extensions") {
+		Some(CliCore {
+			subcommand: Some(Commands::Extension(ExtensionArgs {
+				subcommand: ExtensionSubcommand::Update,
 				desktop_code_options,
 			})),
 			..Default::default()

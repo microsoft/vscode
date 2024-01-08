@@ -152,6 +152,30 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 	}
 }
 
+class PasteHtmlProvider implements DocumentPasteEditProvider {
+
+	public readonly id = 'html';
+
+	public readonly pasteMimeTypes = ['text/html'];
+
+	private readonly _yieldTo = [{ mimeType: Mimes.text }];
+
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+		const entry = dataTransfer.get('text/html');
+		const htmlText = await entry?.asString();
+		if (!htmlText || token.isCancellationRequested) {
+			return;
+		}
+
+		return {
+			insertText: htmlText,
+			yieldTo: this._yieldTo,
+			label: localize('pasteHtmlLabel', 'Insert HTML'),
+			detail: builtInLabel,
+		};
+	}
+}
+
 async function extractUriList(dataTransfer: IReadonlyVSDataTransfer): Promise<{ readonly uri: URI; readonly originalText: string }[]> {
 	const urlListEntry = dataTransfer.get(Mimes.uriList);
 	if (!urlListEntry) {
@@ -193,5 +217,6 @@ export class DefaultPasteProvidersFeature extends Disposable {
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new DefaultTextProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PathProvider()));
 		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new RelativePathProvider(workspaceContextService)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new PasteHtmlProvider()));
 	}
 }

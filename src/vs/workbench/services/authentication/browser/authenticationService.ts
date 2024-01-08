@@ -210,9 +210,11 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		@IDialogService private readonly dialogService: IDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IProductService private readonly productService: IProductService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
+		environmentService.options?.authenticationProviders?.forEach(provider => this.registerAuthenticationProvider(provider.id, provider));
 		authenticationExtPoint.setHandler((extensions, { added, removed }) => {
 			added.forEach(point => {
 				for (const provider of point.value) {

@@ -1221,27 +1221,26 @@ export class ListView<T> implements IListView<T> {
 		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort((a, b) => a - b);
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
-		const dragOverEffctPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
+		const dragOverEffectPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
 
-		if (equalsDragFeedback(this.currentDragFeedback, feedback) && this.currentDragFeedbackPosition === dragOverEffctPosition) {
+		if (equalsDragFeedback(this.currentDragFeedback, feedback) && this.currentDragFeedbackPosition === dragOverEffectPosition) {
 			return true;
 		}
 
 		this.currentDragFeedback = feedback;
-		this.currentDragFeedbackPosition = dragOverEffctPosition;
+		this.currentDragFeedbackPosition = dragOverEffectPosition;
 		this.currentDragFeedbackDisposable.dispose();
 
 		if (feedback[0] === -1) { // entire list feedback
-			console.log('entire list feedback', dragOverEffctPosition);
-			this.domNode.classList.add(dragOverEffctPosition);
-			this.rowsContainer.classList.add(dragOverEffctPosition);
+			this.domNode.classList.add(dragOverEffectPosition);
+			this.rowsContainer.classList.add(dragOverEffectPosition);
 			this.currentDragFeedbackDisposable = toDisposable(() => {
-				this.domNode.classList.remove(dragOverEffctPosition);
-				this.rowsContainer.classList.remove(dragOverEffctPosition);
+				this.domNode.classList.remove(dragOverEffectPosition);
+				this.rowsContainer.classList.remove(dragOverEffectPosition);
 			});
 		} else {
 
-			if (feedback.length > 1 && dragOverEffctPosition !== ListDragOverEffectPosition.Over) {
+			if (feedback.length > 1 && dragOverEffectPosition !== ListDragOverEffectPosition.Over) {
 				throw new Error('Can\'t use multiple feedbacks with position different than \'over\'');
 			}
 
@@ -1249,7 +1248,7 @@ export class ListView<T> implements IListView<T> {
 				const item = this.items[index]!;
 				item.dropTarget = true;
 
-				item.row?.domNode.classList.add(dragOverEffctPosition);
+				item.row?.domNode.classList.add(dragOverEffectPosition);
 			}
 
 			this.currentDragFeedbackDisposable = toDisposable(() => {
@@ -1257,7 +1256,7 @@ export class ListView<T> implements IListView<T> {
 					const item = this.items[index]!;
 					item.dropTarget = false;
 
-					item.row?.domNode.classList.remove(dragOverEffctPosition);
+					item.row?.domNode.classList.remove(dragOverEffectPosition);
 				}
 			});
 		}
