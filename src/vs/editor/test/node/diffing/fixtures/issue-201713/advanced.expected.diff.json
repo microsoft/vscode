@@ -1,11 +1,11 @@
 {
 	"original": {
 		"content": "const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;\nif (deletedCodeLineBreaksComputer) {\n\tfor (const a of alignmentsVal) {\n\t\tif (a.diff) {\n\t\t\tfor (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {\n\t\t\t\tdeletedCodeLineBreaksComputer?.addRequest(this._editors.original.getModel()!.getLineContent(i), null, null);\n\t\t\t}\n\t\t}\n\t}\n}\n\nconst lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];\nlet lineBreakDataIdx = 0;",
-		"fileName": "./1.ts"
+		"fileName": "./1.tst"
 	},
 	"modified": {
 		"content": "const deletedCodeLineBreaksComputer = !renderSideBySide ? this._editors.modified._getViewModel()?.createLineBreaksComputer() : undefined;\nif (deletedCodeLineBreaksComputer) {\n\tconst originalModel = this._editors.original.getModel()!;\n\tfor (const a of alignmentsVal) {\n\t\tif (a.diff) {\n\t\t\tfor (let i = a.originalRange.startLineNumber; i < a.originalRange.endLineNumberExclusive; i++) {\n\t\t\t\t// `i` can be out of bound when the diff has not been updated yet.\n\t\t\t\t// In this case, we do an early return.\n\t\t\t\t// TODO@hediet: Fix this by applying the edit directly to the diff model, so that the diff is always valid.\n\t\t\t\tif (i > originalModel.getLineCount()) {\n\t\t\t\t\treturn { orig: origViewZones, mod: modViewZones };\n\t\t\t\t}\n\t\t\t\tdeletedCodeLineBreaksComputer?.addRequest(originalModel.getLineContent(i), null, null);\n\t\t\t}\n\t\t}\n\t}\n}\n\nconst lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];\nlet lineBreakDataIdx = 0;",
-		"fileName": "./2.ts"
+		"fileName": "./2.tst"
 	},
 	"diffs": [
 		{
