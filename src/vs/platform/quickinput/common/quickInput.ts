@@ -402,7 +402,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	/**
 	 * The label for the custom button. The custom button is a button with text rendered to the right of the input.
 	 */
-	customLabel: string | IMarkdownString | undefined;
+	customLabel: string | undefined;
 
 	/**
 	 * The hover text for the custom button. The custom button is a button with text rendered to the right of the input.
