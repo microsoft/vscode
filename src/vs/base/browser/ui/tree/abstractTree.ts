@@ -1463,7 +1463,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		this._widget.domFocus();
 	}
 
-	// If sticky scroll was the last focused part in the tree
+	// Whether sticky scroll was the last focused part in the tree or not
 	focusedLast(): boolean {
 		return this._widget.focusedLast();
 	}
@@ -1674,23 +1674,22 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
+	private focusedIndex: number = -1;
 	private elements: HTMLElement[] = [];
 	private state: StickyScrollState<T, TFilterData, TRef> | undefined;
 
-	private _onDidChangeState = new Emitter<boolean>();
-	readonly onDidChangeHasFocus = this._onDidChangeState.event;
+	private _onDidChangeHasFocus = new Emitter<boolean>();
+	readonly onDidChangeHasFocus = this._onDidChangeHasFocus.event;
+
+	private _onContextMenu = new Emitter<ITreeContextMenuEvent<T>>();
+	readonly onContextMenu: Event<ITreeContextMenuEvent<T>> = this._onContextMenu.event;
 
 	private _domHasFocus: boolean = false;
 	private get domHasFocus(): boolean { return this._domHasFocus; }
 	private set domHasFocus(hasFocus: boolean) {
 		this._domHasFocus = hasFocus;
-		this._onDidChangeState.fire(hasFocus);
+		this._onDidChangeHasFocus.fire(hasFocus);
 	}
-
-	private focusedIndex: number = -1;
-
-	private _onContextMenu = new Emitter<ITreeContextMenuEvent<T>>();
-	readonly onContextMenu: Event<ITreeContextMenuEvent<T>> = this._onContextMenu.event;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -1913,7 +1912,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
 	override dispose(): void {
 		this.toggleStickyScrollFocused(false);
-		this._onDidChangeState.fire(false);
+		this._onDidChangeHasFocus.fire(false);
 		super.dispose();
 	}
 }
@@ -2339,7 +2338,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private findController?: FindController<T, TFilterData>;
 	readonly onDidChangeFindOpenState: Event<boolean> = Event.None;
 	onDidChangeStickyScrollFocused: Event<boolean> = Event.None;
-	onStickyScrollContextMenu: Event<ITreeContextMenuEvent<T>> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
 	private stickyScrollController?: StickyScrollController<T, TFilterData, TRef>;
 	private styleElement: HTMLStyleElement;
@@ -2352,7 +2350,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.filter(Event.map(this.view.onMouseDblClick, asTreeMouseEvent), e => e.target !== TreeMouseEventTarget.Filter); }
-	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.any(Event.filter(Event.map(this.view.onContextMenu, asTreeContextMenuEvent), e => !e.isStickyScroll), this.onStickyScrollContextMenu); }
+	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.any(Event.filter(Event.map(this.view.onContextMenu, asTreeContextMenuEvent), e => !e.isStickyScroll), this.stickyScrollController?.onContextMenu ?? Event.None); }
 	get onTap(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onTap, asTreeMouseEvent); }
 	get onPointer(): Event<ITreeMouseEvent<T>> { return Event.map(this.view.onPointer, asTreeMouseEvent); }
 
@@ -2482,7 +2480,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (_options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, _options);
 			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
-			this.onStickyScrollContextMenu = this.stickyScrollController.onContextMenu;
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
@@ -2513,10 +2510,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		if (!this.stickyScrollController && this._options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, this._options);
 			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
-			this.onStickyScrollContextMenu = this.stickyScrollController.onContextMenu;
 		} else if (this.stickyScrollController && !this._options.enableStickyScroll) {
 			this.onDidChangeStickyScrollFocused = Event.None;
-			this.onStickyScrollContextMenu = Event.None;
 			this.stickyScrollController.dispose();
 			this.stickyScrollController = undefined;
 		}
