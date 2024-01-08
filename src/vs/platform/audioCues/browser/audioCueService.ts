@@ -260,17 +260,17 @@ function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 }
 
 class Cache<TArg, TValue> {
-	private readonly map = new Map<TArg, TValue>();
+	private readonly map = new Map<{ arg: TArg; optionalArg: any }, TValue>();
 	constructor(private readonly getValue: (value: TArg, optionalArg?: any) => TValue) {
 	}
 
 	public get(arg: TArg, optionalArg?: any): TValue {
-		if (this.map.has(arg)) {
-			return this.map.get(arg)!;
+		if (this.map.has({ arg, optionalArg })) {
+			return this.map.get({ arg, optionalArg })!;
 		}
 
 		const value = this.getValue(arg, optionalArg);
-		this.map.set(arg, value);
+		this.map.set({ arg, optionalArg }, value);
 		return value;
 	}
 }
