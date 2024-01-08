@@ -194,6 +194,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Scoped instantiation service
 			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				// FIXME: 从缓存中恢复 tab 状态，依赖 scopedContextKeyService 如果换用全局单例的 contextKeyService，右侧面板首次会从有 => 无；
+				// 但是打开节点之后，resource 上下文更新，需要依赖最外部的全局 contextKeyService，像现在这样直接使用 scopedContextKeyService 会导致拿不到 resource 更新之后的值。
 				[IContextKeyService, this.scopedContextKeyService],
 				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
 			));
