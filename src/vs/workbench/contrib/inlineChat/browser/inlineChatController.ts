@@ -876,6 +876,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private async[State.PAUSE]() {
 
+		this._sessionStore.clear();
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
 		this._ctxLastFeedbackKind.reset();
