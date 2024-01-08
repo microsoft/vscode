@@ -675,6 +675,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stashOpen",
+        "title": "%command.stashOpen%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.timeline.openDiff",
         "title": "%command.timelineOpenDiff%",
         "icon": "$(compare-changes)",
@@ -1256,6 +1262,10 @@
         {
           "command": "git.openRepositoriesInParentFolders",
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
+        },
+        {
+          "command": "git.openStash",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
           "command": "git.viewChanges",

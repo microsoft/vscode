@@ -1931,7 +1931,7 @@ export class Repository implements Disposable {
 	}
 
 	async getStashes(): Promise<Stash[]> {
-		return await this.repository.getStashes();
+		return this.run(Operation.Stash, () => this.repository.getStashes());
 	}
 
 	async createStash(message?: string, includeUntracked?: boolean, staged?: boolean): Promise<void> {
@@ -1956,6 +1956,10 @@ export class Repository implements Disposable {
 
 	async applyStash(index?: number): Promise<void> {
 		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
+	}
+
+	async showStash(index: number): Promise<string[] | undefined> {
+		return await this.run(Operation.Stash, () => this.repository.showStash(index));
 	}
 
 	async getCommitTemplate(): Promise<string> {
