@@ -777,19 +777,22 @@
         "command": "git.viewChanges",
         "title": "%command.viewChanges%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.openCommit",
         "title": "%command.openCommit%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
