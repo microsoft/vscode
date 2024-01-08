@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, isPointerEvent, asCssValueWithDefault, isKeyboardEvent } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement, asCssValueWithDefault, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { IListAccessibilityProvider, IListOptions, IListStyles, isActionItem, isButton, isInputElement, isMonacoCustomToggle, isMonacoEditor, isStickyScrollElement, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider, IListOptions, IListStyles, isActionItem, isButton, isInputElement, isMonacoCustomToggle, isMonacoEditor, isStickyScrollContainer, isStickyScrollElement, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
@@ -1459,6 +1459,15 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this._widget.getFocus();
 	}
 
+	domFocus(): void {
+		this._widget.domFocus();
+	}
+
+	// If sticky scroll was the last focused part in the tree
+	focusedLast(): boolean {
+		return this._widget.focusedLast();
+	}
+
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
 		const validatedOptions = this.validateStickySettings(optionsUpdate);
 		if (this.stickyScrollMaxItemCount !== validatedOptions.stickyScrollMaxItemCount) {
@@ -1648,6 +1657,14 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		return this.stickyScrollFocus.getFocus();
 	}
 
+	domFocus(): void {
+		this.stickyScrollFocus.domFocus();
+	}
+
+	focusedLast(): boolean {
+		return this.stickyScrollFocus.focusedLast();
+	}
+
 	dispose(): void {
 		this.stickyScrollFocus.dispose();
 		this._previousState?.dispose();
@@ -1684,20 +1701,38 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 		this.container.addEventListener('focus', () => this.onFocus());
 		this.container.addEventListener('blur', () => this.onBlur());
 
+		this._register(this.view.onDidFocus(() => this.toggleStickyScrollFocused(false)));
 		this._register(this.view.onKeyDown((e) => this.onKeyDown(e)));
+		this._register(this.view.onMouseDown((e) => this.onMouseDown(e)));
 		this._register(this.view.onContextMenu((e) => this.handleContextMenu(e)));
 	}
 
 	private handleContextMenu(e: IListContextMenuEvent<ITreeNode<T, TFilterData>>): void {
-		// We only handle context menu triggers by a keyboardevent here
-		// Context menu triggers by mouse are handled by the list itself
-
 		const target = e.browserEvent.target as HTMLElement;
-		const isStickyScroll = target.classList.contains('monaco-tree-sticky-container') && !isPointerEvent(e);
-
-		if (!this.domHasFocus && !isStickyScroll) {
+		if (!isStickyScrollContainer(target) && !isStickyScrollElement(target)) {
+			if (this.focusedLast()) {
+				this.view.domFocus();
+			}
 			return;
 		}
+
+		// The list handles the context menu triggered by a mouse event
+		// In that case only set the focus of the element clicked and leave the rest to the list to handle
+		if (!isKeyboardEvent(e.browserEvent)) {
+			if (!this.state) {
+				throw new Error('Context menu should not be triggered when state is undefined');
+			}
+
+			const stickyIndex = this.state.stickyNodes.findIndex(stickyNode => stickyNode.node.element === e.element?.element);
+
+			if (stickyIndex === -1) {
+				throw new Error('Context menu should not be triggered when element is not in sticky scroll widget');
+			}
+			this.toggleStickyScrollFocused(true);
+			this.setFocus(stickyIndex);
+			return;
+		}
+
 		if (!this.state || this.focusedIndex < 0) {
 			throw new Error('Context menu key should not be triggered when focus is not in sticky scroll widget');
 		}
@@ -1713,7 +1748,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 		if (this.domHasFocus && this.state) {
 			// Move up
 			if (e.key === 'ArrowUp') {
-				this.setElementFocused(Math.max(0, this.focusedIndex - 1));
+				this.setFocusedElement(Math.max(0, this.focusedIndex - 1));
 				e.preventDefault();
 				e.stopPropagation();
 			}
@@ -1725,7 +1760,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 					this.view.setFocus([nodeIndexToFocus]);
 					this.scrollNodeUnderWidget(nodeIndexToFocus, this.state);
 				} else {
-					this.setElementFocused(this.focusedIndex + 1);
+					this.setFocusedElement(this.focusedIndex + 1);
 				}
 				e.preventDefault();
 				e.stopPropagation();
@@ -1733,7 +1768,26 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 		}
 	}
 
+	private onMouseDown(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
+		const target = e.browserEvent.target as HTMLElement;
+		if (!isStickyScrollContainer(target) && !isStickyScrollElement(target)) {
+			return;
+		}
+
+		e.browserEvent.preventDefault();
+		e.browserEvent.stopPropagation();
+
+		this.container.focus();
+	}
+
 	updateElements(elements: HTMLElement[], state: StickyScrollState<T, TFilterData, TRef> | undefined): void {
+		if (state && state.count === 0) {
+			throw new Error('Sticky scroll state must be undefined when there are no sticky nodes');
+		}
+		if (state && state.count !== elements.length) {
+			throw new Error('Sticky scroll focus received illigel state');
+		}
+
 		const previousFocusedIndex = this.focusedIndex;
 		this.removeFocus();
 
@@ -1747,11 +1801,16 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 			this.setFocus(newFocusedIndex);
 		} else {
 			this.removeFocus();
-			this.view.domFocus();
+			this.toggleStickyScrollFocused(false);
+			if (this.domHasFocus) {
+				this.view.domFocus();
+			}
 		}
 	}
 
-	setElementFocused(stickyIndex: number): void {
+	private setFocusedElement(stickyIndex: number): void {
+		// doesn't imply that the widget has (or will have) focus
+
 		const state = this.state;
 		if (!state) {
 			throw new Error('Cannot set focus when state is undefined');
@@ -1784,6 +1843,21 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 			return undefined;
 		}
 		return this.state.stickyNodes[this.focusedIndex].node.element;
+	}
+
+	domFocus(): void {
+		if (!this.state) {
+			throw new Error('Cannot focus when state is undefined');
+		}
+
+		this.container.focus();
+	}
+
+	focusedLast(): boolean {
+		if (!this.state) {
+			return false;
+		}
+		return this.view.getHTMLElement().classList.contains('sticky-scroll-focused');
 	}
 
 	private removeFocus(): void {
@@ -1819,12 +1893,17 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 		element.classList.toggle('focused', focused);
 	}
 
+	private toggleStickyScrollFocused(focused: boolean) {
+		// Weather the last focus in the view was sticky scroll and not the list
+		this.view.getHTMLElement().classList.toggle('sticky-scroll-focused', focused);
+	}
+
 	private onFocus(): void {
 		if (!this.state || this.elements.length === 0) {
 			throw new Error('Cannot focus when state is undefined or elements are empty');
 		}
-
 		this.domHasFocus = true;
+		this.toggleStickyScrollFocused(true);
 		if (this.focusedIndex === -1) {
 			this.setFocus(0);
 		}
@@ -1835,6 +1914,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	}
 
 	override dispose(): void {
+		this.toggleStickyScrollFocused(false);
 		this._onDidChangeState.fire(false);
 		super.dispose();
 	}
@@ -1859,8 +1939,7 @@ function asTreeMouseEvent<T>(event: IListMouseEvent<ITreeNode<T, any>>): ITreeMo
 }
 
 function asTreeContextMenuEvent<T>(event: IListContextMenuEvent<ITreeNode<T, any>>): ITreeContextMenuEvent<T> {
-	const target = event.browserEvent.target as HTMLElement;
-	const isStickyScroll = target.classList.contains('monaco-tree-sticky-container');
+	const isStickyScroll = isStickyScrollContainer(event.browserEvent.target as HTMLElement);
 
 	return {
 		element: event.element ? event.element.element : null,
@@ -2130,6 +2209,23 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 
 		super.onDoubleClick(e);
 	}
+
+	// to make sure dom focus is not stolen (for example with context menu)
+	protected override onMouseDown(e: IListMouseEvent<ITreeNode<T, TFilterData>> | IListTouchEvent<ITreeNode<T, TFilterData>>): void {
+		const target = e.browserEvent.target as HTMLElement;
+		if (!isStickyScrollContainer(target) && !isStickyScrollElement(target)) {
+			super.onMouseDown(e);
+			return;
+		}
+	}
+
+	protected override onContextMenu(e: IListContextMenuEvent<ITreeNode<T, TFilterData>>): void {
+		const target = e.browserEvent.target as HTMLElement;
+		if (!isStickyScrollContainer(target) && !isStickyScrollElement(target)) {
+			super.onContextMenu(e);
+			return;
+		}
+	}
 }
 
 interface ITreeNodeListOptions<T, TFilterData, TRef> extends IListOptions<ITreeNode<T, TFilterData>> {
@@ -2225,6 +2321,11 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 			}
 		}
 	}
+}
+
+export const enum AbstractTreePart {
+	Tree,
+	StickyScroll,
 }
 
 export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable {
@@ -2514,7 +2615,11 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	domFocus(): void {
-		this.view.domFocus();
+		if (this.stickyScrollController?.focusedLast()) {
+			this.stickyScrollController.domFocus();
+		} else {
+			this.view.domFocus();
+		}
 	}
 
 	isDOMFocused(): boolean {
@@ -2546,20 +2651,23 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		// Sticky Scroll Focus
 		if (styles.listFocusForeground) {
-			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
-			content.push(`.monaco-list${suffix}:focus .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { color: inherit; }`);
+			content.push(`.monaco-list${suffix}.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { color: ${styles.listFocusForeground}; }`);
+			content.push(`.monaco-list${suffix}:not(.sticky-scroll-focused) .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { color: inherit; }`);
 		}
 
 		// Sticky Scroll Focus Outlines
 		const focusAndSelectionOutline = asCssValueWithDefault(styles.listFocusAndSelectionOutline, asCssValueWithDefault(styles.listSelectionOutline, styles.listFocusOutline ?? ''));
 		if (focusAndSelectionOutline) { // default: listFocusOutline
-			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
-			content.push(`.monaco-list${suffix}:focus .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused.selected { outline: inherit;}`);
+			content.push(`.monaco-list${suffix}.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused.selected { outline: 1px solid ${focusAndSelectionOutline}; outline-offset: -1px;}`);
+			content.push(`.monaco-list${suffix}:not(.sticky-scroll-focused) .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused.selected { outline: inherit;}`);
 		}
 
 		if (styles.listFocusOutline) { // default: set
-			content.push(`.monaco-list${suffix} .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
-			content.push(`.monaco-list${suffix}:focus .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { outline: inherit; }`);
+			content.push(`.monaco-list${suffix}.sticky-scroll-focused .monaco-scrollable-element .monaco-tree-sticky-container:focus .monaco-list-row.focused { outline: 1px solid ${styles.listFocusOutline}; outline-offset: -1px; }`);
+			content.push(`.monaco-list${suffix}:not(.sticky-scroll-focused) .monaco-scrollable-element .monaco-tree-sticky-container .monaco-list-row.focused { outline: inherit; }`);
+
+			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused.sticky-scroll-focused .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
+			content.push(`.monaco-workbench.context-menu-visible .monaco-list${suffix}.last-focused:not(.sticky-scroll-focused) .monaco-tree-sticky-container .monaco-list-rows .monaco-list-row.focused { outline: inherit; }`);
 		}
 
 		this.styleElement.textContent = content.join('\n');
@@ -2709,8 +2817,13 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this.focus.get();
 	}
 
-	getStickyScrollFocus(): T | undefined {
-		return this.stickyScrollController?.getFocus();
+	getStickyScrollFocus(): T[] {
+		const focus = this.stickyScrollController?.getFocus();
+		return focus ? [focus] : [];
+	}
+
+	getFocusedPart(): AbstractTreePart {
+		return this.stickyScrollController?.focusedLast() ? AbstractTreePart.StickyScroll : AbstractTreePart.Tree;
 	}
 
 	reveal(location: TRef, relativeTop?: number): void {

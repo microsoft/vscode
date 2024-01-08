@@ -54,6 +54,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
 import { isInputElement } from 'vs/base/browser/ui/list/listWidget';
+import { AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -349,7 +350,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
-		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
+		const focusedItems = this.tree.getFocusedPart() === AbstractTreePart.StickyScroll ?
+			this.tree.getStickyScrollFocus() :
+			this.tree.getFocus();
+		return getContext(focusedItems, this.tree.getSelection(), respectMultiSelection, this.renderer);
 	}
 
 	isItemVisible(item: ExplorerItem): boolean {
