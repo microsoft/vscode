@@ -1231,9 +1231,13 @@ export class DebugSession implements IDebugSession, IDisposable {
 		// moment for breakpoints to set and we want to do our best to not miss
 		// anything
 		if (event.hitBreakpointIds) {
-			this.enableDependentBreakpoints(event.hitBreakpointIds);
+			this.enableDependentBreakpoints(event.hitBreakpointIds).then(() => this.runInStatusQueue(event));
+		} else {
+			this.runInStatusQueue(event);
 		}
+	}
 
+	private async runInStatusQueue(event: IRawStoppedDetails) {
 		this.statusQueue.run(
 			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
 			async (threadId, token) => {
@@ -1304,7 +1308,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		);
 	}
 
-	private enableDependentBreakpoints(hitBreakpointIdsOrThread: Thread | number[]) {
+	private async enableDependentBreakpoints(hitBreakpointIdsOrThread: Thread | number[]) {
 		let breakpoints: IBreakpoint[];
 		if (Array.isArray(hitBreakpointIdsOrThread)) {
 			breakpoints = this.model.getBreakpoints().filter(bp => hitBreakpointIdsOrThread.includes(bp.getIdFromAdapter(this.id)!));
@@ -1334,7 +1338,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 			});
 		});
 
-		urisToResend.forEach((uri) => this.debugService.sendBreakpoints(URI.parse(uri), undefined, this));
+		const results: Promise<any>[] = [];
+		urisToResend.forEach((uri) => results.push(this.debugService.sendBreakpoints(URI.parse(uri), undefined, this)));
+		return Promise.all(results);
 	}
 
 	private getBreakpointsAtPosition(uri: URI, startLineNumber: number, endLineNumber: number, startColumn: number, endColumn: number): IBreakpoint[] {
