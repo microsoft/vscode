@@ -150,11 +150,15 @@ body.web {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
 }
 
-.monaco-workbench .product-icon[class*='codicon-']::before {
+.monaco-workbench .predefined-file-icon[class*='codicon-']::before {
 	font-family: 'codicon';
 	width: 16px;
 	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
 	padding-right: 3px;
+}
+
+.monaco-workbench:not(.file-icons-enabled) .predefined-file-icon[class*='codicon-']::before {
+	content: unset !important;
 }
 
 .monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
