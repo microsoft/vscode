@@ -339,9 +339,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		super.focus();
 		this.tree.domFocus();
 
-		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this._autoReveal) {
-			this.tree.reveal(focused[0], 0.5);
+		if (this.tree.getFocusedPart() === AbstractTreePart.Tree) {
+			const focused = this.tree.getFocus();
+			if (focused.length === 1 && this._autoReveal) {
+				this.tree.reveal(focused[0], 0.5);
+			}
 		}
 	}
 

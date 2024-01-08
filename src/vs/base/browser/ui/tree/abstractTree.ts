@@ -1788,7 +1788,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 			throw new Error('Sticky scroll focus received illigel state');
 		}
 
-		const previousFocusedIndex = this.focusedIndex;
+		const previousIndex = this.focusedIndex;
 		this.removeFocus();
 
 		this.elements = elements;
@@ -1796,12 +1796,10 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
 		this.container.tabIndex = state ? 0 : -1;
 
-		if (this.domHasFocus && state) {
-			const newFocusedIndex = clamp(previousFocusedIndex, 0, state.count - 1);
+		if (state) {
+			const newFocusedIndex = clamp(previousIndex, 0, state.count - 1);
 			this.setFocus(newFocusedIndex);
 		} else {
-			this.removeFocus();
-			this.toggleStickyScrollFocused(false);
 			if (this.domHasFocus) {
 				this.view.domFocus();
 			}
@@ -2825,7 +2823,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	getStickyScrollFocus(): T[] {
 		const focus = this.stickyScrollController?.getFocus();
-		return focus ? [focus] : [];
+		return focus !== undefined ? [focus] : [];
 	}
 
 	getFocusedPart(): AbstractTreePart {
