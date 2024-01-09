@@ -174,12 +174,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		() => /** @description config: audioCues.enabled */ this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>('audioCues.enabled')
 	);
 
-	private readonly isCueEnabledCache = new Cache((cue: AudioCue, userGesture?: boolean) => {
+	private readonly isCueEnabledCache = new Cache((event: IAudioCueEvent) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(cue.settingsKey)
+				e.affectsConfiguration(event.cue.settingsKey)
 			),
-			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(cue.settingsKey)
+			() => this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>(event.cue.settingsKey)
 		);
 		return derived(reader => {
 			/** @description audio cue enabled */
@@ -189,7 +189,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 				(setting === 'auto' && this.screenReaderAttached.read(reader))
 			) {
 				return true;
-			} else if (setting === 'always' || setting === 'userGesture' && userGesture) {
+			} else if (setting === 'always' || setting === 'userGesture' && event.userGesture) {
 				return true;
 			}
 
@@ -205,12 +205,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	});
 
-	private readonly isAlertEnabledCache = new Cache((cue: AudioCue, userGesture?: boolean) => {
+	private readonly isAlertEnabledCache = new Cache((event: IAudioCueEvent) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-				e.affectsConfiguration(cue.settingsKey)
+				e.affectsConfiguration(event.cue.settingsKey)
 			),
-			() => cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(cue.alertSettingsKey) : false
+			() => event.cue.alertSettingsKey ? this.configurationService.getValue<true | false | 'userGesture' | 'always' | 'never'>(event.cue.alertSettingsKey) : false
 		);
 		return derived(reader => {
 			/** @description audio cue enabled */
@@ -220,21 +220,25 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			) {
 				return false;
 			}
-			return setting === true || setting === 'always' || setting === 'userGesture' && userGesture;
+			return setting === true || setting === 'always' || setting === 'userGesture' && event.userGesture;
 		});
 	});
 
 	public isAlertEnabled(cue: AudioCue, userGesture?: boolean): boolean {
-		return this.isAlertEnabledCache.get(cue, userGesture).get() ?? false;
+		return this.isAlertEnabledCache.get({ cue, userGesture }).get() ?? false;
 	}
 
 	public isCueEnabled(cue: AudioCue, userGesture?: boolean): boolean {
-		return this.isCueEnabledCache.get(cue, userGesture).get() ?? false;
+		return this.isCueEnabledCache.get({ cue, userGesture }).get() ?? false;
 	}
 
 	public onEnabledChanged(cue: AudioCue): Event<void> {
-		return Event.fromObservableLight(this.isCueEnabledCache.get(cue));
+		return Event.fromObservableLight(this.isCueEnabledCache.get({ cue }));
 	}
+}
+export interface IAudioCueEvent {
+	readonly cue: AudioCue;
+	readonly userGesture?: boolean;
 }
 
 /**
@@ -260,17 +264,22 @@ function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 }
 
 class Cache<TArg, TValue> {
-	private readonly map = new Map<{ arg: TArg; optionalArg: any }, TValue>();
-	constructor(private readonly getValue: (value: TArg, optionalArg?: any) => TValue) {
+	private readonly map = new Map<TArg, TValue>();
+	constructor(private readonly getValue: (value: TArg) => TValue) {
 	}
 
-	public get(arg: TArg, optionalArg?: any): TValue {
-		if (this.map.has({ arg, optionalArg })) {
-			return this.map.get({ arg, optionalArg })!;
+	private _getKey(event: IAudioCueEvent): string {
+		return `${event.cue.name}-${event.userGesture}`;
+	}
+
+	public get(arg: TArg): TValue {
+		if (this.map.has(arg)) {
+			return this.map.get(arg)!;
 		}
 
-		const value = this.getValue(arg, optionalArg);
-		this.map.set({ arg, optionalArg }, value);
+		const value = this.getValue(arg);
+		const key = this._getKey(arg as IAudioCueEvent) as TArg;
+		this.map.set(key, value);
 		return value;
 	}
 }
