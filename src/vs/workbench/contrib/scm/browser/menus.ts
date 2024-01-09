@@ -274,7 +274,7 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 			]);
 
 			const menuId = historyItemGroup.direction === 'incoming' ?
-				MenuId.SCMIncomingHistoryItemContext : MenuId.SCMOutgoingHistoryItemContext;
+				MenuId.SCMIncomingChangesHistoryItemContext : MenuId.SCMOutgoingChangesHistoryItemContext;
 
 			result = this.menuService.createMenu(menuId, contextKeyService);
 			this.historyItemMenus.set(historyItem, result);
