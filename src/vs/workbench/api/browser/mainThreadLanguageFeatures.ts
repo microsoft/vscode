@@ -669,7 +669,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				return {
 					...hint,
 					tooltip: result.tooltip,
-					label: revive<string | languages.InlayHintLabelPart[]>(result.label)
+					label: revive<string | languages.InlayHintLabelPart[]>(result.label),
+					textEdits: result.textEdits
 				};
 			};
 		}
