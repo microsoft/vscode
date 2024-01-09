@@ -46,7 +46,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar, WorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
+import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
@@ -67,7 +67,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { IAction } from 'vs/base/common/actions';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -183,7 +182,6 @@ export class InlineChatWidget {
 			h('div.followUps.hidden@followUps'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
-				h('div.actions.hidden@extraToolbar'),
 				h('div.actions.hidden@statusToolbar'),
 				h('div.label.status.hidden@statusLabel'),
 				h('div.actions.hidden@feedbackToolbar'),
@@ -571,15 +569,6 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	private _extraButtonsCleanup = this._store.add(new MutableDisposable());
-
-	setExtraButtons(buttons: IAction[]) {
-		const bar = this._instantiationService.createInstance(WorkbenchButtonBar, this._elements.extraToolbar, { telemetrySource: 'inlineChat' });
-		bar.update(buttons);
-		this._elements.extraToolbar.classList.toggle('hidden', buttons.length === 0);
-		this._extraButtonsCleanup.value = bar;
-	}
-
 	get expansionState(): ExpansionState {
 		return this._expansionState;
 	}
@@ -743,7 +732,6 @@ export class InlineChatWidget {
 		reset(this._elements.statusLabel);
 		this._elements.detectedIntent.classList.toggle('hidden', true);
 		this._elements.statusLabel.classList.toggle('hidden', true);
-		this._elements.extraToolbar.classList.add('hidden');
 		this._elements.statusToolbar.classList.add('hidden');
 		this._elements.feedbackToolbar.classList.add('hidden');
 		this.updateInfo('');

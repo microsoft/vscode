@@ -1042,6 +1042,14 @@ export class InlineChatController implements IEditorContribution {
 		this._messages.fire(Message.ACCEPT_SESSION);
 	}
 
+	acceptHunk() {
+		return this._strategy?.acceptHunk();
+	}
+
+	discardHunk() {
+		return this._strategy?.discardHunk();
+	}
+
 	async cancelSession() {
 
 		let result: string | undefined;
