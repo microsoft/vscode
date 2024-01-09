@@ -1584,6 +1584,17 @@ declare namespace monaco.editor {
 		Right = 3
 	}
 
+	export interface IGlyphMarginLanesModel {
+		/**
+		 * The number of lanes that should be rendered in the editor.
+		 */
+		readonly requiredLanes: number;
+		/**
+		 * Gets the lanes that should be rendered starting at a given line number.
+		 */
+		getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+	}
+
 	/**
 	 * Position in the minimap to render the decoration.
 	 */
