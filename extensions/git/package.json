@@ -1765,14 +1765,14 @@
           "group": "1_modification@3"
         }
       ],
-      "scm/incoming/historyItem/context": [
+      "scm/incomingChanges/historyItem/context": [
         {
           "command": "git.openCommit",
           "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
       ],
-      "scm/outgoing/historyItem/context": [
+      "scm/outgoingChanges/historyItem/context": [
         {
           "command": "git.openCommit",
           "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
