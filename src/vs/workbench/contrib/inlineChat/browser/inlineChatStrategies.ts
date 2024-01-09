@@ -4,18 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableWindowInterval } from 'vs/base/browser/dom';
-import { IAction, toAction } from 'vs/base/common/actions';
 import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
+import { themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -34,7 +31,6 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
@@ -75,6 +71,14 @@ export abstract class EditModeStrategy {
 	abstract apply(): Promise<void>;
 
 	abstract cancel(): Promise<void>;
+
+	async acceptHunk(): Promise<void> {
+		this._onDidAccept.fire();
+	}
+
+	async discardHunk(): Promise<void> {
+		this._onDidDiscard.fire();
+	}
 
 	abstract makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
 
@@ -199,8 +203,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		session: Session,
 		private readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
-		@IStorageService storageService: IStorageService,
-		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
@@ -243,6 +245,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
 		await undoModelUntil(modelN, targetAltVersion);
 	}
+
 	override async makeChanges(_targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
@@ -516,6 +519,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private _editCount: number = 0;
 
+	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
+	override discardHunk: () => Promise<void> = () => super.discardHunk();
+
 	constructor(
 		session: Session,
 		protected readonly _editor: ICodeEditor,
@@ -668,7 +674,8 @@ export class LiveStrategy extends EditModeStrategy {
 
 			distance: number;
 			position: Position;
-			actions: IAction[];
+			acceptHunk: () => void;
+			discardHunk: () => void;
 			toggleDiff?: () => any;
 		};
 
@@ -695,36 +702,25 @@ export class LiveStrategy extends EditModeStrategy {
 							decorationIds.push(decorationsAccessor.addDecoration(change.modifiedRange, this._decoInsertedTextRange));
 						}
 
-						const actions = [
-							toAction({
-								id: 'accept',
-								label: localize('accept', "Accept"),
-								class: ThemeIcon.asClassName(Codicon.check),
-								run: () => {
-									// ACCEPT: stop rendering this as inserted
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
-									renderHunks();
-								}
-							}),
-							toAction({
-								id: 'discard',
-								label: localize('discard', "Discard"),
-								class: ThemeIcon.asClassName(Codicon.discard),
-								run: () => {
-									const edits: ISingleEditOperation[] = [];
-									for (let i = 1; i < decorationIds.length; i++) {
-										// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
-										// which was created above so that typing in the editor keeps discard working.
-										const modifiedRange = this._session.textModelN.getDecorationRange(decorationIds[i])!;
-										const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
-										edits.push(EditOperation.replace(modifiedRange, originalValue));
-									}
-									this._session.textModelN.pushEditOperations(null, edits, () => null);
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
-									renderHunks();
-								}
-							}),
-						];
+						const acceptHunk = () => {
+							// ACCEPT: stop rendering this as inserted
+							hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
+							renderHunks();
+						};
+
+						const discardHunk = () => {
+							const edits: ISingleEditOperation[] = [];
+							for (let i = 1; i < decorationIds.length; i++) {
+								// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
+								// which was created above so that typing in the editor keeps discard working.
+								const modifiedRange = this._session.textModelN.getDecorationRange(decorationIds[i])!;
+								const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
+								edits.push(EditOperation.replace(modifiedRange, originalValue));
+							}
+							this._session.textModelN.pushEditOperations(null, edits, () => null);
+							hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
+							renderHunks();
+						};
 
 						// original view zone
 						const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
@@ -776,8 +772,9 @@ export class LiveStrategy extends EditModeStrategy {
 							viewZone: viewZoneData,
 							distance: myDistance,
 							position: modifiedRange.getStartPosition().delta(-1),
+							acceptHunk,
+							discardHunk,
 							toggleDiff: !hunk.original.isEmpty ? toggleDiff : undefined,
-							actions
 						};
 
 						hunkDisplayData.set(hunk, data);
@@ -813,7 +810,6 @@ export class LiveStrategy extends EditModeStrategy {
 			});
 
 			if (widgetData) {
-				this._zone.widget.setExtraButtons(widgetData.actions);
 				this._zone.updatePositionAndHeight(widgetData.position);
 				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
@@ -822,6 +818,8 @@ export class LiveStrategy extends EditModeStrategy {
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;
+				this.acceptHunk = async () => widgetData!.acceptHunk();
+				this.discardHunk = async () => widgetData!.discardHunk();
 
 			} else if (hunkDisplayData.size > 0) {
 				// everything accepted or rejected
@@ -843,7 +841,6 @@ export class LiveStrategy extends EditModeStrategy {
 		renderHunks();
 
 		this._renderStore.add(toDisposable(() => {
-			this._zone.widget.setExtraButtons([]);
 
 			changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
 				for (const data of hunkDisplayData.values()) {
