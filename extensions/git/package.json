@@ -14,9 +14,9 @@
     "contribEditSessions",
     "contribEditorContentMenu",
     "contribMergeEditorMenus",
-    "contribSourceControlIncomingChangesMenu",
+    "contribSourceControlHistoryItemGroupMenu",
+    "contribSourceControlHistoryItemMenu",
     "contribSourceControlInputBoxMenu",
-    "contribSourceControlOutgoingChangesMenu",
     "contribViewsWelcome",
     "diffCommand",
     "editSessionIdentityProvider",
@@ -26,8 +26,7 @@
     "scmSelectedProvider",
     "scmValidation",
     "tabInputTextMerge",
-    "timeline",
-    "contribSourceControlHistoryItemMenu"
+    "timeline"
   ],
   "categories": [
     "Other"

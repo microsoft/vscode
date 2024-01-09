@@ -253,7 +253,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
-	private readonly historyItemGroupMenus = new Map<MenuId, IMenu>();
+	private readonly historyItemGroupMenus = new Map<ISCMHistoryItemGroupEntry, IMenu>();
 	private readonly historyItemMenus = new Map<ISCMHistoryItem, IMenu>();
 
 	private readonly disposables = new DisposableStore();
@@ -262,23 +262,26 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService) { }
 
-	getHistoryItemGroupMenu(menuId: MenuId): IMenu {
-		return this.getOrCreateHistoryItemGroupMenu(menuId);
+	getHistoryItemGroupMenu(historyItemGroup: ISCMHistoryItemGroupEntry): IMenu {
+		return this.getOrCreateHistoryItemGroupMenu(historyItemGroup);
 	}
 
-	private getOrCreateHistoryItemGroupMenu(menuId: MenuId): IMenu {
-		let result = this.historyItemGroupMenus.get(menuId);
+	private getOrCreateHistoryItemGroupMenu(historyItemGroup: ISCMHistoryItemGroupEntry): IMenu {
+		let result = this.historyItemGroupMenus.get(historyItemGroup);
 
 		if (!result) {
+			const menuId = historyItemGroup.direction === 'incoming' ?
+				MenuId.SCMIncomingChanges : MenuId.SCMOutgoingChanges;
+
 			result = this.menuService.createMenu(menuId, this.contextKeyService);
-			this.historyItemGroupMenus.set(menuId, result);
+			this.historyItemGroupMenus.set(historyItemGroup, result);
 		}
 
 		return result;
 	}
 
-	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu {
-		return this.getOrCreateHistoryItemMenu(historyItem);
+	getHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu {
+		return this.getOrCreateHistoryItemMenu(historyItemGroup, historyItem);
 	}
 
 	private getOrCreateHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu {

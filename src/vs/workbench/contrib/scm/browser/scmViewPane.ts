@@ -763,12 +763,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 class HistoryItemGroupActionRunner extends ActionRunner {
 
-	protected override runAction(action: IAction, context?: unknown): Promise<void> {
+	protected override runAction(action: IAction, context: SCMHistoryItemGroupTreeElement): Promise<void> {
 		if (!(action instanceof MenuItemAction)) {
-			return super.runAction(action, context);
-		}
-
-		if (!isSCMHistoryItemGroupTreeElement(context)) {
 			return super.runAction(action, context);
 		}
 
@@ -831,7 +827,7 @@ abstract class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCM
 		templateData.count.setCount(historyItemGroup.count ?? 0);
 
 		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(historyItemGroup.repository.provider);
-		const historyItemGroupMenu = repositoryMenus.historyProviderMenu?.getHistoryItemGroupMenu(this.toolBarMenuId);
+		const historyItemGroupMenu = repositoryMenus.historyProviderMenu?.getHistoryItemGroupMenu(historyItemGroup);
 
 		if (historyItemGroupMenu) {
 			templateData.elementDisposables.add(connectPrimaryMenu(historyItemGroupMenu, (primary, secondary) => {
