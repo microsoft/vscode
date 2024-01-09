@@ -11,6 +11,7 @@ const MAX_LANE = GlyphMarginLane.Right;
 
 export class GlyphMarginLanesModel implements IGlyphMarginLanesModel {
 	private readonly lanes: Uint8Array;
+	private persist = 0;
 	private _requiredLanes = 1; // always render at least one lane
 
 	constructor(maxLine: number) {
@@ -22,7 +23,10 @@ export class GlyphMarginLanesModel implements IGlyphMarginLanesModel {
 	}
 
 	/** Adds a new range to the model. Assumes ranges are added in ascending order of line number. */
-	public push(lane: GlyphMarginLane, range: Range): void {
+	public push(lane: GlyphMarginLane, range: Range, persist?: boolean): void {
+		if (persist) {
+			this.persist |= (1 << (lane - 1));
+		}
 		for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
 			const bit = (MAX_LANE * i) + (lane - 1);
 			this.lanes[bit >>> 3] |= (1 << (bit % 8));
@@ -34,7 +38,7 @@ export class GlyphMarginLanesModel implements IGlyphMarginLanesModel {
 		const lanes: GlyphMarginLane[] = [];
 		let bit = MAX_LANE * lineNumber;
 		for (let i = 0; i < MAX_LANE; i++) {
-			if (this.lanes[bit >>> 3] & (1 << (bit % 8))) {
+			if (this.persist & (1 << i) || this.lanes[bit >>> 3] & (1 << (bit % 8))) {
 				lanes.push(i + 1);
 			}
 			bit++;
@@ -47,7 +51,7 @@ export class GlyphMarginLanesModel implements IGlyphMarginLanesModel {
 		let bit = MAX_LANE * lineNumber;
 		let count = 0;
 		for (let i = 0; i < MAX_LANE; i++) {
-			if (this.lanes[bit >>> 3] & (1 << (bit % 8))) {
+			if (this.persist & (1 << i) || this.lanes[bit >>> 3] & (1 << (bit % 8))) {
 				count++;
 			}
 			bit++;

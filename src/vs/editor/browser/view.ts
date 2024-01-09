@@ -246,7 +246,7 @@ export class View extends ViewEventHandler {
 
 	private _computeGlyphMarginLanes(): GlyphMarginLanesModel {
 		const model = this._context.viewModel.model;
-		type Glyph = { range: Range; lane: GlyphMarginLane };
+		type Glyph = { range: Range; lane: GlyphMarginLane; persist?: boolean };
 		let glyphs: Glyph[] = [];
 		let maxLineNumber = 0;
 
@@ -254,7 +254,7 @@ export class View extends ViewEventHandler {
 		glyphs = glyphs.concat(model.getAllMarginDecorations().map((decoration) => {
 			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Center;
 			maxLineNumber = Math.max(maxLineNumber, decoration.range.endLineNumber);
-			return { range: decoration.range, lane };
+			return { range: decoration.range, lane, persist: decoration.options.glyphMargin?.persistLane };
 		}));
 
 		// Add all glyph margin widgets
@@ -269,7 +269,7 @@ export class View extends ViewEventHandler {
 
 		const lanes = new GlyphMarginLanesModel(maxLineNumber);
 		for (const glyph of glyphs) {
-			lanes.push(glyph.lane, glyph.range);
+			lanes.push(glyph.lane, glyph.range, glyph.persist);
 		}
 
 		this._glyphMarginWidgets.updateLanesModel(lanes);

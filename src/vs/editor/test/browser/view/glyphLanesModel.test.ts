@@ -46,6 +46,18 @@ suite('GlyphLanesModel', () => {
 		]);
 	});
 
+	test('persists ranges', () => {
+		model.push(GlyphMarginLane.Left, lineRange(2, 3), true);
+		assert.equal(model.requiredLanes, 1);
+		assertLines(1, 5, [
+			[GlyphMarginLane.Left], // 1
+			[GlyphMarginLane.Left], // 2
+			[GlyphMarginLane.Left], // 3
+			[GlyphMarginLane.Left], // 4
+			[GlyphMarginLane.Left], // 5
+		]);
+	});
+
 	test('handles overlaps', () => {
 		model.push(GlyphMarginLane.Left, lineRange(6, 9));
 		model.push(GlyphMarginLane.Right, lineRange(5, 7));

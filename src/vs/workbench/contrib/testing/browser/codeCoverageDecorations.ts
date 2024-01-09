@@ -67,7 +67,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const cls = detail.count > 0 ? 'coverage-deco-hit' : 'coverage-deco-miss';
 					decorations.push(e.addDecoration(range, {
 						showIfCollapsed: false,
-						glyphMargin: { position: GlyphMarginLane.Left },
+						glyphMargin: { position: GlyphMarginLane.Left, persistLane: true },
 						description: localize('testing.hitCount', 'Hit count: {0}', detail.count),
 						glyphMarginClassName: `coverage-deco-gutter ${cls}`,
 						className: `coverage-deco-inline ${cls}`,
@@ -79,7 +79,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 							const branchRange = location instanceof Range ? location : Range.fromPositions(location);
 							decorations.push(e.addDecoration(branchRange, {
 								showIfCollapsed: false,
-								glyphMargin: { position: GlyphMarginLane.Left },
+								glyphMargin: { position: GlyphMarginLane.Left, persistLane: true },
 								description: localize('testing.hitCount', 'Hit count: {0}', detail.count),
 								glyphMarginClassName: `coverage-deco-gutter ${cls}`,
 								className: `coverage-deco-inline ${cls}`,
