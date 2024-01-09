@@ -203,7 +203,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 			return false;
 		});
-	});
+	}, (event) => this._getKey(event));
 
 	private readonly isAlertEnabledCache = new Cache((event: IAudioCueEvent) => {
 		const settingObservable = observableFromEvent(
@@ -222,7 +222,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			}
 			return setting === true || setting === 'always' || setting === 'userGesture' && event.userGesture;
 		});
-	});
+	}, (event) => this._getKey(event));
+
+
+	private _getKey(event: IAudioCueEvent): string {
+		return JSON.stringify(event);
+	}
 
 	public isAlertEnabled(cue: AudioCue, userGesture?: boolean): boolean {
 		return this.isAlertEnabledCache.get({ cue, userGesture }).get() ?? false;
@@ -262,11 +267,7 @@ function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 
 class Cache<TArg, TValue> {
 	private readonly map = new Map<TArg, TValue>();
-	constructor(private readonly getValue: (value: TArg) => TValue) {
-	}
-
-	private _getKey(arg: TArg): string {
-		return JSON.stringify(arg);
+	constructor(private readonly getValue: (value: TArg) => TValue, private readonly getKey: (value: TArg) => unknown) {
 	}
 
 	public get(arg: TArg): TValue {
@@ -275,7 +276,7 @@ class Cache<TArg, TValue> {
 		}
 
 		const value = this.getValue(arg);
-		const key = this._getKey(arg) as TArg;
+		const key = this.getKey(arg) as TArg;
 		this.map.set(key, value);
 		return value;
 	}
