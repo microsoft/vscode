@@ -203,7 +203,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 			return false;
 		});
-	}, event => JSON.stringify(event));
+	}, JSON.stringify);
 
 	private readonly isAlertEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
@@ -222,7 +222,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 			}
 			return setting === true || setting === 'always' || setting === 'userGesture' && event.userGesture;
 		});
-	}, event => JSON.stringify(event));
+	}, JSON.stringify);
 
 	public isAlertEnabled(cue: AudioCue, userGesture?: boolean): boolean {
 		return this.isAlertEnabledCache.get({ cue, userGesture }).get() ?? false;
