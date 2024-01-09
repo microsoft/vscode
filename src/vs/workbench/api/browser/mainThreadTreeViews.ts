@@ -270,6 +270,9 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	}
 
 	getChildren(treeItem?: ITreeItem): Promise<ITreeItem[] | undefined> {
+		if (!treeItem) {
+			this.itemsMap.clear();
+		}
 		return this._proxy.$getChildren(this.treeViewId, treeItem ? treeItem.handle : undefined)
 			.then(
 				children => this.postGetChildren(children),
