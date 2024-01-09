@@ -24,7 +24,8 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
-    "contribSourceControlInputBoxMenu"
+    "contribSourceControlInputBoxMenu",
+    "contribSourceControlHistoryItemMenu"
   ],
   "categories": [
     "Other"
@@ -708,7 +709,7 @@
       },
       {
         "command": "git.timeline.openCommit",
-        "title": "%command.timelineOpenCommit%",
+        "title": "%command.openCommit%",
         "icon": "$(diff-multiple)",
         "category": "Git"
       },
@@ -776,13 +777,22 @@
         "command": "git.viewChanges",
         "title": "%command.viewChanges%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.openCommit",
+        "title": "%command.openCommit%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1274,6 +1284,10 @@
         {
           "command": "git.viewStagedChanges",
           "when": "false"
+        },
+        {
+          "command": "git.openCommit",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1749,6 +1763,20 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        }
+      ],
+      "scm/incomingChanges/historyItem/context": [
+        {
+          "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        }
+      ],
+      "scm/outgoingChanges/historyItem/context": [
+        {
+          "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
         }
       ],
       "editor/title": [

@@ -150,7 +150,7 @@ export class QuickInputController extends Disposable {
 		}));
 
 		const customButtonContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const customButton = this._register(new Button(customButtonContainer, this.styles.button));
+		const customButton = this._register(new Button(customButtonContainer, { ...this.styles.button, supportIcons: true }));
 		customButton.label = localize('custom', "Custom");
 		this._register(customButton.onDidClick(e => {
 			this.onDidCustomEmitter.fire();

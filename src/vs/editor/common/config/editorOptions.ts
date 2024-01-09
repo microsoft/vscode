@@ -2748,7 +2748,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.On };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
