@@ -247,48 +247,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	joinCurrentRun(): Promise<void> | undefined {
-		return this._currentRun;
-	}
-
 	// ---- state machine
-
-	private _showWidget(initialRender: boolean = false, position?: Position) {
-		assertType(this._editor.hasModel());
-
-		let widgetPosition: Position;
-		if (position) {
-			// explicit position wins
-			widgetPosition = position;
-		} else if (this._zone.value.position) {
-			// already showing - special case of line 1
-			if (this._zone.value.position.lineNumber === 1) {
-				widgetPosition = this._zone.value.position.delta(-1);
-			} else {
-				widgetPosition = this._zone.value.position;
-			}
-		} else {
-			// default to ABOVE the selection
-			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
-		}
-
-		if (initialRender) {
-			this._zone.value.setContainerMargins();
-		}
-
-		if (this._activeSession && !position && (this._activeSession.hasChangedText || this._activeSession.lastExchange)) {
-			widgetPosition = this._activeSession.wholeRange.value.getStartPosition().delta(-1);
-		}
-		if (this._activeSession) {
-			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
-		}
-		if (!this._zone.value.position) {
-			this._zone.value.setWidgetMargins(widgetPosition);
-			this._zone.value.show(widgetPosition);
-		} else {
-			this._zone.value.updatePositionAndHeight(widgetPosition);
-		}
-	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
 		let nextState: State | void = state;
@@ -451,26 +410,6 @@ export class InlineChatController implements IEditorContribution {
 			return State.SHOW_RESPONSE;
 		}
 	}
-
-	private _forcedPlaceholder: string | undefined = undefined;
-	setPlaceholder(text: string): void {
-		this._forcedPlaceholder = text;
-		this._updatePlaceholder();
-	}
-
-	resetPlaceholder(): void {
-		this._forcedPlaceholder = undefined;
-		this._updatePlaceholder();
-	}
-
-	private _updatePlaceholder(): void {
-		this._zone.value.widget.placeholder = this._getPlaceholderText();
-	}
-
-	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? '';
-	}
-
 
 	private async [State.WAIT_FOR_INPUT](options: InlineChatRunOptions): Promise<State.ACCEPT | State.CANCEL | State.PAUSE | State.WAIT_FOR_INPUT | State.MAKE_REQUEST> {
 		assertType(this._activeSession);
@@ -770,35 +709,6 @@ export class InlineChatController implements IEditorContribution {
 		return State.SHOW_RESPONSE;
 	}
 
-	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
-		assertType(this._activeSession);
-		assertType(this._strategy);
-
-		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, edits);
-		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, edits, moreMinimalEdits);
-
-		if (moreMinimalEdits?.length === 0) {
-			// nothing left to do
-			return;
-		}
-
-		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
-		const editOperations = actualEdits.map(TextEdit.asEditOperation);
-
-		try {
-			this._ignoreModelContentChanged = true;
-			this._activeSession.wholeRange.trackEdits(editOperations);
-			if (opts) {
-				await this._strategy.makeProgressiveChanges(getWindow(this._editor.getContainerDomNode()), editOperations, opts);
-			} else {
-				await this._strategy.makeChanges(getWindow(this._editor.getContainerDomNode()), editOperations);
-			}
-			this._ctxDidEdit.set(this._activeSession.hasChangedText);
-		} finally {
-			this._ignoreModelContentChanged = false;
-		}
-	}
-
 	private async[State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
@@ -939,7 +849,96 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	// ----
+
+	private _showWidget(initialRender: boolean = false, position?: Position) {
+		assertType(this._editor.hasModel());
+
+		let widgetPosition: Position;
+		if (position) {
+			// explicit position wins
+			widgetPosition = position;
+		} else if (this._zone.value.position) {
+			// already showing - special case of line 1
+			if (this._zone.value.position.lineNumber === 1) {
+				widgetPosition = this._zone.value.position.delta(-1);
+			} else {
+				widgetPosition = this._zone.value.position;
+			}
+		} else {
+			// default to ABOVE the selection
+			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
+		}
+
+		if (initialRender) {
+			this._zone.value.setContainerMargins();
+		}
+
+		if (this._activeSession && !position && (this._activeSession.hasChangedText || this._activeSession.lastExchange)) {
+			widgetPosition = this._activeSession.wholeRange.value.getStartPosition().delta(-1);
+		}
+		if (this._activeSession) {
+			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
+		}
+		if (!this._zone.value.position) {
+			this._zone.value.setWidgetMargins(widgetPosition);
+			this._zone.value.show(widgetPosition);
+		} else {
+			this._zone.value.updatePositionAndHeight(widgetPosition);
+		}
+	}
+
+	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
+		assertType(this._activeSession);
+		assertType(this._strategy);
+
+		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, edits);
+		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, edits, moreMinimalEdits);
+
+		if (moreMinimalEdits?.length === 0) {
+			// nothing left to do
+			return;
+		}
+
+		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
+		const editOperations = actualEdits.map(TextEdit.asEditOperation);
+
+		try {
+			this._ignoreModelContentChanged = true;
+			this._activeSession.wholeRange.trackEdits(editOperations);
+			if (opts) {
+				await this._strategy.makeProgressiveChanges(getWindow(this._editor.getContainerDomNode()), editOperations, opts);
+			} else {
+				await this._strategy.makeChanges(getWindow(this._editor.getContainerDomNode()), editOperations);
+			}
+			this._ctxDidEdit.set(this._activeSession.hasChangedText);
+		} finally {
+			this._ignoreModelContentChanged = false;
+		}
+	}
+
+	private _forcedPlaceholder: string | undefined = undefined;
+
+	private _updatePlaceholder(): void {
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
+	}
+
+	private _getPlaceholderText(): string {
+		return this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? '';
+	}
+
 	// ---- controller API
+
+
+	setPlaceholder(text: string): void {
+		this._forcedPlaceholder = text;
+		this._updatePlaceholder();
+	}
+
+	resetPlaceholder(): void {
+		this._forcedPlaceholder = undefined;
+		this._updatePlaceholder();
+	}
 
 	acceptInput(): void {
 		this._messages.fire(Message.ACCEPT_INPUT);
@@ -1075,8 +1074,11 @@ export class InlineChatController implements IEditorContribution {
 	unstashLastSession(): Session | undefined {
 		return this._stashedSession.value?.unstash();
 	}
-}
 
+	joinCurrentRun(): Promise<void> | undefined {
+		return this._currentRun;
+	}
+}
 
 class StashedSession {
 
