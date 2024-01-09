@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { CancellationToken, chat, ChatAgentRequest, ChatVariableLevel, CompletionItemKind, Disposable, interactive, InteractiveProgress, InteractiveRequest, InteractiveResponseForProgress, InteractiveSession, InteractiveSessionState, Progress, ProviderResult } from 'vscode';
+import { CancellationToken, chat, ChatAgentRequest, ChatVariableLevel, Disposable, interactive, InteractiveSession, ProviderResult } from 'vscode';
 import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../utils';
 
 suite('chat', () => {
@@ -22,24 +22,12 @@ suite('chat', () => {
 
 	function getDeferredForRequest(): DeferredPromise<ChatAgentRequest> {
 		disposables.push(interactive.registerInteractiveSessionProvider('provider', {
-			prepareSession: (_initialState: InteractiveSessionState | undefined, _token: CancellationToken): ProviderResult<InteractiveSession> => {
+			prepareSession: (_token: CancellationToken): ProviderResult<InteractiveSession> => {
 				return {
 					requester: { name: 'test' },
 					responder: { name: 'test' },
 				};
 			},
-
-			provideResponseWithProgress: (_request: InteractiveRequest, _progress: Progress<InteractiveProgress>, _token: CancellationToken): ProviderResult<InteractiveResponseForProgress> => {
-				return null;
-			},
-
-			provideSlashCommands: (_session, _token) => {
-				return [{ command: 'hello', title: 'Hello', kind: CompletionItemKind.Text }];
-			},
-
-			removeRequest: (_session: InteractiveSession, _requestId: string): void => {
-				throw new Error('Function not implemented.');
-			}
 		}));
 
 		const deferred = new DeferredPromise<ChatAgentRequest>();

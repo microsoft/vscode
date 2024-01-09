@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extensionActions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Delayer, Promises, Throttler } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -115,7 +115,24 @@ export class PromptExtensionInstallFailureAction extends Action {
 			return;
 		}
 
-		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.ReleaseVersionNotFound, ExtensionManagementErrorCode.Deprecated].includes(<ExtensionManagementErrorCode>this.error.name)) {
+		if (ExtensionManagementErrorCode.ReleaseVersionNotFound === (<ExtensionManagementErrorCode>this.error.name)) {
+			await this.dialogService.prompt({
+				type: 'error',
+				message: getErrorMessage(this.error),
+				buttons: [{
+					label: localize('install prerelease', "Install Pre-Release"),
+					run: () => {
+						const installAction = this.instantiationService.createInstance(InstallAction, { installPreReleaseVersion: true });
+						installAction.extension = this.extension;
+						return installAction.run();
+					}
+				}],
+				cancelButton: localize('cancel', "Cancel")
+			});
+			return;
+		}
+
+		if ([ExtensionManagementErrorCode.Incompatible, ExtensionManagementErrorCode.IncompatibleTargetPlatform, ExtensionManagementErrorCode.Malicious, ExtensionManagementErrorCode.Deprecated].includes(<ExtensionManagementErrorCode>this.error.name)) {
 			await this.dialogService.info(getErrorMessage(this.error));
 			return;
 		}
@@ -702,7 +719,8 @@ export class UninstallAction extends ExtensionAction {
 	private static readonly UnInstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall uninstalling`;
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
 		this.update();
@@ -746,9 +764,12 @@ export class UninstallAction extends ExtensionAction {
 		}
 		alert(localize('uninstallExtensionStart', "Uninstalling extension {0} started.", this.extension.displayName));
 
-		return this.extensionsWorkbenchService.uninstall(this.extension).then(() => {
+		try {
+			await this.extensionsWorkbenchService.uninstall(this.extension);
 			alert(localize('uninstallExtensionComplete', "Please reload Visual Studio Code to complete the uninstallation of the extension {0}.", this.extension!.displayName));
-		});
+		} catch (error) {
+			this.dialogService.error(getErrorMessage(error));
+		}
 	}
 }
 
@@ -826,33 +847,91 @@ export class UpdateAction extends AbstractUpdateAction {
 	}
 }
 
-export class SkipUpdateAction extends AbstractUpdateAction {
+export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
+
+	static readonly ID = 'workbench.extensions.action.toggleAutoUpdateForExtension';
+	static readonly LABEL = localize('enableAutoUpdateLabel', "Auto Update");
+
+	private static readonly EnabledClass = `${ExtensionAction.EXTENSION_ACTION_CLASS} auto-update`;
+	private static readonly DisabledClass = `${ToggleAutoUpdateForExtensionAction.EnabledClass} hide`;
 
 	constructor(
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
+		private readonly enableWhenOutdated: boolean,
+		private readonly enableWhenAutoUpdateValue: AutoUpdateConfigurationValue[],
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService configurationService: IConfigurationService,
+
 	) {
-		super(`extensions.ignoreUpdates`, localize('ignoreUpdates', "Ignore Updates"), extensionsWorkbenchService);
+		super(ToggleAutoUpdateForExtensionAction.ID, ToggleAutoUpdateForExtensionAction.LABEL, ToggleAutoUpdateForExtensionAction.DisabledClass);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.update();
+			}
+		}));
+		this.update();
 	}
 
 	override update() {
+		this.enabled = false;
+		this.class = ToggleAutoUpdateForExtensionAction.DisabledClass;
 		if (!this.extension) {
 			return;
 		}
 		if (this.extension.isBuiltin) {
-			this.enabled = false;
 			return;
 		}
-		super.update();
-		this._checked = this.extension.pinned;
+		if (this.enableWhenOutdated && !this.extension.outdated) {
+			return;
+		}
+		if (!this.enableWhenAutoUpdateValue.includes(this.extensionsWorkbenchService.getAutoUpdateValue())) {
+			return;
+		}
+		this.enabled = true;
+		this.class = ToggleAutoUpdateForExtensionAction.EnabledClass;
+		this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
 	}
 
 	override async run(): Promise<any> {
 		if (!this.extension) {
 			return;
 		}
-		alert(localize('ignoreExtensionUpdate', "Ignoring {0} updates", this.extension.displayName));
-		const newIgnoresAutoUpdates = !this.extension.pinned;
-		await this.extensionsWorkbenchService.pinExtension(this.extension, newIgnoresAutoUpdates);
+
+		const enableAutoUpdate = !this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+		await this.extensionsWorkbenchService.updateAutoUpdateEnablementFor(this.extension, enableAutoUpdate);
+
+		if (enableAutoUpdate) {
+			alert(localize('enableAutoUpdate', "Enabled auto updates for", this.extension.displayName));
+		} else {
+			alert(localize('disableAutoUpdate', "Disabled auto updates for", this.extension.displayName));
+		}
+	}
+}
+
+export class ToggleAutoUpdatesForPublisherAction extends ExtensionAction {
+
+	static readonly ID = 'workbench.extensions.action.toggleAutoUpdatesForPublisher';
+	static readonly LABEL = localize('toggleAutoUpdatesForPublisherLabel', "Auto Update All (From Publisher)");
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(ToggleAutoUpdatesForPublisherAction.ID, ToggleAutoUpdatesForPublisherAction.LABEL);
+	}
+
+	override update() { }
+
+	override async run(): Promise<any> {
+		if (!this.extension) {
+			return;
+		}
+		alert(localize('ignoreExtensionUpdatePublisher', "Ignoring updates published by {0}.", this.extension.publisherDisplayName));
+		const enableAutoUpdate = !this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
+		await this.extensionsWorkbenchService.updateAutoUpdateEnablementFor(this.extension.publisher, enableAutoUpdate);
+		if (enableAutoUpdate) {
+			alert(localize('enableAutoUpdate', "Enabled auto updates for", this.extension.displayName));
+		} else {
+			alert(localize('disableAutoUpdate', "Disabled auto updates for", this.extension.displayName));
+		}
 	}
 }
 
@@ -1069,10 +1148,12 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 	async getActionGroups(): Promise<IAction[][]> {
 		const groups: IAction[][] = [];
 		const contextMenuActionsGroups = await getContextMenuActionsGroups(this.extension, this.contextKeyService, this.instantiationService);
-		const themeActions: IAction[] = [], installActions: IAction[] = [], otherActionGroups: IAction[][] = [];
+		const themeActions: IAction[] = [], installActions: IAction[] = [], updateActions: IAction[] = [], otherActionGroups: IAction[][] = [];
 		for (const [group, actions] of contextMenuActionsGroups) {
 			if (group === INSTALL_ACTIONS_GROUP) {
 				installActions.push(...toActions([[group, actions]], this.instantiationService)[0]);
+			} else if (group === UPDATE_ACTIONS_GROUP) {
+				updateActions.push(...toActions([[group, actions]], this.instantiationService)[0]);
 			} else if (group === THEME_ACTIONS_GROUP) {
 				themeActions.push(...toActions([[group, actions]], this.instantiationService)[0]);
 			} else {
@@ -1092,6 +1173,9 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 			this.instantiationService.createInstance(DisableGloballyAction),
 			this.instantiationService.createInstance(DisableForWorkspaceAction)
 		]);
+		if (updateActions.length) {
+			groups.push(updateActions);
+		}
 		groups.push([
 			...(installActions.length ? installActions : []),
 			this.instantiationService.createInstance(InstallAnotherVersionAction),
@@ -1165,6 +1249,10 @@ export class MenuItemExtensionAction extends ExtensionAction {
 		}
 		if (this.action.id === TOGGLE_IGNORE_EXTENSION_ACTION_ID) {
 			this.checked = !this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
+		} else if (this.action.id === ToggleAutoUpdateForExtensionAction.ID) {
+			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension);
+		} else if (this.action.id === ToggleAutoUpdatesForPublisherAction.ID) {
+			this.checked = this.extensionsWorkbenchService.isAutoUpdateEnabledFor(this.extension.publisher);
 		} else {
 			this.checked = this.action.checked;
 		}
@@ -1208,7 +1296,7 @@ export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 export class SwitchToReleasedVersionAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.switchToReleaseVersion';
-	static readonly TITLE = { value: localize('switch to release version', "Switch to Release Version"), original: 'Switch to Release Version' };
+	static readonly TITLE = localize2('switch to release version', 'Switch to Release Version');
 
 	constructor(
 		icon: boolean,
@@ -1283,7 +1371,8 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			}
 			try {
 				if (pick.latest) {
-					await this.extensionsWorkbenchService.install(this.extension!, { installPreReleaseVersion: pick.isPreReleaseVersion });
+					const [extension] = pick.id !== this.extension?.version ? await this.extensionsWorkbenchService.getExtensions([{ id: this.extension!.identifier.id, preRelease: pick.isPreReleaseVersion }], CancellationToken.None) : [this.extension];
+					await this.extensionsWorkbenchService.install(extension ?? this.extension!, { installPreReleaseVersion: pick.isPreReleaseVersion });
 				} else {
 					await this.extensionsWorkbenchService.installVersion(this.extension!, pick.id, { installPreReleaseVersion: pick.isPreReleaseVersion });
 				}
@@ -1516,7 +1605,7 @@ function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbench
 export class SetColorThemeAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setColorTheme';
-	static readonly TITLE = { value: localize('workbench.extensions.action.setColorTheme', "Set Color Theme"), original: 'Set Color Theme' };
+	static readonly TITLE = localize2('workbench.extensions.action.setColorTheme', 'Set Color Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
@@ -1567,7 +1656,7 @@ export class SetColorThemeAction extends ExtensionAction {
 export class SetFileIconThemeAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setFileIconTheme';
-	static readonly TITLE = { value: localize('workbench.extensions.action.setFileIconTheme', "Set File Icon Theme"), original: 'Set File Icon Theme' };
+	static readonly TITLE = localize2('workbench.extensions.action.setFileIconTheme', 'Set File Icon Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
@@ -1617,7 +1706,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 export class SetProductIconThemeAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setProductIconTheme';
-	static readonly TITLE = { value: localize('workbench.extensions.action.setProductIconTheme', "Set Product Icon Theme"), original: 'Set Product Icon Theme' };
+	static readonly TITLE = localize2('workbench.extensions.action.setProductIconTheme', 'Set Product Icon Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
 	private static readonly DisabledClass = `${SetProductIconThemeAction.EnabledClass} disabled`;
@@ -1668,7 +1757,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 export class SetLanguageAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.setDisplayLanguage';
-	static readonly TITLE = { value: localize('workbench.extensions.action.setDisplayLanguage', "Set Display Language"), original: 'Set Display Language' };
+	static readonly TITLE = localize2('workbench.extensions.action.setDisplayLanguage', 'Set Display Language');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
 	private static readonly DisabledClass = `${SetLanguageAction.EnabledClass} disabled`;
@@ -1704,7 +1793,7 @@ export class SetLanguageAction extends ExtensionAction {
 export class ClearLanguageAction extends ExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.clearLanguage';
-	static readonly TITLE = { value: localize('workbench.extensions.action.clearLanguage', "Clear Display Language"), original: 'Clear Display Language' };
+	static readonly TITLE = localize2('workbench.extensions.action.clearLanguage', 'Clear Display Language');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
 	private static readonly DisabledClass = `${ClearLanguageAction.EnabledClass} disabled`;

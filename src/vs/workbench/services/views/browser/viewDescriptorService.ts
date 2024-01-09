@@ -105,9 +105,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeViewContainers.fire({ added: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], removed: [] });
 		}));
 
-		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer }) => {
+		this._register(this.viewContainersRegistry.onDidDeregister(({ viewContainer, viewContainerLocation }) => {
 			this.onDidDeregisterViewContainer(viewContainer);
-			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: this.getViewContainerLocation(viewContainer) }], added: [] });
+			this._onDidChangeViewContainers.fire({ removed: [{ container: viewContainer, location: viewContainerLocation }], added: [] });
 		}));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, ViewDescriptorService.VIEWS_CUSTOMIZATIONS, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
@@ -376,6 +376,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewContainersCustomLocations.clear();
 		this.viewDescriptorsCustomLocations.clear();
 		this.saveViewCustomizations();
+	}
+
+	isViewContainerRemovedPermanently(viewContainerId: string): boolean {
+		return this.isGeneratedContainerId(viewContainerId) && !this.viewContainersCustomLocations.has(viewContainerId);
 	}
 
 	private onDidChangeDefaultContainer(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer): void {
@@ -752,13 +756,17 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private registerViewsVisibilityActions(viewContainer: ViewContainer, { viewContainerModel, disposables }: { viewContainerModel: ViewContainerModel; disposables: DisposableStore }): void {
+		this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
 		this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
 		disposables.add(Event.any(
 			viewContainerModel.onDidChangeActiveViewDescriptors,
 			viewContainerModel.onDidAddVisibleViewDescriptors,
 			viewContainerModel.onDidRemoveVisibleViewDescriptors,
 			viewContainerModel.onDidMoveVisibleViewDescriptors
-		)(e => this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel))));
+		)(e => {
+			this.viewsVisibilityActionDisposables.deleteAndDispose(viewContainer);
+			this.viewsVisibilityActionDisposables.set(viewContainer, this.registerViewsVisibilityActionsForContainer(viewContainerModel));
+		}));
 	}
 
 	private registerViewsVisibilityActionsForContainer(viewContainerModel: ViewContainerModel): IDisposable {
@@ -775,11 +783,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
-								group: '1_toggleViews',
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-								),
+								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,

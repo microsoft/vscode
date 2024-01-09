@@ -15,7 +15,7 @@ import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -122,9 +122,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return dom.getClientArea(this.container);
 	}
 
-	layout() {
+	layout(widthInPixel?: number) {
 		this._commentElements.forEach(element => {
-			element.layout();
+			element.layout(widthInPixel);
 		});
 	}
 
@@ -156,7 +156,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return;
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -222,7 +222,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		}
 
 		this._updateAriaLabel();
-		this._setFocusedComment(this._focusedComment);
+		if (!preserveFocus) {
+			this._setFocusedComment(this._focusedComment);
+		}
 	}
 
 	private _updateAriaLabel() {

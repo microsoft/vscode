@@ -133,7 +133,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'off'
 		},
 		'audioCues.clear': {
-			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, debug console, or output channel). When this is disabled, an aria alert will announce 'Cleared'."),
+			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, Debug Console, or Output channel). When this is disabled, an ARIA alert will announce 'Cleared'."),
 			...audioCueFeatureBase,
 			default: 'off'
 		},
@@ -143,9 +143,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'never',
 			'enumDescriptions': [
-				localize('audioCues.enabled.userGesture', "Plays the audio cue when a user explicitly saves a file."),
-				localize('audioCues.enabled.always', "Plays the audio cue whenever a file is saved, including auto save."),
-				localize('audioCues.enabled.never', "Never plays the audio cue.")
+				localize('audioCues.save.userGesture', "Plays the audio cue when a user explicitly saves a file."),
+				localize('audioCues.save.always', "Plays the audio cue whenever a file is saved, including auto save."),
+				localize('audioCues.save.never', "Never plays the audio cue.")
+			],
+			tags: ['accessibility']
+		},
+		'audioCues.format': {
+			'markdownDescription': localize('audioCues.format', "Plays a sound when a file or notebook is formatted. Also see {0}", '`#accessibility.alert.format#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'never',
+			'enumDescriptions': [
+				localize('audioCues.format.userGesture', "Plays the audio cue when a user explicitly formats a file."),
+				localize('audioCues.format.always', "Plays the audio cue whenever a file is formatted, including if it is set to format on save, type, or, paste, or run of a cell."),
+				localize('audioCues.format.never', "Never plays the audio cue.")
 			],
 			tags: ['accessibility']
 		},

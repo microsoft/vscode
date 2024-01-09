@@ -18,9 +18,10 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { alertFormattingEdits, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
+import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
 import * as nls from 'vs/nls';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,7 +39,8 @@ export class FormatOnType implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
+		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
 	) {
 		this._disposables.add(_languageFeaturesService.onTypeFormattingEditProvider.onDidChange(this._update, this));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -141,8 +143,8 @@ export class FormatOnType implements IEditorContribution {
 				return;
 			}
 			if (isNonEmptyArray(edits)) {
+				this._accessibleNotificationService.notify(AccessibleNotificationEvent.Format, false);
 				FormattingEdit.execute(this._editor, edits, true);
-				alertFormattingEdits(edits);
 			}
 		}).finally(() => {
 			unbind.dispose();
@@ -203,7 +205,7 @@ class FormatOnPaste implements IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, Progress.None, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, Progress.None, CancellationToken.None, false).catch(onUnexpectedError);
 	}
 }
 
@@ -233,7 +235,7 @@ class FormatDocumentAction extends EditorAction {
 			const instaService = accessor.get(IInstantiationService);
 			const progressService = accessor.get(IEditorProgressService);
 			await progressService.showWhile(
-				instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None),
+				instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None, true),
 				250
 			);
 		}
@@ -276,7 +278,7 @@ class FormatSelectionAction extends EditorAction {
 
 		const progressService = accessor.get(IEditorProgressService);
 		await progressService.showWhile(
-			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, ranges, FormattingMode.Explicit, Progress.None, CancellationToken.None),
+			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, ranges, FormattingMode.Explicit, Progress.None, CancellationToken.None, true),
 			250
 		);
 	}

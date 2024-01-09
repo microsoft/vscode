@@ -672,12 +672,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			} else {
 				sessionId = (await this.authenticationService.createSession(accountOrAuthProvider.id, accountOrAuthProvider.scopes)).id;
 			}
+			this.currentAuthenticationProviderId = accountOrAuthProvider.id;
 		} else {
 			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.id === accountOrAuthProvider.authenticationProviderId) {
 				sessionId = await this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.signIn();
 			} else {
 				sessionId = accountOrAuthProvider.sessionId;
 			}
+			this.currentAuthenticationProviderId = accountOrAuthProvider.authenticationProviderId;
 		}
 		this.currentSessionId = sessionId;
 		await this.update();
@@ -690,7 +692,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
+		if (this.currentSessionId && e.removed?.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
 		this.update('change in sessions');

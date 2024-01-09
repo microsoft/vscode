@@ -37,7 +37,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -108,6 +108,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
 	private styleElement: HTMLStyleElement | undefined;
+	private styleChangedWhenInvisible: boolean = false;
 	private completionItemProvider: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
 	private filter: ReplFilter;
@@ -179,7 +180,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 			this.multiSessionRepl.set(this.isMultiSessionView);
 		}));
-		this._register(this.debugService.onDidEndSession(async session => {
+		this._register(this.debugService.onDidEndSession(async () => {
 			// Update view, since orphaned sessions might now be separate
 			await Promise.resolve(); // allow other listeners to go first, so sessions can update parents
 			this.multiSessionRepl.set(this.isMultiSessionView);
@@ -199,6 +200,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
 				this.refreshReplElements(true);
+				if (this.styleChangedWhenInvisible) {
+					this.styleChangedWhenInvisible = false;
+					this.onDidStyleChange();
+				}
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -353,6 +358,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	private onDidStyleChange(): void {
+		if (!this.isVisible()) {
+			this.styleChangedWhenInvisible = true;
+			return;
+		}
 		if (this.styleElement) {
 			this.replInput.updateOptions({
 				fontSize: this.replOptions.replConfiguration.fontSize,
@@ -506,6 +515,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	override focus(): void {
+		super.focus();
 		setTimeout(() => this.replInput.focus(), 0);
 	}
 
@@ -570,16 +580,18 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(registerNavigableContainer({
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
+				const element = this.tree?.getHTMLElement();
 				if (this.filterWidget.hasFocus()) {
 					this.tree?.domFocus();
-				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+				} else if (element && dom.isActiveElement(element)) {
 					this.focus();
 				}
 			},
 			focusPreviousWidget: () => {
+				const element = this.tree?.getHTMLElement();
 				if (this.replInput.hasTextFocus()) {
 					this.tree?.domFocus();
-				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+				} else if (element && dom.isActiveElement(element)) {
 					this.focusFilter();
 				}
 			}
@@ -648,7 +660,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
-			const selection = window.getSelection();
+			const selection = dom.getWindow(this.treeContainer).getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
 				// only focus the input if the user is not currently selecting.
 				this.replInput.focus();
@@ -959,7 +971,7 @@ registerAction2(class extends ViewAction<Repl> {
 		super({
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
-			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
+			title: localize2('clearRepl', 'Clear Console'),
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
@@ -1070,7 +1082,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
-		const nativeSelection = window.getSelection();
+		const nativeSelection = dom.getActiveWindow().getSelection();
 		const selectedText = nativeSelection?.toString();
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);

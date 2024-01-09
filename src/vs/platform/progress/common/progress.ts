@@ -8,7 +8,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotificationPriority } from 'vs/platform/notification/common/notification';
+import { INotificationSource, NotificationPriority } from 'vs/platform/notification/common/notification';
 
 export const IProgressService = createDecorator<IProgressService>('progressService');
 
@@ -53,7 +53,7 @@ export const enum ProgressLocation {
 export interface IProgressOptions {
 	readonly location: ProgressLocation | string;
 	readonly title?: string;
-	readonly source?: string | { label: string; id: string };
+	readonly source?: string | INotificationSource;
 	readonly total?: number;
 	readonly cancellable?: boolean;
 	readonly buttons?: string[];
@@ -111,7 +111,19 @@ export class Progress<T> implements IProgress<T> {
 
 	static readonly None = Object.freeze<IProgress<unknown>>({ report() { } });
 
-	report: (item: T) => void;
+	private _value?: T;
+	get value(): T | undefined { return this._value; }
+
+	constructor(private callback: (data: T) => unknown) {
+	}
+
+	report(item: T) {
+		this._value = item;
+		this.callback(this._value);
+	}
+}
+
+export class AsyncProgress<T> implements IProgress<T> {
 
 	private _value?: T;
 	get value(): T | undefined { return this._value; }
@@ -120,18 +132,9 @@ export class Progress<T> implements IProgress<T> {
 	private _processingAsyncQueue?: boolean;
 	private _drainListener: (() => void) | undefined;
 
-	constructor(private callback: (data: T) => unknown, opts?: { async?: boolean }) {
-		this.report = opts?.async
-			? this._reportAsync.bind(this)
-			: this._reportSync.bind(this);
-	}
+	constructor(private callback: (data: T) => unknown) { }
 
-	private _reportSync(item: T) {
-		this._value = item;
-		this.callback(this._value);
-	}
-
-	private _reportAsync(item: T) {
+	report(item: T) {
 		if (!this._asyncQueue) {
 			this._asyncQueue = [item];
 		} else {
@@ -161,7 +164,7 @@ export class Progress<T> implements IProgress<T> {
 		}
 	}
 
-	public drain(): Promise<void> {
+	drain(): Promise<void> {
 		if (this._processingAsyncQueue) {
 			return new Promise<void>(resolve => {
 				const prevListener = this._drainListener;

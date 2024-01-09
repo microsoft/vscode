@@ -65,6 +65,7 @@ export const CONTEXT_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>(
 export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false, { type: 'boolean', description: nls.localize('loadedScriptsSupported', "True when the focused sessions supports the LOADED SCRIPTS view") });
 export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined, { type: 'string', description: nls.localize('loadedScriptsItemType', "Represents the item type of the focused element in the LOADED SCRIPTS view.") });
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false, { type: 'boolean', description: nls.localize('focusedSessionIsAttach', "True when the focused session is 'attach'.") });
+export const CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG = new RawContextKey<boolean>('focusedSessionIsNoDebug', false, { type: 'boolean', description: nls.localize('focusedSessionIsNoDebug', "True when the focused session is run without debugging.") });
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false, { type: 'boolean', description: nls.localize('stepBackSupported', "True when the focused session supports 'stepBack' requests.") });
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false, { type: 'boolean', description: nls.localize('restartFrameSupported', "True when the focused session supports 'restartFrame' requests.") });
 export const CONTEXT_STACK_FRAME_SUPPORTS_RESTART = new RawContextKey<boolean>('stackFrameSupportsRestart', false, { type: 'boolean', description: nls.localize('stackFrameSupportsRestart', "True when the focused stack frame suppots 'restartFrame'.") });
@@ -117,6 +118,7 @@ export interface IRawStoppedDetails {
 	text?: string;
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
+	preserveFocusHint?: boolean;
 	framesErrorMessage?: string;
 	hitBreakpointIds?: number[];
 }
@@ -685,6 +687,7 @@ export interface IDebugConfiguration {
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
 	showSubSessionsInToolBar: boolean;
+	closeReadonlyTabsOnEnd: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;
@@ -904,7 +907,12 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
-	hasDebugConfigurationProvider(debugType: string): boolean;
+	/**
+	 * Allows to register on change of selected debug configuration.
+	 */
+	onDidChangeConfigurationProviders: Event<void>;
+
+	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
 	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
@@ -1007,19 +1015,24 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
-	 * Allows to register on new session events.
-	 */
-	onDidNewSession: Event<IDebugSession>;
-
-	/**
-	 * Allows to register on sessions about to be created (not yet fully initialised)
+	 * Allows to register on sessions about to be created (not yet fully initialised).
+	 * This is fired exactly one time for any given session.
 	 */
 	onWillNewSession: Event<IDebugSession>;
 
 	/**
-	 * Allows to register on end session events.
+	 * Fired when a new debug session is started. This may fire multiple times
+	 * for a single session due to restarts.
 	 */
-	onDidEndSession: Event<IDebugSession>;
+	onDidNewSession: Event<IDebugSession>;
+
+	/**
+	 * Allows to register on end session events.
+	 *
+	 * Contains a boolean indicating whether the session will restart. If restart
+	 * is true, the session should not considered to be dead yet.
+	 */
+	onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
 
 	/**
 	 * Gets the configuration manager.
@@ -1090,6 +1103,12 @@ export interface IDebugService {
 	 * Adds a new data breakpoint.
 	 */
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void>;
+
+	/**
+	 * Updates an already existing data breakpoint.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
+	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void>;
 
 	/**
 	 * Removes all data breakpoints. If id is passed only removes the data breakpoint with the passed id.

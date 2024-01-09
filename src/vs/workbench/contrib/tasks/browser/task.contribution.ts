@@ -553,5 +553,10 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
+		[TaskSettingId.VerboseLogging]: {
+			type: 'boolean',
+			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
+			default: false
+		},
 	}
 });

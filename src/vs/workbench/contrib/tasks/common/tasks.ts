@@ -617,7 +617,7 @@ export abstract class CommonTask {
 		return this._id;
 	}
 
-	public getRecentlyUsedKey(): string | undefined {
+	public getKey(): string | undefined {
 		return undefined;
 	}
 
@@ -788,10 +788,13 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override getCommonTaskId(): string {
-		return this._source.customizes ? super.getCommonTaskId() : (this.getRecentlyUsedKey() ?? super.getCommonTaskId());
+		return this._source.customizes ? super.getCommonTaskId() : (this.getKey() ?? super.getCommonTaskId());
 	}
 
-	public override getRecentlyUsedKey(): string | undefined {
+	/**
+	 * @returns A key representing the task
+	 */
+	public override getKey(): string | undefined {
 		interface ICustomKey {
 			type: string;
 			folder: string;
@@ -875,7 +878,7 @@ export class ConfiguringTask extends CommonTask {
 		return this._source.kind === TaskSourceKind.User ? USER_TASKS_GROUP_KEY : this._source.config.workspaceFolder?.uri.toString();
 	}
 
-	public override getRecentlyUsedKey(): string | undefined {
+	public override getKey(): string | undefined {
 		interface ICustomKey {
 			type: string;
 			folder: string;
@@ -963,7 +966,7 @@ export class ContributedTask extends CommonTask {
 		return undefined;
 	}
 
-	public override getRecentlyUsedKey(): string | undefined {
+	public override getKey(): string | undefined {
 		interface IContributedKey {
 			type: string;
 			scope: number;
@@ -1266,7 +1269,8 @@ export const enum TaskSettingId {
 	QuickOpenSkip = 'task.quickOpen.skip',
 	QuickOpenShowAll = 'task.quickOpen.showAll',
 	AllowAutomaticTasks = 'task.allowAutomaticTasks',
-	Reconnection = 'task.reconnection'
+	Reconnection = 'task.reconnection',
+	VerboseLogging = 'task.verboseLogging'
 }
 
 export const enum TasksSchemaProperties {

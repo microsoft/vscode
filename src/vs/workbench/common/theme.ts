@@ -256,7 +256,7 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	light: editorBackground,
 	hcDark: editorBackground,
 	hcLight: editorBackground
-}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
 	dark: null,
@@ -400,6 +400,24 @@ export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
 	hcDark: PANEL_BORDER,
 	hcLight: PANEL_BORDER
 }, localize('panelSectionBorder', "Panel section border color used when multiple views are stacked horizontally in the panel. Panels are shown below the editor area and contain views like output and integrated terminal. Panel sections are views nested within the panels."));
+
+// < --- Output Editor -->
+
+const OUTPUT_VIEW_BACKGROUND = registerColor('outputView.background', {
+	dark: null,
+	light: null,
+	hcDark: null,
+	hcLight: null
+}, localize('outputViewBackground', "Output view background color."));
+
+
+registerColor('outputViewStickyScroll.background', {
+	dark: OUTPUT_VIEW_BACKGROUND,
+	light: OUTPUT_VIEW_BACKGROUND,
+	hcDark: OUTPUT_VIEW_BACKGROUND,
+	hcLight: OUTPUT_VIEW_BACKGROUND
+}, localize('outputViewStickyScrollBackground', "Output view sticky scroll background color."));
+
 
 // < --- Banner --- >
 
@@ -911,7 +929,7 @@ export const COMMAND_CENTER_ACTIVEBACKGROUND = registerColor(
 );
 // border: active and inactive. defaults to active background
 export const COMMAND_CENTER_BORDER = registerColor(
-	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60), light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60) },
+	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: contrastBorder, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: contrastBorder },
 	localize('commandCenter-border', "Border color of the command center"),
 	false
 );

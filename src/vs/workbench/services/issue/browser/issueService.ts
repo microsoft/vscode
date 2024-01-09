@@ -4,21 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { IssueReporterData } from 'vs/platform/issue/common/issue';
-import { userAgent } from 'vs/base/common/platform';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { userAgent } from 'vs/base/common/platform';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IssueReporterData } from 'vs/platform/issue/common/issue';
+import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export class WebIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
+	private readonly _providers = new Map<string, IIssueDataProvider>();
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -68,6 +69,11 @@ export class WebIssueService implements IWorkbenchIssueService {
 	registerIssueUriRequestHandler(extensionId: string, handler: IIssueUriRequestHandler): IDisposable {
 		this._handlers.set(extensionId, handler);
 		return toDisposable(() => this._handlers.delete(extensionId));
+	}
+
+	registerIssueDataProvider(extensionId: string, handler: IIssueDataProvider): IDisposable {
+		this._providers.set(extensionId, handler);
+		return toDisposable(() => this._providers.delete(extensionId));
 	}
 
 	private async getIssueUriFromHandler(extensionId: string, token: CancellationToken): Promise<string> {

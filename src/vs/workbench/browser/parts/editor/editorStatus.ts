@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorstatus';
-import { localize } from 'vs/nls';
-import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { localize, localize2 } from 'vs/nls';
+import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, assertIsDefined } from 'vs/base/common/types';
@@ -55,6 +55,9 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { mainWindow } from 'vs/base/browser/window';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -315,8 +318,7 @@ const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
-
-export class EditorStatus extends Disposable implements IWorkbenchContribution {
+class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -326,14 +328,16 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+	private readonly currentProblemStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
 	private readonly state = new State();
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
-	private toRender: StateChange | null = null;
-	private tabFocusMode: TabFocusMode;
+	private readonly tabFocusMode = this.instantiationService.createInstance(TabFocusMode);
+
+	private toRender: StateChange | undefined = undefined;
 
 	constructor(
+		private readonly targetWindowId: number,
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -343,7 +347,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.tabFocusMode = instantiationService.createInstance(TabFocusMode);
+
 		this.registerCommands();
 		this.registerListeners();
 	}
@@ -557,13 +561,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(getWindowById(this.targetWindowId)?.window ?? mainWindow, () => {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;
-				this.toRender = null;
+				this.toRender = undefined;
 				if (toRender) {
-					this.doRenderNow(toRender);
+					this.doRenderNow();
 				}
 			});
 		} else {
@@ -571,7 +575,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private doRenderNow(changed: StateChange): void {
+	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);
@@ -866,6 +870,28 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
+export class EditorStatusContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
+	) {
+		super();
+
+		// Main Editor Status
+		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+			[IEditorService, editorService.createScoped('main', this._store)]
+		));
+		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
+
+		// Auxiliary Editor Status
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
+			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
+		}));
+	}
+}
+
 class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
@@ -1031,7 +1057,7 @@ export class ChangeLanguageAction extends Action2 {
 	constructor() {
 		super({
 			id: ChangeLanguageAction.ID,
-			title: { value: localize('changeMode', "Change Language Mode"), original: 'Change Language Mode' },
+			title: localize2('changeMode', 'Change Language Mode'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1286,7 +1312,7 @@ export class ChangeEOLAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEOL',
-			title: { value: localize('changeEndOfLine', "Change End of Line Sequence"), original: 'Change End of Line Sequence' },
+			title: localize2('changeEndOfLine', 'Change End of Line Sequence'),
 			f1: true
 		});
 	}
@@ -1335,7 +1361,7 @@ export class ChangeEncodingAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEncoding',
-			title: { value: localize('changeEncoding', "Change File Encoding"), original: 'Change File Encoding' },
+			title: localize2('changeEncoding', 'Change File Encoding'),
 			f1: true
 		});
 	}

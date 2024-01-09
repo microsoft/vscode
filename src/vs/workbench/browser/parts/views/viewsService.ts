@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
-import { FocusedViewContext, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
+import { FocusedViewContext, getVisbileViewContextKey } from 'vs/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -50,6 +50,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly _onDidChangeFocusedView = this._register(new Emitter<void>());
 	readonly onDidChangeFocusedView = this._onDidChangeFocusedView.event;
 
+	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly focusedViewContextKey: IContextKey<string>;
 
@@ -63,6 +64,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		super();
 
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
+		this.enabledViewContainersContextKeys = new Map<string, IContextKey<boolean>>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
 
@@ -126,6 +128,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
+		this.updateViewContainerEnablementContextKey(viewContainer);
+		this._register(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.updateViewContainerEnablementContextKey(viewContainer)));
 		this._register(this.registerOpenViewContainerAction(viewContainer));
 	}
 
@@ -157,6 +161,15 @@ export class ViewsService extends Disposable implements IViewsService {
 				this.viewDisposable.delete(view);
 			}
 		}
+	}
+
+	private updateViewContainerEnablementContextKey(viewContainer: ViewContainer): void {
+		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+		if (!contextKey) {
+			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
+			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+		}
+		contextKey.set(!(viewContainer.hideIfEmpty && this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length === 0));
 	}
 
 	private async openComposite(compositeId: string, location: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
@@ -642,6 +655,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		return viewPaneContainer;
 	}
 }
+
+function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation): string {
 	switch (viewContainerLocation) {

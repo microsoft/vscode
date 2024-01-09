@@ -54,6 +54,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
 	glyphMargin: { position: GlyphMarginLane.Right },
+	glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointHelper', "Click to add a breakpoint.")),
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -474,7 +475,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold') || clz.includes('codicon-inline-chat'))) {
 					return false;
 				}
 			}
@@ -726,7 +727,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
-			const event = new StandardMouseEvent(e);
+			const event = new StandardMouseEvent(dom.getWindow(this.domNode), e);
 			const actions = this.getContextMenuActions();
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => event,

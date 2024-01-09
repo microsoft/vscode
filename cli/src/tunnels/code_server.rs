@@ -58,6 +58,7 @@ pub struct CodeServerArgs {
 	// extension management
 	pub install_extensions: Vec<String>,
 	pub uninstall_extensions: Vec<String>,
+	pub update_extensions: bool,
 	pub list_extensions: bool,
 	pub show_versions: bool,
 	pub category: Option<String>,
@@ -128,6 +129,9 @@ impl CodeServerArgs {
 		}
 		for extension in &self.uninstall_extensions {
 			args.push(format!("--uninstall-extension={}", extension));
+		}
+		if self.update_extensions {
+			args.push(String::from("--update-extensions"));
 		}
 		if self.list_extensions {
 			args.push(String::from("--list-extensions"));
@@ -510,7 +514,7 @@ impl<'a> ServerBuilder<'a> {
 		let (mut origin, listen_rx) =
 			monitor_server::<SocketMatcher, PathBuf>(child, Some(log_file), plog, false);
 
-		let socket = match timeout(Duration::from_secs(8), listen_rx).await {
+		let socket = match timeout(Duration::from_secs(30), listen_rx).await {
 			Err(e) => {
 				origin.kill().await;
 				Err(wrap(e, "timed out looking for socket"))

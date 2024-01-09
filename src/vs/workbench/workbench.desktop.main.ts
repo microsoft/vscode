@@ -75,7 +75,6 @@ import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentServi
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import 'vs/workbench/services/checksum/electron-sandbox/checksumService';
-import 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
 import 'vs/workbench/services/tunnel/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
@@ -135,8 +134,9 @@ import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExport
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-sandbox/terminal.contribution';
 
-// Themes Support
+// Themes
 import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+import 'vs/workbench/services/themes/electron-sandbox/themes.contribution';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-sandbox/userDataSync.contribution';
@@ -165,6 +165,9 @@ import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribu
 
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
+
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
 
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';

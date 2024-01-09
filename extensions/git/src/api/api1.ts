@@ -157,6 +157,10 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
+	getDiff(): Promise<string[]> {
+		return this.repository.getDiff();
+	}
+
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -189,7 +193,7 @@ export class ApiRepository implements Repository {
 		return this.repository.getRefs(query, cancellationToken);
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.repository.getMergeBase(ref1, ref2);
 	}
 

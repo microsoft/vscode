@@ -398,15 +398,14 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					const highlighted = hljs.highlight(str, {
+					return hljs.highlight(str, {
 						language: lang,
 						ignoreIllegals: true,
 					}).value;
-					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}
-			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+			return md().utils.escapeHtml(str);
 		}
 	};
 }

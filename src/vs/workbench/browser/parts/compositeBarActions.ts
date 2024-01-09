@@ -7,10 +7,10 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { toDisposable, DisposableStore, disposeIfDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { TextBadge, NumberBadge, IBadge, IActivity, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
+import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -20,12 +20,13 @@ import { Color } from 'vs/base/common/color';
 import { BaseActionViewItem, IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IHoverService, IHoverWidget } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 export interface ICompositeBar {
 
@@ -220,7 +221,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 			this.badgeContent.style.color = badgeFg ? badgeFg.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBg ? badgeBg.toString() : '';
 
-			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
+			this.badgeContent.style.borderStyle = contrastBorderColor && !this.options.compact ? 'solid' : '';
 			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
 			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : '';
 		}
@@ -314,15 +315,15 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 				classes.push('progress-badge');
 			}
 
-			else if (this.options.compact) {
-				show(this.badge);
-			}
-
 			// Number
 			else if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (badge.number > 999) {
+					if (this.options.compact) {
+						if (badge.number > 99) {
+							number = '';
+						}
+					} else if (badge.number > 999) {
 						const noOfThousands = badge.number / 1000;
 						const floor = Math.floor(noOfThousands);
 						if (noOfThousands > floor) {
@@ -334,19 +335,6 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 					this.badgeContent.textContent = number;
 					show(this.badge);
 				}
-			}
-
-			// Text
-			else if (badge instanceof TextBadge) {
-				this.badgeContent.textContent = badge.text;
-				show(this.badge);
-			}
-
-			// Icon
-			else if (badge instanceof IconBadge) {
-				const clazzList = ThemeIcon.asClassNameArray(badge.icon);
-				this.badgeContent.classList.add(...clazzList);
-				show(this.badge);
 			}
 
 			if (classes.length) {
@@ -428,7 +416,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		}));
 	}
 
-	private showHover(skipFadeInAnimation: boolean = false): void {
+	showHover(skipFadeInAnimation: boolean = false): void {
 		if (this.lastHover && !this.lastHover.isDisposed) {
 			return;
 		}
@@ -436,12 +424,18 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		const hoverPosition = this.options.hoverOptions!.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
-			hoverPosition,
 			content: this.computeTitle(),
-			showPointer: true,
-			compact: true,
-			hideOnKeyDown: true,
-			skipFadeInAnimation,
+			position: {
+				hoverPosition,
+			},
+			persistence: {
+				hideOnKeyDown: true,
+			},
+			appearance: {
+				showPointer: true,
+				compact: true,
+				skipFadeInAnimation,
+			}
 		});
 	}
 
@@ -475,8 +469,6 @@ export class CompositeOverflowActivityAction extends CompositeBarAction {
 
 export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionViewItem {
 
-	private actions: IAction[] = [];
-
 	constructor(
 		action: CompositeBarAction,
 		private getOverflowingComposites: () => { id: string; name?: string }[],
@@ -495,17 +487,10 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 	}
 
 	showMenu(): void {
-		if (this.actions) {
-			disposeIfDisposable(this.actions);
-		}
-
-		this.actions = this.getActions();
-
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
-			getActions: () => this.actions,
+			getActions: () => this.getActions(),
 			getCheckedActionsRepresentation: () => 'radio',
-			onHide: () => disposeIfDisposable(this.actions)
 		});
 	}
 
@@ -518,8 +503,6 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 			let suffix: string | number | undefined;
 			if (badge instanceof NumberBadge) {
 				suffix = badge.number;
-			} else if (badge instanceof TextBadge) {
-				suffix = badge.text;
 			}
 
 			if (suffix) {
@@ -530,14 +513,6 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 
 			return action;
 		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (this.actions) {
-			this.actions = disposeIfDisposable(this.actions);
-		}
 	}
 }
 

@@ -605,7 +605,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	}));
 
-	test('remove event is triggered properly if mutliple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('remove event is triggered properly if multiple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -663,7 +663,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[0].id, viewDescriptor1.id);
 	}));
 
-	test('add event is triggered properly if mutliple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('add event is triggered properly if multiple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
@@ -731,7 +731,7 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[2].id, viewDescriptor3.id);
 	}));
 
-	test('add and remove events are triggered properly if mutliple views are hidden and added at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('add and remove events are triggered properly if multiple views are hidden and added at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));

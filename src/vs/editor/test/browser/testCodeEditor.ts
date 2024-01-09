@@ -101,6 +101,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 class TestEditorDomElement {
 	parentElement: IContextKeyServiceTarget | null = null;
 	ownerDocument = document;
+	document = document;
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }

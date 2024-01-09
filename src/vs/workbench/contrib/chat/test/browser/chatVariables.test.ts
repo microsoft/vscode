@@ -13,6 +13,7 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { MockChatWidgetService } from 'vs/workbench/contrib/chat/test/browser/mockChatWidget';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -23,7 +24,7 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService(null!);
+		service = new ChatVariablesService(new MockChatWidgetService());
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

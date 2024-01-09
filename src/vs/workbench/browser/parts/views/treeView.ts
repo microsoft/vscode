@@ -11,7 +11,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
@@ -62,7 +62,7 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme
 import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider, ITreeViewDescriptor, ITreeViewDragAndDropController, IViewBadge, IViewDescriptorService, IViewsRegistry, ResolvableTreeItem, TreeCommand, TreeItemCollapsibleState, TreeViewItemHandleArg, TreeViewPaneHandleArg, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers, LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
@@ -72,7 +72,7 @@ import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 
 export class TreeViewPane extends ViewPane {
 
@@ -643,7 +643,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
 		const checkboxStateHandler = this._register(new CheckboxStateHandler());
-		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, this.manuallyManageCheckboxes);
+		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner, checkboxStateHandler, () => this.manuallyManageCheckboxes);
 		this._register(renderer.onDidChangeCheckboxState(e => this._onDidChangeCheckboxState.fire(e)));
 
 		const widgetAriaLabel = this._title;
@@ -1093,7 +1093,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
 	private _hasCheckbox: boolean = false;
-	private _renderedElements = new Map<string, { original: ITreeNode<ITreeItem, FuzzyScore>; rendered: ITreeExplorerTemplateData }>(); // tree item handle to template data
+	private _renderedElements = new Map<string, { original: ITreeNode<ITreeItem, FuzzyScore>; rendered: ITreeExplorerTemplateData }[]>(); // tree item handle to template data
 
 	constructor(
 		private treeViewId: string,
@@ -1102,7 +1102,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		private actionViewItemProvider: IActionViewItemProvider,
 		private aligner: Aligner,
 		private checkboxStateHandler: CheckboxStateHandler,
-		private readonly manuallyManageCheckboxes: boolean,
+		private readonly manuallyManageCheckboxes: () => boolean,
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -1266,10 +1266,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
+		this.treeViewsService.addRenderedTreeItemElement(node.handle, templateData.container);
 
-		// remember rendered element
-		this._renderedElements.set(element.element.handle, { original: element, rendered: templateData });
+		// remember rendered element, an element can be rendered multiple times
+		const renderedItems = this._renderedElements.get(element.element.handle) ?? [];
+		this._renderedElements.set(element.element.handle, [...renderedItems, { original: element, rendered: templateData }]);
 	}
 
 	private rerender() {
@@ -1277,8 +1278,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		// but have to create a copy of the keys first
 		const keys = new Set(this._renderedElements.keys());
 		for (const key of keys) {
-			const value = this._renderedElements.get(key);
-			if (value) {
+			const values = this._renderedElements.get(key) ?? [];
+			for (const value of values) {
 				this.disposeElement(value.original, 0, value.rendered);
 				this.renderElement(value.original, 0, value.rendered);
 			}
@@ -1351,7 +1352,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	private updateCheckboxes(items: ITreeItem[]) {
 		const additionalItems: ITreeItem[] = [];
 
-		if (!this.manuallyManageCheckboxes) {
+		if (!this.manuallyManageCheckboxes()) {
 			for (const item of items) {
 				if (item.checkbox !== undefined) {
 
@@ -1406,9 +1407,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}
 		items = items.concat(additionalItems);
 		items.forEach(item => {
-			const renderedItem = this._renderedElements.get(item.handle);
-			if (renderedItem) {
-				renderedItem.rendered.checkbox?.render(item);
+			const renderedItems = this._renderedElements.get(item.handle);
+			if (renderedItems) {
+				renderedItems.forEach(renderedItems => renderedItems.rendered.checkbox?.render(item));
 			}
 		});
 		this._onDidChangeCheckboxState.fire(items);
@@ -1417,8 +1418,16 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
 		templateData.elementDisposable.clear();
 
-		this._renderedElements.delete(resource.element.handle);
-		this.treeViewsService.removeRenderedTreeItemElement(resource.element);
+		const itemRenders = this._renderedElements.get(resource.element.handle) ?? [];
+		const renderedIndex = itemRenders.findIndex(renderedItem => templateData === renderedItem.rendered);
+
+		if (itemRenders.length === 1) {
+			this._renderedElements.delete(resource.element.handle);
+		} else if (itemRenders.length > 0) {
+			itemRenders.splice(renderedIndex, 1);
+		}
+
+		this.treeViewsService.removeRenderedTreeItemElement(resource.element.handle);
 
 		templateData.checkbox?.dispose();
 		templateData.checkbox = undefined;
@@ -1731,7 +1740,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const dataTransfer = toExternalVSDataTransfer(originalEvent.dataTransfer!);
 
 		const types = new Set<string>(Array.from(dataTransfer, x => x[0]));
@@ -1783,7 +1792,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
-	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
+	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): Promise<void> {
 		const dndController = this.dndController;
 		if (!originalEvent.dataTransfer || !dndController) {
 			return;

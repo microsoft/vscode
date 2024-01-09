@@ -507,7 +507,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void {
-		const providerId = `${label}-${extensionId}`;
+		const providerId = `${id}-${extensionId}`;
 		this._handlers.set(handle, providerId);
 
 		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});

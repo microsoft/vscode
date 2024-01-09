@@ -119,6 +119,8 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariables';
+
 /*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -180,7 +182,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI; viewType: string; options?: NotebookEditorInputOptions };
+type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
@@ -189,6 +191,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		assertType(input instanceof NotebookEditorInput);
 		const data: SerializedNotebookEditorData = {
 			resource: input.resource,
+			preferredResource: input.preferredResource,
 			viewType: input.viewType,
 			options: input.options
 		};
@@ -199,12 +202,12 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, viewType, options } = data;
+		const { resource, preferredResource, viewType, options } = data;
 		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, viewType, options);
+		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, preferredResource, viewType, options);
 		return input;
 	}
 }
@@ -639,7 +642,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!);
+		return NotebookEditorInput.getOrCreate(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
 	}
 
 	private async _installHandler(): Promise<void> {
@@ -683,11 +686,13 @@ class NotebookAccessibilityHelpContribution extends Disposable {
 	constructor() {
 		super();
 		this._register(AccessibilityHelpAction.addImplementation(105, 'notebook', async accessor => {
-			const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-			if (!codeEditor) {
-				return;
+			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor()
+				|| accessor.get(ICodeEditorService).getFocusedCodeEditor()
+				|| accessor.get(IEditorService).activeEditorPane;
+
+			if (activeEditor) {
+				runAccessibilityHelpAction(accessor, activeEditor);
 			}
-			runAccessibilityHelpAction(accessor, codeEditor);
 		}, NOTEBOOK_IS_ACTIVE_EDITOR));
 	}
 }
@@ -717,6 +722,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSel
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibilityHelpContribution, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookAccessibleViewContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookVariables, LifecyclePhase.Eventually);
 
 registerSingleton(INotebookService, NotebookService, InstantiationType.Delayed);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl, InstantiationType.Delayed);
@@ -913,7 +919,14 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.textOutputLineLimit', "Controls how many lines of text are displayed in a text output. If {0} is enabled, this setting is used to determine the scroll height of the output.", '`#notebook.output.scrolling#`'),
 			type: 'number',
 			default: 30,
-			tags: ['notebookLayout', 'notebookOutputLayout']
+			tags: ['notebookLayout', 'notebookOutputLayout'],
+			minimum: 1,
+		},
+		[NotebookSetting.LinkifyOutputFilePaths]: {
+			description: nls.localize('notebook.disableOutputFilePathLinks', "Control whether to disable filepath links in the output of notebook cells."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookOutputLayout']
 		},
 		[NotebookSetting.markupFontSize]: {
 			markdownDescription: nls.localize('notebook.markup.fontSize', "Controls the font size in pixels of rendered markup in notebooks. When set to {0}, 120% of {1} is used.", '`0`', '`#editor.fontSize#`'),
@@ -959,6 +972,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[NotebookSetting.formatOnSave]: {
 			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
+		[NotebookSetting.insertFinalNewline]: {
+			markdownDescription: nls.localize('notebook.insertFinalNewline', "When enabled, insert a final new line into the end of code cells when saving a notebook."),
 			type: 'boolean',
 			tags: ['notebookLayout'],
 			default: false
@@ -1040,8 +1059,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('notebook.scrolling.anchorToFocusedCell.off.description', "The focused cell may shift around as cells resize.")
 			],
 			default: 'auto'
+		},
+		[NotebookSetting.cellChat]: {
+			markdownDescription: nls.localize('notebook.cellChat', "Enable experimental cell chat for notebooks."),
+			type: 'boolean',
+			default: false
 		}
 	}
 });
-
-

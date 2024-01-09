@@ -95,7 +95,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService
 	) {
-		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
+		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, undefined, 'interactive', {});
 		super();
 		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
@@ -132,6 +132,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	override get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Untitled
 			| EditorInputCapabilities.Readonly
+			| EditorInputCapabilities.AuxWindowUnsupported
 			| EditorInputCapabilities.Scratchpad;
 	}
 
