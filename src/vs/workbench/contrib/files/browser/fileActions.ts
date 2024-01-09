@@ -661,7 +661,6 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: { value: OpenActiveFileInEmptyWorkspace.LABEL, original: 'Open Active File in New Empty Workspace' },
 			f1: true,
 			category: Categories.File,
-			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
 			precondition: EmptyWorkspaceSupportContext
 		});
 	}
@@ -1098,7 +1097,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 
 	const toPaste = await getFilesToPaste(fileList, clipboardService);
 
-	if (confirmPasteNative) {
+	if (confirmPasteNative && toPaste?.length >= 1) {
 		const message = toPaste.length > 1 ?
 			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.length) :
 			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));

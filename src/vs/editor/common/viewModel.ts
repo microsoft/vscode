@@ -152,10 +152,6 @@ export interface IWhitespaceChangeAccessor {
 
 export interface IPartialViewLinesViewportData {
 	/**
-	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
-	 */
-	readonly bigNumbersDelta: number;
-	/**
 	 * The first (partially) visible line number.
 	 */
 	readonly startLineNumber: number;

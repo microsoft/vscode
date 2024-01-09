@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { isJsConfigOrTsConfigFileName } from '../configuration/languageDescription';
 import { isSupportedLanguageMode } from '../configuration/languageIds';
 import { Disposable } from '../utils/dispose';
+import { coalesce } from '../utils/arrays';
 
 /**
  * Tracks the active JS/TS editor.
@@ -24,41 +25,81 @@ export class ActiveJsTsEditorTracker extends Disposable {
 
 	public constructor() {
 		super();
-		vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this._disposables);
-		vscode.window.onDidChangeVisibleTextEditors(() => {
-			// Make sure the active editor is still in the visible set.
-			// This can happen if the output view is focused and the last active TS file is closed
-			if (this._activeJsTsEditor) {
-				if (!vscode.window.visibleTextEditors.some(visibleEditor => visibleEditor === this._activeJsTsEditor)) {
-					this.onDidChangeActiveTextEditor(undefined);
-				}
-			}
-		}, this, this._disposables);
 
-		this.onDidChangeActiveTextEditor(vscode.window.activeTextEditor);
+		this._register(vscode.window.onDidChangeActiveTextEditor(_ => this.update()));
+		this._register(vscode.window.onDidChangeVisibleTextEditors(_ => this.update()));
+
+		this.update();
 	}
 
 	public get activeJsTsEditor(): vscode.TextEditor | undefined {
 		return this._activeJsTsEditor;
 	}
 
-	private onDidChangeActiveTextEditor(editor: vscode.TextEditor | undefined): any {
-		if (editor === this._activeJsTsEditor) {
-			return;
+
+	private update() {
+		// Use tabs to find the active editor.
+		// This correctly handles switching to the output view / debug console, which changes the activeEditor but not
+		// the active tab.
+		const editorCandidates = this.getEditorCandidatesForActiveTab();
+		const managedEditors = editorCandidates.filter(editor => this.isManagedFile(editor));
+		const newActiveJsTsEditor = managedEditors.at(0);
+		if (this._activeJsTsEditor !== newActiveJsTsEditor) {
+			this._activeJsTsEditor = newActiveJsTsEditor;
+			this._onDidChangeActiveJsTsEditor.fire(this._activeJsTsEditor);
+		}
+	}
+
+	private getEditorCandidatesForActiveTab(): vscode.TextEditor[] {
+		const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+		if (!tab) {
+			return [];
 		}
 
-		if (editor && !editor.viewColumn) {
-			// viewColumn is undefined for the debug/output panel, but we still want
-			// to show the version info for the previous editor
-			return;
+		// Basic text editor tab
+		if (tab.input instanceof vscode.TabInputText) {
+			const inputUri = tab.input.uri;
+			const editor = vscode.window.visibleTextEditors.find(editor => {
+				return editor.document.uri.toString() === inputUri.toString()
+					&& editor.viewColumn === tab.group.viewColumn;
+			});
+			return editor ? [editor] : [];
 		}
 
-		if (editor && this.isManagedFile(editor)) {
-			this._activeJsTsEditor = editor;
-		} else {
-			this._activeJsTsEditor = undefined;
+		// Diff editor tab. We could be focused on either side of the editor.
+		if (tab.input instanceof vscode.TabInputTextDiff) {
+			const original = tab.input.original;
+			const modified = tab.input.modified;
+			// Check the active editor first. However if a non tab editor like the output view is focused,
+			// we still need to check the visible text editors.
+			// TODO: This may return incorrect editors incorrect as there does not seem to be a reliable way to map from an editor to the
+			// view column of its parent diff editor. See https://github.com/microsoft/vscode/issues/201845
+			return coalesce([vscode.window.activeTextEditor, ...vscode.window.visibleTextEditors]).filter(editor => {
+				return (editor.document.uri.toString() === original.toString() || editor.document.uri.toString() === modified.toString())
+					&& editor.viewColumn === undefined; // Editors in diff views have undefined view columns
+			});
 		}
-		this._onDidChangeActiveJsTsEditor.fire(this._activeJsTsEditor);
+
+		// Notebook editor. Find editor for notebook cell.
+		if (tab.input instanceof vscode.TabInputNotebook) {
+			const activeEditor = vscode.window.activeTextEditor;
+			if (!activeEditor) {
+				return [];
+			}
+
+			// Notebooks cell editors have undefined view columns.
+			if (activeEditor.viewColumn !== undefined) {
+				return [];
+			}
+
+			const notebook = vscode.window.visibleNotebookEditors.find(editor =>
+				editor.notebook.uri.toString() === (tab.input as vscode.TabInputNotebook).uri.toString()
+				&& editor.viewColumn === tab.group.viewColumn);
+
+			return notebook?.notebook.getCells().some(cell => cell.document.uri.toString() === activeEditor.document.uri.toString()) ? [activeEditor] : [];
+		}
+
+		return [];
 	}
 
 	private isManagedFile(editor: vscode.TextEditor): boolean {

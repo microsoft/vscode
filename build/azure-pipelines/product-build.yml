@@ -128,8 +128,6 @@ variables:
     value: c24324f7-e65f-4c45-8702-ed2d4c35df99
   - name: PRSS_PROVISION_TENANT_ID
     value: 72f988bf-86f1-41af-91ab-2d7cd011db47
-  - name: AZURE_CDN_URL
-    value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
     value: https://vscode.documents.azure.com:443/
   - name: VSCODE_MIXIN_REPO

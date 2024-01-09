@@ -15,7 +15,7 @@ import { equals } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { localize } from 'vs/nls';
-import { ISCMHistoryItem, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemGroupEntry, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
 
 function actionEquals(a: IAction, b: IAction): boolean {
 	return a.id === b.id;
@@ -188,7 +188,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	constructor(
 		private readonly provider: ISCMProvider,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		this.contextKeyService = contextKeyService.createOverlay([
@@ -281,7 +281,7 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		return this.getOrCreateHistoryItemMenu(historyItem);
 	}
 
-	private getOrCreateHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu {
+	private getOrCreateHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu {
 		let result = this.historyItemMenus.get(historyItem);
 
 		if (!result) {
@@ -289,7 +289,10 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 				['scmHistoryItem', historyItem.id],
 			]);
 
-			result = this.menuService.createMenu(MenuId.SCMHistoryItem, contextKeyService);
+			const menuId = historyItemGroup.direction === 'incoming' ?
+				MenuId.SCMIncomingChangesHistoryItemContext : MenuId.SCMOutgoingChangesHistoryItemContext;
+
+			result = this.menuService.createMenu(menuId, contextKeyService);
 			this.historyItemMenus.set(historyItem, result);
 		}
 

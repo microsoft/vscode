@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, h } from 'vs/base/browser/dom';
+import { Dimension, getWindow, h } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -288,7 +288,8 @@ export class NotebookCellChatController extends Disposable {
 			attempt: 0,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			live: true
+			live: true,
+			withIntentDetection: true, // TODO: don't hard code but allow in corresponding UI to run without intent detection?
 		};
 
 		const requestCts = new CancellationTokenSource();
@@ -468,7 +469,7 @@ class EditStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(edit, speed, opts.token));
+			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(getWindow(editor.getContainerDomNode()), edit, speed, opts.token));
 		}
 	}
 

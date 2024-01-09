@@ -35,11 +35,6 @@ export class ViewportData {
 	public readonly visibleRange: Range;
 
 	/**
-	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
-	 */
-	public readonly bigNumbersDelta: number;
-
-	/**
 	 * Positioning information about gaps whitespace.
 	 */
 	public readonly whitespaceViewportData: IViewWhitespaceViewportData[];
@@ -56,7 +51,6 @@ export class ViewportData {
 		this.startLineNumber = partialData.startLineNumber | 0;
 		this.endLineNumber = partialData.endLineNumber | 0;
 		this.relativeVerticalOffset = partialData.relativeVerticalOffset;
-		this.bigNumbersDelta = partialData.bigNumbersDelta | 0;
 		this.whitespaceViewportData = whitespaceViewportData;
 
 		this._model = model;

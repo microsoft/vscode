@@ -11,8 +11,6 @@ const promises_1 = require("node:stream/promises");
 const yauzl = require("yauzl");
 const crypto = require("crypto");
 const retry_1 = require("./retry");
-const storage_blob_1 = require("@azure/storage-blob");
-const mime = require("mime");
 const cosmos_1 = require("@azure/cosmos");
 const identity_1 = require("@azure/identity");
 const cp = require("child_process");
@@ -467,31 +465,6 @@ function getRealType(type) {
             return type;
     }
 }
-async function uploadAssetLegacy(log, quality, commit, filePath) {
-    const fileName = path.basename(filePath);
-    const blobName = commit + '/' + fileName;
-    const credential = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
-    const blobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.windows.net`, credential, { retryOptions: { retryPolicyType: storage_blob_1.StorageRetryPolicyType.FIXED, tryTimeoutInMs: 2 * 60 * 1000 } });
-    const containerClient = blobServiceClient.getContainerClient(quality);
-    const blobClient = containerClient.getBlockBlobClient(blobName);
-    const blobOptions = {
-        blobHTTPHeaders: {
-            blobContentType: mime.lookup(filePath),
-            blobContentDisposition: `attachment; filename="${fileName}"`,
-            blobCacheControl: 'max-age=31536000, public'
-        }
-    };
-    log(`Checking for blob in Azure...`);
-    if (await blobClient.exists()) {
-        log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-    }
-    else {
-        log(`Uploading blobs to Azure storage...`);
-        await blobClient.uploadFile(filePath, blobOptions);
-        log('Blob successfully uploaded to Azure storage.');
-    }
-    return `${e('AZURE_CDN_URL')}/${quality}/${blobName}`;
-}
 async function processArtifact(artifact, artifactFilePath) {
     const log = (...args) => console.log(`[${artifact.name}]`, ...args);
     const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
@@ -506,12 +479,9 @@ async function processArtifact(artifact, artifactFilePath) {
     const type = getRealType(unprocessedType);
     const size = fs.statSync(artifactFilePath).size;
     const stream = fs.createReadStream(artifactFilePath);
-    const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
-    const [assetUrl, prssUrl] = await Promise.all([
-        uploadAssetLegacy(log, quality, commit, artifactFilePath),
-        releaseAndProvision(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), commit, quality, artifactFilePath)
-    ]);
-    const asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl: prssUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
+    const [hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]); // CodeQL [SM04514] Using SHA1 only for legacy reasons, we are actually only respecting SHA256
+    const url = await releaseAndProvision(log, e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), commit, quality, artifactFilePath);
+    const asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
     log('Creating asset...', JSON.stringify(asset));
     await (0, retry_1.retry)(async (attempt) => {
         log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
