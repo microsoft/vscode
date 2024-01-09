@@ -13,6 +13,7 @@ export const enum Testing {
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
 	DecorationsContributionId = 'editor.contrib.testingDecorations',
+	CoverageDecorationsContributionId = 'editor.contrib.coverageDecorations',
 	CoverageViewId = 'workbench.view.testCoverage',
 
 	ResultsPanelId = 'workbench.panel.testResults',

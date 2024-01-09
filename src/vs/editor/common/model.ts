@@ -39,7 +39,8 @@ export enum OverviewRulerLane {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3,
 }
 
 /**
