@@ -101,6 +101,7 @@ export class InlineChatController implements IEditorContribution {
 	private static _storageKey = 'inline-chat-history';
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
+	private _historyCandidate: string = '';
 	private _historyUpdate: (prompt: string) => void;
 
 	private readonly _store = new DisposableStore();
@@ -173,6 +174,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 			InlineChatController._promptHistory.unshift(prompt);
 			this._historyOffset = -1;
+			this._historyCandidate = '';
 			this._storageService.store(InlineChatController._storageKey, JSON.stringify(InlineChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
 		};
 	}
@@ -230,6 +232,7 @@ export class InlineChatController implements IEditorContribution {
 				this._editor.setSelection(options.initialSelection);
 			}
 			this._historyOffset = -1;
+			this._historyCandidate = '';
 			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
@@ -986,12 +989,29 @@ export class InlineChatController implements IEditorContribution {
 		if (len === 0) {
 			return;
 		}
-		const pos = (len + this._historyOffset + (up ? 1 : -1)) % len;
-		const entry = InlineChatController._promptHistory[pos];
+
+		if (this._historyOffset === -1) {
+			// remember the current value
+			this._historyCandidate = this._zone.value.widget.value;
+		}
+
+		const newIdx = this._historyOffset + (up ? 1 : -1);
+		if (newIdx >= len) {
+			// reached the end
+			return;
+		}
+
+		let entry: string;
+		if (newIdx < 0) {
+			entry = this._historyCandidate;
+			this._historyOffset = -1;
+		} else {
+			entry = InlineChatController._promptHistory[newIdx];
+			this._historyOffset = newIdx;
+		}
 
 		this._zone.value.widget.value = entry;
 		this._zone.value.widget.selectAll();
-		this._historyOffset = pos;
 	}
 
 	viewInChat() {
