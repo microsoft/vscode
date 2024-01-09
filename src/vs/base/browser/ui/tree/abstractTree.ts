@@ -1727,7 +1727,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 			if (stickyIndex === -1) {
 				throw new Error('Context menu should not be triggered when element is not in sticky scroll widget');
 			}
-			this.toggleStickyScrollFocused(true);
+			this.container.focus();
 			this.setFocus(stickyIndex);
 			return;
 		}
@@ -1775,8 +1775,6 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
-
-		this.container.focus();
 	}
 
 	updateElements(elements: HTMLElement[], state: StickyScrollState<T, TFilterData, TRef> | undefined): void {
