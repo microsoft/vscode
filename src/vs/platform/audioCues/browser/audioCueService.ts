@@ -174,7 +174,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		() => /** @description config: audioCues.enabled */ this.configurationService.getValue<'on' | 'off' | 'auto' | 'userGesture' | 'always' | 'never'>('audioCues.enabled')
 	);
 
-	private readonly isCueEnabledCache = new Cache((event: IAudioCueEvent) => {
+	private readonly isCueEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(event.cue.settingsKey)
@@ -205,7 +205,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		});
 	}, (event) => this._getKey(event));
 
-	private readonly isAlertEnabledCache = new Cache((event: IAudioCueEvent) => {
+	private readonly isAlertEnabledCache = new Cache((event: { readonly cue: AudioCue; readonly userGesture?: boolean }) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(event.cue.settingsKey)
@@ -225,7 +225,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}, (event) => this._getKey(event));
 
 
-	private _getKey(event: IAudioCueEvent): string {
+	private _getKey(event: { readonly cue: AudioCue; readonly userGesture?: boolean }): string {
 		return JSON.stringify(event);
 	}
 
@@ -241,7 +241,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		return Event.fromObservableLight(this.isCueEnabledCache.get({ cue }));
 	}
 }
-export interface IAudioCueEvent { readonly cue: AudioCue; readonly userGesture?: boolean }
+
 
 /**
  * Play the given audio url.
