@@ -781,12 +781,12 @@ interface HistoryItemGroupTemplate {
 	readonly templateDisposables: DisposableStore;
 }
 
-abstract class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryItemGroupTreeElement, void, HistoryItemGroupTemplate> {
+class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryItemGroupTreeElement, void, HistoryItemGroupTemplate> {
 
-	abstract get templateId(): string;
+	static readonly TEMPLATE_ID = 'history-item-group';
+	get templateId(): string { return HistoryItemGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private readonly toolBarMenuId: MenuId,
 		readonly actionRunner: ActionRunner,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
@@ -806,7 +806,7 @@ abstract class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCM
 		const label = new IconLabel(element, { supportIcons: true });
 		const iconContainer = prepend(label.element, $('.icon-container'));
 
-		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionRunner: this.actionRunner, menuOptions: { shouldForwardArgs: true }, resetMenu: this.toolBarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), { actionRunner: this.actionRunner, menuOptions: { shouldForwardArgs: true } }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
 		templateDisposables.add(toolBar);
 
 		const countContainer = append(element, $('.count'));
@@ -830,8 +830,8 @@ abstract class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCM
 		const historyItemGroupMenu = repositoryMenus.historyProviderMenu?.getHistoryItemGroupMenu(historyItemGroup);
 
 		if (historyItemGroupMenu) {
-			templateData.elementDisposables.add(connectPrimaryMenu(historyItemGroupMenu, (primary, secondary) => {
-				templateData.toolBar.setActions(primary, secondary);
+			templateData.elementDisposables.add(connectPrimaryMenu(historyItemGroupMenu.menu, (primary, secondary) => {
+				templateData.toolBar.setActions(primary, secondary, [historyItemGroupMenu.id]);
 			}));
 
 			templateData.toolBar.context = historyItemGroup;
@@ -852,42 +852,6 @@ abstract class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCM
 	disposeTemplate(templateData: HistoryItemGroupTemplate): void {
 		templateData.elementDisposables.dispose();
 		templateData.templateDisposables.dispose();
-	}
-}
-
-class IncomingHistoryItemGroupRenderer extends HistoryItemGroupRenderer {
-
-	static readonly TEMPLATE_ID = 'history-item-group-incoming';
-	get templateId(): string { return IncomingHistoryItemGroupRenderer.TEMPLATE_ID; }
-
-	constructor(
-		actionRunner: ActionRunner,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IMenuService menuService: IMenuService,
-		@ISCMViewService scmViewService: ISCMViewService,
-		@ITelemetryService telemetryService: ITelemetryService
-	) {
-		super(MenuId.SCMIncomingChanges, actionRunner, contextKeyService, contextMenuService, keybindingService, menuService, scmViewService, telemetryService);
-	}
-}
-
-class OutgoingHistoryItemGroupRenderer extends HistoryItemGroupRenderer {
-
-	static readonly TEMPLATE_ID = 'history-item-group-outgoing';
-	get templateId(): string { return OutgoingHistoryItemGroupRenderer.TEMPLATE_ID; }
-
-	constructor(
-		actionRunner: ActionRunner,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IMenuService menuService: IMenuService,
-		@ISCMViewService scmViewService: ISCMViewService,
-		@ITelemetryService telemetryService: ITelemetryService
-	) {
-		super(MenuId.SCMOutgoingChanges, actionRunner, contextKeyService, contextMenuService, keybindingService, menuService, scmViewService, telemetryService);
 	}
 }
 
@@ -1139,10 +1103,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return ResourceGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMResource(element) || isSCMResourceNode(element)) {
 			return ResourceRenderer.TEMPLATE_ID;
-		} else if (isSCMHistoryItemGroupTreeElement(element) && element.direction === 'incoming') {
-			return IncomingHistoryItemGroupRenderer.TEMPLATE_ID;
-		} else if (isSCMHistoryItemGroupTreeElement(element) && element.direction === 'outgoing') {
-			return OutgoingHistoryItemGroupRenderer.TEMPLATE_ID;
+		} else if (isSCMHistoryItemGroupTreeElement(element)) {
+			return HistoryItemGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return HistoryItemRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
@@ -2832,8 +2794,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMTitle, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
-				this.instantiationService.createInstance(IncomingHistoryItemGroupRenderer, historyItemGroupActionRunner),
-				this.instantiationService.createInstance(OutgoingHistoryItemGroupRenderer, historyItemGroupActionRunner),
+				this.instantiationService.createInstance(HistoryItemGroupRenderer, historyItemGroupActionRunner),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemActionRunner, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)

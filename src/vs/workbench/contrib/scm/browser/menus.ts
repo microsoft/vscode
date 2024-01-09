@@ -253,7 +253,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
-	private readonly historyItemGroupMenus = new Map<ISCMHistoryItemGroupEntry, IMenu>();
+	private readonly historyItemGroupMenus = new Map<MenuId, IMenu>();
 	private readonly historyItemMenus = new Map<ISCMHistoryItem, IMenu>();
 
 	private readonly disposables = new DisposableStore();
@@ -262,19 +262,19 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService) { }
 
-	getHistoryItemGroupMenu(historyItemGroup: ISCMHistoryItemGroupEntry): IMenu {
-		return this.getOrCreateHistoryItemGroupMenu(historyItemGroup);
+	getHistoryItemGroupMenu(historyItemGroup: ISCMHistoryItemGroupEntry): { id: MenuId; menu: IMenu } {
+		const menuId = historyItemGroup.direction === 'incoming' ?
+			MenuId.SCMIncomingChanges : MenuId.SCMOutgoingChanges;
+
+		return { id: menuId, menu: this.getOrCreateHistoryItemGroupMenu(menuId) };
 	}
 
-	private getOrCreateHistoryItemGroupMenu(historyItemGroup: ISCMHistoryItemGroupEntry): IMenu {
-		let result = this.historyItemGroupMenus.get(historyItemGroup);
+	private getOrCreateHistoryItemGroupMenu(menuId: MenuId): IMenu {
+		let result = this.historyItemGroupMenus.get(menuId);
 
 		if (!result) {
-			const menuId = historyItemGroup.direction === 'incoming' ?
-				MenuId.SCMIncomingChanges : MenuId.SCMOutgoingChanges;
-
 			result = this.menuService.createMenu(menuId, this.contextKeyService);
-			this.historyItemGroupMenus.set(historyItemGroup, result);
+			this.historyItemGroupMenus.set(menuId, result);
 		}
 
 		return result;
