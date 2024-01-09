@@ -191,7 +191,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			}));
 		}
 		globalTransaction(tx => {
-			this._resourceLabel?.setUri(data.viewModel.diffEditorViewModel.model.modified.uri);
+			const entry = data.viewModel.entry.value;
+			this._resourceLabel?.setUri(entry?.displayUri ?? data.viewModel.diffEditorViewModel.model.modified.uri);
 			this._dataStore.clear();
 			this._viewModel.set(data.viewModel, tx);
 			this.editor.setModel(data.viewModel.diffEditorViewModel, tx);

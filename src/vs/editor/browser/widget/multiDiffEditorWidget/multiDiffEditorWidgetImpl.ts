@@ -87,6 +87,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
 	);
 
+	public getContentHeight(): number {
+		return this._totalHeight.get();
+	}
+
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _dimension: IObservable<Dimension | undefined>,

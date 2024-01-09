@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 
@@ -36,6 +37,7 @@ export class ConstLazyPromise<T> implements LazyPromise<T> {
 
 export interface IDocumentDiffItem {
 	readonly title: string;
+	readonly displayUri: URI | undefined;
 	readonly original: ITextModel | undefined; // undefined if the file was created.
 	readonly modified: ITextModel | undefined; // undefined if the file was deleted.
 	readonly options?: IDiffEditorOptions;

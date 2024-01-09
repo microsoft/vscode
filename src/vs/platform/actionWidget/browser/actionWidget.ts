@@ -97,9 +97,21 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	}
 
 	private _renderWidget(element: HTMLElement, list: ActionList<unknown>, actionBarActions: readonly IAction[]): IDisposable {
+		const container = document.createElement('div');
+		container.style.display = 'flex';
+		container.style.alignItems = 'flex-start';
+
+		element.appendChild(container);
+
 		const widget = document.createElement('div');
 		widget.classList.add('action-widget');
-		element.appendChild(widget);
+		widget.style.marginRight = '10px';
+		container.appendChild(widget);
+
+		const details = document.createElement('div');
+		details.classList.add('details');
+		details.appendChild(list.detailsNode);
+		container.appendChild(details);
 
 		this._list.value = list;
 		if (this._list.value) {
