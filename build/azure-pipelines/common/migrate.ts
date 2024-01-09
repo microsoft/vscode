@@ -412,7 +412,7 @@ async function main() {
 	const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 	const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 	const container = client.database('builds').container('stable');
-	const builds = await container.items.query<Build>('SELECT * FROM builds').fetchAll();
+	const builds = await container.items.query<Build>('SELECT * FROM c WHERE c.isReleased = true').fetchAll();
 
 	for (const build of builds.resources) {
 		const assetsToMigrate = build.assets.filter(asset => asset.url?.startsWith('https://az764295.vo.msecnd.net/'));
