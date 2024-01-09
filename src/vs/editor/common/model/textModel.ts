@@ -2206,7 +2206,7 @@ export class ModelDecorationGlyphMarginOptions {
 	readonly position: model.GlyphMarginLane;
 
 	constructor(options: model.IModelDecorationGlyphMarginOptions | null | undefined) {
-		this.position = options?.position ?? model.GlyphMarginLane.Left;
+		this.position = options?.position ?? model.GlyphMarginLane.Center;
 	}
 }
 

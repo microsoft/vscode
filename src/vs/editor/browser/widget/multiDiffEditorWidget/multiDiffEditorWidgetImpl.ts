@@ -239,25 +239,31 @@ class VirtualizedViewItem extends Disposable {
 			const isFocused = ref.object.isFocused.read(reader);
 			if (isFocused) { return; }
 
-			transaction(tx => {
-				this._lastTemplateData.set({
-					contentHeight: ref.object.height.get(),
-					maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
-				}, tx);
-				ref.object.hide();
-
-				this._templateRef.set(undefined, tx);
-			});
+			this._clear();
 		}));
 	}
 
 	override dispose(): void {
-		this.hide();
+		this._clear();
 		super.dispose();
 	}
 
 	public override toString(): string {
-		return `VirtualViewItem(${this.viewModel.entry.value!.title})`;
+		return `VirtualViewItem(${this.viewModel.entry.value!.modified?.uri.toString()})`;
+	}
+
+	private _clear(): void {
+		const ref = this._templateRef.get();
+		if (!ref) { return; }
+		transaction(tx => {
+			this._lastTemplateData.set({
+				contentHeight: ref.object.height.get(),
+				maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
+			}, tx);
+			ref.object.hide();
+
+			this._templateRef.set(undefined, tx);
+		});
 	}
 
 	public hide(): void {

@@ -41,6 +41,7 @@ export const enum AutoOpenPeekViewWhen {
 export const enum DefaultGutterClickAction {
 	Run = 'run',
 	Debug = 'debug',
+	Coverage = 'runWithCoverage',
 	ContextMenu = 'contextMenu',
 }
 
@@ -119,11 +120,13 @@ export const testingConfiguration: IConfigurationNode = {
 			enum: [
 				DefaultGutterClickAction.Run,
 				DefaultGutterClickAction.Debug,
+				DefaultGutterClickAction.Coverage,
 				DefaultGutterClickAction.ContextMenu,
 			],
 			enumDescriptions: [
 				localize('testing.defaultGutterClickAction.run', 'Run the test.'),
 				localize('testing.defaultGutterClickAction.debug', 'Debug the test.'),
+				localize('testing.defaultGutterClickAction.coverage', 'Run the test with coverage.'),
 				localize('testing.defaultGutterClickAction.contextMenu', 'Open the context menu for more options.'),
 			],
 			default: DefaultGutterClickAction.Run,

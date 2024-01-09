@@ -8,7 +8,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 
 export interface IMultiDiffEditorModel {
-	readonly documents: LazyPromise<IDocumentDiffItem>[];
+	readonly documents: readonly LazyPromise<IDocumentDiffItem>[];
 	readonly onDidChange: Event<void>;
 }
 
@@ -35,7 +35,6 @@ export class ConstLazyPromise<T> implements LazyPromise<T> {
 }
 
 export interface IDocumentDiffItem {
-	readonly title: string;
 	readonly original: ITextModel | undefined; // undefined if the file was created.
 	readonly modified: ITextModel | undefined; // undefined if the file was deleted.
 	readonly options?: IDiffEditorOptions;

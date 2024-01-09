@@ -195,6 +195,7 @@ function loadTests(opts) {
 		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
 		'property limits', // https://github.com/microsoft/vscode/issues/192443
 		'Error events', // https://github.com/microsoft/vscode/issues/192443
+		'fetch returns keybinding with user first if title and id matches' //
 	]);
 
 	let _testsWithUnexpectedOutput = false;
