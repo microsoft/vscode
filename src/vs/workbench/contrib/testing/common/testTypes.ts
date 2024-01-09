@@ -802,7 +802,7 @@ export interface IncrementalChangeCollector<T> {
 /**
  * Maintains tests in this extension host sent from the main thread.
  */
-export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem> {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
 
 	/**
