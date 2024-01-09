@@ -38,8 +38,11 @@ export interface IEditorConfiguration {
 			diffEditor?: boolean;
 		};
 	};
-	problems?: {
-		visibility?: boolean;
+	workbench?: {
+		problems?: {
+			visibility?: boolean;
+
+		};
 	};
 }
 
@@ -164,7 +167,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: configuration.problems?.visibility !== false ? 'on' : 'off'
+			renderValidationDecorations: configuration.workbench?.problems?.visibility !== false ? 'on' : 'off'
 		};
 	}
 

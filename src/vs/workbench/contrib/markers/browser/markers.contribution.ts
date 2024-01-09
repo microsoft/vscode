@@ -121,12 +121,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
 			],
 		},
-		'problems.visibility': {
-			type: 'boolean',
-			default: true,
-			tags: ['experimental'],
-			description: localize('problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
-		}
 	}
 });
 
@@ -559,7 +553,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		};
 
 		// Add the status bar entry if the problems is not visible
-		let config = this.configurationService.getValue('problems.visibility');
+		let config = this.configurationService.getValue('workbench.problems.visibility');
 		if (!config) {
 			addStatusBarEntry();
 		}
@@ -569,11 +563,11 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('problems.visibility')) {
+			if (e.affectsConfiguration('workbench.problems.visibility')) {
 				this.markersStatusItem.update(this.getMarkersItem());
 
 				// Update based on what setting was changed to.
-				config = this.configurationService.getValue('problems.visibility');
+				config = this.configurationService.getValue('workbench.problems.visibility');
 				if (!config && !this.markersStatusItemOff) {
 					addStatusBarEntry();
 				} else if (config && this.markersStatusItemOff) {
@@ -600,7 +594,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
 		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = '@id:problems.visibility';
+		const configureSettingsLabel = '@id:workbench.problems.visibility';
 		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
 		return {
 			name: localize('status.problemsVisibility', "Problems Visibility"),
