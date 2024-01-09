@@ -604,9 +604,7 @@ export class ExtensionEditor extends EditorPane {
 			this.currentIdentifier = extension.identifier.id;
 		}
 
-		if (extension.hasReadme()) {
-			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		}
+		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		if (manifest && manifest.contributes) {
 			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 		}
@@ -941,6 +939,11 @@ export class ExtensionEditor extends EditorPane {
 		const resources: [string, URI][] = [];
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		}
+		if (extension.url && extension.supportUrl) {
+			try {
+				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.repository) {
 			try {

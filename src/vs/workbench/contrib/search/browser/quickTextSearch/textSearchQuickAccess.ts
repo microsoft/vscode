@@ -21,7 +21,7 @@ import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/pl
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
-import { searchDetailsIcon, searchOpenInFileIcon, searchSeeMoreIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatch, Match, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
@@ -86,6 +86,12 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
 		}
+		picker.customButton = true;
+		picker.customLabel = '$(link-external)';
+		picker.onDidCustom(() => {
+			this.moveToSearchViewlet(this.searchModel, undefined);
+			picker.hide();
+		});
 		disposables.add(super.provide(picker, token, runOptions));
 		disposables.add(picker.onDidHide(() => this.searchModel.searchResult.toggleHighlights(false)));
 		disposables.add(picker.onDidAccept(() => this.searchModel.searchResult.toggleHighlights(false)));
@@ -141,7 +147,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		};
 	}
 
-	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch) {
+	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch | undefined) {
 		// this function takes this._searchModel.searchResult and moves it to the search viewlet's search model.
 		// then, this._searchModel will construct a new (empty) SearchResult, and the search viewlet's search result will be disposed.
 		this._viewsService.openView(VIEW_ID, false);
@@ -149,10 +155,13 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		viewlet.importSearchResult(model);
 
 		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
-
-		viewer.setFocus([currentElem], getSelectionKeyboardEvent());
-		viewer.setSelection([currentElem], getSelectionKeyboardEvent());
-		viewer.reveal(currentElem);
+		if (currentElem) {
+			viewer.setFocus([currentElem], getSelectionKeyboardEvent());
+			viewer.setSelection([currentElem], getSelectionKeyboardEvent());
+			viewer.reveal(currentElem);
+		} else {
+			viewlet.searchAndReplaceWidget.focus();
+		}
 	}
 
 	private _getPicksFromMatches(matches: FileMatch[], limit: number): (IQuickPickSeparator | IPickerQuickAccessItem)[] {
@@ -221,7 +230,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 						label: match
 					},
 					buttons: [{
-						iconClass: ThemeIcon.asClassName(searchSeeMoreIcon),
+						iconClass: ThemeIcon.asClassName(searchActivityBarIcon),
 						tooltip: localize('showMore', "See in Search Panel"),
 					}],
 					ariaLabel: `Match at location ${element.range().startLineNumber}:${element.range().startColumn} - ${previewText}`,

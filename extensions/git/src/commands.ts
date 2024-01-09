@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -3535,6 +3535,31 @@ export class CommandCenter {
 		await repository.dropStash();
 	}
 
+	@command('git.stashPreview', { repository: true })
+	async stashPreview(repository: Repository): Promise<void> {
+		const placeHolder = l10n.t('Pick a stash to preview');
+		const stash = await this.pickStash(repository, placeHolder);
+
+		if (!stash) {
+			return;
+		}
+
+		const stashFiles = await repository.showStash(stash.index);
+
+		if (!stashFiles || stashFiles.length === 0) {
+			return;
+		}
+
+		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+
+		for (const file of stashFiles) {
+			const fileUri = Uri.file(path.join(repository.root, file));
+			args.push([fileUri, toGitUri(fileUri, `stash@{${stash.index}}`), fileUri]);
+		}
+
+		commands.executeCommand('vscode.changes', `Git Stash #${stash.index}: ${stash.description}`, args);
+	}
+
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
 		const stashes = await repository.getStashes();
 
@@ -3543,9 +3568,10 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = stashes.map(stash => ({ label: `#${stash.index}:  ${stash.description}`, description: '', details: '', stash }));
+		const picks = stashes.map(stash => ({ label: `#${stash.index}: ${stash.description}`, description: stash.branchName, stash }));
 		const result = await window.showQuickPick(picks, { placeHolder });
-		return result && result.stash;
+
+		return result?.stash;
 	}
 
 	@command('git.timeline.openDiff', { repository: false })
@@ -3591,7 +3617,6 @@ export class CommandCenter {
 
 	@command('git.timeline.openCommit', { repository: false })
 	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		console.log('timelineOpenCommit', item);
 		if (!GitTimelineItem.is(item)) {
 			return;
 		}
@@ -3810,6 +3835,29 @@ export class CommandCenter {
 		for (const resource of resources) {
 			args.push([resource.resourceUri, resource.leftUri, resource.rightUri]);
 		}
+
+		commands.executeCommand('vscode.changes', title, args);
+	}
+
+	@command('git.openCommit', { repository: true })
+	async openCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
+		}
+
+		const historyProvider = repository.historyProvider;
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (historyItemChanges.length === 0) {
+			return;
+		}
+
+		const modifiedShortRef = historyItem.id.substring(0, 8);
+		const originalShortRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedShortRef}^`;
+
+		const title = l10n.t('Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
+		const args = historyItemChanges.map(change => [change.uri, change.originalUri, change.modifiedUri]);
 
 		commands.executeCommand('vscode.changes', title, args);
 	}

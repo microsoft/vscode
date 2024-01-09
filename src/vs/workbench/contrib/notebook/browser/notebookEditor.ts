@@ -36,7 +36,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NOTEBOOK_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookPerfMarks } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupsOrder, IAuxiliaryEditorPart, IEditorGroup, IEditorGroupsService, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -48,6 +48,7 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -92,7 +93,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -206,7 +207,20 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
+			let codeWindow = this._rootElement ? DOM.getWindow(this._rootElement) : undefined;
+			if (this.group) {
+				// get matching part
+				// TODO this._editorGroupService.getPart(this.group.id) is always returning main part on window reload
+				const groupView = (this.group as IEditorGroupView).groupsView as unknown as (IEditorPart | unknown);
+				const currentPart = this._editorGroupService.parts.find(part => part === groupView);
+
+				// get window id
+				if (currentPart && (currentPart as IAuxiliaryEditorPart).windowId) {
+					codeWindow = DOM.getWindowById((currentPart as IAuxiliaryEditorPart).windowId)?.window;
+				}
+			}
+
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, codeWindow ?? mainWindow);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');

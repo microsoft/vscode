@@ -151,6 +151,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			wholeRange: typeConvert.Range.to(request.wholeRange),
 			attempt: request.attempt,
 			live: request.live,
+			withIntentDetection: request.withIntentDetection,
 		};
 
 

@@ -7,7 +7,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
-import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget, WorkbenchListHasSelectionOrFocus, getSelectionKeyboardEvent, WorkbenchListWidget, WorkbenchListSelectionNavigation, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementHasParent, WorkbenchTreeElementHasChild, WorkbenchTreeElementCanExpand, RawWorkbenchListFocusContextKey, WorkbenchTreeFindOpen, WorkbenchListSupportsFind, WorkbenchListScrollAtBottomContextKey, WorkbenchListScrollAtTopContextKey, WorkbenchTreeStickyScrollFocused } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { equals, range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -252,6 +252,22 @@ function expandMultiSelection(focused: WorkbenchListWidget, previousFocus: unkno
 	}
 }
 
+function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, any> | AsyncDataTree<any, any>, postRevealAction?: (focus: any) => void): void {
+	const focus = tree.getStickyScrollFocus();
+
+	if (focus.length === 0) {
+		throw new Error(`StickyScroll has no focus`);
+	}
+	if (focus.length > 1) {
+		throw new Error(`StickyScroll can only have a single focused item`);
+	}
+
+	tree.reveal(focus[0]);
+	tree.domFocus();
+	tree.setFocus(focus);
+	postRevealAction?.(focus[0]);
+}
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.expandSelectionDown',
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -347,6 +363,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				});
 			}
 		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScroll.collapse',
+	weight: KeybindingWeight.WorkbenchContrib + 50,
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.LeftArrow,
+	mac: {
+		primary: KeyCode.LeftArrow,
+		secondary: [KeyMod.CtrlCmd | KeyCode.UpArrow]
+	},
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.collapse(focus));
 	}
 });
 
@@ -530,6 +566,26 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.stickyScrollselect',
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+	},
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.setSelection([focus]));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'list.selectAndPreserveFocus',
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: WorkbenchListFocusContextKey,
@@ -655,6 +711,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 
 		selectElement(accessor, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'list.toggleExpand',
+	weight: KeybindingWeight.WorkbenchContrib + 50, // priorities over file explorer
+	when: WorkbenchTreeStickyScrollFocused,
+	primary: KeyCode.Space,
+	handler: (accessor) => {
+		const widget = accessor.get(IListService).lastFocusedList;
+
+		if (!widget || !(widget instanceof ObjectTree || widget instanceof DataTree || widget instanceof AsyncDataTree)) {
+			return;
+		}
+
+		revealFocusedStickyScroll(widget, focus => widget.setSelection([focus]));
 	}
 });
 

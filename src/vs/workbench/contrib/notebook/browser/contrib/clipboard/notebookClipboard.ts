@@ -30,7 +30,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
-import { getActiveElement, getWindow } from 'vs/base/browser/dom';
+import { getActiveElement, getWindow, isAncestor } from 'vs/base/browser/dom';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -343,8 +343,8 @@ export class NotebookClipboardContribution extends Disposable {
 	runCopyAction(accessor: ServicesAccessor) {
 		const loggerService = accessor.get(ILogService);
 
-		const activeElement = <HTMLElement>getActiveElement();
-		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
 		}
@@ -352,6 +352,11 @@ export class NotebookClipboardContribution extends Disposable {
 		const { editor } = this._getContext();
 		if (!editor) {
 			_log(loggerService, '[NotebookEditor] no active notebook editor, bypass');
+			return false;
+		}
+
+		if (!isAncestor(activeElement, editor.getDomNode())) {
+			_log(loggerService, '[NotebookEditor] focus is outside of the notebook editor, bypass');
 			return false;
 		}
 

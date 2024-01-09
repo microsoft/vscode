@@ -24,7 +24,8 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
-    "contribSourceControlInputBoxMenu"
+    "contribSourceControlInputBoxMenu",
+    "contribSourceControlHistoryItemMenu"
   ],
   "categories": [
     "Other"
@@ -675,6 +676,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stashPreview",
+        "title": "%command.stashPreview%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.timeline.openDiff",
         "title": "%command.timelineOpenDiff%",
         "icon": "$(compare-changes)",
@@ -702,7 +709,7 @@
       },
       {
         "command": "git.timeline.openCommit",
-        "title": "%command.timelineOpenCommit%",
+        "title": "%command.openCommit%",
         "icon": "$(diff-multiple)",
         "category": "Git"
       },
@@ -770,13 +777,22 @@
         "command": "git.viewChanges",
         "title": "%command.viewChanges%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
       },
       {
         "command": "git.viewStagedChanges",
         "title": "%command.viewStagedChanges%",
         "icon": "$(diff-multiple)",
-        "category": "Git"
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.openCommit",
+        "title": "%command.openCommit%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1258,11 +1274,19 @@
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         },
         {
+          "command": "git.stashPreview",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
           "command": "git.viewChanges",
           "when": "false"
         },
         {
           "command": "git.viewStagedChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.openCommit",
           "when": "false"
         }
       ],
@@ -1536,23 +1560,23 @@
           "group": "inline@2"
         },
         {
-          "command": "git.revealInExplorer",
-          "when": "scmProvider == git && scmResourceGroup == merge",
-          "group": "2_view@1"
-        },
-        {
           "command": "git.revealFileInOS.linux",
           "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isLinux",
-          "group": "2_view@2"
+          "group": "2_view@1"
         },
         {
           "command": "git.revealFileInOS.mac",
           "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isMac",
-          "group": "2_view@2"
+          "group": "2_view@1"
         },
         {
           "command": "git.revealFileInOS.windows",
           "when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isWindows",
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "2_view@2"
         },
         {
@@ -1591,23 +1615,23 @@
           "group": "inline@2"
         },
         {
-          "command": "git.revealInExplorer",
-          "when": "scmProvider == git && scmResourceGroup == index",
-          "group": "2_view@1"
-        },
-        {
           "command": "git.revealFileInOS.linux",
           "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isLinux",
-          "group": "2_view@2"
+          "group": "2_view@1"
         },
         {
           "command": "git.revealFileInOS.mac",
           "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isMac",
-          "group": "2_view@2"
+          "group": "2_view@1"
         },
         {
           "command": "git.revealFileInOS.windows",
           "when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isWindows",
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == index",
           "group": "2_view@2"
         },
         {
@@ -1671,23 +1695,23 @@
           "group": "1_modification@3"
         },
         {
-          "command": "git.revealInExplorer",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
-          "group": "2_view@1"
-        },
-        {
           "command": "git.revealFileInOS.linux",
           "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isLinux",
-          "group": "2_view@2"
+          "group": "2_view@1"
         },
         {
           "command": "git.revealFileInOS.mac",
           "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isMac",
-          "group": "2_view@2"
+          "group": "2_view@1"
         },
         {
           "command": "git.revealFileInOS.windows",
           "when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isWindows",
+          "group": "2_view@1"
+        },
+        {
+          "command": "git.revealInExplorer",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "2_view@2"
         },
         {
@@ -1739,6 +1763,20 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "1_modification@3"
+        }
+      ],
+      "scm/incoming/historyItem/context": [
+        {
+          "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        }
+      ],
+      "scm/outgoing/historyItem/context": [
+        {
+          "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
         }
       ],
       "editor/title": [
@@ -2093,6 +2131,11 @@
         {
           "command": "git.stashDropAll",
           "group": "4_drop@2"
+        },
+        {
+          "command": "git.stashPreview",
+          "when": "config.multiDiffEditor.experimental.enabled",
+          "group": "5_preview@1"
         }
       ],
       "git.tags": [
