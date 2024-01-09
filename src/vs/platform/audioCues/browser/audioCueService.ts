@@ -236,10 +236,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		return Event.fromObservableLight(this.isCueEnabledCache.get({ cue }));
 	}
 }
-export interface IAudioCueEvent {
-	readonly cue: AudioCue;
-	readonly userGesture?: boolean;
-}
+export interface IAudioCueEvent { readonly cue: AudioCue; readonly userGesture?: boolean }
 
 /**
  * Play the given audio url.
