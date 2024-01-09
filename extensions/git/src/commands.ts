@@ -3554,7 +3554,7 @@ export class CommandCenter {
 
 		for (const file of stashFiles) {
 			const fileUri = Uri.file(path.join(repository.root, file));
-			args.push([fileUri, toGitUri(fileUri, `stash@{${stash.index}}`), fileUri]);
+			args.push([fileUri, fileUri, toGitUri(fileUri, `stash@{${stash.index}}`)]);
 		}
 
 		commands.executeCommand('vscode.changes', `Git Stash #${stash.index}: ${stash.description}`, args);
