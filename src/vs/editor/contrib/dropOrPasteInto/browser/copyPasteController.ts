@@ -378,7 +378,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}, () => p);
 	}
 
-
 	private setCopyMetadata(dataTransfer: DataTransfer, metadata: CopyMetadata) {
 		dataTransfer.setData(vscodeClipboardMime, JSON.stringify(metadata));
 	}
