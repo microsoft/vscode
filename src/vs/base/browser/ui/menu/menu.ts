@@ -259,10 +259,22 @@ export class Menu extends ActionBar {
 		const window = getWindow(container);
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
 
-		actions = actions.filter(a => {
+		actions = actions.filter((a, idx) => {
 			if (options.submenuIds?.has(a.id)) {
 				console.warn(`Found submenu cycle: ${a.id}`);
 				return false;
+			}
+
+			// Filter out consecutive or useless separators
+			if (a instanceof Separator) {
+				if (idx === actions.length - 1 || idx === 0) {
+					return false;
+				}
+
+				const prevAction = actions[idx - 1];
+				if (prevAction instanceof Separator) {
+					return false;
+				}
 			}
 
 			return true;

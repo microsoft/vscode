@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, BaseObservable, IObserver, _setDerivedOpts, IChangeContext, getFunctionName, DebugNameFn, getDebugName } from 'vs/base/common/observableInternal/base';
+import { assertFn } from 'vs/base/common/assert';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { BaseObservable, DebugNameFn, IChangeContext, IObservable, IObserver, IReader, Owner, _setDerivedOpts, getDebugName, getFunctionName } from 'vs/base/common/observableInternal/base';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 export type EqualityComparer<T> = (a: T, b: T) => boolean;
@@ -29,12 +29,13 @@ export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | object, 
 export function derivedOpts<T>(
 	options: {
 		owner?: object;
-		debugName?: string | (() => string | undefined);
+		debugName?: DebugNameFn;
 		equalityComparer?: EqualityComparer<T>;
+		onLastObserverRemoved?: (() => void);
 	},
 	computeFn: (reader: IReader) => T
 ): IObservable<T> {
-	return new Derived(options.owner, options.debugName, computeFn, undefined, undefined, undefined, options.equalityComparer ?? defaultEqualityComparer);
+	return new Derived(options.owner, options.debugName, computeFn, undefined, undefined, options.onLastObserverRemoved, options.equalityComparer ?? defaultEqualityComparer);
 }
 
 /**
@@ -67,7 +68,7 @@ export function derivedWithStore<T>(computeFn: (reader: IReader, store: Disposab
 export function derivedWithStore<T>(owner: object, computeFn: (reader: IReader, store: DisposableStore) => T): IObservable<T>;
 export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: DisposableStore) => T) | object, computeFnOrUndefined?: ((reader: IReader, store: DisposableStore) => T)): IObservable<T> {
 	let computeFn: (reader: IReader, store: DisposableStore) => T;
-	let owner: object | undefined;
+	let owner: Owner;
 	if (computeFnOrUndefined === undefined) {
 		computeFn = computeFnOrOwner as any;
 		owner = undefined;
@@ -91,10 +92,10 @@ export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: 
 }
 
 export function derivedDisposable<T extends IDisposable | undefined>(computeFn: (reader: IReader) => T): IObservable<T>;
-export function derivedDisposable<T extends IDisposable | undefined>(owner: object, computeFn: (reader: IReader) => T): IObservable<T>;
-export function derivedDisposable<T extends IDisposable | undefined>(computeFnOrOwner: ((reader: IReader) => T) | object, computeFnOrUndefined?: ((reader: IReader) => T)): IObservable<T> {
+export function derivedDisposable<T extends IDisposable | undefined>(owner: Owner, computeFn: (reader: IReader) => T): IObservable<T>;
+export function derivedDisposable<T extends IDisposable | undefined>(computeFnOrOwner: ((reader: IReader) => T) | Owner, computeFnOrUndefined?: ((reader: IReader) => T)): IObservable<T> {
 	let computeFn: (reader: IReader) => T;
-	let owner: object | undefined;
+	let owner: Owner;
 	if (computeFnOrUndefined === undefined) {
 		computeFn = computeFnOrOwner as any;
 		owner = undefined;
@@ -154,11 +155,11 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private changeSummary: TChangeSummary | undefined = undefined;
 
 	public override get debugName(): string {
-		return getDebugName(this, this._debugName, this._computeFn, this._owner, this) ?? '(anonymous)';
+		return getDebugName(this, this._debugName, this._computeFn, this._owner) ?? '(anonymous)';
 	}
 
 	constructor(
-		private readonly _owner: object | undefined,
+		private readonly _owner: Owner,
 		private readonly _debugName: DebugNameFn | undefined,
 		public readonly _computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
 		private readonly createChangeSummary: (() => TChangeSummary) | undefined,
@@ -299,9 +300,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 				r.endUpdate(this);
 			}
 		}
-		if (this.updateCount < 0) {
-			throw new BugIndicatingError();
-		}
+		assertFn(() => this.updateCount >= 0);
 	}
 
 	public handlePossibleChange<T>(observable: IObservable<T, unknown>): void {

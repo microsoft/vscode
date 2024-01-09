@@ -107,7 +107,12 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
-	static readonly SCMHistoryItem = new MenuId('SCMHistoryItem');
+	static readonly SCMIncomingChanges = new MenuId('SCMIncomingChanges');
+	static readonly SCMOutgoingChanges = new MenuId('SCMOutgoingChanges');
+	static readonly SCMIncomingChangesAllChangesContext = new MenuId('SCMIncomingChangesAllChangesContext');
+	static readonly SCMIncomingChangesHistoryItemContext = new MenuId('SCMIncomingChangesHistoryItemContext');
+	static readonly SCMOutgoingChangesAllChangesContext = new MenuId('SCMOutgoingChangesAllChangesContext');
+	static readonly SCMOutgoingChangesHistoryItemContext = new MenuId('SCMOutgoingChangesHistoryItemContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
 	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');
@@ -576,6 +581,10 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const action = new ctor();
 
 	const { f1, menu, keybinding, ...command } = action.desc;
+
+	if (CommandsRegistry.getCommand(command.id)) {
+		throw new Error(`Cannot register two commands with the same id: ${command.id}`);
+	}
 
 	// command
 	disposables.add(CommandsRegistry.registerCommand({

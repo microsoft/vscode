@@ -142,6 +142,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
 
+	protected readonly _onWillChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onWillChangeModel: Event<editorCommon.IModelChangedEvent> = this._onWillChangeModel.event;
+
 	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
 
@@ -319,7 +322,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._modelData = null;
 
-		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
+		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement, this._overflowWidgetsDomNode);
 		this._register(this._focusTracker.onChange(() => {
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
 		}));
@@ -502,17 +505,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// Current model is the new model
 			return;
 		}
+
+		const e: editorCommon.IModelChangedEvent = {
+			oldModelUrl: this._modelData?.model.uri || null,
+			newModelUrl: model?.uri || null
+		};
+		this._onWillChangeModel.fire(e);
+
 		const hasTextFocus = this.hasTextFocus();
 		const detachedModel = this._detachModel();
 		this._attachModel(model);
 		if (hasTextFocus && this.hasModel()) {
 			this.focus();
 		}
-
-		const e: editorCommon.IModelChangedEvent = {
-			oldModelUrl: detachedModel ? detachedModel.uri : null,
-			newModelUrl: model ? model.uri : null
-		};
 
 		this._removeDecorationTypes();
 		this._onDidChangeModel.fire(e);
@@ -2206,34 +2211,62 @@ export class EditorModeContext extends Disposable {
 
 class CodeEditorWidgetFocusTracker extends Disposable {
 
-	private _hasFocus: boolean;
+	private _hasDomElementFocus: boolean;
 	private readonly _domFocusTracker: dom.IFocusTracker;
+	private readonly _overflowWidgetsDomNode: dom.IFocusTracker | undefined;
 
 	private readonly _onChange: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onChange: Event<void> = this._onChange.event;
 
-	constructor(domElement: HTMLElement) {
+	private _overflowWidgetsDomNodeHasFocus: boolean;
+
+	private _hadFocus: boolean | undefined = undefined;
+
+	constructor(domElement: HTMLElement, overflowWidgetsDomNode: HTMLElement | undefined) {
 		super();
 
-		this._hasFocus = false;
+		this._hasDomElementFocus = false;
 		this._domFocusTracker = this._register(dom.trackFocus(domElement));
 
+		this._overflowWidgetsDomNodeHasFocus = false;
+
 		this._register(this._domFocusTracker.onDidFocus(() => {
-			this._hasFocus = true;
-			this._onChange.fire(undefined);
+			this._hasDomElementFocus = true;
+			this._update();
 		}));
 		this._register(this._domFocusTracker.onDidBlur(() => {
-			this._hasFocus = false;
-			this._onChange.fire(undefined);
+			this._hasDomElementFocus = false;
+			this._update();
 		}));
+
+		if (overflowWidgetsDomNode) {
+			this._overflowWidgetsDomNode = this._register(dom.trackFocus(overflowWidgetsDomNode));
+			this._register(this._overflowWidgetsDomNode.onDidFocus(() => {
+				this._overflowWidgetsDomNodeHasFocus = true;
+				this._update();
+			}));
+			this._register(this._overflowWidgetsDomNode.onDidBlur(() => {
+				this._overflowWidgetsDomNodeHasFocus = false;
+				this._update();
+			}));
+		}
+	}
+
+	private _update() {
+		const focused = this._hasDomElementFocus || this._overflowWidgetsDomNodeHasFocus;
+		if (this._hadFocus !== focused) {
+			this._hadFocus = focused;
+			this._onChange.fire(undefined);
+		}
 	}
 
 	public hasFocus(): boolean {
-		return this._hasFocus;
+		return this._hadFocus ?? false;
 	}
 
 	public refreshState(): void {
-		this._domFocusTracker.refreshState?.();
+		this._domFocusTracker.refreshState();
+		this._overflowWidgetsDomNode?.refreshState?.();
 	}
 }
 

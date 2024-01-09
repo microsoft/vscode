@@ -7,7 +7,7 @@ import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IIdentityProvider, IListDragAndDrop, IListDragOverReaction, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType } from 'vs/base/browser/ui/tree/abstractTree';
+import { ComposedTreeDelegate, TreeFindMode as TreeFindMode, IAbstractTreeOptions, IAbstractTreeOptionsUpdate, TreeFindMatchType, AbstractTreePart } from 'vs/base/browser/ui/tree/abstractTree';
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { CompressibleObjectTree, ICompressibleKeyboardNavigationLabelProvider, ICompressibleObjectTreeOptions, ICompressibleTreeRenderer, IObjectTreeOptions, IObjectTreeSetChildrenOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -152,7 +152,8 @@ function asTreeContextMenuEvent<TInput, T>(e: ITreeContextMenuEvent<IAsyncDataTr
 	return {
 		browserEvent: e.browserEvent,
 		element: e.element && e.element.element as T,
-		anchor: e.anchor
+		anchor: e.anchor,
+		isStickyScroll: e.isStickyScroll
 	};
 }
 
@@ -362,6 +363,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidUpdateOptions(): Event<IAsyncDataTreeOptionsUpdate> { return this.tree.onDidUpdateOptions; }
 
 	get onDidChangeFindOpenState(): Event<boolean> { return this.tree.onDidChangeFindOpenState; }
+	get onDidChangeStickyScrollFocused(): Event<boolean> { return this.tree.onDidChangeStickyScrollFocused; }
 
 	get findMode(): TreeFindMode { return this.tree.findMode; }
 	set findMode(mode: TreeFindMode) { this.tree.findMode = mode; }
@@ -754,6 +756,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	getFocus(): T[] {
 		const nodes = this.tree.getFocus();
 		return nodes.map(n => n!.element as T);
+	}
+
+	getStickyScrollFocus(): T[] {
+		const nodes = this.tree.getStickyScrollFocus();
+		return nodes.map(n => n!.element as T);
+	}
+
+	getFocusedPart(): AbstractTreePart {
+		return this.tree.getFocusedPart();
 	}
 
 	reveal(element: T, relativeTop?: number): void {

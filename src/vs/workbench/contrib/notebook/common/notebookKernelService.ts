@@ -42,9 +42,12 @@ export interface VariablesResult {
 	id: number;
 	name: string;
 	value: string;
+	type?: string;
 	hasNamedChildren: boolean;
 	indexedChildrenCount: number;
 }
+
+export const variablePageSize = 100;
 
 export interface INotebookKernel {
 	readonly id: string;

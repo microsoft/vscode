@@ -14,7 +14,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_VIEW_ID, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/services/output/common/output';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -26,8 +26,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Dimension } from 'vs/base/browser/dom';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -257,17 +255,3 @@ class OutputEditor extends AbstractTextResourceEditor {
 		}
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// Sidebar background for the output view
-	const sidebarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
-	if (sidebarBackground && sidebarBackground !== theme.getColor(editorBackground)) {
-		collector.addRule(`
-			.monaco-workbench .part.sidebar .output-view .monaco-editor,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .margin,
-			.monaco-workbench .part.sidebar .output-view .monaco-editor .monaco-editor-background {
-				background-color: ${sidebarBackground};
-			}
-		`);
-	}
-});

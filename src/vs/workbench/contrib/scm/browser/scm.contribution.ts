@@ -321,6 +321,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
 			default: 'auto'
+		},
+		'scm.showChangesSummary': {
+			type: 'boolean',
+			description: localize('scm.showChangesSummary', "Controls whether the All Changes entry is shown for incoming/outgoing changes in the Source Control view."),
+			default: true
 		}
 	}
 });

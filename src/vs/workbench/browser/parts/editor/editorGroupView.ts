@@ -140,7 +140,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private readonly editorPartsView: IEditorPartsView,
-		public readonly groupsView: IEditorGroupsView,
+		readonly groupsView: IEditorGroupsView,
 		private groupsLabel: string,
 		private _index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -850,6 +850,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	get id(): GroupIdentifier {
 		return this.model.id;
+	}
+
+	get windowId(): number {
+		return this.groupsView.windowId;
 	}
 
 	get editors(): EditorInput[] {

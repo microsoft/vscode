@@ -14,6 +14,9 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { editorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+
+registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
 
 interface WatermarkEntry {
 	readonly text: string;
