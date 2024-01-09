@@ -274,6 +274,9 @@ async function main() {
     const builds = await container.items.query('SELECT * FROM c WHERE c.isReleased = true').fetchAll();
     for (const build of builds.resources) {
         const assetsToMigrate = build.assets.filter(asset => asset.url?.startsWith('https://az764295.vo.msecnd.net/'));
+        if (assetsToMigrate.length === 0) {
+            continue;
+        }
         console.log(`Migrating ${build.version} (${assetsToMigrate.length} assets)...`);
         await Promise.all(assetsToMigrate.map(asset => migrateAsset(client, build, asset)));
         await client.database('builds').container('stable').item(build.id).replace(build);
