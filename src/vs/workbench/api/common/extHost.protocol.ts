@@ -1441,7 +1441,9 @@ export type SCMRawResource = [
 	boolean /*strike through*/,
 	boolean /*faded*/,
 	string /*context value*/,
-	ICommandDto | undefined /*command*/
+	ICommandDto | undefined /*command*/,
+	UriComponents | undefined /* multiFileDiffEditorOriginalUri */,
+	UriComponents | undefined /* multiFileDiffEditorModifiedUri */,
 ];
 
 export type SCMRawResourceSplice = [
@@ -1487,7 +1489,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void;
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;

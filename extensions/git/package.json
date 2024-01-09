@@ -21,6 +21,7 @@
     "scmHistoryProvider",
     "scmSelectedProvider",
     "scmValidation",
+    "scmMultiDiffEditor",
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
@@ -774,20 +775,6 @@
         "category": "Git"
       },
       {
-        "command": "git.viewChanges",
-        "title": "%command.viewChanges%",
-        "icon": "$(diff-multiple)",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
-        "command": "git.viewStagedChanges",
-        "title": "%command.viewStagedChanges%",
-        "icon": "$(diff-multiple)",
-        "category": "Git",
-        "enablement": "!operationInProgress"
-      },
-      {
         "command": "git.openCommit",
         "title": "%command.openCommit%",
         "icon": "$(diff-multiple)",
@@ -1278,14 +1265,6 @@
           "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
-          "command": "git.viewChanges",
-          "when": "false"
-        },
-        {
-          "command": "git.viewStagedChanges",
-          "when": "false"
-        },
-        {
           "command": "git.openCommit",
           "when": "false"
         }
@@ -1459,16 +1438,6 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
-        },
-        {
-          "command": "git.viewStagedChanges",
-          "when": "scmProvider == git && scmResourceGroup == index && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
-        },
-        {
-          "command": "git.viewChanges",
-          "when": "scmProvider == git && scmResourceGroup == workingTree && config.multiDiffEditor.experimental.enabled",
-          "group": "inline@1"
         }
       ],
       "scm/resourceFolder/context": [

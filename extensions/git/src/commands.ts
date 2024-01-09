@@ -3819,26 +3819,6 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.viewChanges', { repository: true })
-	viewChanges(repository: Repository): void {
-		this._viewChanges('Git: Changes', repository.workingTreeGroup.resourceStates);
-	}
-
-	@command('git.viewStagedChanges', { repository: true })
-	viewStagedChanges(repository: Repository): void {
-		this._viewChanges('Git: Staged Changes', repository.indexGroup.resourceStates);
-	}
-
-	private _viewChanges(title: string, resources: Resource[]): void {
-		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
-
-		for (const resource of resources) {
-			args.push([resource.resourceUri, resource.leftUri, resource.rightUri]);
-		}
-
-		commands.executeCommand('vscode.changes', title, args);
-	}
-
 	@command('git.openCommit', { repository: true })
 	async openCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {

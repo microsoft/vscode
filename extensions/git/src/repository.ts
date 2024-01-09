@@ -161,6 +161,14 @@ export class Resource implements SourceControlResourceState {
 		return this.resources[1];
 	}
 
+	get multiDiffEditorOriginalUri(): Uri | undefined {
+		return this.leftUri;
+	}
+
+	get multiFileDiffEditorModifiedUri(): Uri | undefined {
+		return this.rightUri;
+	}
+
 	@memoize
 	get command(): Command {
 		return this._commandResolver.resolveDefaultCommand(this);
@@ -866,9 +874,9 @@ export class Repository implements Disposable {
 		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', l10n.t('Merge Changes'));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'));
-		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', l10n.t('Staged Changes'), { multiDiffEditorEnableViewChanges: true });
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', l10n.t('Changes'), { multiDiffEditorEnableViewChanges: true });
+		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', l10n.t('Untracked Changes'), { multiDiffEditorEnableViewChanges: true });
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
