@@ -219,6 +219,7 @@ export interface IGalleryExtension {
 	properties: IGalleryExtensionProperties;
 	telemetryData?: any;
 	queryContext?: IStringDictionary<any>;
+	supportLink?: string;
 }
 
 export interface IGalleryMetadata {

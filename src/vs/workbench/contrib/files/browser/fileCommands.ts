@@ -328,13 +328,12 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = viewService.getViewWithId<ExplorerView>(VIEW_ID);
+			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
 			if (explorerView) {
 				const oldAutoReveal = explorerView.autoReveal;
 				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
 				// Fixes #197268
 				explorerView.autoReveal = false;
-				await viewService.openView<ExplorerView>(VIEW_ID, false);
 				explorerView.setExpanded(true);
 				await explorerService.select(uri, 'force');
 				explorerView.focus();
