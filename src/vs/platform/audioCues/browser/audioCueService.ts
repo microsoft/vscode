@@ -268,8 +268,8 @@ class Cache<TArg, TValue> {
 	constructor(private readonly getValue: (value: TArg) => TValue) {
 	}
 
-	private _getKey(event: IAudioCueEvent): string {
-		return `${event.cue.name}-${event.userGesture}`;
+	private _getKey(arg: TArg): string {
+		return JSON.stringify(arg);
 	}
 
 	public get(arg: TArg): TValue {
@@ -278,7 +278,7 @@ class Cache<TArg, TValue> {
 		}
 
 		const value = this.getValue(arg);
-		const key = this._getKey(arg as IAudioCueEvent) as TArg;
+		const key = this._getKey(arg) as TArg;
 		this.map.set(key, value);
 		return value;
 	}
