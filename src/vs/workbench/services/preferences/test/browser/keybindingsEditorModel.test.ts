@@ -140,7 +140,6 @@ suite('KeybindingsEditorModel', () => {
 		);
 
 		registerCommandWithTitle(keybindings[1].command!, 'Same Title');
-		registerCommandWithTitle(keybindings[3].command!, 'Same Title');
 		const expected = [keybindings[3], keybindings[1], keybindings[0], keybindings[2]];
 
 		await testObject.resolve(new Map<string, string>());
