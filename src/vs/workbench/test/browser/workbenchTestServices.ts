@@ -73,7 +73,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { BrowserTextFileService } from 'vs/workbench/services/textfile/browser/browserTextFileService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -166,10 +166,10 @@ import { IHoverOptions, IHoverService } from 'vs/platform/hover/browser/hover';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -279,8 +279,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IDialogService, new TestDialogService());
 	const accessibilityService = new TestAccessibilityService();
 	instantiationService.stub(IAccessibilityService, accessibilityService);
-	const accessibleNotificationService = disposables.add(new TestAccessibleNotificationService());
-	instantiationService.stub(IAccessibleNotificationService, accessibleNotificationService);
+	instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
 	instantiationService.stub(IFileDialogService, instantiationService.createInstance(TestFileDialogService));
 	instantiationService.stub(ILanguageService, disposables.add(instantiationService.createInstance(LanguageService)));
 	instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());

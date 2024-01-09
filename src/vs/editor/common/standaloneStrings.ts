@@ -25,12 +25,8 @@ export namespace AccessibilityHelpNLS {
 	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior {0}.");
 	export const tabFocusModeOffMsgNoKb = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
-	export const saveAudioCueDisabled = nls.localize("saveAudioCueDisabled", "`audioCues.save` is disabled, so an alert will occur when a file is saved.");
-	export const saveAudioCueAlways = nls.localize("saveAudioCueAlways", "`audioCues.save` is enabled, so will play whenever a file is saved.");
-	export const saveAudioCueUserGesture = nls.localize("saveAudioCueUserGesture", "`audioCues.save` is enabled, so will play when a file is saved via user gesture.");
-	export const formatAudioCueDisabled = nls.localize("formatAudioCueDisabled", "`audioCues.format` is disabled, so an alert will occur when a file is formatted.");
-	export const formatAudioCueAlways = nls.localize("formatAudioCueAlways", "`audioCues.format` is enabled, so will play whenever a file is formatted.");
-	export const formatAudioCueUserGesture = nls.localize("formatAudioCueUserGesture", "`audioCues.format` is enabled, so will play when a file is formatted via user gesture.");
+	export const listAudioCues = nls.localize("listAudioCuesCommand", "Run the command: List Audio Cues for an overview of all audio cues and their current status.");
+	export const listAlerts = nls.localize("listAlertsCommand", "Run the command: List Alerts for an overview of alerts and their current status.");
 }
 
 export namespace InspectTokensNLS {
