@@ -266,7 +266,7 @@ function playAudio(url: string, volume: number): Promise<HTMLAudioElement> {
 }
 
 class Cache<TArg, TValue> {
-	private readonly map = new Map<TArg, TValue>();
+	private readonly map = new Map<unknown, TValue>();
 	constructor(private readonly getValue: (value: TArg) => TValue, private readonly getKey: (value: TArg) => unknown) {
 	}
 
@@ -276,7 +276,7 @@ class Cache<TArg, TValue> {
 		}
 
 		const value = this.getValue(arg);
-		const key = this.getKey(arg) as TArg;
+		const key = this.getKey(arg);
 		this.map.set(key, value);
 		return value;
 	}
