@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
 import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setRecomputeInitiallyAndOnChange, getDebugName, getFunctionName, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { derived } from 'vs/base/common/observableInternal/derived';
+import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 /**
@@ -405,4 +405,69 @@ export function derivedObservableWithWritableCache<T>(owner: object, computeFn: 
 			counter.set(counter.get() + 1, transaction);
 		},
 	});
+}
+
+/**
+ * When the items array changes, referential equal items are not mapped again.
+ */
+export function mapObservableArrayCached<TIn, TOut, TKey = TIn>(items: IObservable<readonly TIn[]>, ownerOrName: object | string, map: (input: TIn, store: DisposableStore) => TOut, keySelector?: (input: TIn) => TKey): IObservable<readonly TOut[]> {
+	let m = new ArrayMap(map, keySelector);
+	return derivedOpts({
+		debugName: typeof ownerOrName === 'string' ? ownerOrName : undefined,
+		owner: typeof ownerOrName === 'string' ? undefined : ownerOrName,
+		onLastObserverRemoved: () => {
+			m.dispose();
+			m = new ArrayMap(map);
+		}
+	}, (reader) => {
+		m.setItems(items.read(reader));
+		return m.getItems();
+	});
+}
+
+class ArrayMap<TIn, TOut, TKey> implements IDisposable {
+	private readonly _cache = new Map<TKey, { out: TOut; store: DisposableStore }>();
+	private _items: TOut[] = [];
+	constructor(
+		private readonly _map: (input: TIn, store: DisposableStore) => TOut,
+		private readonly _keySelector?: (input: TIn) => TKey,
+	) {
+	}
+
+	public dispose(): void {
+		this._cache.forEach(entry => entry.store.dispose());
+		this._cache.clear();
+	}
+
+	public setItems(items: readonly TIn[]): void {
+		const newItems: TOut[] = [];
+		const itemsToRemove = new Set(this._cache.keys());
+
+		for (const item of items) {
+			const key = this._keySelector ? this._keySelector(item) : item as unknown as TKey;
+
+			let entry = this._cache.get(key);
+			if (!entry) {
+				const store = new DisposableStore();
+				const out = this._map(item, store);
+				entry = { out, store };
+				this._cache.set(key, entry);
+			} else {
+				itemsToRemove.delete(key);
+			}
+			newItems.push(entry.out);
+		}
+
+		for (const item of itemsToRemove) {
+			const entry = this._cache.get(item)!;
+			entry.store.dispose();
+			this._cache.delete(item);
+		}
+
+		this._items = newItems;
+	}
+
+	public getItems(): TOut[] {
+		return this._items;
+	}
 }

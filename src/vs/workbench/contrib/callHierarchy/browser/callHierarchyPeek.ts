@@ -63,7 +63,7 @@ class LayoutInfo {
 	) { }
 }
 
-class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>{ }
+class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore> { }
 
 export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 

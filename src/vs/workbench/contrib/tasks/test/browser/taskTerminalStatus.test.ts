@@ -58,7 +58,7 @@ class TestTask extends CommonTask {
 	}
 }
 
-class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector>  {
+class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector> {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 	protected readonly _onDidFindErrors = new Emitter<void>();

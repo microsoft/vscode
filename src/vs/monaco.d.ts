@@ -7726,6 +7726,11 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface CommentAuthorInformation {
+		name: string;
+		iconPath?: UriComponents;
+	}
+
 	export interface PendingCommentThread {
 		body: string;
 		range: IRange | undefined;

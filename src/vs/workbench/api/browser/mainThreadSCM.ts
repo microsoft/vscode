@@ -158,6 +158,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			id: historyItemGroupBase.id,
 			label: historyItemGroupBase.label,
 			icon: Codicon.arrowCircleDown,
+			direction: 'incoming',
 			ancestor: ancestor.id,
 			count: ancestor.behind,
 		};
@@ -167,6 +168,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
 			icon: Codicon.arrowCircleUp,
+			direction: 'outgoing',
 			ancestor: ancestor.id,
 			count: ancestor.ahead,
 		};
@@ -187,8 +189,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
 	}
 
-	async provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined> {
-		const changes = await this.proxy.$provideHistoryItemChanges(this.handle, historyItemId, CancellationToken.None);
+	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {
+		const changes = await this.proxy.$provideHistoryItemChanges(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
 		return changes?.map(change => ({
 			uri: URI.revive(change.uri),
 			originalUri: change.originalUri && URI.revive(change.originalUri),

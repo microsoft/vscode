@@ -139,11 +139,11 @@ export class ManagedTestCoverageBars extends Disposable {
 		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
 		el.overall.textContent = displayPercent(overallStat, precision);
 		if ('tpcBar' in el) { // compact mode
-			renderBar(el.tpcBar, overallStat, thresholds);
+			renderBar(el.tpcBar, overallStat, false, thresholds);
 		} else {
-			renderBar(el.statement, percent(coverage.statement), thresholds);
-			renderBar(el.function, coverage.function && percent(coverage.function), thresholds);
-			renderBar(el.branch, coverage.branch && percent(coverage.branch), thresholds);
+			renderBar(el.statement, percent(coverage.statement), coverage.statement.total === 0, thresholds);
+			renderBar(el.function, coverage.function && percent(coverage.function), coverage.function?.total === 0, thresholds);
+			renderBar(el.branch, coverage.branch && percent(coverage.branch), coverage.branch?.total === 0, thresholds);
 		}
 	}
 }
@@ -152,27 +152,35 @@ const percent = (cc: ICoveredCount) => clamp(cc.total === 0 ? 1 : cc.covered / c
 const epsilon = 10e-8;
 const barWidth = 16;
 
-const renderBar = (bar: HTMLElement, pct: number | undefined, thresholds: ITestingCoverageBarThresholds) => {
+const renderBar = (bar: HTMLElement, pct: number | undefined, isZero: boolean, thresholds: ITestingCoverageBarThresholds) => {
 	if (pct === undefined) {
 		bar.style.display = 'none';
-	} else {
-		bar.style.display = 'block';
-		bar.style.width = `${barWidth}px`;
-		// this is floored so the bar is only completely filled at 100% and not 99.9%
-		bar.style.setProperty('--test-bar-width', `${Math.floor(pct * 16)}px`);
-
-		let best = colorThresholds[0].color; //  red
-		let distance = pct;
-		for (const { key, color } of colorThresholds) {
-			const t = thresholds[key] / 100;
-			if (t && pct >= t && pct - t < distance) {
-				best = color;
-				distance = pct - t;
-			}
-		}
-
-		bar.style.color = best;
+		return;
 	}
+
+	bar.style.display = 'block';
+	bar.style.width = `${barWidth}px`;
+	// this is floored so the bar is only completely filled at 100% and not 99.9%
+	bar.style.setProperty('--test-bar-width', `${Math.floor(pct * 16)}px`);
+
+	if (isZero) {
+		bar.style.color = 'currentColor';
+		bar.style.opacity = '0.5';
+		return;
+	}
+
+	let best = colorThresholds[0].color; //  red
+	let distance = pct;
+	for (const { key, color } of colorThresholds) {
+		const t = thresholds[key] / 100;
+		if (t && pct >= t && pct - t < distance) {
+			best = color;
+			distance = pct - t;
+		}
+	}
+
+	bar.style.color = best;
+	bar.style.opacity = '1';
 };
 
 const colorThresholds = [

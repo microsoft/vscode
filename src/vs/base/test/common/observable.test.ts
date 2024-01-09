@@ -1083,8 +1083,7 @@ export class LoggingObserver implements IObserver {
 
 export class LoggingObservableValue<T, TChange = void>
 	extends BaseObservable<T, TChange>
-	implements ISettableObservable<T, TChange>
-{
+	implements ISettableObservable<T, TChange> {
 	private value: T;
 
 	constructor(public readonly debugName: string, initialValue: T, private readonly log: Log) {
