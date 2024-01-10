@@ -41,7 +41,6 @@ export interface IEditorConfiguration {
 	workbench?: {
 		problems?: {
 			visibility?: boolean;
-
 		};
 	};
 }
