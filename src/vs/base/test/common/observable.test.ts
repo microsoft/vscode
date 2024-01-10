@@ -7,8 +7,11 @@ import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('observables', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	/**
 	 * Reads these tests to understand how to use observables.
 	 */
@@ -17,10 +20,10 @@ suite('observables', () => {
 			const log = new Log();
 			const myObservable = observableValue('myObservable', 0);
 
-			autorun(reader => {
+			ds.add(autorun(reader => {
 				/** @description myAutorun */
 				log.log(`myAutorun.run(myObservable: ${myObservable.read(reader)})`);
-			});
+			}));
 			// The autorun runs immediately
 			assert.deepStrictEqual(log.getAndClearEntries(), ['myAutorun.run(myObservable: 0)']);
 
@@ -59,10 +62,10 @@ suite('observables', () => {
 				return sum;
 			});
 
-			autorun(reader => {
+			ds.add(autorun(reader => {
 				/** @description myAutorun */
 				log.log(`myAutorun(myDerived: ${myDerived.read(reader)})`);
-			});
+			}));
 			// autorun runs immediately
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				"myDerived.recompute: 0 + 0 = 0",
@@ -122,10 +125,10 @@ suite('observables', () => {
 				return sum;
 			});
 
-			autorun(reader => {
+			ds.add(autorun(reader => {
 				/** @description myAutorun */
 				log.log(`myAutorun(myDerived: ${myDerived.read(reader)})`);
-			});
+			}));
 			// autorun runs immediately
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				"myDerived.recompute: 0 + 0 = 0",
@@ -294,10 +297,10 @@ suite('observables', () => {
 			return sum;
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			log.log(`myAutorun.run(myComputed3: ${myComputed3.read(reader)})`);
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myComputed1.recompute(myObservable1: 0 + myObservable2: 0 = 0)",
 			"myComputed2.recompute(myComputed1: 0 + myObservable1: 0 + myObservable2: 0 = 0)",
@@ -491,11 +494,11 @@ suite('observables', () => {
 			}
 			return 1;
 		});
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const value = myComputed.read(reader);
 			log.log(`myAutorun: ${value}`);
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myComputed.recompute",
 			"myObs1.firstObserverAdded",
@@ -533,7 +536,7 @@ suite('observables', () => {
 			return myObs1Val;
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const shouldRead = myObsShouldRead.read(reader);
 			if (shouldRead) {
@@ -542,7 +545,7 @@ suite('observables', () => {
 			} else {
 				log.log(`myAutorun(shouldRead: false): run`);
 			}
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myObsShouldRead.firstObserverAdded",
 			"myObsShouldRead.get",
@@ -587,10 +590,10 @@ suite('observables', () => {
 			const log = new Log();
 			const myObservable = observableValue('myObservable', 0);
 
-			autorun(reader => {
+			ds.add(autorun(reader => {
 				/** @description myAutorun */
 				log.log(`myAutorun.run(myObservable: ${myObservable.read(reader)})`);
-			});
+			}));
 			assert.deepStrictEqual(log.getAndClearEntries(), ['myAutorun.run(myObservable: 0)']);
 
 
@@ -614,10 +617,10 @@ suite('observables', () => {
 				return val;
 			});
 
-			autorun(reader => {
+			ds.add(autorun(reader => {
 				/** @description myAutorun */
 				log.log(`myAutorun.run(myDerived: ${myDerived.read(reader)})`);
-			});
+			}));
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				"myDerived.read(myObservable: 0)",
 				"myAutorun.run(myDerived: 0)"
@@ -645,10 +648,10 @@ suite('observables', () => {
 				return val;
 			});
 
-			autorun(reader => {
+			ds.add(autorun(reader => {
 				/** @description myAutorun */
 				log.log(`myAutorun.run(myDerived: ${myDerived.read(reader)})`);
-			});
+			}));
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				"myDerived.read(myObservable: 0)",
 				"myAutorun.run(myDerived: 0)"
@@ -748,12 +751,12 @@ suite('observables', () => {
 			return val;
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const myDerived1Val = myDerived1.read(reader);
 			const myDerived2Val = myDerived2.read(reader);
 			log.log(`myAutorun.run(myDerived1: ${myDerived1Val}, myDerived2: ${myDerived2Val})`);
-		});
+		}));
 
 		transaction(tx => {
 			myObservable2.set(1, tx);
@@ -780,11 +783,11 @@ suite('observables', () => {
 			return value;
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const value = myComputed.read(reader);
 			log.log(`myAutorun(myComputed: ${value})`);
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myObservable.firstObserverAdded",
 			"myObservable.get",
@@ -815,7 +818,7 @@ suite('observables', () => {
 		const log = new Log();
 		const myObservable = new LoggingObservableValue('myObservable', 0, log);
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const value = myObservable.read(reader);
 			log.log(`myAutorun(myObservable: ${value}): start`);
@@ -823,7 +826,7 @@ suite('observables', () => {
 				myObservable.set(value + 1, undefined);
 			}
 			log.log(`myAutorun(myObservable: ${value}): end`);
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myObservable.firstObserverAdded",
 			"myObservable.get",
@@ -870,11 +873,11 @@ suite('observables', () => {
 			return value;
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const value = myDerived2.read(reader);
 			log.log(`myAutorun(myDerived2: ${value})`);
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myObservable.firstObserverAdded",
 			"myObservable.get",
@@ -929,11 +932,11 @@ suite('observables', () => {
 			return `${val1} + ${val2}`;
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun */
 			const val = myDerived3.read(reader);
 			log.log(`myAutorun(myDerived3: ${val})`);
-		});
+		}));
 		assert.deepStrictEqual(log.getAndClearEntries(), [
 			"myObservable1.firstObserverAdded",
 			"myObservable1.get",
@@ -988,15 +991,15 @@ suite('observables', () => {
 			}
 		});
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun1 */
 			myDerivedA1.read(reader);
-		});
+		}));
 
-		autorun(reader => {
+		ds.add(autorun(reader => {
 			/** @description myAutorun2 */
 			myDerived2.read(reader);
-		});
+		}));
 
 		transaction(tx => {
 			myObservable1.set(1, tx);
