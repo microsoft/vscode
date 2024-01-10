@@ -2138,6 +2138,7 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
+	// FIXME: 对 Settings 中的可点击链接，做匹配。
 	return text.replace(/`#([^#\s`]+)#`|'#([^#\s']+)#'/g, (match, backticksGroup, quotesGroup) => {
 		const settingKey: string = backticksGroup ?? quotesGroup;
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
