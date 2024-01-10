@@ -14,6 +14,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { GlyphMarginLane } from 'vs/editor/common/model';
 
 const $ = dom.$;
 
@@ -98,8 +99,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	public startShowingAt(lineNumber: number): void {
-		if (this._computer.lineNumber === lineNumber) {
+	public startShowingAt(lineNumber: number, lane: GlyphMarginLane): void {
+		if (this._computer.lineNumber === lineNumber && this._computer.lane === lane) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
 		}
@@ -109,6 +110,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		this.hide();
 
 		this._computer.lineNumber = lineNumber;
+		this._computer.lane = lane;
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
@@ -176,6 +178,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	private _lineNumber: number = -1;
+	private _lane = GlyphMarginLane.Center;
 
 	public get lineNumber(): number {
 		return this._lineNumber;
@@ -183,6 +186,14 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	public set lineNumber(value: number) {
 		this._lineNumber = value;
+	}
+
+	public get lane(): number {
+		return this._lane;
+	}
+
+	public set lane(value: GlyphMarginLane) {
+		this._lane = value;
 	}
 
 	constructor(
@@ -207,6 +218,11 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 		for (const d of lineDecorations) {
 			if (!d.options.glyphMarginClassName) {
+				continue;
+			}
+
+			const lane = d.options.glyphMargin?.position ?? GlyphMarginLane.Center;
+			if (lane !== this._lane) {
 				continue;
 			}
 
