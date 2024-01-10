@@ -192,7 +192,7 @@ export interface IEditorPartsView {
  */
 export interface IEditorGroupsView {
 
-	readonly isAuxiliary: boolean;
+	readonly windowId: number;
 
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
