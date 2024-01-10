@@ -151,6 +151,36 @@ class LogPointAction extends EditorAction {
 	}
 }
 
+class TriggerByBreakpointAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.debug.action.triggerByBreakpoint',
+			label: nls.localize('triggerByBreakpointEditorAction', "Debug: Add Triggered Breakpoint..."),
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			alias: 'Debug: Triggered Breakpoint...',
+			menuOpts: [
+				{
+					menuId: MenuId.MenubarNewBreakpointMenu,
+					title: nls.localize({ key: 'miTriggerByBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Triggered Breakpoint..."),
+					group: '1_breakpoints',
+					order: 4,
+					when: CONTEXT_DEBUGGERS_AVAILABLE,
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+
+		const position = editor.getPosition();
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.TRIGGER_POINT);
+		}
+	}
+}
+
 class EditBreakpointAction extends EditorAction {
 	constructor() {
 		super({
@@ -596,6 +626,7 @@ registerAction2(ToggleDisassemblyViewSourceCodeAction);
 registerAction2(ToggleBreakpointAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(LogPointAction);
+registerEditorAction(TriggerByBreakpointAction);
 registerEditorAction(EditBreakpointAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
