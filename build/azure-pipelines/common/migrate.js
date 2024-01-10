@@ -235,7 +235,7 @@ process.on('exit', () => tmp.dispose());
 async function releaseAndProvision(log, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName, provisionTenantId, provisionAADUsername, provisionAADPassword, version, quality, url) {
     const fileName = `${quality}/${version}/${path.basename(url)}`;
     const result = `${e('PRSS_CDN_URL')}/${fileName}`;
-    const res = await (0, retry_1.retry)(() => fetch(result));
+    const res = await fetch(result, { method: 'HEAD' });
     if (res.status === 200) {
         log(`Already released and provisioned: ${result}`);
         return result;
@@ -252,7 +252,7 @@ async function releaseAndProvision(log, releaseTenantId, releaseClientId, releas
 }
 async function download(url, path) {
     const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), 4 * 60 * 1000);
+    const timeout = setTimeout(() => abortController.abort(), 10 * 60 * 1000);
     try {
         const res = await fetch(url, { signal: abortController.signal });
         if (!res.ok) {

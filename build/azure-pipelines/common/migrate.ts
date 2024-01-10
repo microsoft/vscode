@@ -336,7 +336,7 @@ async function releaseAndProvision(
 	const fileName = `${quality}/${version}/${path.basename(url)}`;
 	const result = `${e('PRSS_CDN_URL')}/${fileName}`;
 
-	const res = await retry(() => fetch(result));
+	const res = await fetch(result, { method: 'HEAD' });
 
 	if (res.status === 200) {
 		log(`Already released and provisioned: ${result}`);
@@ -359,7 +359,7 @@ async function releaseAndProvision(
 
 async function download(url: string, path: string): Promise<void> {
 	const abortController = new AbortController();
-	const timeout = setTimeout(() => abortController.abort(), 4 * 60 * 1000);
+	const timeout = setTimeout(() => abortController.abort(), 10 * 60 * 1000);
 
 	try {
 		const res = await fetch(url, { signal: abortController.signal });
