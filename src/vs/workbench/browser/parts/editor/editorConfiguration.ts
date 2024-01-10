@@ -182,13 +182,13 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 				this.autoLockConfigurationNode,
 				this.defaultBinaryEditorConfigurationNode,
 				this.editorAssociationsConfigurationNode,
-				this.editorLargeFileConfirmationConfigurationNode,
+				this.editorLargeFileConfirmationConfigurationNode
 			],
 			remove: coalesce([
 				oldAutoLockConfigurationNode,
 				oldDefaultBinaryEditorConfigurationNode,
 				oldEditorAssociationsConfigurationNode,
-				oldEditorLargeFileConfirmationConfigurationNode,
+				oldEditorLargeFileConfirmationConfigurationNode
 			])
 		});
 	}

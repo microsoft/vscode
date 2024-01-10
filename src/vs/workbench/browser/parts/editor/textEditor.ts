@@ -108,7 +108,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
-		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'workbench');
+		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'workbench.problems.visibility');
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
