@@ -651,13 +651,16 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	/**
-	 * An event that fires when every promise in the queue
-	 * has started to execute. In other words: no work is
-	 * pending to be scheduled.
 	 *
-	 * This is NOT an event that signals when all promises
-	 * have finished though.
+	 * @returns A promise that resolved when all work is done (onDrained) or when
+	 * there is nothing to do
 	 */
+	whenIdle(): Promise<void> {
+		return this.size > 0
+			? Event.toPromise(this.onDrained)
+			: Promise.resolve();
+	}
+
 	get onDrained(): Event<void> {
 		return this._onDrained.event;
 	}
@@ -690,17 +693,16 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	private consumed(): void {
-		this._size--;
-		this.runningPromises--;
-
 		if (this._isDisposed) {
 			return;
+		}
+		this.runningPromises--;
+		if (--this._size === 0) {
+			this._onDrained.fire();
 		}
 
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
-		} else {
-			this._onDrained.fire();
 		}
 	}
 
@@ -710,10 +712,6 @@ export class Limiter<T> implements ILimiter<T> {
 		}
 		this.outstandingPromises.length = 0;
 		this._size = this.runningPromises;
-		// NOT firing drain because that happens only after finishing the last task that actually ran
-		// if (this.runningPromises === 0) {
-		// 	this._onDrained.fire();
-		// }
 	}
 
 	dispose(): void {
