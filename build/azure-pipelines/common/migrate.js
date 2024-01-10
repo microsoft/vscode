@@ -277,7 +277,7 @@ async function releaseAndProvision(log, releaseTenantId, releaseClientId, releas
         return result;
     }
     const assetPath = tmp.tmpNameSync();
-    await download(url, assetPath);
+    await (0, retry_1.retry)(() => download(url, assetPath));
     const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
     const release = await esrpclient.release(version, assetPath);
     const credential = new identity_1.ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);

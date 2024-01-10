@@ -398,7 +398,7 @@ async function releaseAndProvision(
 	}
 
 	const assetPath = tmp.tmpNameSync();
-	await download(url, assetPath);
+	await retry(() => download(url, assetPath));
 
 	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, assetPath);
