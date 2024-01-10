@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Limiter = void 0;
 const fs = require("fs");
 const path = require("path");
 const stream_1 = require("stream");
@@ -21,6 +22,41 @@ function e(name) {
     }
     return result;
 }
+class Limiter {
+    _size = 0;
+    runningPromises;
+    maxDegreeOfParalellism;
+    outstandingPromises;
+    constructor(maxDegreeOfParalellism) {
+        this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+        this.outstandingPromises = [];
+        this.runningPromises = 0;
+    }
+    queue(factory) {
+        this._size++;
+        return new Promise((c, e) => {
+            this.outstandingPromises.push({ factory, c, e });
+            this.consume();
+        });
+    }
+    consume() {
+        while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+            const iLimitedTask = this.outstandingPromises.shift();
+            this.runningPromises++;
+            const promise = iLimitedTask.factory();
+            promise.then(iLimitedTask.c, iLimitedTask.e);
+            promise.then(() => this.consumed(), () => this.consumed());
+        }
+    }
+    consumed() {
+        this._size--;
+        this.runningPromises--;
+        if (this.outstandingPromises.length > 0) {
+            this.consume();
+        }
+    }
+}
+exports.Limiter = Limiter;
 class Temp {
     _files = [];
     tmpNameSync() {
@@ -267,6 +303,7 @@ async function download(url, path) {
 async function migrateAsset(_client, build, asset) {
     asset.url = await releaseAndProvision((...args) => console.log(`[${build.id} | ${asset.platform} | ${asset.type}]`, ...args), e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), build.id, 'stable', asset.url);
 }
+const limiter = new Limiter(6);
 async function main() {
     const aadCredentials = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
     const client = new cosmos_1.CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
@@ -278,7 +315,7 @@ async function main() {
             continue;
         }
         console.log(`Migrating ${build.version} (${assetsToMigrate.length} assets)...`);
-        await Promise.all(assetsToMigrate.map(asset => migrateAsset(client, build, asset)));
+        await Promise.all(assetsToMigrate.map(asset => limiter.queue(() => migrateAsset(client, build, asset))));
         await client.database('builds').container('stable').item(build.id).replace(build);
     }
 }

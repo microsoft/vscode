@@ -25,6 +25,60 @@ function e(name: string): string {
 	return result;
 }
 
+export interface ITask<T> {
+	(): T;
+}
+
+interface ILimitedTaskFactory<T> {
+	factory: ITask<Promise<T>>;
+	c: (value: T | Promise<T>) => void;
+	e: (error?: unknown) => void;
+}
+
+export class Limiter<T> {
+
+	private _size = 0;
+	private runningPromises: number;
+	private readonly maxDegreeOfParalellism: number;
+	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
+
+	constructor(maxDegreeOfParalellism: number) {
+		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+		this.outstandingPromises = [];
+		this.runningPromises = 0;
+	}
+
+	queue(factory: ITask<Promise<T>>): Promise<T> {
+		this._size++;
+
+		return new Promise<T>((c, e) => {
+			this.outstandingPromises.push({ factory, c, e });
+			this.consume();
+		});
+	}
+
+	private consume(): void {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+			const iLimitedTask = this.outstandingPromises.shift()!;
+			this.runningPromises++;
+
+			const promise = iLimitedTask.factory();
+			promise.then(iLimitedTask.c, iLimitedTask.e);
+			promise.then(() => this.consumed(), () => this.consumed());
+		}
+	}
+
+	private consumed(): void {
+		this._size--;
+		this.runningPromises--;
+
+		if (this.outstandingPromises.length > 0) {
+			this.consume();
+		}
+	}
+}
+
+
 class Temp {
 	private _files: string[] = [];
 
@@ -408,6 +462,8 @@ async function migrateAsset(_client: CosmosClient, build: Build, asset: Asset): 
 	);
 }
 
+const limiter = new Limiter(6);
+
 async function main() {
 	const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 	const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
@@ -422,7 +478,7 @@ async function main() {
 		}
 
 		console.log(`Migrating ${build.version} (${assetsToMigrate.length} assets)...`);
-		await Promise.all(assetsToMigrate.map(asset => migrateAsset(client, build, asset)));
+		await Promise.all(assetsToMigrate.map(asset => limiter.queue(() => migrateAsset(client, build, asset))));
 		await client.database('builds').container('stable').item(build.id).replace(build);
 	}
 }
