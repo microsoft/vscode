@@ -258,6 +258,17 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 			defaults = defaults.concat(profiles.filter(c => c.group === group && c.isDefault));
 		}
 
+		// have *some* default profile to run if none are set otherwise
+		if (defaults.length === 0) {
+			for (const { profiles } of this.controllerProfiles.values()) {
+				const first = profiles.find(p => p.group === group);
+				if (first) {
+					defaults.push(first);
+					break;
+				}
+			}
+		}
+
 		return defaults;
 	}
 
