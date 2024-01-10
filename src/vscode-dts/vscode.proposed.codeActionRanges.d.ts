@@ -7,10 +7,10 @@ declare module 'vscode' {
 
 	export interface CodeAction {
 		/**
-		 * Marks this as an AI action.
+		 * A range of text that should be highlighted from the Code Action.
 		 *
-		 * Ex: A quick fix should be marked AI if it invokes AI.
+		 * Ex: A refactoring action will highlight the range of text that will be changed.
 		 */
-		isAI?: boolean;
+		editRanges?: Range[];
 	}
 }

@@ -484,7 +484,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
-					editRanges: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.editRanges : undefined,
+					editRanges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? candidate.editRanges : undefined,
 					disabled: candidate.disabled?.reason
 				});
 			}

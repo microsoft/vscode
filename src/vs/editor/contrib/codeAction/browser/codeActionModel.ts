@@ -237,14 +237,15 @@ export class CodeActionModel extends Disposable {
 						if (foundQuickfix) {
 							const allMarkers = this._markerService.read({ resource: model.uri });
 							for (const action of codeActionSet.validActions) {
-								if (action.action.title === 'Fix all detected spelling errors') {
+								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes('_typescript.applyFixAllCodeAction'))) {
 									console.log('we got here');
 									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 								}
+								// if (action.action.command?.arguments? === 'Fix all detected spelling errors') {
+								// }
 							}
 							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
 						}
-
 
 						if (!foundQuickfix) {
 							const allMarkers = this._markerService.read({ resource: model.uri });

@@ -1979,7 +1979,7 @@ export interface ICodeActionDto {
 	isPreferred?: boolean;
 	isAI?: boolean;
 	disabled?: string;
-	editRanges?: string;
+	editRanges?: Range[];
 }
 
 export interface ICodeActionListDto {
