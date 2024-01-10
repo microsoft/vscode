@@ -80,6 +80,7 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { Range } from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1978,6 +1979,7 @@ export interface ICodeActionDto {
 	isPreferred?: boolean;
 	isAI?: boolean;
 	disabled?: string;
+	editRanges?: string;
 }
 
 export interface ICodeActionListDto {

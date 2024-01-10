@@ -133,7 +133,7 @@ export async function getCodeActions(
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
 			const documentation = getDocumentationFromProvider(provider, filteredActions, filter.include);
 			return {
-				actions: filteredActions.map(action => new CodeActionItem(action, provider)),
+				actions: filteredActions.map(action => new CodeActionItem(action, provider, true)),
 				documentation
 			};
 		} catch (err) {

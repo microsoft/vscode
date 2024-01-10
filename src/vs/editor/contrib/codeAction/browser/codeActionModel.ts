@@ -234,6 +234,17 @@ export class CodeActionModel extends Disposable {
 
 						// Search for quickfixes in the curret code action set.
 						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new CodeActionKind(action.action.kind)) : false);
+						if (foundQuickfix) {
+							const allMarkers = this._markerService.read({ resource: model.uri });
+							for (const action of codeActionSet.validActions) {
+								if (action.action.title === 'Fix all detected spelling errors') {
+									console.log('we got here');
+									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+								}
+							}
+							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
+						}
+
 
 						if (!foundQuickfix) {
 							const allMarkers = this._markerService.read({ resource: model.uri });
@@ -266,18 +277,22 @@ export class CodeActionModel extends Disposable {
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
-												action.highlightRange = action.action.isPreferred;
-											}
+												// action.highlightRange = action.action.isPreferred;
+												if (action.action.title === 'Fix all detected spelling errors') {
+													console.log('we got here');
+													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
+												}
 
-											if (codeActionSet.allActions.length === 0) {
-												allCodeActions.push(...actionsAtMarker.allActions);
-											}
+												if (codeActionSet.allActions.length === 0) {
+													allCodeActions.push(...actionsAtMarker.allActions);
+												}
 
-											// Already filtered through to only get quickfixes, so no need to filter again.
-											if (Math.abs(currPosition.column - col) < distance) {
-												currentActions.unshift(...actionsAtMarker.validActions);
-											} else {
-												currentActions.push(...actionsAtMarker.validActions);
+												// Already filtered through to only get quickfixes, so no need to filter again.
+												if (Math.abs(currPosition.column - col) < distance) {
+													currentActions.unshift(...actionsAtMarker.validActions);
+												} else {
+													currentActions.push(...actionsAtMarker.validActions);
+												}
 											}
 										}
 										distance = Math.abs(currPosition.column - col);
