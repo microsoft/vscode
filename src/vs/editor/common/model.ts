@@ -43,6 +43,18 @@ export enum GlyphMarginLane {
 	Right = 3,
 }
 
+export interface IGlyphMarginLanesModel {
+	/**
+	 * The number of lanes that should be rendered in the editor.
+	 */
+	readonly requiredLanes: number;
+
+	/**
+	 * Gets the lanes that should be rendered starting at a given line number.
+	 */
+	getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+}
+
 /**
  * Position in the minimap to render the decoration.
  */
@@ -69,6 +81,12 @@ export interface IModelDecorationGlyphMarginOptions {
 	 * The position in the glyph margin.
 	 */
 	position: GlyphMarginLane;
+
+	/**
+	 * Whether the glyph margin lane in {@link position} should be rendered even
+	 * outside of this decoration's range.
+	 */
+	persistLane?: boolean;
 }
 
 /**

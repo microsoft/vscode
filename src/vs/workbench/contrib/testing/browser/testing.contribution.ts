@@ -49,6 +49,7 @@ import { ITestCoverageService, TestCoverageService } from 'vs/workbench/contrib/
 import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
 import { ExplorerExtensions, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
+// import { CodeCoverageDecorations } from 'vs/workbench/contrib/testing/browser/codeCoverageDecorations';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -144,6 +145,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations, EditorContributionInstantiation.AfterFirstRender);
+// registerEditorContribution(Testing.CoverageDecorationsContributionId, CodeCoverageDecorations, EditorContributionInstantiation.Eventually);
 
 CommandsRegistry.registerCommand({
 	id: '_revealTestInExplorer',

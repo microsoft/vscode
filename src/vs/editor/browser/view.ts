@@ -56,6 +56,7 @@ import { GlyphMarginWidgets } from 'vs/editor/browser/viewParts/glyphMargin/glyp
 import { GlyphMarginLane } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CodeWindow } from 'vs/base/browser/window';
+import { GlyphMarginLanesModel } from 'vs/editor/browser/viewParts/glyphMargin/glyphLanesModel';
 
 
 export interface IContentWidgetData {
@@ -243,54 +244,37 @@ export class View extends ViewEventHandler {
 		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
 	}
 
-	private _computeGlyphMarginLaneCount(): number {
+	private _computeGlyphMarginLanes(): GlyphMarginLanesModel {
 		const model = this._context.viewModel.model;
-		type Glyph = { range: Range; lane: GlyphMarginLane };
+		type Glyph = { range: Range; lane: GlyphMarginLane; persist?: boolean };
 		let glyphs: Glyph[] = [];
+		let maxLineNumber = 0;
 
 		// Add all margin decorations
 		glyphs = glyphs.concat(model.getAllMarginDecorations().map((decoration) => {
 			const lane = decoration.options.glyphMargin?.position ?? GlyphMarginLane.Center;
-			return { range: decoration.range, lane };
+			maxLineNumber = Math.max(maxLineNumber, decoration.range.endLineNumber);
+			return { range: decoration.range, lane, persist: decoration.options.glyphMargin?.persistLane };
 		}));
 
 		// Add all glyph margin widgets
 		glyphs = glyphs.concat(this._glyphMarginWidgets.getWidgets().map((widget) => {
 			const range = model.validateRange(widget.preference.range);
+			maxLineNumber = Math.max(maxLineNumber, range.endLineNumber);
 			return { range, lane: widget.preference.lane };
 		}));
 
 		// Sorted by their start position
 		glyphs.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 
-		const maxLane = GlyphMarginLane.Right;
-		const lanes: (Range | undefined)[] = Array.from({ length: maxLane + 1 });
-		let requiredLanes = 1;
-
-		for (const decoration of glyphs) {
-			// assign only if the range of `decoration` ends after, which means it has a higher chance to overlap with the other lane
-			if (!lanes[decoration.lane] || Range.compareRangesUsingEnds(lanes[decoration.lane]!, decoration.range) < 0) {
-				lanes[decoration.lane] = decoration.range;
-			}
-
-			let requiredLanesHere = 0;
-			for (let i = 1; i <= maxLane; i++) {
-				const lane = lanes[i];
-				if (!lane || lane.endLineNumber < decoration.range.startLineNumber) {
-					lanes[i] = undefined;
-					continue;
-				}
-
-				requiredLanesHere++;
-			}
-
-			requiredLanes = Math.max(requiredLanes, requiredLanesHere);
-			if (requiredLanes === maxLane) {
-				return requiredLanes;
-			}
+		const lanes = new GlyphMarginLanesModel(maxLineNumber);
+		for (const glyph of glyphs) {
+			lanes.push(glyph.lane, glyph.range, glyph.persist);
 		}
 
-		return requiredLanes;
+		this._glyphMarginWidgets.updateLanesModel(lanes);
+
+		return lanes;
 	}
 
 	private _createPointerHandlerHelper(): IPointerHandlerHelper {
@@ -485,7 +469,8 @@ export class View extends ViewEventHandler {
 			prepareRenderText: () => {
 				if (this._shouldRecomputeGlyphMarginLanes) {
 					this._shouldRecomputeGlyphMarginLanes = false;
-					this._context.configuration.setGlyphMarginDecorationLaneCount(this._computeGlyphMarginLaneCount());
+					const model = this._computeGlyphMarginLanes();
+					this._context.configuration.setGlyphMarginDecorationLaneCount(model.requiredLanes);
 				}
 				inputLatency.onRenderStart();
 			},
