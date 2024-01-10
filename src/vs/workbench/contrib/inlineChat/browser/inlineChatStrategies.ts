@@ -5,7 +5,7 @@
 
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableObject, AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
+import { AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -439,21 +439,12 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 	}
 }
 
-export function asAsyncEdit(edit: IIdentifiedSingleEditOperation): AsyncTextEdit {
-	return {
-		range: edit.range,
-		newText: AsyncIterableObject.fromArray([edit.text ?? ''])
-	} satisfies AsyncTextEdit;
-}
-
 export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
 	wordsPerSec = Math.max(10, wordsPerSec);
 
 	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';
-	// const wordCount = countWords(newText);
-
 
 	interval.cancelAndSet(() => {
 		const r = getNWords(newText, 1);
