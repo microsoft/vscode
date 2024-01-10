@@ -111,12 +111,16 @@ export function shouldSmartPaste(document: ITextDocument, selectedRange: vscode.
 		return false;
 	}
 
+	// TODO: use proper parsing instead of regexes
 	for (const regex of smartPasteRegexes) {
 		const matches = [...document.getText().matchAll(regex.regex)];
 		for (const match of matches) {
 			if (match.index !== undefined) {
-				const useDefaultPaste = selectedRange.start.character > match.index && selectedRange.end.character < match.index + match[0].length;
-				if (useDefaultPaste) {
+				const matchRange = new vscode.Range(
+					document.positionAt(match.index),
+					document.positionAt(match.index + match[0].length)
+				);
+				if (matchRange.intersection(selectedRange)) {
 					return false;
 				}
 			}

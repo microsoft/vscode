@@ -217,6 +217,10 @@ export class Extension implements IExtension {
 		return this.gallery && this.gallery.assets.license ? this.gallery.assets.license.uri : undefined;
 	}
 
+	get supportUrl(): string | undefined {
+		return this.gallery && this.gallery.supportLink ? this.gallery.supportLink : undefined;
+	}
+
 	get state(): ExtensionState {
 		return this.stateProvider(this);
 	}

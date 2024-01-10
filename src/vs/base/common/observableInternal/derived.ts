@@ -31,10 +31,11 @@ export function derivedOpts<T>(
 		owner?: object;
 		debugName?: string | (() => string | undefined);
 		equalityComparer?: EqualityComparer<T>;
+		onLastObserverRemoved?: (() => void);
 	},
 	computeFn: (reader: IReader) => T
 ): IObservable<T> {
-	return new Derived(options.owner, options.debugName, computeFn, undefined, undefined, undefined, options.equalityComparer ?? defaultEqualityComparer);
+	return new Derived(options.owner, options.debugName, computeFn, undefined, undefined, options.onLastObserverRemoved, options.equalityComparer ?? defaultEqualityComparer);
 }
 
 /**

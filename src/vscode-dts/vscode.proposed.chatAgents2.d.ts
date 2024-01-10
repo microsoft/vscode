@@ -102,11 +102,13 @@ declare module 'vscode' {
 		 * slash command is prepended to the chat input.
 		 */
 		readonly shouldRepopulate?: boolean;
+
 		/**
 		 * Placeholder text to render in the chat input
 		 * when the slash command has been repopulated.
 		 * Has no effect if `shouldRepopulate` is `false`.
 		 */
+		// TODO@API merge this with shouldRepopulate? so that invalid state cannot be represented?
 		readonly followupPlaceholder?: string;
 	}
 
@@ -224,7 +226,6 @@ declare module 'vscode' {
 		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
 
 		/**
-		 * TODO@API explain what happens wrt to history, in-flight requests etc...
 		 * Dispose this agent and free resources
 		 */
 		dispose(): void;
@@ -249,6 +250,7 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
+	// TODO@API we need to arrive at a state where we can put things into buckets-by-name of (1) rendered data, (2) metadata, etc pp
 	export type ChatAgentProgress =
 		| ChatAgentContent
 		| ChatAgentTask
@@ -313,6 +315,8 @@ declare module 'vscode' {
 		/**
 		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
 		 */
+		// TODO@API Should this be an async iterable or progress instance instead
+		// TODO@API Should this include more inline-renderable items like `ChatAgentInlineContentReference`
 		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
 	}
 
@@ -338,11 +342,15 @@ declare module 'vscode' {
 		/**
 		 * A Uri for this node, opened when it's clicked.
 		 */
+		// TODO@API why label and uri. Can the former be derived from the latter?
+		// TODO@API don't use uri but just names? This API allows to to build nonsense trees where the data structure doesn't match the uris
+		// path-structure.
 		uri: Uri;
 
 		/**
 		 * The type of this node. Defaults to {@link FileType.Directory} if it has {@link ChatAgentFileTreeData.children children}.
 		 */
+		// TODO@API cross API usage
 		type?: FileType;
 
 		/**

@@ -179,6 +179,7 @@ export interface ITreeContextMenuEvent<T> {
 	readonly browserEvent: UIEvent;
 	readonly element: T | null;
 	readonly anchor: HTMLElement | IMouseEvent;
+	readonly isStickyScroll: boolean;
 }
 
 export interface ITreeNavigator<T> {
