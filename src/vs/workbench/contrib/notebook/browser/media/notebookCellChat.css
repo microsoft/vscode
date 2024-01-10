@@ -15,11 +15,6 @@
 	padding: 8px 8px 0px 8px;
 }
 
-.monaco-workbench .notebookOverlay .cell-chat-part > .toolbar {
-	height: 22px;
-	margin: 10px 2px;
-}
-
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat {
 	color: inherit;
 	margin-top: 6px;
