@@ -308,3 +308,21 @@ registerAction2(class extends NotebookCellAction {
 		ctrl.show();
 	}
 });
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: 'notebook.cell.insertCodeCellWithChat',
+		icon: Codicon.sparkle,
+		title: localize('notebookActions.menu.insertCode.ontoolbar', "Generate"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Generate Code Cell with Chat")
+	},
+	order: -10,
+	group: 'navigation/add',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
+		CTX_INLINE_CHAT_HAS_PROVIDER,
+		ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+	)
+});
