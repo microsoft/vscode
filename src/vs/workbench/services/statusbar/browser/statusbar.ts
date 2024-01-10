@@ -4,79 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/base/common/themables';
-import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/languages';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { IAuxiliaryStatusbarPart, IStatusbarEntryContainer } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
-export interface IStatusbarService {
+export interface IStatusbarService extends IStatusbarEntryContainer {
 
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * An event that is triggered when an entry's visibility is changed.
+	 * Get the status bar part that is rooted in the provided container.
 	 */
-	readonly onDidChangeEntryVisibility: Event<{ id: string; visible: boolean }>;
+	getPart(container: HTMLElement): IStatusbarEntryContainer;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor
-	 * to update or remove the statusbar entry.
-	 *
-	 * @param id identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param priority items get arranged from highest priority to lowest priority from left to right
-	 * in their respective alignment slot
+	 * Creates a new auxililary status bar part in the provided container.
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority?: number | IStatusbarEntryPriority): IStatusbarEntryAccessor;
+	createAuxiliaryStatusbarPart(container: HTMLElement): IAuxiliaryStatusbarPart;
 
 	/**
-	 * Adds an entry to the statusbar with the given alignment relative to another entry. Use the returned
-	 * accessor to update or remove the statusbar entry.
-	 *
-	 * @param id identifier of the entry is needed to allow users to hide entries via settings
-	 * @param alignment either LEFT or RIGHT side in the status bar
-	 * @param location a reference to another entry to position relative to
+	 * Create a scoped status bar service that only operates on the provided
+	 * status entry container.
 	 */
-	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, location?: IStatusbarEntryLocation): IStatusbarEntryAccessor;
-
-	/**
-	 * Return if an entry is visible or not.
-	 */
-	isEntryVisible(id: string): boolean;
-
-	/**
-	 * Allows to update an entry's visibility with the provided ID.
-	 */
-	updateEntryVisibility(id: string, visible: boolean): void;
-
-	/**
-	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
-	 */
-	focus(preserveEntryFocus?: boolean): void;
-
-	/**
-	 * Focuses the next status bar entry. If none focused, focuses the first.
-	 */
-	focusNextEntry(): void;
-
-	/**
-	 * Focuses the previous status bar entry. If none focused, focuses the last.
-	 */
-	focusPreviousEntry(): void;
-
-	/**
-	 *	Returns true if a status bar entry is focused.
-	 */
-	isEntryFocused(): boolean;
-
-	/**
-	 * Temporarily override statusbar style.
-	 */
-	overrideStyle(style: IStatusbarStyleOverride): IDisposable;
+	createScoped(statusbarEntryContainer: IStatusbarEntryContainer, disposables: DisposableStore): IStatusbarService;
 }
 
 export const enum StatusbarAlignment {

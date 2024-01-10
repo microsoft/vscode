@@ -6,9 +6,9 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
@@ -28,11 +28,8 @@ export function registerClearActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chatEditor.clear',
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
-				icon: Codicon.clearAll,
+				title: localize2('chat.newSession.label', "New Session"),
+				icon: Codicon.plus,
 				f1: false,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				menu: [{
@@ -54,10 +51,7 @@ export function registerClearActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_CLEAR_CHAT,
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
+				title: localize2('chat.newSession.label', "New Session"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.clearAll,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -69,12 +63,15 @@ export function registerClearActions() {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					},
 					when: CONTEXT_IN_CHAT_SESSION
+				},
+				menu: {
+					id: MenuId.ChatContext,
+					group: 'z_clear'
 				}
 			});
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			announceChatCleared(accessor);
 			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -82,7 +79,9 @@ export function registerClearActions() {
 				return;
 			}
 
+			announceChatCleared(accessor);
 			widget.clear();
+			widget.focusInput();
 		}
 	});
 }
@@ -90,19 +89,16 @@ export function registerClearActions() {
 const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
 	id: `workbench.action.chat.${providerId}.clear`,
-	title: {
-		value: localize('interactiveSession.clear.label', "Clear"),
-		original: 'Clear'
-	},
+	title: localize2('chat.newSession.label', "New Session"),
 	menu: {
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
 		group: 'navigation',
-		order: 0
+		order: -1
 	},
 	precondition: CONTEXT_PROVIDER_EXISTS,
 	category: CHAT_CATEGORY,
-	icon: Codicon.clearAll,
+	icon: Codicon.plus,
 	f1: false
 });
 
@@ -115,10 +111,11 @@ export function getClearAction(viewId: string, providerId: string) {
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
 			announceChatCleared(accessor);
 			await view.clear();
+			view.widget.focusInput();
 		}
 	};
 }
 
 function announceChatCleared(accessor: ServicesAccessor): void {
-	accessor.get(IAccessibleNotificationService).notify(AccessibleNotificationEvent.Clear);
+	accessor.get(IAudioCueService).playAudioCue(AudioCue.clear);
 }

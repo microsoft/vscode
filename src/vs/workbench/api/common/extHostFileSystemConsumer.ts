@@ -121,7 +121,7 @@ export class ExtHostConsumerFileSystem {
 			async delete(uri: vscode.Uri, options?: { recursive?: boolean; useTrash?: boolean }): Promise<void> {
 				try {
 					const provider = that._fileSystemProvider.get(uri.scheme);
-					if (provider && !provider.isReadonly) {
+					if (provider && !provider.isReadonly && !options?.useTrash /* no shortcut: use trash */) {
 						// use shortcut
 						await that._proxy.$ensureActivation(uri.scheme);
 						return await provider.impl.delete(uri, { recursive: false, ...options });

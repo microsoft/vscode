@@ -912,7 +912,7 @@ export class Configuration {
 		return this._workspaceConfiguration;
 	}
 
-	protected get folderConfigurations(): ResourceMap<ConfigurationModel> {
+	get folderConfigurations(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
 	}
 

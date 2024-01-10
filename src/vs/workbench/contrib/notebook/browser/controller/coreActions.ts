@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +25,7 @@ import { isEqual } from 'vs/base/common/resources';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = '_notebook.selectKernel';
-export const NOTEBOOK_ACTIONS_CATEGORY = { value: localize('notebookActions.category', "Notebook"), original: 'Notebook' };
+export const NOTEBOOK_ACTIONS_CATEGORY = localize2('notebookActions.category', 'Notebook');
 
 export const CELL_TITLE_CELL_GROUP_ID = 'inline/cell';
 export const CELL_TITLE_OUTPUT_GROUP_ID = 'inline/output';

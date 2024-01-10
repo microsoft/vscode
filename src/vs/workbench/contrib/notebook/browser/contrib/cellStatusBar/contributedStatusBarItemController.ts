@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, Throttler } from 'vs/base/common/async';
+import { Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
@@ -76,6 +76,7 @@ class CellStatusBarHelper extends Disposable {
 	private _currentItemLists: INotebookCellStatusBarItemList[] = [];
 
 	private _activeToken: CancellationTokenSource | undefined;
+	private _isDisposed = false;
 
 	private readonly _updateThrottler = this._register(new Throttler());
 
@@ -100,9 +101,11 @@ class CellStatusBarHelper extends Disposable {
 	}
 	private _updateSoon(): void {
 		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
-		this._register(disposableTimeout(() => {
-			this._updateThrottler.queue(() => this._update());
-		}, 0));
+		setTimeout(() => {
+			if (!this._isDisposed) {
+				this._updateThrottler.queue(() => this._update());
+			}
+		}, 0);
 	}
 
 	private async _update() {
@@ -128,6 +131,7 @@ class CellStatusBarHelper extends Disposable {
 
 	override dispose() {
 		super.dispose();
+		this._isDisposed = true;
 		this._activeToken?.dispose(true);
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);

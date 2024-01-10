@@ -99,7 +99,7 @@ export class CodeCell extends Disposable {
 			}
 
 			if (e.focusModeChanged) {
-				this.updateEditorForFocusModeChange();
+				this.updateEditorForFocusModeChange(true);
 			}
 		}));
 
@@ -110,7 +110,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		this.updateEditorOptions();
-		this.updateEditorForFocusModeChange();
+		this.updateEditorForFocusModeChange(false);
 		this.updateForOutputHover();
 		this.updateForOutputFocus();
 
@@ -144,9 +144,9 @@ export class CodeCell extends Disposable {
 
 	private updateForLayout(): void {
 		this._pendingLayout?.dispose();
-		this._pendingLayout = DOM.modify(() => {
+		this._pendingLayout = DOM.modify(DOM.getWindow(this.notebookEditor.getDomNode()), () => {
 			this.cellParts.updateInternalLayoutNow(this.viewCell);
-		}, DOM.getWindow(this.templateData.container));
+		});
 	}
 
 	private updateForOutputHover() {
@@ -341,15 +341,20 @@ export class CodeCell extends Disposable {
 			&& (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body);
 	}
 
-	private updateEditorForFocusModeChange() {
+	private updateEditorForFocusModeChange(sync: boolean) {
 		if (this.shouldUpdateDOMFocus()) {
-			this.templateData.editor?.focus();
+			if (sync) {
+				this.templateData.editor?.focus();
+			} else {
+				this._register(DOM.runAtThisOrScheduleAtNextAnimationFrame(DOM.getWindow(this.templateData.container), () => {
+					this.templateData.editor?.focus();
+				}));
+			}
 		}
 
 		this.templateData.container.classList.toggle('cell-editor-focus', this.viewCell.focusMode === CellFocusMode.Editor);
 		this.templateData.container.classList.toggle('cell-output-focus', this.viewCell.focusMode === CellFocusMode.Output);
 	}
-
 	private updateForCollapseState(): boolean {
 		if (this.viewCell.isOutputCollapsed === this._renderedOutputCollapseState &&
 			this.viewCell.isInputCollapsed === this._renderedInputCollapseState) {
@@ -485,7 +490,7 @@ export class CodeCell extends Disposable {
 	}
 
 	private layoutEditor(dimension: IDimension): void {
-		this.templateData.editor?.layout(dimension);
+		this.templateData.editor?.layout(dimension, true);
 	}
 
 	private onCellWidthChange(): void {

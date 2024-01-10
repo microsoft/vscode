@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -45,7 +45,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'perfview.show',
-			title: { value: localize('show.label', "Startup Performance"), original: 'Startup Performance' },
+			title: localize2('show.label', 'Startup Performance'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -64,7 +64,7 @@ registerAction2(class PrintServiceCycles extends Action2 {
 	constructor() {
 		super({
 			id: 'perf.insta.printAsyncCycles',
-			title: { value: localize('cycles', "Print Service Cycles"), original: 'Print Service Cycles' },
+			title: localize2('cycles', 'Print Service Cycles'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -88,7 +88,7 @@ registerAction2(class PrintServiceTraces extends Action2 {
 	constructor() {
 		super({
 			id: 'perf.insta.printTraces',
-			title: { value: localize('insta.trace', "Print Service Traces"), original: 'Print Service Traces' },
+			title: localize2('insta.trace', 'Print Service Traces'),
 			category: Categories.Developer,
 			f1: true
 		});
@@ -112,7 +112,7 @@ registerAction2(class PrintEventProfiling extends Action2 {
 	constructor() {
 		super({
 			id: 'perf.event.profiling',
-			title: { value: localize('emitter', "Print Emitter Profiles"), original: 'Print Emitter Profiles' },
+			title: localize2('emitter', 'Print Emitter Profiles'),
 			category: Categories.Developer,
 			f1: true
 		});

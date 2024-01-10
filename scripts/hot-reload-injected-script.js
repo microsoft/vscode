@@ -85,7 +85,7 @@ module.exports.run = async function (debugSession) {
 
 				// A frozen copy of the previous exports
 				const oldExports = Object.freeze({ ...oldModule.exports });
-				const reloadFn = g.$hotReload_applyNewExports?.(oldExports);
+				const reloadFn = g.$hotReload_applyNewExports?.({ oldExports, newSrc });
 
 				if (!reloadFn) {
 					console.log(debugSessionName, 'ignoring js change, as module does not support hot-reload', relativePath);
@@ -94,7 +94,11 @@ module.exports.run = async function (debugSession) {
 					return;
 				}
 
-				const newScript = new Function('define', newSrc); // CodeQL [SM01632] This code is only executed during development. It is required for the hot-reload functionality.
+				// Eval maintains source maps
+				function newScript(/* this parameter is used by newSrc */ define) {
+					// eslint-disable-next-line no-eval
+					eval(newSrc); // CodeQL [SM01632] This code is only executed during development. It is required for the hot-reload functionality.
+				}
 
 				newScript(/* define */ function (deps, callback) {
 					// Evaluating the new code was successful.

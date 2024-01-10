@@ -157,7 +157,7 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 					return isDirty ? localize('entryAriaLabelDirty', "{0}, unsaved changes", nameAndDescription) : nameAndDescription;
 				})(),
 				description,
-				iconClasses: getIconClasses(this.modelService, this.languageService, resource).concat(editor.getLabelExtraClasses()),
+				iconClasses: getIconClasses(this.modelService, this.languageService, resource, undefined, editor.getIcon()).concat(editor.getLabelExtraClasses()),
 				italic: !this.editorGroupService.getGroup(groupId)?.isPinned(editor),
 				buttons: (() => {
 					return [

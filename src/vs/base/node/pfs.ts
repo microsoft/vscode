@@ -608,7 +608,6 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 				return await doCopySymlink(source, target, payload);
 			} catch (error) {
 				// in any case of an error fallback to normal copy via dereferencing
-				console.warn('[node.js fs] copy of symlink failed: ', error);
 			}
 		}
 

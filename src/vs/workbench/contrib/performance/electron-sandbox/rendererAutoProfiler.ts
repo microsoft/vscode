@@ -106,7 +106,7 @@ export class RendererProfiling {
 
 
 	private async _store(profile: IV8Profile, sessionId: string): Promise<void> {
-		const path = joinPath(this._environmentService.tmpDir, `renderer-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
+		const path = joinPath(this._environmentService.tmpDir, `renderer-${Math.random().toString(16).slice(2, 8)}.cpuprofile.json`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile)));
 		this._logService.info(`[perf] stored profile to DISK '${path}'`, sessionId);
 	}

@@ -170,6 +170,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 			delete this._pendingRPCReplies[msgId];
 			pending.resolveErr(errors.canceled());
 		});
+
+		super.dispose();
 	}
 
 	public drain(): Promise<void> {

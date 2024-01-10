@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/activitybarpart';
 import 'vs/css!./media/activityaction';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Part } from 'vs/workbench/browser/part';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -134,20 +134,22 @@ export class ActivitybarPart extends Part {
 		container.style.borderColor = borderColor ? borderColor : '';
 	}
 
-	show(): void {
+	show(focus?: boolean): void {
 		if (!this.content) {
 			return;
 		}
 
-		if (this.compositeBar.value) {
-			return;
+		if (!this.compositeBar.value) {
+			this.compositeBar.value = this.createCompositeBar();
+			this.compositeBar.value.create(this.content);
+
+			if (this.dimension) {
+				this.layout(this.dimension.width, this.dimension.height);
+			}
 		}
 
-		this.compositeBar.value = this.createCompositeBar();
-		this.compositeBar.value.create(this.content);
-
-		if (this.dimension) {
-			this.layout(this.dimension.width, this.dimension.height);
+		if (focus) {
+			this.focus();
 		}
 	}
 
@@ -460,7 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
 	group: '3_workbench_layout_move',
-	order: 1
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
@@ -514,7 +516,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.previousSideBarView',
-				title: { value: localize('previousSideBarView', "Previous Primary Side Bar View"), original: 'Previous Primary Side Bar View' },
+				title: localize2('previousSideBarView', 'Previous Primary Side Bar View'),
 				category: Categories.View,
 				f1: true
 			}, -1);
@@ -527,7 +529,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.nextSideBarView',
-				title: { value: localize('nextSideBarView', "Next Primary Side Bar View"), original: 'Next Primary Side Bar View' },
+				title: localize2('nextSideBarView', 'Next Primary Side Bar View'),
 				category: Categories.View,
 				f1: true
 			}, 1);
@@ -540,7 +542,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.focusActivityBar',
-				title: { value: localize('focusActivityBar', "Focus Activity Bar"), original: 'Focus Activity Bar' },
+				title: localize2('focusActivityBar', 'Focus Activity Bar'),
 				category: Categories.View,
 				f1: true
 			});

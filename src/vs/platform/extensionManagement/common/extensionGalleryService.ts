@@ -212,7 +212,8 @@ const PropertyType = {
 	PreRelease: 'Microsoft.VisualStudio.Code.PreRelease',
 	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
 	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension',
-	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink'
+	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink',
+	SupportLink: 'Microsoft.VisualStudio.Services.Links.Support',
 };
 
 interface ICriterium {
@@ -399,6 +400,7 @@ function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExten
 
 function getDownloadAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset {
 	return {
+		// always use fallbackAssetUri for download asset to hit the Marketplace API so that downloads are counted
 		uri: `${version.fallbackAssetUri}/${AssetType.VSIX}?redirect=true${version.targetPlatform ? `&targetPlatform=${version.targetPlatform}` : ''}`,
 		fallbackUri: `${version.fallbackAssetUri}/${AssetType.VSIX}${version.targetPlatform ? `?targetPlatform=${version.targetPlatform}` : ''}`
 	};
@@ -436,6 +438,10 @@ function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
 
 function getSponsorLink(version: IRawGalleryExtensionVersion): string | undefined {
 	return version.properties?.find(p => p.key === PropertyType.SponsorLink)?.value;
+}
+
+function getSupportLink(version: IRawGalleryExtensionVersion): string | undefined {
+	return version.properties?.find(p => p.key === PropertyType.SupportLink)?.value;
 }
 
 function getIsPreview(flags: string): boolean {
@@ -549,7 +555,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		hasReleaseVersion: true,
 		preview: getIsPreview(galleryExtension.flags),
 		isSigned: !!assets.signature,
-		queryContext
+		queryContext,
+		supportLink: getSupportLink(latestVersion)
 	};
 }
 

@@ -7,7 +7,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionRecommendations } from 'vs/base/common/product';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -107,7 +106,7 @@ export type ExtensionToggleData = {
 
 let cachedExtensionToggleData: ExtensionToggleData | undefined;
 
-export async function getExperimentalExtensionToggleData(extensionGalleryService: IExtensionGalleryService, environmentService: IEnvironmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+export async function getExperimentalExtensionToggleData(extensionGalleryService: IExtensionGalleryService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
 	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
 		return undefined;
 	}
@@ -120,7 +119,7 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 		return cachedExtensionToggleData;
 	}
 
-	if (!environmentService.isBuilt && productService.extensionRecommendations && productService.commonlyUsedSettings) {
+	if (productService.extensionRecommendations && productService.commonlyUsedSettings) {
 		const settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations> = {};
 		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
 			const extensionInfo = productService.extensionRecommendations![extensionId];
@@ -138,6 +137,10 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 				const [extension] = await extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
 				if (extension) {
 					recommendedExtensionsGalleryInfo[key] = extension;
+				} else {
+					// same as network connection fail. we do not want a blank settings page: https://github.com/microsoft/vscode/issues/195722
+					// so instead of returning partial data we return undefined here
+					return undefined;
 				}
 			} catch (e) {
 				// Network connection fail. Return nothing rather than partial data.

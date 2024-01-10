@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2, ISubmenuItem, IMenuItem, IAction2Options } from 'vs/platform/actions/common/actions';
@@ -13,8 +13,8 @@ import { EnablementState, IExtensionManagementServerService, IWorkbenchExtension
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
 import { StatusUpdater, MaliciousExtensionChecker, ExtensionsViewletViewsContribution, ExtensionsViewPaneContainer, BuiltInExtensionsContext, SearchMarketplaceExtensionsContext, RecommendedExtensionsContext, DefaultViewsContext, ExtensionsSortByContext, SearchHasTextContext } from 'vs/workbench/contrib/extensions/browser/extensionsViewlet';
@@ -32,7 +32,8 @@ import { ExtensionActivationProgress } from 'vs/workbench/contrib/extensions/bro
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionDependencyChecker } from 'vs/workbench/contrib/extensions/browser/extensionsDependencyChecker';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsService } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -107,7 +108,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		title: { value: localize('extensions', "Extensions"), original: 'Extensions' },
+		title: localize2('extensions', "Extensions"),
 		openCommandActionDescriptor: {
 			id: VIEWLET_ID,
 			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
@@ -130,15 +131,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		type: 'object',
 		properties: {
 			'extensions.autoUpdate': {
-				enum: [true, 'onlyEnabledExtensions', false,],
+				enum: [true, 'onlyEnabledExtensions', 'onlySelectedExtensions', false,],
 				enumItemLabels: [
 					localize('all', "All Extensions"),
 					localize('enabled', "Only Enabled Extensions"),
+					localize('selected', "Only Selected Extensions"),
 					localize('none', "None"),
 				],
 				enumDescriptions: [
 					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions except for those updates are ignored.'),
 					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions except for those updates are ignored. Disabled extensions are not updated automatically.'),
+					localize('extensions.autoUpdate.selected', 'Download and install updates automatically only for selected extensions.'),
 					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
 				],
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
@@ -534,7 +537,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.focusExtensionsView',
-			title: { value: localize('focusExtensions', "Focus on Extensions View"), original: 'Focus on Extensions View' },
+			title: localize2('focusExtensions', 'Focus on Extensions View'),
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			run: async (accessor: ServicesAccessor) => {
@@ -544,7 +547,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
-			title: { value: localize('installExtensions', "Install Extensions"), original: 'Install Extensions' },
+			title: localize2('installExtensions', 'Install Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -557,7 +560,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showRecommendedKeymapExtensions',
-			title: { value: localize('showRecommendedKeymapExtensionsShort', "Keymaps"), original: 'Keymaps' },
+			title: localize2('showRecommendedKeymapExtensionsShort', 'Keymaps'),
 			category: PreferencesLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -575,7 +578,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showLanguageExtensions',
-			title: { value: localize('showLanguageExtensionsShort', "Language Extensions"), original: 'Language Extensions' },
+			title: localize2('showLanguageExtensionsShort', 'Language Extensions'),
 			category: PreferencesLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -586,7 +589,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.checkForUpdates',
-			title: { value: localize('checkForUpdates', "Check for Extension Updates"), original: 'Check for Extension Updates' },
+			title: localize2('checkForUpdates', 'Check for Extension Updates'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -620,7 +623,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		this.registerExtensionAction({
 			id: 'configureExtensionsAutoUpdate.all',
 			title: localize('configureExtensionsAutoUpdate.all', "All Extensions"),
-			toggled: ContextKeyExpr.and(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`), ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions')),
+			toggled: ContextKeyExpr.and(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`), ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions')),
 			menu: [{
 				id: autoUpdateExtensionsSubMenu,
 				order: 1,
@@ -630,13 +633,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'configureExtensionsAutoUpdate.enabled',
-			title: localize('configureExtensionsAutoUpdate.enabled', "Only Enabled Extensions"),
+			title: localize('configureExtensionsAutoUpdate.enabled', "Enabled Extensions"),
 			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'),
 			menu: [{
 				id: autoUpdateExtensionsSubMenu,
 				order: 2,
 			}],
 			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'onlyEnabledExtensions')
+		});
+
+		this.registerExtensionAction({
+			id: 'configureExtensionsAutoUpdate.selected',
+			title: localize('configureExtensionsAutoUpdate.selected', "Selected Extensions"),
+			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'),
+			menu: [{
+				id: autoUpdateExtensionsSubMenu,
+				order: 2,
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'onlySelectedExtensions')
 		});
 
 		this.registerExtensionAction({
@@ -652,7 +666,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.updateAllExtensions',
-			title: { value: localize('updateAll', "Update All Extensions"), original: 'Update All Extensions' },
+			title: localize2('updateAll', 'Update All Extensions'),
 			category: ExtensionsLocalizedLabel,
 			precondition: HasOutdatedExtensionsContext,
 			menu: [
@@ -688,7 +702,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: { value: localize('disableAutoUpdate', "Disable Auto Update for All Extensions"), original: 'Disable Auto Update for All Extensions' },
+			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			precondition: CONTEXT_HAS_GALLERY,
@@ -697,7 +711,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: { value: localize('enableAutoUpdate', "Enable Auto Update for All Extensions"), original: 'Enable Auto Update for All Extensions' },
+			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
 			category: ExtensionsLocalizedLabel,
 			f1: true,
 			precondition: CONTEXT_HAS_GALLERY,
@@ -706,7 +720,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAll',
-			title: { value: localize('enableAll', "Enable All Extensions"), original: 'Enable All Extensions' },
+			title: localize2('enableAll', 'Enable All Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -727,7 +741,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.enableAllWorkspace',
-			title: { value: localize('enableAllWorkspace', "Enable All Extensions for this Workspace"), original: 'Enable All Extensions for this Workspace' },
+			title: localize2('enableAllWorkspace', 'Enable All Extensions for this Workspace'),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -743,7 +757,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAll',
-			title: { value: localize('disableAll', "Disable All Installed Extensions"), original: 'Disable All Installed Extensions' },
+			title: localize2('disableAll', 'Disable All Installed Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -764,7 +778,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.disableAllWorkspace',
-			title: { value: localize('disableAllWorkspace', "Disable All Installed Extensions for this Workspace"), original: 'Disable All Installed Extensions for this Workspace' },
+			title: localize2('disableAllWorkspace', 'Disable All Installed Extensions for this Workspace'),
 			category: ExtensionsLocalizedLabel,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -780,7 +794,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID,
-			title: { value: localize('InstallFromVSIX', "Install from VSIX..."), original: 'Install from VSIX...' },
+			title: localize2('InstallFromVSIX', 'Install from VSIX...'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -844,7 +858,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensionFromLocation',
-			title: { value: localize('installExtensionFromLocation', "Install Extension from Location..."), original: 'Install Extension from Location...' },
+			title: localize2('installExtensionFromLocation', 'Install Extension from Location...'),
 			category: Categories.Developer,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -885,19 +899,18 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		const extensionsFilterSubMenu = new MenuId('extensionsFilterSubMenu');
-		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+		MenuRegistry.appendMenuItem(extensionsSearchActionsMenu, <ISubmenuItem>{
 			submenu: extensionsFilterSubMenu,
 			title: localize('filterExtensions', "Filter Extensions..."),
-			when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 			group: 'navigation',
-			order: 1,
+			order: 2,
 			icon: filterIcon,
 		});
 
 		const showFeaturedExtensionsId = 'extensions.filter.featured';
 		this.registerExtensionAction({
 			id: showFeaturedExtensionsId,
-			title: { value: localize('showFeaturedExtensions', "Show Featured Extensions"), original: 'Show Featured Extensions' },
+			title: localize2('showFeaturedExtensions', 'Show Featured Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -916,7 +929,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showPopularExtensions',
-			title: { value: localize('showPopularExtensions', "Show Popular Extensions"), original: 'Show Popular Extensions' },
+			title: localize2('showPopularExtensions', 'Show Popular Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -935,7 +948,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showRecommendedExtensions',
-			title: { value: localize('showRecommendedExtensions', "Show Recommended Extensions"), original: 'Show Recommended Extensions' },
+			title: localize2('showRecommendedExtensions', 'Show Recommended Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -954,7 +967,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.recentlyPublishedExtensions',
-			title: { value: localize('recentlyPublishedExtensions', "Show Recently Published Extensions"), original: 'Show Recently Published Extensions' },
+			title: localize2('recentlyPublishedExtensions', 'Show Recently Published Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -995,7 +1008,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.listBuiltInExtensions',
-			title: { value: localize('showBuiltInExtensions', "Show Built-in Extensions"), original: 'Show Built-in Extensions' },
+			title: localize2('showBuiltInExtensions', 'Show Built-in Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1013,7 +1026,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.extensionUpdates',
-			title: { value: localize('extensionUpdates', "Show Extension Updates"), original: 'Show Extension Updates' },
+			title: localize2('extensionUpdates', 'Show Extension Updates'),
 			category: ExtensionsLocalizedLabel,
 			precondition: CONTEXT_HAS_GALLERY,
 			f1: true,
@@ -1031,7 +1044,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID,
-			title: { value: localize('showWorkspaceUnsupportedExtensions', "Show Extensions Unsupported By Workspace"), original: 'Show Extensions Unsupported By Workspace' },
+			title: localize2('showWorkspaceUnsupportedExtensions', 'Show Extensions Unsupported By Workspace'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1050,7 +1063,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showEnabledExtensions',
-			title: { value: localize('showEnabledExtensions', "Show Enabled Extensions"), original: 'Show Enabled Extensions' },
+			title: localize2('showEnabledExtensions', 'Show Enabled Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1068,7 +1081,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showDisabledExtensions',
-			title: { value: localize('showDisabledExtensions', "Show Disabled Extensions"), original: 'Show Disabled Extensions' },
+			title: localize2('showDisabledExtensions', 'Show Disabled Extensions'),
 			category: ExtensionsLocalizedLabel,
 			menu: [{
 				id: MenuId.CommandPalette,
@@ -1122,16 +1135,15 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.clearExtensionsSearchResults',
-			title: { value: localize('clearExtensionsSearchResults', "Clear Extensions Search Results"), original: 'Clear Extensions Search Results' },
+			title: localize2('clearExtensionsSearchResults', 'Clear Extensions Search Results'),
 			category: ExtensionsLocalizedLabel,
 			icon: clearSearchResultsIcon,
 			f1: true,
 			precondition: SearchHasTextContext,
 			menu: {
-				id: MenuId.ViewContainerTitle,
-				when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+				id: extensionsSearchActionsMenu,
 				group: 'navigation',
-				order: 3,
+				order: 1,
 			},
 			run: async (accessor: ServicesAccessor) => {
 				const viewPaneContainer = accessor.get(IViewsService).getActiveViewPaneContainerWithId(VIEWLET_ID);
@@ -1145,7 +1157,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.refreshExtension',
-			title: { value: localize('refreshExtension', "Refresh"), original: 'Refresh' },
+			title: localize2('refreshExtension', 'Refresh'),
 			category: ExtensionsLocalizedLabel,
 			icon: refreshIcon,
 			f1: true,
@@ -1286,7 +1298,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showPreReleaseVersion',
-			title: { value: localize('show pre-release version', "Show Pre-Release Version"), original: 'Show Pre-Release Version' },
+			title: localize2('show pre-release version', 'Show Pre-Release Version'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
@@ -1299,9 +1311,10 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				extensionWorkbenchService.open(extension, { showPreReleaseVersion: true });
 			}
 		});
+
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.showReleasedVersion',
-			title: { value: localize('show released version', "Show Release Version"), original: 'Show Release Version' },
+			title: localize2('show released version', 'Show Release Version'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: INSTALL_ACTIONS_GROUP,
@@ -1314,6 +1327,51 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				extensionWorkbenchService.open(extension, { showPreReleaseVersion: false });
 			}
 		});
+
+		this.registerExtensionAction({
+			id: ToggleAutoUpdateForExtensionAction.ID,
+			title: { value: ToggleAutoUpdateForExtensionAction.LABEL, original: 'Auto Update' },
+			category: ExtensionsLocalizedLabel,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: UPDATE_ACTIONS_GROUP,
+				order: 1,
+				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false)),)
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
+				if (extension) {
+					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, []);
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
+		this.registerExtensionAction({
+			id: ToggleAutoUpdatesForPublisherAction.ID,
+			title: { value: ToggleAutoUpdatesForPublisherAction.LABEL, original: 'Auto Update (Publisher)' },
+			category: ExtensionsLocalizedLabel,
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: UPDATE_ACTIONS_GROUP,
+				order: 2,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false)),)
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
+				if (extension) {
+					const action = instantiationService.createInstance(ToggleAutoUpdatesForPublisherAction);
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
 		this.registerExtensionAction({
 			id: SwitchToPreReleaseVersionAction.ID,
 			title: SwitchToPreReleaseVersionAction.TITLE,
@@ -1332,6 +1390,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
 		this.registerExtensionAction({
 			id: SwitchToReleasedVersionAction.ID,
 			title: SwitchToReleasedVersionAction.TITLE,
@@ -1350,6 +1409,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			}
 		});
+
 		this.registerExtensionAction({
 			id: ClearLanguageAction.ID,
 			title: ClearLanguageAction.TITLE,
@@ -1371,7 +1431,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtension',
-			title: { value: localize('workbench.extensions.action.copyExtension', "Copy"), original: 'Copy' },
+			title: localize2('workbench.extensions.action.copyExtension', 'Copy'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy'
@@ -1395,7 +1455,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.copyExtensionId',
-			title: { value: localize('workbench.extensions.action.copyExtensionId', "Copy Extension ID"), original: 'Copy Extension ID' },
+			title: localize2('workbench.extensions.action.copyExtensionId', 'Copy Extension ID'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '1_copy'
@@ -1405,7 +1465,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configure',
-			title: { value: localize('workbench.extensions.action.configure', "Extension Settings"), original: 'Extension Settings' },
+			title: localize2('workbench.extensions.action.configure', 'Extension Settings'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1417,7 +1477,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.configureKeybindings',
-			title: { value: localize('workbench.extensions.action.configureKeybindings', "Extension Keyboard Shortcuts"), original: 'Extension Keyboard Shortcuts' },
+			title: localize2('workbench.extensions.action.configureKeybindings', 'Extension Keyboard Shortcuts'),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
@@ -1451,7 +1511,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '2_configure',
-				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, ContextKeyExpr.has('inExtensionEditor').negate()),
+				when: ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT),
 				order: 4
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {

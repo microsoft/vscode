@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-component.multiDiffEditor {
+	background: var(--vscode-multiDiffEditor-background);
+	overflow-y: hidden;
+}
+
+.monaco-component .multiDiffEntry {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	overflow: hidden;
+
+	border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+}
+
+.monaco-component .multiDiffEntry .collapse-button {
+	margin: 0 5px;
+	cursor: pointer;
+}
+
+.monaco-component .multiDiffEntry .collapse-button a {
+	display: block;
+}
+
+.monaco-component .multiDiffEntry .header {
+	display: flex;
+	align-items: center;
+	padding: 8px 5px;
+	color: var(--vscode-foreground);
+	background: var(--vscode-editor-background);
+
+	z-index: 1000;
+
+	border-top: 1px solid var(--vscode-multiDiffEditor-border);
+
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+}
+
+.monaco-component .multiDiffEntry .header.shadow {
+	box-shadow: var(--vscode-scrollbar-shadow) 0px 6px 6px -6px;
+}
+
+.monaco-component .multiDiffEntry .header .title {
+	flex: 1;
+	font-size: 14px;
+	line-height: 22px;
+}
+
+.monaco-component .multiDiffEntry .header .actions {
+	padding: 0 8px;
+}
+
+.monaco-component .multiDiffEntry .editorParent {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-component .multiDiffEntry .editorContainer {
+	flex: 1;
+}

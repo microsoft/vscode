@@ -22,9 +22,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { FloatingEditorClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
 import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { getCommentCommandInfo } from 'vs/workbench/contrib/accessibility/browser/editorAccessibilityHelp';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class DiffEditorHelperContribution extends Disposable implements IDiffEditorContribution {
@@ -43,7 +43,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
-			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => this._diffEditor.getDiffComputationResult());
+			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
 			this._register(autorunWithStore((reader, store) => {

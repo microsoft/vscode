@@ -5,8 +5,8 @@
 
 import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { localize, localize2 } from 'vs/nls';
+import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -26,11 +26,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getActiveWindow } from 'vs/base/browser/dom';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
 
 export class CloseWindowAction extends Action2 {
@@ -63,18 +59,14 @@ export class CloseWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const window = getActiveWindow();
-		if (isAuxiliaryWindow(window)) {
-			return nativeHostService.closeWindowById(window.vscodeWindowId);
-		}
-
-		return nativeHostService.closeWindow();
+		return nativeHostService.closeWindow({ targetWindowId: getActiveWindow().vscodeWindowId });
 	}
 }
 
 abstract class BaseZoomAction extends Action2 {
 
-	private static readonly SETTING_KEY = 'window.zoomLevel';
+	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
+	private static readonly ZOOM_PER_WINDOW_SETTING_KEY = 'window.zoomPerWindow';
 
 	private static readonly MAX_ZOOM_LEVEL = 8;
 	private static readonly MIN_ZOOM_LEVEL = -8;
@@ -83,8 +75,36 @@ abstract class BaseZoomAction extends Action2 {
 		super(desc);
 	}
 
-	protected async setConfiguredZoomLevel(accessor: ServicesAccessor, level: number): Promise<void> {
+	protected async setZoomLevel(accessor: ServicesAccessor, levelOrReset: number | true): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
+
+		let target: ApplyZoomTarget;
+		if (configurationService.getValue(BaseZoomAction.ZOOM_PER_WINDOW_SETTING_KEY) !== false) {
+			target = ApplyZoomTarget.ACTIVE_WINDOW;
+		} else {
+			target = ApplyZoomTarget.ALL_WINDOWS;
+		}
+
+		let level: number;
+		if (typeof levelOrReset === 'number') {
+			level = levelOrReset;
+		} else {
+
+			// reset to 0 when we apply to all windows
+			if (target === ApplyZoomTarget.ALL_WINDOWS) {
+				level = 0;
+			}
+
+			// otherwise, reset to the default zoom level
+			else {
+				const defaultLevel = configurationService.getValue(BaseZoomAction.ZOOM_LEVEL_SETTING_KEY);
+				if (typeof defaultLevel === 'number') {
+					level = defaultLevel;
+				} else {
+					level = 0;
+				}
+			}
+		}
 
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
@@ -92,9 +112,11 @@ abstract class BaseZoomAction extends Action2 {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 
-		await configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
+		if (target === ApplyZoomTarget.ALL_WINDOWS) {
+			await configurationService.updateValue(BaseZoomAction.ZOOM_LEVEL_SETTING_KEY, level);
+		}
 
-		applyZoom(level);
+		applyZoom(level, target);
 	}
 }
 
@@ -124,7 +146,7 @@ export class ZoomInAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() + 1);
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) + 1);
 	}
 }
 
@@ -158,7 +180,7 @@ export class ZoomOutAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, getZoomLevel() - 1);
+		return super.setZoomLevel(accessor, getZoomLevel(getActiveWindow()) - 1);
 	}
 }
 
@@ -187,7 +209,7 @@ export class ZoomResetAction extends BaseZoomAction {
 	}
 
 	override run(accessor: ServicesAccessor): Promise<void> {
-		return super.setConfiguredZoomLevel(accessor, 0);
+		return super.setZoomLevel(accessor, true);
 	}
 }
 
@@ -217,13 +239,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		let currentWindowId: number;
-		const activeWindow = getActiveWindow();
-		if (isAuxiliaryWindow(activeWindow)) {
-			currentWindowId = activeWindow.vscodeWindowId;
-		} else {
-			currentWindowId = nativeHostService.windowId;
-		}
+		const currentWindowId = getActiveWindow().vscodeWindowId;
 
 		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: true });
 
@@ -289,7 +305,7 @@ abstract class BaseSwitchWindow extends Action2 {
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
-				await nativeHostService.closeWindowById(context.item.windowId);
+				await nativeHostService.closeWindow({ targetWindowId: context.item.windowId });
 				context.removeItem();
 			}
 		});
@@ -305,7 +321,7 @@ export class SwitchWindowAction extends BaseSwitchWindow {
 	constructor() {
 		super({
 			id: 'workbench.action.switchWindow',
-			title: { value: localize('switchWindow', "Switch Window..."), original: 'Switch Window...' },
+			title: localize2('switchWindow', 'Switch Window...'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -325,7 +341,7 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	constructor() {
 		super({
 			id: 'workbench.action.quickSwitchWindow',
-			title: { value: localize('quickSwitchWindow', "Quick Switch Window..."), original: 'Quick Switch Window...' },
+			title: localize2('quickSwitchWindow', 'Quick Switch Window...'),
 			f1: false // hide quick pickers from command palette to not confuse with the other entry that shows a input field
 		});
 	}
@@ -391,59 +407,3 @@ export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: S
 
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };
-
-export class ExperimentalSplitWindowAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.experimentalSplitWindowAction',
-			title: {
-				value: localize('splitWindow', "Split Window (Experimental)"),
-				mnemonicTitle: localize({ key: 'miSplitWindow', comment: ['&& denotes a mnemonic'] }, "&&Split Window (Experimental)"),
-				original: 'Split Window (Experimental)'
-			},
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const nativeHostService = accessor.get(INativeHostService);
-		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
-
-		let activeWindowId: number;
-		const activeWindow = getActiveWindow();
-		if (isAuxiliaryWindow(activeWindow)) {
-			activeWindowId = activeWindow.vscodeWindowId;
-		} else {
-			activeWindowId = environmentService.window.id;
-		}
-
-		// First position the active window which may involve
-		// leaving fullscreen mode and then split it.
-		await nativeHostService.positionWindow({
-			x: 0,
-			y: 0,
-			width: activeWindow.screen.availWidth / 2,
-			height: activeWindow.screen.availHeight
-		}, { targetWindowId: activeWindowId });
-
-		// Then create a new window next to the active window
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart({
-			position: {
-				x: activeWindow.screen.availWidth / 2,
-				y: 0,
-				width: activeWindow.screen.availWidth / 2,
-				height: activeWindow.screen.availHeight
-			}
-		});
-
-		// Finally copy over the active editor if any
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane) {
-			activeEditorPane.group.copyEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
-		}
-	}
-}

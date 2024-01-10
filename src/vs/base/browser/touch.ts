@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DomUtils from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { Event as EventUtils } from 'vs/base/common/event';
@@ -95,7 +96,7 @@ export class Gesture extends Disposable {
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(window, e)));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {
@@ -126,7 +127,7 @@ export class Gesture extends Disposable {
 	static isTouchDevice(): boolean {
 		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
 		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		return 'ontouchstart' in mainWindow || navigator.maxTouchPoints > 0;
 	}
 
 	public override dispose(): void {
@@ -283,7 +284,7 @@ export class Gesture extends Disposable {
 	}
 
 	private inertia(targetWindow: Window, dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
-		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
+		this.handle = DomUtils.scheduleAtNextAnimationFrame(targetWindow, () => {
 			const now = Date.now();
 
 			// velocity: old speed + accel_over_time
@@ -313,7 +314,7 @@ export class Gesture extends Disposable {
 			if (!stopped) {
 				this.inertia(targetWindow, dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
 			}
-		}, targetWindow);
+		});
 	}
 
 	private onTouchMove(e: TouchEvent): void {

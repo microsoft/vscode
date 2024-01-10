@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as net from 'net';
 import * as ports from 'vs/base/node/ports';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { flakySuite } from 'vs/base/test/node/testUtils';
 
 flakySuite('Ports', () => {
@@ -29,4 +30,6 @@ flakySuite('Ports', () => {
 			});
 		}, err => done(err));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

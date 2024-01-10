@@ -20,6 +20,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IAiRelatedInformationService, RelatedInformationType, SettingInformationResult } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { TfIdfCalculator, TfIdfDocument } from 'vs/base/common/tfIdf';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { nullRange } from 'vs/workbench/services/preferences/common/preferencesModels';
 
 export interface IEndpointDetails {
 	urlBase?: string;
@@ -113,9 +114,10 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
+		if (exactMatch) {
 			return Promise.resolve({
-				filterMatches: filterMatches.slice(0, 1),
+				filterMatches: [exactMatch],
 				exactMatch: true
 			});
 		} else {
@@ -207,7 +209,7 @@ export class SettingMatches {
 			for (const word of words) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesWords(word, setting.description[lineIndex], true);
+					const descriptionMatches = matchesContiguousSubString(word, setting.description[lineIndex]);
 					if (descriptionMatches?.length) {
 						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
@@ -282,11 +284,17 @@ export class SettingMatches {
 	}
 
 	private toDescriptionRange(setting: ISetting, match: IMatch, lineIndex: number): IRange {
+		const descriptionRange = setting.descriptionRanges[lineIndex];
+		if (!descriptionRange) {
+			// This case occurs with added settings such as the
+			// manage extension setting.
+			return nullRange;
+		}
 		return {
-			startLineNumber: setting.descriptionRanges[lineIndex].startLineNumber,
-			startColumn: setting.descriptionRanges[lineIndex].startColumn + match.start,
-			endLineNumber: setting.descriptionRanges[lineIndex].endLineNumber,
-			endColumn: setting.descriptionRanges[lineIndex].startColumn + match.end
+			startLineNumber: descriptionRange.startLineNumber,
+			startColumn: descriptionRange.startColumn + match.start,
+			endLineNumber: descriptionRange.endLineNumber,
+			endColumn: descriptionRange.startColumn + match.end
 		};
 	}
 

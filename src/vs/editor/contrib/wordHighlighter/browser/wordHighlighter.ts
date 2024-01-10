@@ -32,6 +32,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
+import { score } from 'vs/editor/common/languageSelector';
+// import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
+// import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
@@ -61,9 +64,13 @@ export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegi
 	// until someone response with a good result
 	// (good = none empty array)
 	return first<ResourceMap<DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, otherModels, token))
+		const filteredModels = otherModels.filter(otherModel => {
+			return score(provider.selector, otherModel.uri, otherModel.getLanguageId(), true, undefined, undefined) > 0;
+		});
+
+		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, filteredModels, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), (t: ResourceMap<DocumentHighlight[]> | null | undefined): t is ResourceMap<DocumentHighlight[]> => t instanceof Map && t.size > 0);
+	}), (t: ResourceMap<DocumentHighlight[]> | null | undefined): t is ResourceMap<DocumentHighlight[]> => t instanceof ResourceMap && t.size > 0);
 }
 
 interface IOccurenceAtPositionRequest {
@@ -246,9 +253,10 @@ function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocu
 	return new TextualOccurenceRequest(model, selection, word, wordSeparators, otherModels);
 }
 
-registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
+registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	return getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+	const map = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None);
+	return map?.get(model.uri);
 });
 
 class WordHighlighter {
@@ -256,8 +264,7 @@ class WordHighlighter {
 	private readonly editor: IActiveCodeEditor;
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private readonly multiDocumentProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
-	private occurrencesHighlight: boolean;
-	private multiDocumentOccurrencesHighlight: boolean;
+	private occurrencesHighlight: string;
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
@@ -285,7 +292,6 @@ class WordHighlighter {
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
-		this.multiDocumentOccurrencesHighlight = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
 		this.model = this.editor.getModel();
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (this._ignorePositionChangeEvent) {
@@ -293,7 +299,7 @@ class WordHighlighter {
 				return;
 			}
 
-			if (!this.occurrencesHighlight) {
+			if (this.occurrencesHighlight === 'off') {
 				// Early exit if nothing needs to be done!
 				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
 				return;
@@ -319,12 +325,6 @@ class WordHighlighter {
 				this.occurrencesHighlight = newValue;
 				this._stopAll();
 			}
-
-			const newMultiDocumentValue = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
-			if (this.multiDocumentOccurrencesHighlight !== newMultiDocumentValue) {
-				this.multiDocumentOccurrencesHighlight = newMultiDocumentValue;
-				this._stopAll();
-			}
 		}));
 
 		this.decorations = this.editor.createDecorationsCollection();
@@ -346,14 +346,14 @@ class WordHighlighter {
 	}
 
 	public restore(): void {
-		if (!this.occurrencesHighlight) {
+		if (this.occurrencesHighlight === 'off') {
 			return;
 		}
 		this._run();
 	}
 
 	public stop(): void {
-		if (!this.occurrencesHighlight) {
+		if (this.occurrencesHighlight === 'off') {
 			return;
 		}
 
@@ -513,7 +513,7 @@ class WordHighlighter {
 	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
 
 		// disabled
-		if (!this.occurrencesHighlight) {
+		if (this.occurrencesHighlight === 'off') {
 			this._stopAll();
 			return;
 		}
@@ -532,6 +532,10 @@ class WordHighlighter {
 		const editorSelection = this.editor.getSelection();
 		const lineNumber = editorSelection.startLineNumber;
 		const startColumn = editorSelection.startColumn;
+
+		if (this.model.isDisposed()) {
+			return null;
+		}
 
 		return this.model.getWordAtPosition({
 			lineNumber: lineNumber,
@@ -582,14 +586,17 @@ class WordHighlighter {
 		}
 
 		// multi-doc OFF
-		if (!this.multiDocumentOccurrencesHighlight) {
+		if (this.occurrencesHighlight === 'singleFile') {
 			return [];
 		}
 
 		// multi-doc ON
 		for (const editor of currentEditors) {
 			const tempModel = editor.getModel();
-			if (tempModel && tempModel !== model) {
+
+			const isValidModel = tempModel && tempModel !== model;
+
+			if (isValidModel) {
 				currentModels.push(tempModel);
 			}
 		}
@@ -621,6 +628,7 @@ class WordHighlighter {
 			// The selection must be inside a word or surround one word at most
 			if (!word || word.startColumn > startColumn || word.endColumn < endColumn) {
 				// no previous query, nothing to highlight
+				WordHighlighter.query = null;
 				this._stopAll();
 				return;
 			}
@@ -914,3 +922,4 @@ registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContri
 registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 registerEditorAction(TriggerWordHighlightAction);
+// registerEditorFeature(TextualMultiDocumentHighlightFeature);

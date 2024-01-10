@@ -224,8 +224,9 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 					}
 
 					// The first element will cause the root to be hidden
-					const affectsRootElement = toRemove.depth === 1 && toRemove.parent?.children.size === 1;
-					this.changedParents.add(affectsRootElement ? null : toRemove.parent);
+					const parent = toRemove.parent;
+					const affectsRootElement = toRemove.depth === 1 && parent?.children.size === 1;
+					this.changedParents.add(affectsRootElement ? null : parent);
 
 					const queue: Iterable<TestExplorerTreeElement>[] = [[toRemove]];
 					while (queue.length) {
@@ -234,6 +235,10 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 								queue.push(this.unstoreItem(item));
 							}
 						}
+					}
+
+					if (parent instanceof TreeTestItemElement) {
+						refreshComputedState(computedStateAccessor, parent, undefined, !!parent.duration).forEach(i => i.fireChange());
 					}
 				}
 			}
@@ -290,10 +295,6 @@ export class TreeProjection extends Disposable implements ITestTreeProjection {
 		const parent = treeElement.parent;
 		parent?.children.delete(treeElement);
 		this.items.delete(treeElement.test.item.extId);
-		if (parent instanceof TreeTestItemElement) {
-			refreshComputedState(computedStateAccessor, parent, undefined, !!treeElement.duration).forEach(i => i.fireChange());
-		}
-
 		return treeElement.children;
 	}
 
