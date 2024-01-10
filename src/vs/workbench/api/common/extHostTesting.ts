@@ -28,7 +28,7 @@ import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extH
 import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, KEEP_N_LAST_COVERAGE_REPORTS, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, KEEP_N_LAST_COVERAGE_REPORTS, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -40,7 +40,7 @@ interface ControllerInfo {
 	activeProfiles: Set<number>;
 }
 
-type ActiveProfileChangeEvent = Map</* controllerId */ string, Map< /* profileId */number, boolean>>;
+type DefaultProfileChangeEvent = Map</* controllerId */ string, Map< /* profileId */number, boolean>>;
 
 export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	private readonly resultsChangedEmitter = this._register(new Emitter<void>());
@@ -48,7 +48,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	private readonly proxy: MainThreadTestingShape;
 	private readonly runTracker: TestRunCoordinator;
 	private readonly observer: TestObservers;
-	private readonly activeProfilesChangedEmitter = this._register(new Emitter<ActiveProfileChangeEvent>());
+	private readonly defaultProfilesChangedEmitter = this._register(new Emitter<DefaultProfileChangeEvent>());
 
 	public onResultsChanged = this.resultsChangedEmitter.event;
 	public results: ReadonlyArray<vscode.TestRunResult> = [];
@@ -148,7 +148,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				return new TestRunProfileImpl(this.proxy, profiles, extension, activeProfiles, this.activeProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
+				return new TestRunProfileImpl(this.proxy, profiles, extension, activeProfiles, this.defaultProfilesChangedEmitter.event, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -256,8 +256,8 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	}
 
 	/** @inheritdoc */
-	$setActiveRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void {
-		const evt: ActiveProfileChangeEvent = new Map();
+	$setDefaultRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void {
+		const evt: DefaultProfileChangeEvent = new Map();
 		for (const [controllerId, profileIds] of Object.entries(profiles)) {
 			const ctrl = this.controllers.get(controllerId);
 			if (!ctrl) {
@@ -279,7 +279,7 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			}
 		}
 
-		this.activeProfilesChangedEmitter.fire(evt);
+		this.defaultProfilesChangedEmitter.fire(evt);
 	}
 
 	/** @inheritdoc */
@@ -1058,11 +1058,20 @@ class TestObservers {
 	}
 }
 
+const updateProfile = (impl: TestRunProfileImpl, proxy: MainThreadTestingShape, initial: ITestRunProfile | undefined, update: Partial<ITestRunProfile>) => {
+	if (initial) {
+		Object.assign(initial, update);
+	} else {
+		proxy.$updateTestRunConfig(impl.controllerId, impl.profileId, update);
+	}
+};
+
 export class TestRunProfileImpl implements vscode.TestRunProfile {
 	readonly #proxy: MainThreadTestingShape;
 	readonly #extension: IRelaxedExtensionDescription;
-	readonly #activeProfiles: ReadonlySet<number>;
-	readonly #onDidChangeActiveProfiles: Event<ActiveProfileChangeEvent>;
+	readonly #activeProfiles: Set<number>;
+	readonly #onDidChangeDefaultProfiles: Event<DefaultProfileChangeEvent>;
+	#initialPublish?: ITestRunProfile;
 	#profiles?: Map<number, vscode.TestRunProfile>;
 	private _configureHandler?: (() => void);
 
@@ -1073,7 +1082,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	public set label(label: string) {
 		if (label !== this._label) {
 			this._label = label;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { label });
+			updateProfile(this, this.#proxy, this.#initialPublish, { label });
 		}
 	}
 
@@ -1084,18 +1093,25 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	public set supportsContinuousRun(supports: boolean) {
 		if (supports !== this._supportsContinuousRun) {
 			this._supportsContinuousRun = supports;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { supportsContinuousRun: supports });
+			updateProfile(this, this.#proxy, this.#initialPublish, { supportsContinuousRun: supports });
 		}
 	}
 
 	public get isDefault() {
-		return this._isDefault;
+		return this.#activeProfiles.has(this.profileId);
 	}
 
 	public set isDefault(isDefault: boolean) {
-		if (isDefault !== this._isDefault) {
-			this._isDefault = isDefault;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { isDefault });
+		if (isDefault !== this.isDefault) {
+			// #activeProfiles is synced from the main thread, so we can make
+			// provisional changes here that will get confirmed momentarily
+			if (isDefault) {
+				this.#activeProfiles.add(this.profileId);
+			} else {
+				this.#activeProfiles.delete(this.profileId);
+			}
+
+			updateProfile(this, this.#proxy, this.#initialPublish, { isDefault });
 		}
 	}
 
@@ -1106,7 +1122,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	public set tag(tag: vscode.TestTag | undefined) {
 		if (tag?.id !== this._tag?.id) {
 			this._tag = tag;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, {
+			updateProfile(this, this.#proxy, this.#initialPublish, {
 				tag: tag ? Convert.TestTag.namespace(this.controllerId, tag.id) : null,
 			});
 		}
@@ -1119,18 +1135,13 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	public set configureHandler(handler: undefined | (() => void)) {
 		if (handler !== this._configureHandler) {
 			this._configureHandler = handler;
-			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { hasConfigurationHandler: !!handler });
+			updateProfile(this, this.#proxy, this.#initialPublish, { hasConfigurationHandler: !!handler });
 		}
 	}
 
-	public get isSelected() {
+	public get onDidChangeDefault() {
 		checkProposedApiEnabled(this.#extension, 'testingActiveProfile');
-		return this.#activeProfiles.has(this.profileId);
-	}
-
-	public get onDidChangeSelected() {
-		checkProposedApiEnabled(this.#extension, 'testingActiveProfile');
-		return Event.chain(this.#onDidChangeActiveProfiles, $ => $
+		return Event.chain(this.#onDidChangeDefaultProfiles, $ => $
 			.map(ev => ev.get(this.controllerId)?.get(this.profileId))
 			.filter(isDefined)
 		);
@@ -1140,14 +1151,14 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		proxy: MainThreadTestingShape,
 		profiles: Map<number, vscode.TestRunProfile>,
 		extension: IRelaxedExtensionDescription,
-		activeProfiles: ReadonlySet<number>,
-		onDidChangeActiveProfiles: Event<ActiveProfileChangeEvent>,
+		activeProfiles: Set<number>,
+		onDidChangeActiveProfiles: Event<DefaultProfileChangeEvent>,
 		public readonly controllerId: string,
 		public readonly profileId: number,
 		private _label: string,
 		public readonly kind: vscode.TestRunProfileKind,
 		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => Thenable<void> | void,
-		private _isDefault = false,
+		_isDefault = false,
 		public _tag: vscode.TestTag | undefined = undefined,
 		private _supportsContinuousRun = false,
 	) {
@@ -1155,7 +1166,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		this.#profiles = profiles;
 		this.#extension = extension;
 		this.#activeProfiles = activeProfiles;
-		this.#onDidChangeActiveProfiles = onDidChangeActiveProfiles;
+		this.#onDidChangeDefaultProfiles = onDidChangeActiveProfiles;
 		profiles.set(profileId, this);
 
 		const groupBitset = profileGroupToBitset[kind];
@@ -1163,7 +1174,11 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 			throw new Error(`Unknown TestRunProfile.group ${kind}`);
 		}
 
-		this.#proxy.$publishTestRunProfile({
+		if (_isDefault) {
+			activeProfiles.add(profileId);
+		}
+
+		this.#initialPublish = {
 			profileId: profileId,
 			controllerId,
 			tag: _tag ? Convert.TestTag.namespace(this.controllerId, _tag.id) : null,
@@ -1172,6 +1187,15 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 			isDefault: _isDefault,
 			hasConfigurationHandler: false,
 			supportsContinuousRun: _supportsContinuousRun,
+		};
+
+		// we send the initial profile publish out on the next microtask so that
+		// initially setting the isDefault value doesn't overwrite a user-configured value
+		queueMicrotask(() => {
+			if (this.#initialPublish) {
+				this.#proxy.$publishTestRunProfile(this.#initialPublish);
+				this.#initialPublish = undefined;
+			}
 		});
 	}
 
@@ -1180,6 +1204,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 			this.#profiles = undefined;
 			this.#proxy.$removeTestProfile(this.controllerId, this.profileId);
 		}
+		this.#initialPublish = undefined;
 	}
 }
 
