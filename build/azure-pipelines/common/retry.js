@@ -12,7 +12,7 @@ async function retry(fn) {
             return await fn(run);
         }
         catch (err) {
-            if (!/fetch failed|terminated|aborted|timeout|TimeoutError|Timeout Error|RestError|Client network socket disconnected|socket hang up|ECONNRESET|CredentialUnavailableError|endpoints_resolution_error|Audience validation failed|end of central directory record signature not found/i.test(err.message)) {
+            if (!/fetch failed|Checksum mismatch|terminated|aborted|timeout|TimeoutError|Timeout Error|RestError|Client network socket disconnected|socket hang up|ECONNRESET|CredentialUnavailableError|endpoints_resolution_error|Audience validation failed|end of central directory record signature not found/i.test(err.message)) {
                 throw err;
             }
             lastError = err;

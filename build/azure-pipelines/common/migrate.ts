@@ -236,10 +236,11 @@ class ESRPClient {
 
 	async release(
 		version: string,
-		filePath: string
+		filePath: string,
+		sha256sum: string
 	): Promise<Release> {
 		this.log(`Submitting release for ${version}: ${filePath}`);
-		const submitReleaseResult = await this.SubmitRelease(version, filePath);
+		const submitReleaseResult = await this.SubmitRelease(version, filePath, sha256sum);
 
 		if (submitReleaseResult.submissionResponse.statusCode !== 'pass') {
 			throw new Error(`Unexpected status code: ${submitReleaseResult.submissionResponse.statusCode}`);
@@ -275,7 +276,8 @@ class ESRPClient {
 
 	private async SubmitRelease(
 		version: string,
-		filePath: string
+		filePath: string,
+		sha256sum: string
 	): Promise<SubmitReleaseResult> {
 		const policyPath = this.tmp.tmpNameSync();
 		fs.writeFileSync(policyPath, JSON.stringify({
@@ -289,6 +291,11 @@ class ESRPClient {
 		const size = fs.statSync(filePath).size;
 		const istream = fs.createReadStream(filePath);
 		const sha256 = await hashStream('sha256', istream);
+
+		if (sha256 !== sha256sum) {
+			throw new Error(`Checksum mismatch: ${sha256} !== ${sha256sum}`);
+		}
+
 		fs.writeFileSync(inputPath, JSON.stringify({
 			Version: '1.0.0',
 			ReleaseInfo: {
@@ -385,7 +392,8 @@ async function releaseAndProvision(
 	provisionAADPassword: string,
 	version: string,
 	quality: string,
-	url: string
+	url: string,
+	sha256sum: string
 ): Promise<string> {
 	const fileName = `${quality}/${version}/${path.basename(url)}`;
 	const result = `${e('PRSS_CDN_URL')}/${fileName}`;
@@ -397,16 +405,18 @@ async function releaseAndProvision(
 		return result;
 	}
 
-	const assetPath = tmp.tmpNameSync();
-	await retry(() => download(url, assetPath));
+	await retry(async () => {
+		const assetPath = tmp.tmpNameSync();
+		await download(url, assetPath);
 
-	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
-	const release = await esrpclient.release(version, assetPath);
+		const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
+		const release = await esrpclient.release(version, assetPath, sha256sum);
 
-	const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
-	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
-	const service = new ProvisionService(log, accessToken.token);
-	await service.provision(release.releaseId, release.fileId, fileName);
+		const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
+		const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
+		const service = new ProvisionService(log, accessToken.token);
+		await service.provision(release.releaseId, release.fileId, fileName);
+	});
 
 	return result;
 }
@@ -458,11 +468,12 @@ async function migrateAsset(_client: CosmosClient, build: Build, asset: Asset): 
 		e('PROVISION_AAD_PASSWORD'),
 		build.id,
 		'stable',
-		asset.url
+		asset.url,
+		asset.sha256hash
 	);
 }
 
-const limiter = new Limiter(6);
+const limiter = new Limiter(3);
 
 async function main() {
 	const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
