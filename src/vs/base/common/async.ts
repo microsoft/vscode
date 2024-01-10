@@ -715,10 +715,9 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	dispose(): void {
-		// SEE https://github.com/microsoft/vscode/issues/202136
-		// this._isDisposed = true;
-		// this.outstandingPromises.length = 0; // stop further processing
-		// this._size = 0;
+		this._isDisposed = true;
+		this.outstandingPromises.length = 0; // stop further processing
+		this._size = 0;
 		this._onDrained.dispose();
 	}
 }
@@ -792,7 +791,13 @@ export class ResourceQueue implements IDisposable {
 		return true;
 	}
 
-	queueFor(resource: URI, extUri: IExtUri = defaultExtUri): ILimiter<void> {
+	queueSize(resource: URI, extUri: IExtUri = defaultExtUri): number {
+		const key = extUri.getComparisonKey(resource);
+
+		return this.queues.get(key)?.size ?? 0;
+	}
+
+	queueFor(resource: URI, factory: ITask<Promise<void>>, extUri: IExtUri = defaultExtUri): Promise<void> {
 		const key = extUri.getComparisonKey(resource);
 
 		let queue = this.queues.get(key);
@@ -820,7 +825,7 @@ export class ResourceQueue implements IDisposable {
 			this.queues.set(key, queue);
 		}
 
-		return queue;
+		return queue.queue(factory);
 	}
 
 	private onDidQueueDrain(): void {
