@@ -893,6 +893,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
+	windowId = mainWindow.vscodeWindowId;
 	groupsView: IEditorGroupsView = undefined!;
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: EditorInput;
@@ -966,7 +967,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 export class TestEditorGroupAccessor implements IEditorGroupsView {
 
 	label: string = '';
-	isAuxiliary: boolean = false;
+	windowId = mainWindow.vscodeWindowId;
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;

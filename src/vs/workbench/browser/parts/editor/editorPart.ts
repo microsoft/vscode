@@ -35,6 +35,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryEditorPartContext } from 'vs/workbench/common/contextkeys';
+import { mainWindow } from 'vs/base/browser/window';
 
 export interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -155,7 +156,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		protected readonly editorPartsView: IEditorPartsView,
 		id: string,
 		private readonly groupsLabel: string,
-		public readonly isAuxiliary: boolean,
+		readonly windowId: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -965,7 +966,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.element = parent;
 		this.container = document.createElement('div');
 		this.container.classList.add('content');
-		if (this.isAuxiliary) {
+		if (this.windowId !== mainWindow.vscodeWindowId) {
 			this.container.classList.add('auxiliary');
 		}
 		parent.appendChild(this.container);
@@ -1004,7 +1005,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private handleContextKeys(contextKeyService: IContextKeyService): void {
 		const isAuxiliaryEditorPartContext = IsAuxiliaryEditorPartContext.bindTo(contextKeyService);
-		isAuxiliaryEditorPartContext.set(this.isAuxiliary);
+		isAuxiliaryEditorPartContext.set(this.windowId !== mainWindow.vscodeWindowId);
 
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
@@ -1432,6 +1433,6 @@ export class MainEditorPart extends EditorPart {
 		@IHostService hostService: IHostService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+		super(editorPartsView, Parts.EDITOR_PART, '', mainWindow.vscodeWindowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 }
