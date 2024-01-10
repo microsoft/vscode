@@ -137,6 +137,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this.activity.value = this.activityService.showViewActivity(this.id, { badge: new NumberBadge(this.totalUnresolved, () => message) });
 	}
 
+
+
 	override saveState(): void {
 		this.viewState['filter'] = this.filterWidget.getFilterText();
 		this.viewState['filterHistory'] = this.filterWidget.getHistory();
