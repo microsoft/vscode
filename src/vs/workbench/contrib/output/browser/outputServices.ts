@@ -16,7 +16,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputChannelModel';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
