@@ -1390,7 +1390,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; dependentOnly?: boolean; excludeDependent?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; triggeredOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri?.toString();
 			const originalUriStr = filter.originalUri?.toString();
@@ -1410,10 +1410,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
 					return false;
 				}
-				if (filter.dependentOnly && bp.triggeredBy === undefined) {
-					return false;
-				}
-				if (filter.excludeDependent && bp.triggeredBy !== undefined) {
+				if (filter.triggeredOnly && bp.triggeredBy === undefined) {
 					return false;
 				}
 

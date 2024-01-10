@@ -1299,12 +1299,12 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 	}
 
 	// can change this when all breakpoint supports dependent breakpoint condition
-	let triggeredByBreakpoint: IBreakpoint | undefined;
+	let triggeringBreakpoint: IBreakpoint | undefined;
 	if (breakpoint instanceof Breakpoint && breakpoint.triggeredBy) {
-		triggeredByBreakpoint = debugModel.getBreakpoints().find(bp => bp.getId() === breakpoint.triggeredBy);
+		triggeringBreakpoint = debugModel.getBreakpoints().find(bp => bp.getId() === breakpoint.triggeredBy);
 	}
 
-	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition || triggeredByBreakpoint) {
+	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition || triggeringBreakpoint) {
 		const messages: string[] = [];
 		let icon = breakpoint.logMessage ? icons.logBreakpoint.regular : icons.conditionalBreakpoint.regular;
 		if (!breakpoint.supported) {
@@ -1321,8 +1321,8 @@ export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: 
 		if (breakpoint.hitCondition) {
 			messages.push(localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
 		}
-		if (triggeredByBreakpoint) {
-			messages.push(localize('triggeredBy', "Hit after breakpoint: {0}", `${labelService.getUriLabel(triggeredByBreakpoint.uri, { relative: true })}: ${triggeredByBreakpoint.lineNumber}`));
+		if (triggeringBreakpoint) {
+			messages.push(localize('triggeredBy', "Hit after breakpoint: {0}", `${labelService.getUriLabel(triggeringBreakpoint.uri, { relative: true })}: ${triggeringBreakpoint.lineNumber}`));
 		}
 
 		return {

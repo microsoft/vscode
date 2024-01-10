@@ -156,13 +156,13 @@ class TriggerByBreakpointAction extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.debug.action.triggerByBreakpoint',
-			label: nls.localize('triggerByBreakpointEditorAction', "Debug: Add Wait For Breakpoint..."),
+			label: nls.localize('triggerByBreakpointEditorAction', "Debug: Add Triggered Breakpoint..."),
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
-			alias: 'Debug: Wait For Breakpoint...',
+			alias: 'Debug: Triggered Breakpoint...',
 			menuOpts: [
 				{
 					menuId: MenuId.MenubarNewBreakpointMenu,
-					title: nls.localize({ key: 'miTriggerByBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Wait For Breakpoint..."),
+					title: nls.localize({ key: 'miTriggerByBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Triggered Breakpoint..."),
 					group: '1_breakpoints',
 					order: 4,
 					when: CONTEXT_DEBUGGERS_AVAILABLE,

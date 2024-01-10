@@ -1004,7 +1004,7 @@ export class DebugService implements IDebugService {
 			this.model.setEnablement(breakpoint, enable);
 			this.debugStorage.storeBreakpoints(this.model);
 			if (breakpoint instanceof Breakpoint) {
-				await this.makeDependentBreakpointsMatchEnablement(enable, breakpoint);
+				await this.makeTriggeredBreakpointsMatchEnablement(enable, breakpoint);
 				await this.sendBreakpoints(breakpoint.originalUri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				await this.sendFunctionBreakpoints();
@@ -1056,7 +1056,7 @@ export class DebugService implements IDebugService {
 		const urisToClear = new Set(toRemove.map(bp => bp.originalUri.toString()));
 
 		this.model.removeBreakpoints(toRemove);
-		this.unlinkDependentBreakpoints(breakpoints, toRemove).forEach(uri => urisToClear.add(uri.toString()));
+		this.unlinkTriggeredBreakpoints(breakpoints, toRemove).forEach(uri => urisToClear.add(uri.toString()));
 
 		this.debugStorage.storeBreakpoints(this.model);
 		await Promise.all([...urisToClear].map(uri => this.sendBreakpoints(URI.parse(uri))));
@@ -1160,7 +1160,7 @@ export class DebugService implements IDebugService {
 	 * breakpoints in `removedBreakpoints`. Returns the URIs of resources that
 	 * had their breakpoints changed in this way.
 	 */
-	private unlinkDependentBreakpoints(allBreakpoints: readonly IBreakpoint[], removedBreakpoints: readonly IBreakpoint[]): uri[] {
+	private unlinkTriggeredBreakpoints(allBreakpoints: readonly IBreakpoint[], removedBreakpoints: readonly IBreakpoint[]): uri[] {
 		const affectedUris: uri[] = [];
 		for (const removed of removedBreakpoints) {
 			for (const existing of allBreakpoints) {
@@ -1174,7 +1174,7 @@ export class DebugService implements IDebugService {
 		return affectedUris;
 	}
 
-	private async makeDependentBreakpointsMatchEnablement(enable: boolean, breakpoint: Breakpoint) {
+	private async makeTriggeredBreakpointsMatchEnablement(enable: boolean, breakpoint: Breakpoint) {
 		if (enable) {
 			/** If the breakpoint is being enabled, also ensure its triggerer is enabled */
 			if (breakpoint.triggeredBy) {

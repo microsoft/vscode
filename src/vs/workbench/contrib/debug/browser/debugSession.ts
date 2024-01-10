@@ -5,7 +5,7 @@
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { distinct } from 'vs/base/common/arrays';
-import { Queue, RunOnceScheduler } from 'vs/base/common/async';
+import { Queue, RunOnceScheduler, raceTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -42,6 +42,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 
+const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
+
 export class DebugSession implements IDebugSession, IDisposable {
 	parentSession: IDebugSession | undefined;
 
@@ -77,6 +79,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	private _name: string | undefined;
 	private readonly _onDidChangeName = new Emitter<string>();
+
+	/**
+	 * Promise set while enabling dependent breakpoints to block the debugger
+	 * from continuing from a stopped state.
+	 */
+	private _waitToResume?: Promise<unknown>;
 
 	constructor(
 		private id: string,
@@ -636,6 +644,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'restartFrame'));
 		}
@@ -651,6 +660,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
@@ -660,6 +670,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
 		}
@@ -669,6 +680,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
@@ -678,6 +690,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
 		}
@@ -687,6 +700,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async continue(threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'continue'));
 		}
@@ -695,6 +709,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	}
 
 	async reverseContinue(threadId: number): Promise<void> {
+		await this.waitForTriggeredBreakpoints();
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'reverse continue'));
 		}
@@ -927,6 +942,17 @@ export class DebugSession implements IDebugSession, IDisposable {
 				}
 			}
 		}
+	}
+
+	private waitForTriggeredBreakpoints() {
+		if (!this._waitToResume) {
+			return;
+		}
+
+		return raceTimeout(
+			this._waitToResume,
+			TRIGGERED_BREAKPOINT_MAX_DELAY
+		);
 	}
 
 	private async fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
@@ -1231,13 +1257,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 		// moment for breakpoints to set and we want to do our best to not miss
 		// anything
 		if (event.hitBreakpointIds) {
-			this.enableDependentBreakpoints(event.hitBreakpointIds).then(() => this.runInStatusQueue(event));
-		} else {
-			this.runInStatusQueue(event);
+			this._waitToResume = this.enableDependentBreakpoints(event.hitBreakpointIds);
 		}
-	}
 
-	private async runInStatusQueue(event: IRawStoppedDetails) {
 		this.statusQueue.run(
 			this.fetchThreads(event).then(() => event.threadId === undefined ? this.threadIds : [event.threadId]),
 			async (threadId, token) => {
@@ -1283,7 +1305,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 					await promises.topCallStack;
 
 					if (!event.hitBreakpointIds) { // if hitBreakpointIds are present, this is handled earlier on
-						this.enableDependentBreakpoints(thread);
+						this._waitToResume = this.enableDependentBreakpoints(thread);
 					}
 
 					if (token.isCancellationRequested) {
@@ -1329,7 +1351,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 		// check if the current breakpoints are dependencies, and if so collect and send the dependents to DA
 		const urisToResend = new Set<string>();
-		this.model.getBreakpoints({ dependentOnly: true, enabledOnly: true }).forEach(bp => {
+		this.model.getBreakpoints({ triggeredOnly: true, enabledOnly: true }).forEach(bp => {
 			breakpoints.forEach(cbp => {
 				if (bp.enabled && bp.triggeredBy === cbp.getId()) {
 					bp.setSessionDidTrigger(this.getId());
