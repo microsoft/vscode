@@ -1,7 +1,8 @@
 .DS_Store
 .cache
+npm-debug.log
 Thumbs.db
-
+node_modules/
 .build/
 extensions/**/dist/
 /out*/
@@ -10,6 +11,7 @@ build/node_modules
 coverage/
 test_data/
 test-results/
+yarn-error.log
 vscode.lsif
 vscode.db
 /.profile-oss
@@ -18,13 +20,3 @@ vscode.db
 product.overrides.json
 *.snap.actual
 .vscode-test
-
-node_modules/
-
-npm-debug.log
-yarn-error.log
-
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
