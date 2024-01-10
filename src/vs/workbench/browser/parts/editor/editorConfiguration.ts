@@ -68,7 +68,6 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
 	private editorAssociationsConfigurationNode: IConfigurationNode | undefined;
 	private editorLargeFileConfirmationConfigurationNode: IConfigurationNode | undefined;
-	private editorProblemsVisibility: IConfigurationNode | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -178,49 +177,19 @@ export class DynamicEditorConfigurations extends Disposable implements IWorkbenc
 			}
 		};
 
-		// Registers setting for large file confirmation based on environment
-		// const oldEditorProblemsVisibility = this.editorProblemsVisibility;
-		// this.editorProblemsVisibility = {
-		// 	...workbenchConfigurationNodeBase,
-		// 	properties: {
-		// 		'workbench.problems.visibility': {
-		// 			type: 'boolean',
-		// 			default: true,
-		// 			scope: ConfigurationScope.RESOURCE,
-		// 			tags: ['experimental'],
-		// 			description: localize('workbench.problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
-		// 		}
-		// 	}
-		// };
-
 		this.configurationRegistry.updateConfigurations({
 			add: [
 				this.autoLockConfigurationNode,
 				this.defaultBinaryEditorConfigurationNode,
 				this.editorAssociationsConfigurationNode,
 				this.editorLargeFileConfirmationConfigurationNode,
-				// this.editorProblemsVisibility
 			],
 			remove: coalesce([
 				oldAutoLockConfigurationNode,
 				oldDefaultBinaryEditorConfigurationNode,
 				oldEditorAssociationsConfigurationNode,
 				oldEditorLargeFileConfirmationConfigurationNode,
-				// oldEditorProblemsVisibility
 			])
-		});
-
-		this.configurationRegistry.registerConfiguration({
-			...workbenchConfigurationNodeBase,
-			properties: {
-				'workbench.problems.visibility': {
-					type: 'boolean',
-					default: true,
-					scope: ConfigurationScope.RESOURCE,
-					tags: ['experimental'],
-					description: localize('workbench.problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
-				}
-			}
 		});
 	}
 }

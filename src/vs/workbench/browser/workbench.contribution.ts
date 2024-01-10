@@ -490,6 +490,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
+			'workbench.problems.visibility': {
+				'type': 'boolean',
+				'default': true,
+				'tags': ['experimental'],
+				'description': localize('workbench.problems.visibility', "Controls whether the problems are visible throughout the editor and workbench."),
+			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
 				'default': true,
