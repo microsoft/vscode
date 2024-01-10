@@ -34,6 +34,7 @@ import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { viewFilterSubmenu } from 'vs/workbench/browser/parts/views/viewFilter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Markers.MARKER_OPEN_ACTION_ID,
@@ -90,10 +91,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 // configuration
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
-	'id': 'problems',
-	'order': 101,
-	'title': Messages.PROBLEMS_PANEL_CONFIGURATION_TITLE,
-	'type': 'object',
+	...problemsConfigurationNodeBase,
 	'properties': {
 		'problems.autoReveal': {
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL,
@@ -553,7 +551,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		};
 
 		// Add the status bar entry if the problems is not visible
-		let config = this.configurationService.getValue('workbench.problems.visibility');
+		let config = this.configurationService.getValue('problems.visibility');
 		if (!config) {
 			addStatusBarEntry();
 		}
@@ -563,11 +561,11 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.problems.visibility')) {
+			if (e.affectsConfiguration('problems.visibility')) {
 				this.markersStatusItem.update(this.getMarkersItem());
 
 				// Update based on what setting was changed to.
-				config = this.configurationService.getValue('workbench.problems.visibility');
+				config = this.configurationService.getValue('problems.visibility');
 				if (!config && !this.markersStatusItemOff) {
 					addStatusBarEntry();
 				} else if (config && this.markersStatusItemOff) {
@@ -594,7 +592,7 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 		// Update to true, config checked before `getMarkersItemTurnedOff` is called.
 		this.statusbarService.updateEntryVisibility('status.problemsVisibility', true);
 		const openSettingsCommand = 'workbench.action.openSettings';
-		const configureSettingsLabel = '@id:workbench.problems.visibility';
+		const configureSettingsLabel = '@id:problems.visibility';
 		const tooltip = localize('status.problemsVisibilityOff', "Problems are turned off. Click to open settings.");
 		return {
 			name: localize('status.problemsVisibility', "Problems Visibility"),

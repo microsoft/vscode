@@ -38,10 +38,8 @@ export interface IEditorConfiguration {
 			diffEditor?: boolean;
 		};
 	};
-	workbench?: {
-		problems?: {
-			visibility?: boolean;
-		};
+	problems?: {
+		visibility?: boolean;
 	};
 }
 
@@ -107,7 +105,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected shouldHandleConfigurationChangeEvent(e: ITextResourceConfigurationChangeEvent, resource: URI | undefined): boolean {
-		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'workbench.problems.visibility');
+		return e.affectsConfiguration(resource, 'editor') || e.affectsConfiguration(resource, 'problems.visibility');
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
@@ -166,7 +164,7 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
 			...this.getReadonlyConfiguration(this.input?.isReadonly()),
-			renderValidationDecorations: configuration.workbench?.problems?.visibility !== false ? 'on' : 'off'
+			renderValidationDecorations: configuration.problems?.visibility !== false ? 'on' : 'off'
 		};
 	}
 

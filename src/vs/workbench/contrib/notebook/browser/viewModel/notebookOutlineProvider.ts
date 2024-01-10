@@ -202,7 +202,7 @@ export class NotebookCellOutlineProvider {
 					}
 				}
 			};
-			const problem = this._configurationService.getValue('workbench.problems.visibility');
+			const problem = this._configurationService.getValue('problems.visibility');
 			if (problem === undefined) {
 				return;
 			}
