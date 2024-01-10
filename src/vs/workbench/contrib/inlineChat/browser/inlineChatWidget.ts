@@ -138,6 +138,7 @@ export interface InlineChatWidgetViewState {
 
 export interface IInlineChatWidgetConstructionOptions {
 	menuId: MenuId;
+	widgetMenuId: MenuId;
 	statusMenuId: MenuId;
 	feedbackMenuId: MenuId;
 }
@@ -384,7 +385,7 @@ export class InlineChatWidget {
 		this._store.add(this._progressBar);
 
 
-		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, MENU_INLINE_CHAT_WIDGET, {
+		this._store.add(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.widgetToolbar, _options.widgetMenuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			toolbarOptions: { primaryGroup: 'main' }
 		}));
@@ -960,6 +961,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
 			menuId: MENU_INLINE_CHAT_INPUT,
+			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 			statusMenuId: MENU_INLINE_CHAT_WIDGET_STATUS,
 			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK
 		});
