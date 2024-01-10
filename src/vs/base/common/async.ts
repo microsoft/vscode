@@ -626,6 +626,8 @@ export interface ILimiter<T> {
 	readonly size: number;
 
 	queue(factory: ITask<Promise<T>>): Promise<T>;
+
+	clear(): void;
 }
 
 /**
@@ -635,6 +637,7 @@ export interface ILimiter<T> {
 export class Limiter<T> implements ILimiter<T> {
 
 	private _size = 0;
+	private _isDisposed = false;
 	private runningPromises: number;
 	private readonly maxDegreeOfParalellism: number;
 	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
@@ -664,6 +667,9 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
 		this._size++;
 
 		return new Promise<T>((c, e) => {
@@ -687,6 +693,10 @@ export class Limiter<T> implements ILimiter<T> {
 		this._size--;
 		this.runningPromises--;
 
+		if (this._isDisposed) {
+			return;
+		}
+
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
 		} else {
@@ -694,7 +704,23 @@ export class Limiter<T> implements ILimiter<T> {
 		}
 	}
 
+	clear(): void {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
+		this.outstandingPromises.length = 0;
+		this._size = this.runningPromises;
+		// NOT firing drain because that happens only after finishing the last task that actually ran
+		// if (this.runningPromises === 0) {
+		// 	this._onDrained.fire();
+		// }
+	}
+
 	dispose(): void {
+		// SEE https://github.com/microsoft/vscode/issues/202136
+		// this._isDisposed = true;
+		// this.outstandingPromises.length = 0; // stop further processing
+		// this._size = 0;
 		this._onDrained.dispose();
 	}
 }
