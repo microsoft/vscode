@@ -631,10 +631,9 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
-			if (progressiveEditsQueue.size > 0) {
-				// we must wait for all edits that came in via progress to complete
-				await Event.toPromise(progressiveEditsQueue.onDrained);
-			}
+			// we must wait for all edits that came in via progress to complete
+			await progressiveEditsQueue.whenIdle();
+
 			if (progressiveChatResponse) {
 				progressiveChatResponse.cancel();
 			}
@@ -658,6 +657,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 		} catch (e) {
+			progressiveEditsQueue.clear();
 			response = new ErrorResponse(e);
 			a11yResponse = (<ErrorResponse>response).message;
 
