@@ -172,6 +172,8 @@ registerAction2(class extends NotebookCellAction {
 
 		// todo discard
 		ctrl.dismiss(true);
+		// focus on the cell editor container
+		context.notebookEditor.focusNotebookCell(context.cell, 'container');
 	}
 });
 
