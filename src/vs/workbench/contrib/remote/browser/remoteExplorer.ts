@@ -6,7 +6,7 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, PORT_AUTO_FALLBACK_SETTING, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS, TUNNEL_VIEW_CONTAINER_ID, TUNNEL_VIEW_ID } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Attributes, AutoTunnelSource, forwardedPortsViewEnabled, makeAddress, mapHasAddressLocalhostOrAllInterfaces, OnPortForward, Tunnel, TunnelCloseReason, TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
 import { ForwardPortAction, OpenPortInBrowserAction, TunnelPanel, TunnelPanelDescriptor, TunnelViewModel, OpenPortInPreviewAction, openPreviewEnabledContext } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 import Severity from 'vs/base/common/severity';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationHandle, INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -35,11 +35,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Action } from 'vs/base/common/actions';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export const VIEWLET_ID = 'workbench.view.remote';
-export const CAN_PROC_FALLBACK = 'processPortForwardingFallback';
 
 export class ForwardedPortsView extends Disposable implements IWorkbenchContribution {
 	private contextKeyListener?: IDisposable;
@@ -211,19 +210,32 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
 					this.setup(environment);
+				} else if (e.affectsConfiguration(PORT_AUTO_FALLBACK_SETTING) && !this.portListener) {
+					this.listenForPorts();
 				}
 			}));
 		});
-	}
 
-	private canFallbackToHybrid(): boolean {
-		return this.storageService.getBoolean(CAN_PROC_FALLBACK, StorageScope.WORKSPACE, true);
+		if (!this.storageService.getBoolean('processPortForwardingFallback', StorageScope.WORKSPACE, true)) {
+			this.configurationService.updateValue(PORT_AUTO_FALLBACK_SETTING, 0, ConfigurationTarget.WORKSPACE);
+		}
 	}
 
 	private listenForPorts() {
-		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid() && this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS) {
+		let fallbackAt = this.configurationService.getValue<number>(PORT_AUTO_FALLBACK_SETTING);
+		if (fallbackAt === 0) {
+			this.portListener?.dispose();
+			return;
+		}
+
+		if (this.procForwarder && !this.portListener && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS)) {
 			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
-				if (Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.source.source === TunnelSource.Auto).length > 20) {
+				fallbackAt = this.configurationService.getValue<number>(PORT_AUTO_FALLBACK_SETTING);
+				if (fallbackAt === 0) {
+					this.portListener?.dispose();
+					return;
+				}
+				if (Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.source.source === TunnelSource.Auto).length > fallbackAt) {
 					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
 					this.notificationService.notify({
 						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings. Some ports may no longer be detected."),
@@ -232,7 +244,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 							primary: [
 								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"), undefined, true, async () => {
 									await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
-									this.storageService.store(CAN_PROC_FALLBACK, false, StorageScope.WORKSPACE, StorageTarget.USER);
+									await this.configurationService.updateValue(PORT_AUTO_FALLBACK_SETTING, 0, ConfigurationTarget.WORKSPACE);
 									this.portListener?.dispose();
 									this.portListener = undefined;
 								}),

@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/asp.vb.net.tmbundle Syntaxes/ASP%20VB.net.plist ./syntaxes/asp-vb-net.tmlanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/asp.vb.net.tmbundle Syntaxes/ASP%20VB.net.plist ./syntaxes/asp-vb-net.tmLanguage.json"
   },
   "contributes": {
     "languages": [
@@ -33,7 +33,7 @@
       {
         "language": "vb",
         "scopeName": "source.asp.vb.net",
-        "path": "./syntaxes/asp-vb-net.tmlanguage.json"
+        "path": "./syntaxes/asp-vb-net.tmLanguage.json"
       }
     ],
     "snippets": [

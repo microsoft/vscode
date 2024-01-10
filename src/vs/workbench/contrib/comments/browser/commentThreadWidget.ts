@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
-import { IMarkdownRendererOptions } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';

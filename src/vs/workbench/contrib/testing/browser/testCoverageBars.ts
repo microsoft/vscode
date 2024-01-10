@@ -8,18 +8,19 @@ import { assertNever } from 'vs/base/common/assert';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ITransaction, autorun, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { clamp } from 'vs/base/common/numbers';
+import { ITransaction, autorun, observableValue } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { asCssVariableName, chartsGreen, chartsRed, chartsYellow } from 'vs/platform/theme/common/colorRegistry';
 import { IExplorerFileContribution } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
-import { TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
-import { AbstractFileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
+import { ITestingCoverageBarThresholds, TestingConfigKeys, TestingDisplayedCoveragePercent, getTestingConfiguration, observeTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
+import { AbstractFileCoverage, getTotalCoveragePercent } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { ICoveredCount } from 'vs/workbench/contrib/testing/common/testTypes';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export interface TestCoverageBarsOptions {
 	/**
@@ -33,14 +34,11 @@ export interface TestCoverageBarsOptions {
 	container: HTMLElement;
 }
 
-const colorThresholds = [
-	{ color: asCssVariableName(chartsGreen), threshold: 0.9 },
-	{ color: asCssVariableName(chartsYellow), threshold: 0.6 },
-	{ color: asCssVariableName(chartsRed), threshold: -Infinity },
-];
+/** Type that can be used to render coverage bars */
+export type CoverageBarSource = Pick<AbstractFileCoverage, 'statement' | 'branch' | 'function'>;
 
 export class ManagedTestCoverageBars extends Disposable {
-	private _coverage?: AbstractFileCoverage;
+	private _coverage?: CoverageBarSource;
 	private readonly el = new Lazy(() => {
 		if (this.options.compact) {
 			const el = h('.test-coverage-bars.compact', [
@@ -78,7 +76,7 @@ export class ManagedTestCoverageBars extends Disposable {
 		super();
 	}
 
-	private attachHover(target: HTMLElement, factory: (coverage: AbstractFileCoverage) => string | IMarkdownString | undefined) {
+	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IMarkdownString | undefined) {
 		target.onmouseenter = () => {
 			if (!this._coverage) {
 				return;
@@ -104,7 +102,7 @@ export class ManagedTestCoverageBars extends Disposable {
 		};
 	}
 
-	public setCoverageInfo(coverage: AbstractFileCoverage | undefined) {
+	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
 		const ds = this.visibleStore;
 		if (!coverage) {
 			if (this._coverage) {
@@ -119,7 +117,11 @@ export class ManagedTestCoverageBars extends Disposable {
 			ds.add(toDisposable(() => this.options.container.removeChild(root)));
 			this.options.container.appendChild(root);
 			ds.add(this.configurationService.onDidChangeConfiguration(c => {
-				if (c.affectsConfiguration(TestingConfigKeys.CoveragePercent) && this._coverage) {
+				if (!this._coverage) {
+					return;
+				}
+
+				if (c.affectsConfiguration(TestingConfigKeys.CoveragePercent) || c.affectsConfiguration(TestingConfigKeys.CoverageBarThresholds)) {
 					this.doRender(this._coverage);
 				}
 			}));
@@ -129,36 +131,65 @@ export class ManagedTestCoverageBars extends Disposable {
 		this.doRender(coverage);
 	}
 
-	private doRender(coverage: AbstractFileCoverage) {
+	private doRender(coverage: CoverageBarSource) {
 		const el = this.el.value;
 
 		const precision = this.options.compact ? 0 : 2;
+		const thresholds = getTestingConfiguration(this.configurationService, TestingConfigKeys.CoverageBarThresholds);
 		const overallStat = calculateDisplayedStat(coverage, getTestingConfiguration(this.configurationService, TestingConfigKeys.CoveragePercent));
 		el.overall.textContent = displayPercent(overallStat, precision);
 		if ('tpcBar' in el) { // compact mode
-			renderBar(el.tpcBar, overallStat);
+			renderBar(el.tpcBar, overallStat, false, thresholds);
 		} else {
-			renderBar(el.statement, percent(coverage.statement));
-			renderBar(el.function, coverage.function && percent(coverage.function));
-			renderBar(el.branch, coverage.branch && percent(coverage.branch));
+			renderBar(el.statement, percent(coverage.statement), coverage.statement.total === 0, thresholds);
+			renderBar(el.function, coverage.function && percent(coverage.function), coverage.function?.total === 0, thresholds);
+			renderBar(el.branch, coverage.branch && percent(coverage.branch), coverage.branch?.total === 0, thresholds);
 		}
 	}
 }
 
-const percent = (cc: ICoveredCount) => cc.total === 0 ? 1 : cc.covered / cc.total;
+const percent = (cc: ICoveredCount) => clamp(cc.total === 0 ? 1 : cc.covered / cc.total, 0, 1);
 const epsilon = 10e-8;
+const barWidth = 16;
 
-const renderBar = (bar: HTMLElement, pct: number | undefined) => {
+const renderBar = (bar: HTMLElement, pct: number | undefined, isZero: boolean, thresholds: ITestingCoverageBarThresholds) => {
 	if (pct === undefined) {
 		bar.style.display = 'none';
-	} else {
-		bar.style.display = 'block';
-		bar.style.setProperty('--test-bar-width', `${pct * 100}%`);
-		bar.style.color = `var(${colorThresholds.find(t => pct >= t.threshold)!.color})`;
+		return;
 	}
+
+	bar.style.display = 'block';
+	bar.style.width = `${barWidth}px`;
+	// this is floored so the bar is only completely filled at 100% and not 99.9%
+	bar.style.setProperty('--test-bar-width', `${Math.floor(pct * 16)}px`);
+
+	if (isZero) {
+		bar.style.color = 'currentColor';
+		bar.style.opacity = '0.5';
+		return;
+	}
+
+	let best = colorThresholds[0].color; //  red
+	let distance = pct;
+	for (const { key, color } of colorThresholds) {
+		const t = thresholds[key] / 100;
+		if (t && pct >= t && pct - t < distance) {
+			best = color;
+			distance = pct - t;
+		}
+	}
+
+	bar.style.color = best;
+	bar.style.opacity = '1';
 };
 
-const calculateDisplayedStat = (coverage: AbstractFileCoverage, method: TestingDisplayedCoveragePercent) => {
+const colorThresholds = [
+	{ color: `var(${asCssVariableName(chartsRed)})`, key: 'red' },
+	{ color: `var(${asCssVariableName(chartsYellow)})`, key: 'yellow' },
+	{ color: `var(${asCssVariableName(chartsGreen)})`, key: 'green' },
+] as const;
+
+const calculateDisplayedStat = (coverage: CoverageBarSource, method: TestingDisplayedCoveragePercent) => {
 	switch (method) {
 		case TestingDisplayedCoveragePercent.Statement:
 			return percent(coverage.statement);
@@ -169,7 +200,7 @@ const calculateDisplayedStat = (coverage: AbstractFileCoverage, method: TestingD
 			return value;
 		}
 		case TestingDisplayedCoveragePercent.TotalCoverage:
-			return coverage.tpc;
+			return getTotalCoveragePercent(coverage.statement, coverage.branch, coverage.function);
 		default:
 			assertNever(method);
 	}
@@ -187,11 +218,11 @@ const displayPercent = (value: number, precision = 2) => {
 	return `${display}%`;
 };
 
-const stmtCoverageText = (coverage: AbstractFileCoverage) => localize('statementCoverage', '{0}/{1} statements covered ({2})', coverage.statement.covered, coverage.statement.total, displayPercent(percent(coverage.statement)));
-const fnCoverageText = (coverage: AbstractFileCoverage) => coverage.function && localize('functionCoverage', '{0}/{1} functions covered ({2})', coverage.function.covered, coverage.function.total, displayPercent(percent(coverage.function)));
-const branchCoverageText = (coverage: AbstractFileCoverage) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', coverage.branch.covered, coverage.branch.total, displayPercent(percent(coverage.branch)));
+const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCoverage', '{0}/{1} statements covered ({2})', coverage.statement.covered, coverage.statement.total, displayPercent(percent(coverage.statement)));
+const fnCoverageText = (coverage: CoverageBarSource) => coverage.function && localize('functionCoverage', '{0}/{1} functions covered ({2})', coverage.function.covered, coverage.function.total, displayPercent(percent(coverage.function)));
+const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', coverage.branch.covered, coverage.branch.total, displayPercent(percent(coverage.branch)));
 
-const getOverallHoverText = (coverage: AbstractFileCoverage) => new MarkdownString([
+const getOverallHoverText = (coverage: CoverageBarSource) => new MarkdownString([
 	stmtCoverageText(coverage),
 	fnCoverageText(coverage),
 	branchCoverageText(coverage),
@@ -212,8 +243,7 @@ export class ExplorerTestCoverageBars extends ManagedTestCoverageBars implements
 	) {
 		super(options, hoverService, configurationService);
 
-		const isEnabled = observableFromEvent(configurationService.onDidChangeConfiguration, () =>
-			getTestingConfiguration(configurationService, TestingConfigKeys.ShowCoverageInExplorer));
+		const isEnabled = observeTestingConfiguration(configurationService, TestingConfigKeys.ShowCoverageInExplorer);
 
 		this._register(autorun(async reader => {
 			let info: AbstractFileCoverage | undefined;

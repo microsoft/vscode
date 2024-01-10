@@ -631,7 +631,7 @@ export interface IFunctionCoverage {
 	type: DetailType.Function;
 	name: string;
 	count: number;
-	location?: Range | Position;
+	location: Range | Position;
 }
 
 export namespace IFunctionCoverage {
@@ -639,7 +639,7 @@ export namespace IFunctionCoverage {
 		type: DetailType.Function;
 		name: string;
 		count: number;
-		location?: IRange | IPosition;
+		location: IRange | IPosition;
 	}
 
 	export const serialize: (original: IFunctionCoverage) => Serialized = serializeThingWithLocation;
@@ -802,7 +802,7 @@ export interface IncrementalChangeCollector<T> {
 /**
  * Maintains tests in this extension host sent from the main thread.
  */
-export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem> {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
 
 	/**

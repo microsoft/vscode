@@ -67,6 +67,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public features: SCMGroupFeatures,
 		public label: string,
 		public id: string,
+		public readonly multiDiffEditorEnableViewChanges: boolean,
 		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
@@ -107,7 +108,9 @@ class MainThreadSCMResource implements ISCMResource {
 		readonly resourceGroup: ISCMResourceGroup,
 		readonly decorations: ISCMResourceDecorations,
 		readonly contextValue: string | undefined,
-		readonly command: Command | undefined
+		readonly command: Command | undefined,
+		readonly multiFileDiffEditorOriginalUri: URI | undefined,
+		readonly multiFileDiffEditorModifiedUri: URI | undefined,
 	) { }
 
 	open(preserveFocus: boolean): Promise<void> {
@@ -142,29 +145,35 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		// History item group base
 		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
 
+		if (!historyItemGroupBase) {
+			return undefined;
+		}
+
 		// Common ancestor, ahead, behind
-		const ancestor = historyItemGroupBase ?
-			await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id) : undefined;
+		const ancestor = await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id);
+
+		if (!ancestor) {
+			return undefined;
+		}
 
 		// Incoming
-		let incoming: ISCMHistoryItemGroupEntry | undefined;
-		if (historyItemGroupBase) {
-			incoming = {
-				id: historyItemGroupBase.id,
-				label: historyItemGroupBase.label,
-				icon: Codicon.arrowCircleDown,
-				ancestor: ancestor?.id,
-				count: ancestor?.behind ?? 0,
-			};
-		}
+		const incoming: ISCMHistoryItemGroupEntry = {
+			id: historyItemGroupBase.id,
+			label: historyItemGroupBase.label,
+			icon: Codicon.arrowCircleDown,
+			direction: 'incoming',
+			ancestor: ancestor.id,
+			count: ancestor.behind,
+		};
 
 		// Outgoing
 		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
 			label: historyItemGroup.label,
 			icon: Codicon.arrowCircleUp,
-			ancestor: ancestor?.id,
-			count: ancestor?.ahead ?? 0,
+			direction: 'outgoing',
+			ancestor: ancestor.id,
+			count: ancestor.ahead,
 		};
 
 		return { incoming, outgoing };
@@ -183,8 +192,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
 	}
 
-	async provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined> {
-		const changes = await this.proxy.$provideHistoryItemChanges(this.handle, historyItemId, CancellationToken.None);
+	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {
+		const changes = await this.proxy.$provideHistoryItemChanges(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
 		return changes?.map(change => ({
 			uri: URI.revive(change.uri),
 			originalUri: change.originalUri && URI.revive(change.originalUri),
@@ -310,8 +319,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 	}
 
-	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][]): void {
-		const groups = _groups.map(([handle, id, label, features]) => {
+	$registerGroups(_groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][]): void {
+		const groups = _groups.map(([handle, id, label, features, multiDiffEditorEnableViewChanges]) => {
 			const group = new MainThreadSCMResourceGroup(
 				this.handle,
 				handle,
@@ -319,6 +328,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				features,
 				label,
 				id,
+				multiDiffEditorEnableViewChanges,
 				this._uriIdentService
 			);
 
@@ -364,7 +374,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri] = rawResource;
 
 					const [light, dark] = icons;
 					const icon = ThemeIcon.isThemeIcon(light) ? light : URI.revive(light);
@@ -387,7 +397,9 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 						group,
 						decorations,
 						contextValue || undefined,
-						command
+						command,
+						URI.revive(multiFileDiffEditorOriginalUri),
+						URI.revive(multiFileDiffEditorModifiedUri),
 					);
 				});
 
@@ -514,7 +526,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositories.delete(handle);
 	}
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void {
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {

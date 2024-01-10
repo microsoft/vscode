@@ -6,7 +6,7 @@
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Schemas } from 'vs/base/common/network';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IMenu, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -318,7 +318,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.SelectDefaultProfile,
-						title: { value: localize('workbench.action.terminal.selectDefaultProfile', "Select Default Profile"), original: 'Select Default Profile' },
+						title: localize2('workbench.action.terminal.selectDefaultProfile', 'Select Default Profile'),
 					},
 					group: '3_configure'
 				}
@@ -367,7 +367,7 @@ export function setupTerminalMenus(): void {
 				item: {
 					command: {
 						id: TerminalCommandId.SwitchTerminal,
-						title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' }
+						title: localize2('workbench.action.terminal.switchTerminal', 'Switch Terminal')
 					},
 					group: 'navigation',
 					order: 0,
@@ -398,12 +398,12 @@ export function setupTerminalMenus(): void {
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
 									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
@@ -433,12 +433,12 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
 									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
@@ -468,12 +468,12 @@ export function setupTerminalMenus(): void {
 							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-								ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1)
+								ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
 							),
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 								ContextKeyExpr.or(
-									ContextKeyExpr.equals(TerminalContextKeyStrings.Count, 1),
+									ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
 									ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 								)
 							),
@@ -571,6 +571,17 @@ export function setupTerminalMenus(): void {
 					command: {
 						id: TerminalCommandId.MoveToEditor,
 						title: terminalStrings.moveToEditor.value
+					},
+					group: ContextMenuGroup.Create,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.MoveIntoNewWindow,
+						title: terminalStrings.moveIntoNewWindow.value
 					},
 					group: ContextMenuGroup.Create,
 					order: 2

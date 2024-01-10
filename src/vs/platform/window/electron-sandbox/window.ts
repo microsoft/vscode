@@ -4,21 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
-import { getWindows } from 'vs/base/browser/dom';
+import { getActiveWindow, getWindows } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+
+export enum ApplyZoomTarget {
+	ACTIVE_WINDOW = 1,
+	ALL_WINDOWS
+}
 
 /**
  * Apply a zoom level to the window. Also sets it in our in-memory
  * browser helper so that it can be accessed in non-electron layers.
  */
-export function applyZoom(zoomLevel: number): void {
-	for (const { window } of getWindows()) {
-		getGlobals(window)?.webFrame?.setZoomLevel(zoomLevel);
+export function applyZoom(zoomLevel: number, target: ApplyZoomTarget | Window): void {
+	const targetWindows: Window[] = [];
+	if (target === ApplyZoomTarget.ACTIVE_WINDOW) {
+		targetWindows.push(getActiveWindow());
+	} else if (target === ApplyZoomTarget.ALL_WINDOWS) {
+		targetWindows.push(...Array.from(getWindows()).map(({ window }) => window));
+	} else {
+		targetWindows.push(target);
 	}
-	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
-	setZoomLevel(zoomLevel);
+
+	for (const targetWindow of targetWindows) {
+		getGlobals(targetWindow)?.webFrame?.setZoomLevel(zoomLevel);
+		setZoomFactor(zoomLevelToZoomFactor(zoomLevel), targetWindow);
+		setZoomLevel(zoomLevel, targetWindow);
+	}
 }
 
 function getGlobals(win: Window): ISandboxGlobals | undefined {
@@ -36,10 +50,10 @@ function getGlobals(win: Window): ISandboxGlobals | undefined {
 	return undefined;
 }
 
-export function zoomIn(): void {
-	applyZoom(getZoomLevel() + 1);
+export function zoomIn(target: ApplyZoomTarget | Window): void {
+	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) + 1, target);
 }
 
-export function zoomOut(): void {
-	applyZoom(getZoomLevel() - 1);
+export function zoomOut(target: ApplyZoomTarget | Window): void {
+	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) - 1, target);
 }

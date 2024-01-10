@@ -8,7 +8,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { randomPath } from 'vs/base/common/extpath';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -22,7 +22,7 @@ import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/v
 import { MergeEditorContents } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-const MERGE_EDITOR_CATEGORY: ILocalizedString = { value: localize('mergeEditor', "Merge Editor (Dev)"), original: 'Merge Editor (Dev)' };
+const MERGE_EDITOR_CATEGORY: ILocalizedString = localize2('mergeEditor', 'Merge Editor (Dev)');
 
 export class MergeEditorOpenContentsFromJSON extends Action2 {
 	constructor() {

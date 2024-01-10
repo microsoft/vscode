@@ -80,7 +80,7 @@ suite('Edit session sync', () => {
 			override onWillShutdown = Event.None;
 		});
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IProductService, <Partial<IProductService>>{ 'editSessions.store': { url: 'https://test.com', canSwitch: true, authenticationProviders: {} } });
+		instantiationService.stub(IProductService, { 'editSessions.store': { url: 'https://test.com', canSwitch: true, authenticationProviders: {} } });
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 		instantiationService.stub(IEditSessionsStorageService, new class extends mock<IEditSessionsStorageService>() {

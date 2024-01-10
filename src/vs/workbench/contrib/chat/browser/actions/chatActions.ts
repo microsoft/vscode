@@ -19,7 +19,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -35,7 +35,7 @@ import { IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chat
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
+export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
 
 export interface IChatViewOpenOptions {
@@ -178,7 +178,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'chat.action.focus',
-				title: { value: localize('actions.interactiveSession.focus', "Focus Chat List"), original: 'Focus Chat List' },
+				title: localize2('actions.interactiveSession.focus', 'Focus Chat List'),
 				precondition: ContextKeyExpr.and(CONTEXT_IN_CHAT_INPUT, CONTEXT_CHAT_INPUT_CURSOR_AT_TOP),
 				category: CHAT_CATEGORY,
 				keybinding: {

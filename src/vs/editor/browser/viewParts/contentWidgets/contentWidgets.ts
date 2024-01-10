@@ -537,7 +537,7 @@ class Widget {
 			this.domNode.setTop(this._renderData.coordinate.top);
 			this.domNode.setLeft(this._renderData.coordinate.left);
 		} else {
-			this.domNode.setTop(this._renderData.coordinate.top + ctx.scrollTop - ctx.bigNumbersDelta);
+			this.domNode.setTop(this._renderData.coordinate.top + ctx.scrollTop);
 			this.domNode.setLeft(this._renderData.coordinate.left);
 		}
 
