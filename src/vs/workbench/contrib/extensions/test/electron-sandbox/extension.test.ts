@@ -20,7 +20,7 @@ suite('Extension Test', () => {
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'insiders' });
+		instantiationService.stub(IProductService, { quality: 'insiders' });
 	});
 
 	teardown(() => {
@@ -58,7 +58,7 @@ suite('Extension Test', () => {
 	});
 
 	test('extension is not outdated when local is built in and older than gallery but product quality is stable', () => {
-		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'stable' });
+		instantiationService.stub(IProductService, { quality: 'stable' });
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, false);
 	});
