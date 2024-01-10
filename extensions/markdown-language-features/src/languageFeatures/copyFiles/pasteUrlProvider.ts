@@ -8,15 +8,16 @@ import { ITextDocument } from '../../types/textDocument';
 import { Mime } from '../../util/mimes';
 import { createInsertUriListEdit, externalUriSchemes } from './shared';
 
-enum PasteUrlAsFormattedLink {
+export enum PasteUrlAsMarkdownLink {
 	Always = 'always',
+	SmartWithSelection = 'smartWithSelection',
 	Smart = 'smart',
 	Never = 'never'
 }
 
-function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): PasteUrlAsFormattedLink {
+function getPasteUrlAsFormattedLinkSetting(document: vscode.TextDocument): PasteUrlAsMarkdownLink {
 	return vscode.workspace.getConfiguration('markdown', document)
-		.get<PasteUrlAsFormattedLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsFormattedLink.Smart);
+		.get<PasteUrlAsMarkdownLink>('editor.pasteUrlAsFormattedLink.enabled', PasteUrlAsMarkdownLink.SmartWithSelection);
 }
 
 /**
@@ -37,17 +38,17 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit | undefined> {
 		const pasteUrlSetting = getPasteUrlAsFormattedLinkSetting(document);
-		if (pasteUrlSetting === PasteUrlAsFormattedLink.Never) {
+		if (pasteUrlSetting === PasteUrlAsMarkdownLink.Never) {
 			return;
 		}
 
 		const item = dataTransfer.get(Mime.textPlain);
-		const urlList = await item?.asString();
-		if (token.isCancellationRequested || !urlList) {
+		const text = await item?.asString();
+		if (token.isCancellationRequested || !text) {
 			return;
 		}
 
-		const uriText = findValidUriInText(urlList);
+		const uriText = findValidUriInText(text);
 		if (!uriText) {
 			return;
 		}
@@ -62,14 +63,10 @@ class PasteUrlEditProvider implements vscode.DocumentPasteEditProvider {
 		workspaceEdit.set(document.uri, edit.edits);
 		pasteEdit.additionalEdit = workspaceEdit;
 
-		// If smart pasting is enabled, deprioritize this provider when:
-		// - The user has no selection
-		// - At least one of the ranges occurs in a context where smart pasting is disabled (such as a fenced code block)
-		if (pasteUrlSetting === PasteUrlAsFormattedLink.Smart) {
-			if (!ranges.every(range => shouldSmartPaste(document, range))) {
-				pasteEdit.yieldTo = [{ mimeType: Mime.textPlain }];
-			}
+		if (!shouldInsertMarkdownLinkByDefault(document, pasteUrlSetting, ranges)) {
+			pasteEdit.yieldTo = [{ mimeType: Mime.textPlain }];
 		}
+
 		return pasteEdit;
 	}
 }
@@ -90,18 +87,35 @@ const smartPasteRegexes = [
 	{ regex: /\$[^$]*\$/g }, // In inline math
 ];
 
-export function shouldSmartPaste(document: ITextDocument, selectedRange: vscode.Range): boolean {
-	// Disable for empty selections and multi-line selections
-	if (selectedRange.isEmpty || selectedRange.start.line !== selectedRange.end.line) {
+export function shouldInsertMarkdownLinkByDefault(document: ITextDocument, pasteUrlSetting: PasteUrlAsMarkdownLink, ranges: readonly vscode.Range[]): boolean {
+	switch (pasteUrlSetting) {
+		case PasteUrlAsMarkdownLink.Always: {
+			return true;
+		}
+		case PasteUrlAsMarkdownLink.Smart: {
+			return ranges.every(range => shouldSmartPasteForSelection(document, range));
+		}
+		case PasteUrlAsMarkdownLink.SmartWithSelection: {
+			return (
+				// At least one range must not be empty
+				ranges.some(range => document.getText(range).trim().length > 0)
+				// And all ranges must be smart
+				&& ranges.every(range => shouldSmartPasteForSelection(document, range))
+			);
+		}
+		default: {
+			return false;
+		}
+	}
+}
+
+function shouldSmartPasteForSelection(document: ITextDocument, selectedRange: vscode.Range): boolean {
+	// Disable for multi-line selections
+	if (selectedRange.start.line !== selectedRange.end.line) {
 		return false;
 	}
 
 	const rangeText = document.getText(selectedRange);
-	// Disable for whitespace only selections
-	if (rangeText.trim().length === 0) {
-		return false;
-	}
-
 	// Disable when the selection is already a link
 	if (findValidUriInText(rangeText)) {
 		return false;

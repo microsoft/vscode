@@ -517,15 +517,17 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": "smart",
+          "default": "smartWithSelection",
           "enum": [
             "always",
             "smart",
+            "smartWithSelection",
             "never"
           ],
           "markdownEnumDescriptions": [
             "%configuration.pasteUrlAsFormattedLink.always%",
             "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.smartWithSelection%",
             "%configuration.pasteUrlAsFormattedLink.never%"
           ]
         },
