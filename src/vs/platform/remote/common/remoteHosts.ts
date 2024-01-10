@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { URI, joinPath } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 
 export function getRemoteAuthority(uri: URI): string | undefined {
 	return uri.scheme === Schemas.vscodeRemote ? uri.authority : undefined;
@@ -24,29 +24,6 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	}
 	return authority.substr(0, pos);
 }
-
-class RemotePathsImpl {
-	private _basePath: string = '/';
-
-	setBasePath(basePath: string) {
-		this._basePath = basePath;
-	}
-
-	getBasePath(): string {
-		return this._basePath;
-	}
-
-	/**
-	 * The root path to use when accessing the remote server. The path contains the quality and commit of the current build.
-	 * @param product
-	 * @returns
-	 */
-	getServerRootPath(product: { quality?: string; commit?: string }): string {
-		return joinPath(this._basePath, `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
-	}
-}
-
-export const RemotePaths = new RemotePathsImpl();
 
 export function parseAuthorityWithPort(authority: string): { host: string; port: number } {
 	const { host, port } = parseAuthority(authority);

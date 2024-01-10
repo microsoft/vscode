@@ -141,8 +141,12 @@ class RemoteAuthoritiesImpl {
 		this._delegate = delegate;
 	}
 
-	setServerRootPath(serverRootPath: string): void {
-		this._serverRootPath = serverRootPath;
+	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
+		this._serverRootPath = getServerRootPath(product, serverBasePath);
+	}
+
+	getServerRootPath(): string {
+		return this._serverRootPath;
 	}
 
 	private get _remoteResourcesPath(): string {
@@ -192,6 +196,10 @@ class RemoteAuthoritiesImpl {
 }
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
+
+export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
+	return joinPath(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+}
 
 /**
  * A string pointing to a path inside the app. It should not begin with ./ or ../
