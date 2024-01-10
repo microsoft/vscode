@@ -1196,7 +1196,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 export interface IChatAgentCompletionItem {
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
-	values: IChatRequestVariableValue[];
+	values: IChatRequestVariableValueDto[];
 	detail?: string;
 	documentation?: string | IMarkdownString;
 }
@@ -1216,8 +1216,10 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
+
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {

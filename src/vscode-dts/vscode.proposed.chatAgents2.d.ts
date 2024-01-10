@@ -410,11 +410,6 @@ declare module 'vscode' {
 		level: ChatVariableLevel;
 
 		/**
-		 * An optional type tag for extensions to communicate the kind of the variable. An extension might use it to interpret the shape of `value`.
-		 */
-		kind?: string;
-
-		/**
 		 * The variable's value, which can be included in an LLM prompt as-is, or the chat agent may decide to read the value and do something else with it.
 		 */
 		value: string | Uri;
