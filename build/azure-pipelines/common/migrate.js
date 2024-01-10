@@ -271,7 +271,7 @@ process.on('exit', () => tmp.dispose());
 async function releaseAndProvision(log, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName, provisionTenantId, provisionAADUsername, provisionAADPassword, version, quality, url) {
     const fileName = `${quality}/${version}/${path.basename(url)}`;
     const result = `${e('PRSS_CDN_URL')}/${fileName}`;
-    const res = await fetch(result, { method: 'HEAD' });
+    const res = await (0, retry_1.retry)(() => fetch(result, { method: 'HEAD' }));
     if (res.status === 200) {
         log(`Already released and provisioned: ${result}`);
         return result;

@@ -390,7 +390,7 @@ async function releaseAndProvision(
 	const fileName = `${quality}/${version}/${path.basename(url)}`;
 	const result = `${e('PRSS_CDN_URL')}/${fileName}`;
 
-	const res = await fetch(result, { method: 'HEAD' });
+	const res = await retry(() => fetch(result, { method: 'HEAD' }));
 
 	if (res.status === 200) {
 		log(`Already released and provisioned: ${result}`);
