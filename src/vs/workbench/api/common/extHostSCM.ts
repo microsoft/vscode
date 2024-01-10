@@ -203,6 +203,21 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 		return -1;
 	}
 
+	if (a.multiFileDiffEditorModifiedUri && b.multiFileDiffEditorModifiedUri) {
+		result = comparePaths(a.multiFileDiffEditorModifiedUri.fsPath, b.multiFileDiffEditorModifiedUri.fsPath, true);
+	} else if (a.multiFileDiffEditorModifiedUri) {
+		return 1;
+	} else if (b.multiFileDiffEditorModifiedUri) {
+		return -1;
+	}
+	if (a.multiDiffEditorOriginalUri && b.multiDiffEditorOriginalUri) {
+		result = comparePaths(a.multiDiffEditorOriginalUri.fsPath, b.multiDiffEditorOriginalUri.fsPath, true);
+	} else if (a.multiDiffEditorOriginalUri) {
+		return 1;
+	} else if (b.multiDiffEditorOriginalUri) {
+		return -1;
+	}
+
 	return result;
 }
 
@@ -401,6 +416,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		private _sourceControlHandle: number,
 		private _id: string,
 		private _label: string,
+		public readonly multiDiffEditorEnableViewChanges: boolean,
+		private readonly _extension: IExtensionDescription,
 	) { }
 
 	getResourceState(handle: number): vscode.SourceControlResourceState | undefined {
@@ -439,6 +456,10 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					}
 				}
 
+				const hasScmMultiDiffEditorProposalEnabled = isProposedApiEnabled(this._extension, 'scmMultiDiffEditor');
+				const multiFileDiffEditorOriginalUri = hasScmMultiDiffEditorProposalEnabled ? r.multiDiffEditorOriginalUri : undefined;
+				const multiFileDiffEditorModifiedUri = hasScmMultiDiffEditorProposalEnabled ? r.multiFileDiffEditorModifiedUri : undefined;
+
 				const icon = getIconResource(r.decorations);
 				const lightIcon = r.decorations && getIconResource(r.decorations.light) || icon;
 				const darkIcon = r.decorations && getIconResource(r.decorations.dark) || icon;
@@ -449,7 +470,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const faded = r.decorations && !!r.decorations.faded;
 				const contextValue = r.contextValue || '';
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
@@ -673,8 +694,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private createdResourceGroups = new Map<ExtHostSourceControlResourceGroup, IDisposable>();
 	private updatedResourceGroups = new Set<ExtHostSourceControlResourceGroup>();
 
-	createResourceGroup(id: string, label: string): ExtHostSourceControlResourceGroup {
-		const group = new ExtHostSourceControlResourceGroup(this.#proxy, this._commands, this.handle, id, label);
+	createResourceGroup(id: string, label: string, options?: { multiDiffEditorEnableViewChanges?: boolean }): ExtHostSourceControlResourceGroup {
+		const multiDiffEditorEnableViewChanges = isProposedApiEnabled(this._extension, 'scmMultiDiffEditor') && options?.multiDiffEditorEnableViewChanges === true;
+		const group = new ExtHostSourceControlResourceGroup(this.#proxy, this._commands, this.handle, id, label, multiDiffEditorEnableViewChanges, this._extension);
 		const disposable = Event.once(group.onDidDispose)(() => this.createdResourceGroups.delete(group));
 		this.createdResourceGroups.set(group, disposable);
 		this.eventuallyAddResourceGroups();
@@ -683,7 +705,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 	@debounce(100)
 	eventuallyAddResourceGroups(): void {
-		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][] = [];
+		const groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /*multiDiffEditorEnableViewChanges*/ boolean][] = [];
 		const splices: SCMRawResourceSplices[] = [];
 
 		for (const [group, disposable] of this.createdResourceGroups) {
@@ -701,7 +723,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 				this.#proxy.$unregisterGroup(this.handle, group.handle);
 			});
 
-			groups.push([group.handle, group.id, group.label, group.features]);
+			groups.push([group.handle, group.id, group.label, group.features, group.multiDiffEditorEnableViewChanges]);
 
 			const snapshot = group._takeResourceStateSnapshot();
 

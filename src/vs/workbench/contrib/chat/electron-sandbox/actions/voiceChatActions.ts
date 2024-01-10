@@ -25,7 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';

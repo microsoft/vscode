@@ -97,11 +97,11 @@ if (portable && portable.isPortable) {
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
-		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, }
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, codeCache: true }
 	},
 	{
 		scheme: 'vscode-file',
-		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true, codeCache: true }
 	}
 ]);
 

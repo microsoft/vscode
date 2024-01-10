@@ -1777,6 +1777,12 @@ export interface CommentingRanges {
 	fileComments: boolean;
 }
 
+export interface CommentAuthorInformation {
+	name: string;
+	iconPath?: UriComponents;
+
+}
+
 /**
  * @internal
  */

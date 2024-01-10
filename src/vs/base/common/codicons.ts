@@ -93,6 +93,7 @@ export const Codicon = {
 	closeDirty: register('close-dirty', 0xea71),
 	debugBreakpoint: register('debug-breakpoint', 0xea71),
 	debugBreakpointDisabled: register('debug-breakpoint-disabled', 0xea71),
+	debugBreakpointPending: register('debug-breakpoint-pending', 0xebd9),
 	debugHint: register('debug-hint', 0xea71),
 	primitiveSquare: register('primitive-square', 0xea72),
 	edit: register('edit', 0xea73),

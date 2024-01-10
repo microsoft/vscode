@@ -1580,7 +1580,19 @@ declare namespace monaco.editor {
 	 */
 	export enum GlyphMarginLane {
 		Left = 1,
-		Right = 2
+		Center = 2,
+		Right = 3
+	}
+
+	export interface IGlyphMarginLanesModel {
+		/**
+		 * The number of lanes that should be rendered in the editor.
+		 */
+		readonly requiredLanes: number;
+		/**
+		 * Gets the lanes that should be rendered starting at a given line number.
+		 */
+		getLanesAtLine(lineNumber: number): GlyphMarginLane[];
 	}
 
 	/**
@@ -1609,6 +1621,11 @@ declare namespace monaco.editor {
 		 * The position in the glyph margin.
 		 */
 		position: GlyphMarginLane;
+		/**
+		 * Whether the glyph margin lane in {@link position} should be rendered even
+		 * outside of this decoration's range.
+		 */
+		persistLane?: boolean;
 	}
 
 	/**
@@ -7724,6 +7741,11 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface CommentAuthorInformation {
+		name: string;
+		iconPath?: UriComponents;
 	}
 
 	export interface PendingCommentThread {

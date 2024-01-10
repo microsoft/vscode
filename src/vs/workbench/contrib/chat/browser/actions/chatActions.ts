@@ -19,7 +19,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';

@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { InMemoryDocument } from '../client/inMemoryDocument';
-import { findValidUriInText, shouldSmartPaste } from '../languageFeatures/copyFiles/pasteUrlProvider';
+import { PasteUrlAsMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from '../languageFeatures/copyFiles/pasteUrlProvider';
 import { createInsertUriListEdit } from '../languageFeatures/copyFiles/shared';
 
 function makeTestDoc(contents: string) {
@@ -134,83 +134,89 @@ suite('createEditAddingLinksForUriList', () => {
 	});
 
 
-	suite('checkSmartPaste', () => {
+	suite('shouldInsertMarkdownLinkByDefault', () => {
 
-		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
+		test('Smart should enabled for selected plain text', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('hello world'), new vscode.Range(0, 0, 0, 12)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('hello world'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 12)]),
 				true);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link', () => {
+		test('Smart should enabled for empty selection', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('https://www.microsoft.com'), new vscode.Range(0, 0, 0, 25)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('xyz'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)]),
+				true);
+		});
+
+		test('SmartWithSelection should disable for empty selection', () => {
+			assert.strictEqual(
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('xyz'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 0)]),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link with trailing whitespace', () => {
+		test('Smart should disable for selected link', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('   https://www.microsoft.com  '), new vscode.Range(0, 0, 0, 30)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('https://www.microsoft.com'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 25)]),
+				false);
+		});
+
+		test('Smart should disable for selected link with trailing whitespace', () => {
+			assert.strictEqual(
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('   https://www.microsoft.com  '), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 30)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as true for a link pasted in square brackets', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('[abc]'), new vscode.Range(0, 1, 0, 4)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('[abc]'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 1, 0, 4)]),
 				true);
-		});
-
-		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
-			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('xyz'), new vscode.Range(0, 0, 0, 0)),
-				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for selected whitespace and new lines', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('   \r\n\r\n'), new vscode.Range(0, 0, 0, 7)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('   \r\n\r\n'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 7)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a backtick code block', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('```\r\n\r\n```'), new vscode.Range(0, 5, 0, 5)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('```\r\n\r\n```'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 5, 0, 5)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a tilde code block', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('~~~\r\n\r\n~~~'), new vscode.Range(0, 5, 0, 5)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('~~~\r\n\r\n~~~'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 5, 0, 5)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a math block', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('$$$\r\n\r\n$$$'), new vscode.Range(0, 5, 0, 5)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('$$$\r\n\r\n$$$'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 5, 0, 5)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown link', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('[a](bcdef)'), new vscode.Range(0, 4, 0, 6)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('[a](bcdef)'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 4, 0, 6)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown image link', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('![a](bcdef)'), new vscode.Range(0, 5, 0, 10)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('![a](bcdef)'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 5, 0, 10)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline code', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('``'), new vscode.Range(0, 1, 0, 1)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('``'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 1, 0, 1)]),
 				false);
 		});
 
 		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline math', () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('$$'), new vscode.Range(0, 1, 0, 1)),
+				shouldInsertMarkdownLinkByDefault(makeTestDoc('$$'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 1, 0, 1)]),
 				false);
 		});
 	});

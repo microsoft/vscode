@@ -11,7 +11,7 @@ import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { matchesScheme, Schemas } from 'vs/base/common/network';
-import { isIOS } from 'vs/base/common/platform';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -24,11 +24,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
 import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { createSingleCallFunction } from 'vs/base/common/functional';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -75,13 +76,13 @@ export abstract class BaseWindow extends Disposable {
 
 	//#region timeout handling in multi-window applications
 
-	/**
-	 * Override `setTimeout` and `clearTimeout` on the provided window to make
-	 * sure timeouts are dispatched to all opened windows. Some browsers may decide
-	 * to throttle timeouts in minimized windows, so with this we can ensure the
-	 * timeout is scheduled without being throttled (unless all windows are minimized).
-	 */
 	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+
+		// Override `setTimeout` and `clearTimeout` on the provided window to make
+		// sure timeouts are dispatched to all opened windows. Some browsers may decide
+		// to throttle timeouts in minimized windows, so with this we can ensure the
+		// timeout is scheduled without being throttled (unless all windows are minimized).
+
 		const originalSetTimeout = targetWindow.setTimeout;
 		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', { get: () => originalSetTimeout });
 
@@ -144,6 +145,37 @@ export abstract class BaseWindow extends Disposable {
 			}
 		}));
 	}
+
+	//#region Confirm on Shutdown
+
+	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
+		const dialogService = accessor.get(IDialogService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		const message = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
+			localize('closeWindowMessage', "Are you sure you want to close the window?");
+		const primaryButton = reason === ShutdownReason.QUIT ?
+			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
+			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
+
+		const res = await dialogService.confirm({
+			message,
+			primaryButton,
+			checkbox: {
+				label: localize('doNotAskAgain', "Do not ask me again")
+			}
+		});
+
+		// Update setting if checkbox checked
+		if (res.confirmed && res.checkboxChecked) {
+			await configurationService.updateValue('window.confirmBeforeClose', 'never');
+		}
+
+		return res.confirmed;
+	}
+
+	//#endregion
 }
 
 export class BrowserWindow extends BaseWindow {

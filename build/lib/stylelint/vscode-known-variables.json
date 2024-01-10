@@ -679,6 +679,8 @@
 		"--vscode-terminalOverviewRuler-findMatchForeground",
 		"--vscode-terminalStickyScroll-background",
 		"--vscode-terminalStickyScrollHover-background",
+		"--vscode-testing-coveredBackground",
+		"--vscode-testing-coveredGutterBackground",
 		"--vscode-testing-iconErrored",
 		"--vscode-testing-iconFailed",
 		"--vscode-testing-iconPassed",
@@ -692,6 +694,8 @@
 		"--vscode-testing-peekBorder",
 		"--vscode-testing-peekHeaderBackground",
 		"--vscode-testing-runAction",
+		"--vscode-testing-uncoveredBackground",
+		"--vscode-testing-uncoveredGutterBackground",
 		"--vscode-textBlockQuote-background",
 		"--vscode-textBlockQuote-border",
 		"--vscode-textCodeBlock-background",
@@ -723,7 +727,9 @@
 		"--vscode-widget-border",
 		"--vscode-widget-shadow",
 		"--vscode-window-activeBorder",
-		"--vscode-window-inactiveBorder"
+		"--vscode-window-inactiveBorder",
+		"--vscode-multiDiffEditor-background",
+		"--vscode-multiDiffEditor-border"
 	],
 	"others": [
 		"--background-dark",

@@ -66,7 +66,7 @@ interface IProcessRowTemplateData {
 	readonly name: HTMLElement;
 }
 
-class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError>  {
+class ProcessTreeDataSource implements IDataSource<ProcessTree, ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
 	hasChildren(element: ProcessTree | ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError): boolean {
 		if (isRemoteDiagnosticError(element)) {
 			return false;

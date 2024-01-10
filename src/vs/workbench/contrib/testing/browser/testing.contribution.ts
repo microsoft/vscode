@@ -18,7 +18,8 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IViewContainersRegistry, IViewsRegistry, IViewsService, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { testingResultsIcon, testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorationService, TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
@@ -48,6 +49,7 @@ import { ITestCoverageService, TestCoverageService } from 'vs/workbench/contrib/
 import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
 import { ExplorerExtensions, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
+// import { CodeCoverageDecorations } from 'vs/workbench/contrib/testing/browser/codeCoverageDecorations';
 
 registerSingleton(ITestService, TestService, InstantiationType.Delayed);
 registerSingleton(ITestResultStorage, TestResultStorage, InstantiationType.Delayed);
@@ -143,6 +145,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 registerEditorContribution(Testing.OutputPeekContributionId, TestingOutputPeekController, EditorContributionInstantiation.AfterFirstRender);
 registerEditorContribution(Testing.DecorationsContributionId, TestingDecorations, EditorContributionInstantiation.AfterFirstRender);
+// registerEditorContribution(Testing.CoverageDecorationsContributionId, CodeCoverageDecorations, EditorContributionInstantiation.Eventually);
 
 CommandsRegistry.registerCommand({
 	id: '_revealTestInExplorer',

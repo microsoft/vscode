@@ -57,7 +57,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -470,33 +470,6 @@ export class NativeWindow extends BaseWindow {
 				this.dialogService.onWillShowDialog		// or when a dialog asks for input
 			));
 		});
-	}
-
-	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
-		const dialogService = accessor.get(IDialogService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		const message = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
-			localize('closeWindowMessage', "Are you sure you want to close the window?");
-		const primaryButton = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
-			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
-
-		const res = await dialogService.confirm({
-			message,
-			primaryButton,
-			checkbox: {
-				label: localize('doNotAskAgain', "Do not ask me again")
-			}
-		});
-
-		// Update setting if checkbox checked
-		if (res.confirmed && res.checkboxChecked) {
-			await configurationService.updateValue('window.confirmBeforeClose', 'never');
-		}
-
-		return res.confirmed;
 	}
 
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
@@ -1110,6 +1083,10 @@ export class NativeWindow extends BaseWindow {
 
 		if (applyZoomLevel) {
 			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
+		}
+
+		for (const [windowId] of this.mapWindowIdToResetZoomStatusEntry) {
+			this.updateResetWindowZoomStatusEntry(windowId);
 		}
 	}
 

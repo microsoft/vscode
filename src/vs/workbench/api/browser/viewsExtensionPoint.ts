@@ -307,7 +307,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				if (!treeItem.tooltip) {
 					return;
 				}
-				const element = treeViewsService.getRenderedTreeElement(treeItem);
+				const element = treeViewsService.getRenderedTreeElement(('handle' in treeItem) ? treeItem.handle : treeItem);
 				if (!element) {
 					return;
 				}

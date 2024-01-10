@@ -1514,7 +1514,7 @@ class RepositoryVisibilityActionController {
 	}
 }
 
-class SetListViewModeAction extends ViewAction<SCMViewPane>  {
+class SetListViewModeAction extends ViewAction<SCMViewPane> {
 	constructor(
 		id = 'workbench.scm.action.setListViewMode',
 		menu: Partial<IAction2Options['menu']> = {}) {
@@ -1547,7 +1547,7 @@ class SetListViewModeNavigationAction extends SetListViewModeAction {
 	}
 }
 
-class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
+class SetTreeViewModeAction extends ViewAction<SCMViewPane> {
 	constructor(
 		id = 'workbench.scm.action.setTreeViewMode',
 		menu: Partial<IAction2Options['menu']> = {}) {
@@ -1636,7 +1636,7 @@ registerAction2(RepositorySortByDiscoveryTimeAction);
 registerAction2(RepositorySortByNameAction);
 registerAction2(RepositorySortByPathAction);
 
-abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
+abstract class SetSortKeyAction extends ViewAction<SCMViewPane> {
 	constructor(private sortKey: ViewSortKey, title: string) {
 		super({
 			id: `workbench.scm.action.setSortKey.${sortKey}`,
@@ -1676,7 +1676,7 @@ registerAction2(SetSortByNameAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
 
-class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
+class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane> {
 
 	constructor() {
 		super({
@@ -1698,7 +1698,7 @@ class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 	}
 }
 
-class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
+class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 
 	constructor() {
 		super({

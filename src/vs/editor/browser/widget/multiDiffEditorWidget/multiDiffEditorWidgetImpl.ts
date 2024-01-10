@@ -23,11 +23,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
-	private readonly _elements = h('div', {
-		style: {
-			overflowY: 'hidden',
-		}
-	}, [
+	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
 		h('div@content', {
 			style: {
 				overflow: 'hidden',
@@ -59,7 +55,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _scrollableElement = this._register(new SmoothScrollableElement(this._elements.root, {
 		vertical: ScrollbarVisibility.Auto,
 		horizontal: ScrollbarVisibility.Auto,
-		className: 'monaco-component',
 		useShadows: false,
 	}, this._scrollable));
 
@@ -193,8 +188,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				v.render(itemRange, scroll, width, viewPort);
 			}
 
-			itemHeightSumBefore += itemHeight;
-			itemContentHeightSumBefore += itemContentHeight;
+			const spaceBetween = 10;
+
+			itemHeightSumBefore += itemHeight + spaceBetween;
+			itemContentHeightSumBefore += itemContentHeight + spaceBetween;
 		}
 
 		this._elements.content.style.transform = `translateY(${-(scrollTop + contentScrollOffsetToScrollOffset)}px)`;
@@ -210,7 +207,7 @@ class VirtualizedViewItem extends Disposable {
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
 
 	public readonly contentHeight = derived(this, reader =>
-		this._templateRef.read(reader)?.object.height?.read(reader) ?? this._lastTemplateData.read(reader).contentHeight
+		this._templateRef.read(reader)?.object.contentHeight?.read(reader) ?? this._lastTemplateData.read(reader).contentHeight
 	);
 
 	public readonly maxScroll = derived(this, reader => this._templateRef.read(reader)?.object.maxScroll.read(reader) ?? this._lastTemplateData.read(reader).maxScroll);
@@ -239,25 +236,31 @@ class VirtualizedViewItem extends Disposable {
 			const isFocused = ref.object.isFocused.read(reader);
 			if (isFocused) { return; }
 
-			transaction(tx => {
-				this._lastTemplateData.set({
-					contentHeight: ref.object.height.get(),
-					maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
-				}, tx);
-				ref.object.hide();
-
-				this._templateRef.set(undefined, tx);
-			});
+			this._clear();
 		}));
 	}
 
 	override dispose(): void {
-		this.hide();
+		this._clear();
 		super.dispose();
 	}
 
 	public override toString(): string {
-		return `VirtualViewItem(${this.viewModel.entry.value!.title})`;
+		return `VirtualViewItem(${this.viewModel.entry.value!.modified?.uri.toString()})`;
+	}
+
+	private _clear(): void {
+		const ref = this._templateRef.get();
+		if (!ref) { return; }
+		transaction(tx => {
+			this._lastTemplateData.set({
+				contentHeight: ref.object.contentHeight.get(),
+				maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
+			}, tx);
+			ref.object.hide();
+
+			this._templateRef.set(undefined, tx);
+		});
 	}
 
 	public hide(): void {
