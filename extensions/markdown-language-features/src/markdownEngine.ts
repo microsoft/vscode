@@ -118,6 +118,12 @@ export class MarkdownItEngine implements IMdParser {
 		});
 	}
 
+
+	public async getEngine(resource: vscode.Uri | undefined): Promise<MarkdownIt> {
+		const config = this._getConfig(resource);
+		return this._getEngine(config);
+	}
+
 	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this._md) {
 			this._md = (async () => {
