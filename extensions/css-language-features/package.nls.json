@@ -28,7 +28,7 @@
 	"css.trace.server.desc": "Traces the communication between VS Code and the CSS language server.",
 	"css.validate.title": "Controls CSS validation and problem severities.",
 	"css.validate.desc": "Enables or disables all validations.",
-	"css.hover.documentation": "Show tag and attribute documentation in CSS hovers.",
+	"css.hover.documentation": "Show property and value documentation in CSS hovers.",
 	"css.hover.references": "Show references to MDN in CSS hovers.",
 	"css.format.enable.desc": "Enable/disable default CSS formatter.",
 	"css.format.newlineBetweenSelectors.desc": "Separate selectors with a new line.",
