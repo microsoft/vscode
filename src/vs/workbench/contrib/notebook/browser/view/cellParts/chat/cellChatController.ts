@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, WindowIntervalTimer, h } from 'vs/base/browser/dom';
+import { Dimension, WindowIntervalTimer } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -38,6 +38,7 @@ import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbe
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
+export const MENU_CELL_CHAT_INPUT = MenuId.for('cellChatInput');
 export const MENU_CELL_CHAT_WIDGET = MenuId.for('cellChatWidget');
 export const MENU_CELL_CHAT_WIDGET_STATUS = MenuId.for('cellChatWidget.status');
 export const MENU_CELL_CHAT_WIDGET_FEEDBACK = MenuId.for('cellChatWidget.feedback');
@@ -62,7 +63,6 @@ export class NotebookCellChatController extends Disposable {
 
 	private _inlineChatListener: IDisposable | undefined;
 	private _widget: InlineChatWidget | undefined;
-	private readonly _toolbarDOM = h('div.toolbar@editorToolbar');
 	private _toolbar: MenuWorkbenchToolBar | undefined;
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
@@ -110,7 +110,8 @@ export class NotebookCellChatController extends Disposable {
 
 	private _initialize(editor: IActiveCodeEditor) {
 		this._widget = this._instantiationService.createInstance(InlineChatWidget, editor, {
-			menuId: MENU_CELL_CHAT_WIDGET,
+			menuId: MENU_CELL_CHAT_INPUT,
+			widgetMenuId: MENU_CELL_CHAT_WIDGET,
 			statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 			feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
 		});
@@ -135,12 +136,6 @@ export class NotebookCellChatController extends Disposable {
 
 
 		this._partContainer.appendChild(this._widget.domNode);
-		this._partContainer.appendChild(this._toolbarDOM.editorToolbar);
-
-		this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarDOM.editorToolbar, MENU_CELL_CHAT_WIDGET_TOOLBAR, {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
-		}));
 	}
 
 	public override dispose(): void {
@@ -154,7 +149,6 @@ export class NotebookCellChatController extends Disposable {
 		try {
 			if (this._widget) {
 				this._partContainer.removeChild(this._widget.domNode);
-				this._partContainer.removeChild(this._toolbarDOM.editorToolbar);
 			}
 
 		} catch (_ex) {
@@ -173,9 +167,9 @@ export class NotebookCellChatController extends Disposable {
 
 	layout() {
 		if (this._isVisible && this._widget) {
-			const innerEditorWidth = this._cell.layoutInfo.editorWidth;
+			const width = this._notebookEditor.getLayoutInfo().width - (/** margin */ 16 + 6) - (/** padding */ 6 * 2);
 			const height = this._widget.getHeight();
-			this._widget.layout(new Dimension(innerEditorWidth, height));
+			this._widget.layout(new Dimension(width, height));
 		}
 	}
 
