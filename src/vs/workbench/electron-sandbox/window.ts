@@ -1111,6 +1111,10 @@ export class NativeWindow extends BaseWindow {
 		if (applyZoomLevel) {
 			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
 		}
+
+		for (const [windowId] of this.mapWindowIdToResetZoomStatusEntry) {
+			this.updateResetWindowZoomStatusEntry(windowId);
+		}
 	}
 
 	//#endregion
