@@ -15,7 +15,7 @@ export class GlyphMarginLanesModel implements IGlyphMarginLanesModel {
 	private _requiredLanes = 1; // always render at least one lane
 
 	constructor(maxLine: number) {
-		this.lanes = new Uint8Array(Math.ceil((maxLine * MAX_LANE) / 8));
+		this.lanes = new Uint8Array(Math.ceil(((maxLine + 1) * MAX_LANE) / 8));
 	}
 
 	public get requiredLanes() {
