@@ -485,6 +485,7 @@ suite('Async', () => {
 		});
 	});
 
+
 	suite('Queue', () => {
 		test('simple', function () {
 			const queue = new async.Queue();
@@ -507,6 +508,147 @@ suite('Async', () => {
 				assert.ok(syncPromise);
 				assert.ok(asyncPromise);
 			});
+		});
+
+		// skipped because of https://github.com/microsoft/vscode/issues/202136
+		test.skip('stop processing on dispose', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.dispose(); // DISPOSE HERE
+			};
+
+			const p1 = queue.queue(task);
+			queue.queue(task);
+			queue.queue(task);
+			assert.strictEqual(queue.size, 3);
+
+
+			await p1;
+
+			assert.strictEqual(workCounter, 1);
+		});
+
+		test('stop on clear', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.clear(); // CLEAR HERE
+				assert.strictEqual(queue.size, 1); // THIS task is still running
+			};
+
+			const p1 = queue.queue(task);
+			queue.queue(task);
+			queue.queue(task);
+			assert.strictEqual(queue.size, 3);
+
+			await p1;
+			assert.strictEqual(workCounter, 1);
+			assert.strictEqual(queue.size, 0); // has been cleared
+
+
+			const p2 = queue.queue(task);
+			await p2;
+			assert.strictEqual(workCounter, 2);
+		});
+
+		test('clear and drain (1)', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.clear(); // CLEAR HERE
+			};
+
+			const p0 = Event.toPromise(queue.onDrained);
+			const p1 = queue.queue(task);
+
+			await p1;
+			await p0; // expect drain to fire because a task was running
+			assert.strictEqual(workCounter, 1);
+			queue.dispose();
+		});
+
+		test('clear and drain (2)', async function () {
+			const queue = new async.Queue();
+
+			let didFire = false;
+			const d = queue.onDrained(() => {
+				didFire = true;
+			});
+
+			queue.clear();
+
+			assert.strictEqual(didFire, false); // no work, no drain!
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('drain timing', async function () {
+			const queue = new async.Queue();
+
+			const logicClock = new class {
+				private time = 0;
+				tick() {
+					return this.time++;
+				}
+			};
+
+			let didDrainTime = 0;
+			let didFinishTime1 = 0;
+			let didFinishTime2 = 0;
+			const d = queue.onDrained(() => {
+				didDrainTime = logicClock.tick();
+			});
+
+			const p1 = queue.queue(() => {
+				// await async.timeout(10);
+				didFinishTime1 = logicClock.tick();
+				return Promise.resolve();
+			});
+
+			const p2 = queue.queue(async () => {
+				await async.timeout(10);
+				didFinishTime2 = logicClock.tick();
+			});
+
+
+			await Promise.all([p1, p2]);
+
+			assert.strictEqual(didFinishTime1, 0);
+			assert.strictEqual(didFinishTime2, 1);
+			assert.strictEqual(didDrainTime, 2);
+
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('drain event is send only once', async function () {
+			const queue = new async.Queue();
+
+			let drainCount = 0;
+			const d = queue.onDrained(() => { drainCount++; });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			assert.strictEqual(drainCount, 0);
+			assert.strictEqual(queue.size, 4);
+
+			await queue.whenIdle();
+
+			assert.strictEqual(drainCount, 1);
+
+			d.dispose();
+			queue.dispose();
 		});
 
 		test('order is kept', function () {

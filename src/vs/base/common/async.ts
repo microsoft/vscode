@@ -626,6 +626,8 @@ export interface ILimiter<T> {
 	readonly size: number;
 
 	queue(factory: ITask<Promise<T>>): Promise<T>;
+
+	clear(): void;
 }
 
 /**
@@ -635,6 +637,7 @@ export interface ILimiter<T> {
 export class Limiter<T> implements ILimiter<T> {
 
 	private _size = 0;
+	private _isDisposed = false;
 	private runningPromises: number;
 	private readonly maxDegreeOfParalellism: number;
 	private readonly outstandingPromises: ILimitedTaskFactory<T>[];
@@ -648,13 +651,16 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	/**
-	 * An event that fires when every promise in the queue
-	 * has started to execute. In other words: no work is
-	 * pending to be scheduled.
 	 *
-	 * This is NOT an event that signals when all promises
-	 * have finished though.
+	 * @returns A promise that resolved when all work is done (onDrained) or when
+	 * there is nothing to do
 	 */
+	whenIdle(): Promise<void> {
+		return this.size > 0
+			? Event.toPromise(this.onDrained)
+			: Promise.resolve();
+	}
+
 	get onDrained(): Event<void> {
 		return this._onDrained.event;
 	}
@@ -664,6 +670,9 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	queue(factory: ITask<Promise<T>>): Promise<T> {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
 		this._size++;
 
 		return new Promise<T>((c, e) => {
@@ -684,17 +693,32 @@ export class Limiter<T> implements ILimiter<T> {
 	}
 
 	private consumed(): void {
-		this._size--;
+		if (this._isDisposed) {
+			return;
+		}
 		this.runningPromises--;
+		if (--this._size === 0) {
+			this._onDrained.fire();
+		}
 
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
-		} else {
-			this._onDrained.fire();
 		}
 	}
 
+	clear(): void {
+		if (this._isDisposed) {
+			throw new Error('Object has been disposed');
+		}
+		this.outstandingPromises.length = 0;
+		this._size = this.runningPromises;
+	}
+
 	dispose(): void {
+		// SEE https://github.com/microsoft/vscode/issues/202136
+		// this._isDisposed = true;
+		// this.outstandingPromises.length = 0; // stop further processing
+		// this._size = 0;
 		this._onDrained.dispose();
 	}
 }

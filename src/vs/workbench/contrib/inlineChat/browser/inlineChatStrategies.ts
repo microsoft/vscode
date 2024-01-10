@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { AsyncIterableObject, AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -80,9 +80,9 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.fire();
 	}
 
-	abstract makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
 
-	abstract makeChanges(targetWindow: Window, edits: ISingleEditOperation[]): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
@@ -154,7 +154,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_targetWindow: Window, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -246,7 +246,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await undoModelUntil(modelN, targetAltVersion);
 	}
 
-	override async makeChanges(_targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -268,7 +268,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -287,7 +287,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(targetWindow, edit, speed, opts.token));
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token));
 		}
 
 		await renderTask;
@@ -446,7 +446,7 @@ export function asAsyncEdit(edit: IIdentifiedSingleEditOperation): AsyncTextEdit
 	} satisfies AsyncTextEdit;
 }
 
-export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
+export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
 	wordsPerSec = Math.max(10, wordsPerSec);
 
@@ -454,13 +454,13 @@ export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleE
 	let newText = edit.text ?? '';
 	// const wordCount = countWords(newText);
 
-	const handle = disposableWindowInterval(targetWindow, () => {
 
+	interval.cancelAndSet(() => {
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
-			handle.dispose();
+			interval.cancel();
 			stream.resolve();
 			d.dispose();
 		}
@@ -469,7 +469,7 @@ export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleE
 
 	// cancel ASAP
 	const d = token.onCancellationRequested(() => {
-		handle.dispose();
+		interval.cancel();
 		stream.resolve();
 		d.dispose();
 	});
@@ -589,15 +589,15 @@ export class LiveStrategy extends EditModeStrategy {
 		await undoModelUntil(textModelN, altVersionId);
 	}
 
-	override async makeChanges(targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
-		return this._makeChanges(targetWindow, edits, undefined);
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
+		return this._makeChanges(edits, undefined);
 	}
 
-	override async makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(targetWindow, edits, opts);
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+		return this._makeChanges(edits, opts);
 	}
 
-	private async _makeChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
+	private async _makeChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -630,7 +630,7 @@ export class LiveStrategy extends EditModeStrategy {
 				const wordCount = countWords(edit.text ?? '');
 				const speed = wordCount / durationInSec;
 				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(targetWindow, edit, speed, opts.token), progress);
+				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress);
 			}
 
 		} else {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow } from 'vs/base/browser/dom';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, Queue, raceCancellation, raceCancellationError } from 'vs/base/common/async';
@@ -632,10 +631,9 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
-			if (progressiveEditsQueue.size > 0) {
-				// we must wait for all edits that came in via progress to complete
-				await Event.toPromise(progressiveEditsQueue.onDrained);
-			}
+			// we must wait for all edits that came in via progress to complete
+			await progressiveEditsQueue.whenIdle();
+
 			if (progressiveChatResponse) {
 				progressiveChatResponse.cancel();
 			}
@@ -659,6 +657,7 @@ export class InlineChatController implements IEditorContribution {
 			}
 
 		} catch (e) {
+			progressiveEditsQueue.clear();
 			response = new ErrorResponse(e);
 			a11yResponse = (<ErrorResponse>response).message;
 
@@ -910,9 +909,9 @@ export class InlineChatController implements IEditorContribution {
 			this._ignoreModelContentChanged = true;
 			this._activeSession.wholeRange.trackEdits(editOperations);
 			if (opts) {
-				await this._strategy.makeProgressiveChanges(getWindow(this._editor.getContainerDomNode()), editOperations, opts);
+				await this._strategy.makeProgressiveChanges(editOperations, opts);
 			} else {
-				await this._strategy.makeChanges(getWindow(this._editor.getContainerDomNode()), editOperations);
+				await this._strategy.makeChanges(editOperations);
 			}
 			this._ctxDidEdit.set(this._activeSession.hasChangedText);
 		} finally {
