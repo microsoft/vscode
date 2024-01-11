@@ -66,8 +66,6 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.dispose();
 	}
 
-	abstract start(): Promise<void>;
-
 	abstract apply(): Promise<void>;
 
 	abstract cancel(): Promise<void>;
@@ -122,10 +120,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		this._listener.dispose();
 		this._ctxDocumentChanged.reset();
 		super.dispose();
-	}
-
-	async start() {
-		// nothing to do
 	}
 
 	async apply() {
@@ -219,9 +213,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		this._previewZone.rawValue?.hide();
 		this._previewZone.rawValue?.dispose();
 		super.dispose();
-	}
-	async start() {
-		// nothing to do
 	}
 
 	async apply() {
@@ -543,10 +534,6 @@ export class LiveStrategy extends EditModeStrategy {
 		this._renderStore.clear();
 		this._zone.widget.updateStatus('');
 		this._progressiveEditingDecorations.clear();
-	}
-
-	async start() {
-		this._resetDiff();
 	}
 
 	async apply() {
