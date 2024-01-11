@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { isNumber } from 'vs/base/common/types';
@@ -62,7 +62,7 @@ export class StopTerminalSpeechToTextAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		TerminalVoiceSession.getInstance(instantiationService).stop();
+		TerminalVoiceSession.getInstance(instantiationService).stop(true);
 	}
 }
 
@@ -71,6 +71,7 @@ export class TerminalVoiceSession extends Disposable {
 	private _decoration: IDecoration | undefined;
 	private _marker: IXtermMarker | undefined;
 	private static _instance: TerminalVoiceSession | undefined = undefined;
+	private _acceptTranscriptionScheduler: RunOnceScheduler | undefined;
 	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
 		if (!TerminalVoiceSession._instance) {
 			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
@@ -97,7 +98,7 @@ export class TerminalVoiceSession extends Disposable {
 		if (!isNumber(voiceTimeout) || voiceTimeout < 0) {
 			voiceTimeout = SpeechTimeoutDefault;
 		}
-		const acceptTranscriptionScheduler = this._disposables.add(new RunOnceScheduler(() => {
+		this._acceptTranscriptionScheduler = this._disposables.add(new RunOnceScheduler(() => {
 			this._terminalService.activeInstance?.sendText(this._input, false);
 			this.stop();
 		}, voiceTimeout));
@@ -110,60 +111,78 @@ export class TerminalVoiceSession extends Disposable {
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
+					// TODO: play start audio cue
 					if (!this._decoration) {
-						// TODO: start audio cue, show in terminal by the cursor
 						this._createDecoration();
 					}
 					break;
 				case SpeechToTextStatus.Recognizing: {
-
+					this._updateInput(e);
 					if (voiceTimeout > 0) {
-						acceptTranscriptionScheduler.cancel();
+						this._acceptTranscriptionScheduler!.cancel();
 					}
 					break;
 				}
 				case SpeechToTextStatus.Recognized:
-					if (e.text) {
-						const str = [this._input, e.text].join(' ').replaceAll(/[.,?;!]/g, '');
-						const symbolMap: { [key: string]: string } = {
-							'ampersand': '&',
-							'dollar': '$',
-							'at': '@',
-							'percent': '%',
-							'asterisk': '*',
-							'plus': '+',
-							'equals': '=',
-							'exclamation': '!',
-							'slash': '/',
-							'backslash': '\\',
-							'dot': '.',
-							'period': '.',
-						};
-
-						for (const symbol in symbolMap) {
-							const regex: RegExp = new RegExp(symbol);
-							this._input = str.replace(regex, symbolMap[symbol]);
-						}
-					}
+					this._updateInput(e);
 					if (voiceTimeout > 0) {
-						acceptTranscriptionScheduler.schedule();
+						this._acceptTranscriptionScheduler!.schedule();
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: stop audio cue, hide in terminal by the cursor
+					// TODO: play stop audio cue
 					this.stop();
 					break;
 			}
-			console.log(e.status);
 		}));
 	}
-	stop(): void {
+	stop(send?: boolean): void {
+		if (send) {
+			this._acceptTranscriptionScheduler!.cancel();
+			this._terminalService.activeInstance?.sendText(this._input, false);
+		}
 		this._marker?.dispose();
 		this._decoration?.dispose();
 		this._decoration = undefined;
 		this._cancellationTokenSource?.cancel();
 		this._disposables.clear();
 		this._input = '';
+	}
+
+	private _updateInput(e: ISpeechToTextEvent): void {
+		if (e.text) {
+			let input = e.text.replaceAll(/[.,?;!]/g, '');
+			const symbolMap: { [key: string]: string } = {
+				'Ampersand': '&',
+				'ampersand': '&',
+				'Dollar': '$',
+				'dollar': '$',
+				'Percent': '%',
+				'percent': '%',
+				'Asterisk': '*',
+				'asterisk': '*',
+				'Plus': '+',
+				'plus': '+',
+				'Equals': '=',
+				'equals': '=',
+				'Exclamation': '!',
+				'exclamation': '!',
+				'Slash': '/',
+				'slash': '/',
+				'Backslash': '\\',
+				'backslash': '\\',
+				'Dot': '.',
+				'dot': '.',
+				'Period': '.',
+				'period': '.'
+			};
+
+			for (const symbol in symbolMap) {
+				const regex: RegExp = new RegExp(symbol);
+				input = input.replace(regex, symbolMap[symbol]);
+			}
+			this._input = ' ' + input;
+		}
 	}
 
 	private _createDecoration(): void {
