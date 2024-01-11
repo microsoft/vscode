@@ -2667,6 +2667,7 @@ export class SCMViewPane extends ViewPane {
 					if (!e ||
 						e.affectsConfiguration('scm.showActionButton') ||
 						e.affectsConfiguration('scm.alwaysShowRepositories') ||
+						e.affectsConfiguration('scm.showChangesSummary') ||
 						e.affectsConfiguration('scm.showIncomingChanges') ||
 						e.affectsConfiguration('scm.showOutgoingChanges') ||
 						e.affectsConfiguration('scm.inputMinLineCount') ||
@@ -2728,7 +2729,13 @@ export class SCMViewPane extends ViewPane {
 		historyItemActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(historyItemActionRunner);
 
-		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showIncomingChanges, () => this.showOutgoingChanges);
+		const treeDataSource = this.instantiationService.createInstance(
+			SCMTreeDataSource,
+			() => this.viewMode,
+			() => this.alwaysShowRepositories,
+			() => this.showActionButton,
+			() => this.showIncomingChanges,
+			() => this.showOutgoingChanges);
 		this.disposables.add(treeDataSource);
 
 		this.tree = this.instantiationService.createInstance(
@@ -3191,6 +3198,7 @@ export class SCMViewPane extends ViewPane {
 
 class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement> {
 
+	private showChangesSummary: boolean = true;
 	private readonly historyProviderCache = new Map<ISCMRepository, ISCMHistoryProviderCacheEntry>();
 	private readonly repositoryDisposables = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly disposables = new DisposableStore();
@@ -3201,9 +3209,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		private readonly showActionButton: () => boolean,
 		private readonly showIncomingChanges: () => ShowChangesSetting,
 		private readonly showOutgoingChanges: () => ShowChangesSetting,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
+		this.configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
+
 		this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
 		this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
 	}
@@ -3386,6 +3398,15 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		if (!historyItems) {
 			historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
+
+			// All Changes node
+			if (this.showChangesSummary && historyItems.length >= 2) {
+				const allChanges = await historyProvider.provideHistoryItemSummary(element.id, element.ancestor);
+				if (allChanges) {
+					historyItems.splice(0, 0, { ...allChanges, icon: allChanges.icon ?? Codicon.files, label: localize('allChanges', "All Changes") });
+				}
+			}
+
 			this.historyProviderCache.set(repository, {
 				...historyProviderCacheEntry,
 				historyItems: historyItemsMap.set(element.id, historyItems)
@@ -3478,6 +3499,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return result;
 		} else {
 			throw new Error('Unexpected call to getParent');
+		}
+	}
+
+	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+		if (!e || e.affectsConfiguration('scm.showChangesSummary')) {
+			this.showChangesSummary = this.configurationService.getValue('scm.showChangesSummary');
+			this.historyProviderCache.clear();
 		}
 	}
 
