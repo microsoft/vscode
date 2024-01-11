@@ -296,6 +296,7 @@
 		"--vscode-editorWarning-background",
 		"--vscode-editorWarning-border",
 		"--vscode-editorWarning-foreground",
+		"--vscode-editorWatermark-foreground",
 		"--vscode-editorWhitespace-foreground",
 		"--vscode-editorWidget-background",
 		"--vscode-editorWidget-border",
