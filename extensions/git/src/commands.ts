@@ -2413,8 +2413,13 @@ export class CommandCenter {
 		quickpick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
-			quickpick.onDidAccept(() => c(quickpick.activeItems[0]));
+			const hideListener = quickpick.onDidHide(() => c(undefined));
+			quickpick.onDidAccept(() => {
+				hideListener.dispose();
+				c(quickpick.activeItems[0]);
+			});
 			quickpick.onDidTriggerItemButton((e) => {
+				hideListener.dispose();
 				quickpick.hide();
 				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
 				const item = e.item as CheckoutItem;
