@@ -17,7 +17,8 @@ import { TelemetryConfiguration, TelemetryLevel } from 'vs/platform/telemetry/co
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
-const sinonTestFn = sinonTest(sinon);
+// TODO: this cast is a hack to work around typings issues with the packages
+const sinonTestFn = sinonTest(sinon as any);
 
 class TestTelemetryAppender implements ITelemetryAppender {
 
