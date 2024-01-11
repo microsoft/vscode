@@ -71,7 +71,7 @@ import { StandaloneQuickInputService } from 'vs/editor/standalone/browser/quickI
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
-import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/platform/actions/common/menuService';
 import { BrowserClipboardService } from 'vs/platform/clipboard/browser/clipboardService';
@@ -1059,7 +1059,11 @@ class StandaloneAudioService implements IAudioCueService {
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
 	}
 
-	isEnabled(cue: AudioCue): boolean {
+	isCueEnabled(cue: AudioCue): boolean {
+		return false;
+	}
+
+	isAlertEnabled(cue: AudioCue): boolean {
 		return false;
 	}
 
@@ -1071,14 +1075,6 @@ class StandaloneAudioService implements IAudioCueService {
 	}
 	playAudioCueLoop(cue: AudioCue): IDisposable {
 		return toDisposable(() => { });
-	}
-}
-
-class StandaloneAccessibleNotificationService implements IAccessibleNotificationService {
-	_serviceBrand: undefined;
-
-	notify(event: AccessibleNotificationEvent, userGesture?: boolean | undefined): void {
-		// NOOP
 	}
 }
 
@@ -1120,7 +1116,6 @@ registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.
 registerSingleton(IContextMenuService, StandaloneContextMenuService, InstantiationType.Eager);
 registerSingleton(IMenuService, MenuService, InstantiationType.Eager);
 registerSingleton(IAudioCueService, StandaloneAudioService, InstantiationType.Eager);
-registerSingleton(IAccessibleNotificationService, StandaloneAccessibleNotificationService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

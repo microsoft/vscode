@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableWindowInterval } from 'vs/base/browser/dom';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
+import { themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -34,7 +31,6 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
@@ -76,9 +72,17 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+	async acceptHunk(): Promise<void> {
+		this._onDidAccept.fire();
+	}
 
-	abstract makeChanges(targetWindow: Window, edits: ISingleEditOperation[]): Promise<void>;
+	async discardHunk(): Promise<void> {
+		this._onDidDiscard.fire();
+	}
+
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
@@ -150,7 +154,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_targetWindow: Window, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -199,8 +203,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		session: Session,
 		private readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
-		@IStorageService storageService: IStorageService,
-		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
@@ -243,7 +245,8 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
 		await undoModelUntil(modelN, targetAltVersion);
 	}
-	override async makeChanges(_targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
+
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -265,7 +268,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -284,7 +287,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(targetWindow, edit, speed, opts.token));
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token));
 		}
 
 		await renderTask;
@@ -436,28 +439,19 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 	}
 }
 
-export function asAsyncEdit(edit: IIdentifiedSingleEditOperation): AsyncTextEdit {
-	return {
-		range: edit.range,
-		newText: AsyncIterableObject.fromArray([edit.text ?? ''])
-	} satisfies AsyncTextEdit;
-}
-
-export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
+export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
 	wordsPerSec = Math.max(10, wordsPerSec);
 
 	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';
-	// const wordCount = countWords(newText);
 
-	const handle = disposableWindowInterval(targetWindow, () => {
-
+	interval.cancelAndSet(() => {
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
-			handle.dispose();
+			interval.cancel();
 			stream.resolve();
 			d.dispose();
 		}
@@ -466,7 +460,7 @@ export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleE
 
 	// cancel ASAP
 	const d = token.onCancellationRequested(() => {
-		handle.dispose();
+		interval.cancel();
 		stream.resolve();
 		d.dispose();
 	});
@@ -515,6 +509,9 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
 
 	private _editCount: number = 0;
+
+	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
+	override discardHunk: () => Promise<void> = () => super.discardHunk();
 
 	constructor(
 		session: Session,
@@ -583,15 +580,15 @@ export class LiveStrategy extends EditModeStrategy {
 		await undoModelUntil(textModelN, altVersionId);
 	}
 
-	override async makeChanges(targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
-		return this._makeChanges(targetWindow, edits, undefined);
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
+		return this._makeChanges(edits, undefined);
 	}
 
-	override async makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(targetWindow, edits, opts);
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+		return this._makeChanges(edits, opts);
 	}
 
-	private async _makeChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
+	private async _makeChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -624,7 +621,7 @@ export class LiveStrategy extends EditModeStrategy {
 				const wordCount = countWords(edit.text ?? '');
 				const speed = wordCount / durationInSec;
 				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(targetWindow, edit, speed, opts.token), progress);
+				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress);
 			}
 
 		} else {
@@ -668,7 +665,8 @@ export class LiveStrategy extends EditModeStrategy {
 
 			distance: number;
 			position: Position;
-			actions: IAction[];
+			acceptHunk: () => void;
+			discardHunk: () => void;
 			toggleDiff?: () => any;
 		};
 
@@ -695,36 +693,25 @@ export class LiveStrategy extends EditModeStrategy {
 							decorationIds.push(decorationsAccessor.addDecoration(change.modifiedRange, this._decoInsertedTextRange));
 						}
 
-						const actions = [
-							toAction({
-								id: 'accept',
-								label: localize('accept', "Accept"),
-								class: ThemeIcon.asClassName(Codicon.check),
-								run: () => {
-									// ACCEPT: stop rendering this as inserted
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
-									renderHunks();
-								}
-							}),
-							toAction({
-								id: 'discard',
-								label: localize('discard', "Discard"),
-								class: ThemeIcon.asClassName(Codicon.discard),
-								run: () => {
-									const edits: ISingleEditOperation[] = [];
-									for (let i = 1; i < decorationIds.length; i++) {
-										// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
-										// which was created above so that typing in the editor keeps discard working.
-										const modifiedRange = this._session.textModelN.getDecorationRange(decorationIds[i])!;
-										const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
-										edits.push(EditOperation.replace(modifiedRange, originalValue));
-									}
-									this._session.textModelN.pushEditOperations(null, edits, () => null);
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
-									renderHunks();
-								}
-							}),
-						];
+						const acceptHunk = () => {
+							// ACCEPT: stop rendering this as inserted
+							hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
+							renderHunks();
+						};
+
+						const discardHunk = () => {
+							const edits: ISingleEditOperation[] = [];
+							for (let i = 1; i < decorationIds.length; i++) {
+								// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
+								// which was created above so that typing in the editor keeps discard working.
+								const modifiedRange = this._session.textModelN.getDecorationRange(decorationIds[i])!;
+								const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
+								edits.push(EditOperation.replace(modifiedRange, originalValue));
+							}
+							this._session.textModelN.pushEditOperations(null, edits, () => null);
+							hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
+							renderHunks();
+						};
 
 						// original view zone
 						const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
@@ -776,8 +763,9 @@ export class LiveStrategy extends EditModeStrategy {
 							viewZone: viewZoneData,
 							distance: myDistance,
 							position: modifiedRange.getStartPosition().delta(-1),
+							acceptHunk,
+							discardHunk,
 							toggleDiff: !hunk.original.isEmpty ? toggleDiff : undefined,
-							actions
 						};
 
 						hunkDisplayData.set(hunk, data);
@@ -813,7 +801,6 @@ export class LiveStrategy extends EditModeStrategy {
 			});
 
 			if (widgetData) {
-				this._zone.widget.setExtraButtons(widgetData.actions);
 				this._zone.updatePositionAndHeight(widgetData.position);
 				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
@@ -822,6 +809,8 @@ export class LiveStrategy extends EditModeStrategy {
 
 				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
 				this.toggleDiff = widgetData.toggleDiff;
+				this.acceptHunk = async () => widgetData!.acceptHunk();
+				this.discardHunk = async () => widgetData!.discardHunk();
 
 			} else if (hunkDisplayData.size > 0) {
 				// everything accepted or rejected
@@ -843,7 +832,6 @@ export class LiveStrategy extends EditModeStrategy {
 		renderHunks();
 
 		this._renderStore.add(toDisposable(() => {
-			this._zone.widget.setExtraButtons([]);
 
 			changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
 				for (const data of hunkDisplayData.values()) {

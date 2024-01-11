@@ -452,8 +452,7 @@ export function observableValue<T, TChange = void>(nameOrOwner: string | object,
 
 export class ObservableValue<T, TChange = void>
 	extends BaseObservable<T, TChange>
-	implements ISettableObservable<T, TChange>
-{
+	implements ISettableObservable<T, TChange> {
 	protected _value: T;
 
 	get debugName() {

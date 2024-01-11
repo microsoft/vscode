@@ -58,6 +58,7 @@ export interface TunnelProviderFeatures {
 	 */
 	public?: boolean;
 	privacyOptions: TunnelPrivacy[];
+	protocol: boolean;
 }
 
 export interface ITunnelProvider {
@@ -126,6 +127,7 @@ export interface ITunnelService {
 	readonly onTunnelOpened: Event<RemoteTunnel>;
 	readonly onTunnelClosed: Event<{ host: string; port: number }>;
 	readonly canElevate: boolean;
+	readonly canChangeProtocol: boolean;
 	readonly hasTunnelProvider: boolean;
 	readonly onAddedTunnelProvider: Event<void>;
 
@@ -208,6 +210,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	protected readonly _tunnels = new Map</*host*/ string, Map</* port */ number, { refcount: number; readonly value: Promise<RemoteTunnel | string | undefined> }>>();
 	protected _tunnelProvider: ITunnelProvider | undefined;
 	protected _canElevate: boolean = false;
+	private _canChangeProtocol: boolean = true;
 	private _privacyOptions: TunnelPrivacy[] = [];
 	private _factoryInProgress: Set<number/*port*/> = new Set();
 
@@ -250,6 +253,11 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	setTunnelFeatures(features: TunnelProviderFeatures): void {
 		this._canElevate = features.elevation;
 		this._privacyOptions = features.privacyOptions;
+		this._canChangeProtocol = features.protocol;
+	}
+
+	public get canChangeProtocol(): boolean {
+		return this._canChangeProtocol;
 	}
 
 	public get canElevate(): boolean {

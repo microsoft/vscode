@@ -45,6 +45,7 @@ export interface IInlineChatRequest {
 	attempt: number;
 	requestId: string;
 	live: boolean;
+	withIntentDetection: boolean;
 }
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse;

@@ -2204,9 +2204,11 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 
 export class ModelDecorationGlyphMarginOptions {
 	readonly position: model.GlyphMarginLane;
+	readonly persistLane: boolean | undefined;
 
 	constructor(options: model.IModelDecorationGlyphMarginOptions | null | undefined) {
-		this.position = options?.position ?? model.GlyphMarginLane.Left;
+		this.position = options?.position ?? model.GlyphMarginLane.Center;
+		this.persistLane = options?.persistLane;
 	}
 }
 

@@ -57,7 +57,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -391,7 +391,7 @@ export class NativeWindow extends BaseWindow {
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
@@ -470,33 +470,6 @@ export class NativeWindow extends BaseWindow {
 				this.dialogService.onWillShowDialog		// or when a dialog asks for input
 			));
 		});
-	}
-
-	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
-		const dialogService = accessor.get(IDialogService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		const message = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
-			localize('closeWindowMessage', "Are you sure you want to close the window?");
-		const primaryButton = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
-			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
-
-		const res = await dialogService.confirm({
-			message,
-			primaryButton,
-			checkbox: {
-				label: localize('doNotAskAgain', "Do not ask me again")
-			}
-		});
-
-		// Update setting if checkbox checked
-		if (res.confirmed && res.checkboxChecked) {
-			await configurationService.updateValue('window.confirmBeforeClose', 'never');
-		}
-
-		return res.confirmed;
 	}
 
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
@@ -1093,7 +1066,16 @@ export class NativeWindow extends BaseWindow {
 		const targetWindow = getWindowById(targetWindowId);
 		const entry = this.mapWindowIdToResetZoomStatusEntry.get(targetWindowId);
 		if (entry && targetWindow) {
-			entry.updateResetZoomEntry(getZoomLevel(targetWindow.window) !== this.configuredWindowZoomLevel);
+			const currentZoomLevel = getZoomLevel(targetWindow.window);
+
+			let text: string | undefined = undefined;
+			if (currentZoomLevel < this.configuredWindowZoomLevel) {
+				text = localize('resetZoomOut', "$(zoom-out)");
+			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
+				text = localize('resetZoomIn', "$(zoom-in)");
+			}
+
+			entry.updateResetZoomEntry(text ?? false);
 		}
 	}
 
@@ -1110,6 +1092,10 @@ export class NativeWindow extends BaseWindow {
 
 		if (applyZoomLevel) {
 			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
+		}
+
+		for (const [windowId] of this.mapWindowIdToResetZoomStatusEntry) {
+			this.updateResetWindowZoomStatusEntry(windowId);
 		}
 	}
 
@@ -1132,14 +1118,15 @@ class ResetZoomStatusEntry extends Disposable {
 		super();
 	}
 
-	updateResetZoomEntry(visible: boolean): void {
-		if (visible) {
+	updateResetZoomEntry(visibleOrText: false | string): void {
+		if (typeof visibleOrText === 'string') {
 			if (!this.resetZoomStatusEntry.value) {
-				const text = localize('resetZoom', "Reset Zoom");
+				const name = localize('status.resetWindowZoom', "Reset Window Zoom");
 				this.resetZoomStatusEntry.value = this.statusbarService.addEntry({
-					name: localize('status.resetWindowZoom', "Reset Window Zoom"),
-					text,
-					ariaLabel: text,
+					name,
+					text: visibleOrText,
+					tooltip: name,
+					ariaLabel: name,
 					command: 'workbench.action.zoomReset',
 					kind: 'prominent'
 				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
