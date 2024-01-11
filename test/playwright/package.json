@@ -1,0 +1,15 @@
+{
+  "name": "code-oss-dev-playwright-test",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "./src/main.js",
+  "scripts": {
+    "compile": "node ../../node_modules/typescript/bin/tsc",
+    "watch": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "18.x",
+    "dotenv": "^16.3.1"
+  }
+}

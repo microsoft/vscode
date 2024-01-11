@@ -1131,6 +1131,18 @@
 							"@playwright/*",
 							"*" // node modules
 						]
+					},
+					{
+						"target": "test/playwright/**",
+						"restrictions": [
+							"**",
+							"test/automation",
+							"test/smoke/**",
+							"@vscode/*",
+							"@parcel/*",
+							"@playwright/*",
+							"*" // node modules
+						]
 					}
 				]
 			}
