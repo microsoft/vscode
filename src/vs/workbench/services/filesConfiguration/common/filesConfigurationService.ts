@@ -86,7 +86,7 @@ export interface IFilesConfigurationService {
 
 	getAutoSaveConfiguration(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveConfiguration;
 
-	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean;
+	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean;
 
 	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode;
 
@@ -375,7 +375,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return resourceOrEditor;
 	}
 
-	isShortAutoSaveDelayConfigured(resourceOrEditor: EditorInput | URI | undefined): boolean {
+	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean {
 		const resource = this.toResource(resourceOrEditor);
 		if (this.getAutoSaveConfiguration(resource).isShortAutoSaveDelay) {
 			return !resource || !this.autoSaveDisabledOverrides.has(resource);
