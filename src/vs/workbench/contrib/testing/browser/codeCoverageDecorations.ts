@@ -11,14 +11,13 @@ import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { CoverageDetails, DetailType, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
-const GLYPH_LANE = GlyphMarginLane.Left;
 const MAX_HOVERED_LINES = 30;
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
@@ -66,8 +65,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 
 		this._register(editor.onMouseMove(e => {
-			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN
-				&& e.target.detail.glyphMarginLane === GLYPH_LANE) {
+			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
 			} else {
 				this.hoveredStore.clear();
@@ -143,11 +141,10 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const opts: IModelDecorationOptions = {
 						showIfCollapsed: false,
 						description: 'coverage-gutter',
-						glyphMargin: { position: GlyphMarginLane.Left, persistLane: true },
-						glyphMarginHoverMessage: new MarkdownString()
+						lineNumberHoverMessage: new MarkdownString()
 							.appendCodeblock(model.getLanguageId(), model.getValueInRange(range))
 							.appendText(localize('testing.branchHitCount', 'Branch hit count: {0}', hits)),
-						glyphMarginClassName: `coverage-deco-gutter ${cls}`,
+						lineNumberClassName: `coverage-deco-gutter ${cls}`,
 					};
 
 					this.decorationIds.set(e.addDecoration(range, opts), {
@@ -161,11 +158,10 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 					const opts: IModelDecorationOptions = {
 						showIfCollapsed: false,
 						description: 'coverage-inline',
-						glyphMargin: { position: GlyphMarginLane.Left, persistLane: true },
-						glyphMarginHoverMessage: new MarkdownString()
+						lineNumberHoverMessage: new MarkdownString()
 							.appendCodeblock(model.getLanguageId(), model.getValueInRange(range))
 							.appendText(localize('testing.hitCount', 'Hit count: {0}', detail.count)),
-						glyphMarginClassName: `coverage-deco-gutter ${cls}`,
+						lineNumberClassName: `coverage-deco-gutter ${cls}`,
 					};
 
 					this.decorationIds.set(e.addDecoration(range, opts), {
