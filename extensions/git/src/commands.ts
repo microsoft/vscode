@@ -3465,6 +3465,10 @@ export class CommandCenter {
 		await repository.popStash();
 	}
 
+	@command('git.stashPopEditor')
+	async stashPopEditor(): Promise<void> {
+	}
+
 	@command('git.stashApply', { repository: true })
 	async stashApply(repository: Repository): Promise<void> {
 		const placeHolder = l10n.t('Pick a stash to apply');
@@ -3489,6 +3493,11 @@ export class CommandCenter {
 		await repository.applyStash();
 	}
 
+	@command('git.stashApplyEditor')
+	async stashApplyEditor(): Promise<void> {
+	}
+
+
 	@command('git.stashDrop', { repository: true })
 	async stashDrop(repository: Repository): Promise<void> {
 		const placeHolder = l10n.t('Pick a stash to drop');
@@ -3498,18 +3507,7 @@ export class CommandCenter {
 			return;
 		}
 
-		// request confirmation for the operation
-		const yes = l10n.t('Yes');
-		const result = await window.showWarningMessage(
-			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
-			{ modal: true },
-			yes
-		);
-		if (result !== yes) {
-			return;
-		}
-
-		await repository.dropStash(stash.index);
+		await this._stashDrop(repository, stash);
 	}
 
 	@command('git.stashDropAll', { repository: true })
@@ -3533,6 +3531,33 @@ export class CommandCenter {
 		}
 
 		await repository.dropStash();
+	}
+
+	@command('git.stashDropEditor')
+	async stashDropEditor(stashUri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(stashUri);
+		if (!result) {
+			return;
+		}
+
+		if (await this._stashDrop(result.repository, result.stash)) {
+			await commands.executeCommand('workbench.action.closeActiveEditor');
+		}
+	}
+
+	async _stashDrop(repository: Repository, stash: Stash): Promise<boolean> {
+		const yes = l10n.t('Yes');
+		const result = await window.showWarningMessage(
+			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			{ modal: true },
+			yes
+		);
+		if (result !== yes) {
+			return false;
+		}
+
+		await repository.dropStash(stash.index);
+		return true;
 	}
 
 	@command('git.stashPreview', { repository: true })
@@ -3574,6 +3599,36 @@ export class CommandCenter {
 		const result = await window.showQuickPick(picks, { placeHolder });
 
 		return result?.stash;
+	}
+
+	private async getStashFromUri(uri: Uri | undefined): Promise<{ repository: Repository; stash: Stash } | undefined> {
+		if (!uri || uri.scheme !== 'git-stash') {
+			return undefined;
+		}
+
+		const stashUri = fromGitUri(uri);
+
+		// Repository
+		const repository = this.model.getRepository(stashUri.path);
+		if (!repository) {
+			return undefined;
+		}
+
+		// Stash
+		const regex = /^stash@{(\d+)}$/;
+		const match = regex.exec(stashUri.ref);
+		if (!match) {
+			return undefined;
+		}
+
+		const [, index] = match;
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(stash => stash.index === parseInt(index));
+		if (!stash) {
+			return undefined;
+		}
+
+		return { repository, stash };
 	}
 
 	@command('git.timeline.openDiff', { repository: false })
