@@ -148,6 +148,9 @@ steps:
       - script: yarn --cwd test/smoke compile
         displayName: Compile smoke tests
 
+      - script: yarn --cwd test/playwright
+        displayName: Install playwright smoke tests
+
       - script: yarn --cwd test/playwright compile
         displayName: Compile playwright smoke tests
 
