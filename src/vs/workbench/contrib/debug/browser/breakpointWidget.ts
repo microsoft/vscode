@@ -27,6 +27,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CompletionOptions, provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import * as nls from 'vs/nls';
@@ -104,6 +105,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
@@ -199,7 +201,12 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('breakpoint-widget');
-		const selectBox = new SelectBox(<ISelectOptionItem[]>[{ text: nls.localize('expression', "Expression") }, { text: nls.localize('hitCount', "Hit Count") }, { text: nls.localize('logMessage', "Log Message") }, { text: nls.localize('triggeredBy', "Wait For Breakpoint") }], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
+		const selectBox = new SelectBox(<ISelectOptionItem[]>[
+			{ text: nls.localize('expression', "Expression") },
+			{ text: nls.localize('hitCount', "Hit Count") },
+			{ text: nls.localize('logMessage', "Log Message") },
+			{ text: nls.localize('triggeredBy', "Wait For Breakpoint") },
+		], this.context, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('breakpointType', 'Breakpoint Type') });
 		this.selectContainer = $('.breakpoint-select-container');
 		selectBox.render(dom.append(container, this.selectContainer));
 		selectBox.onDidSelect(e => {
@@ -232,11 +239,24 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		if (index > -1) {
 			select = index + 1;
 		}
-		const items: ISelectOptionItem[] = [{ text: nls.localize('noTriggerByBreakpoint', 'None') }];
-		breakpoints.map(bp => <ISelectOptionItem>{ text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}` })
-			.forEach(i => items.push(i));
 
-		const selectBreakpointBox = new SelectBox(items, select, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
+		Promise.all(breakpoints.map(async (bp): Promise<ISelectOptionItem> => ({
+			text: `${this.labelService.getUriLabel(bp.uri, { relative: true })}: ${bp.lineNumber}`,
+			description: await this.textModelService.createModelReference(bp.uri).then(ref => {
+				try {
+					return ref.object.textEditorModel.getLineContent(bp.lineNumber).trim();
+				} finally {
+					ref.dispose();
+				}
+			}, () => undefined),
+		}))).then(breakpoints => {
+			selectBreakpointBox.setOptions([
+				{ text: nls.localize('noTriggerByBreakpoint', 'None') },
+				...breakpoints
+			], select);
+		});
+
+		const selectBreakpointBox = new SelectBox([{ text: nls.localize('triggerByLoading', 'Loading...'), isDisabled: true }], 0, this.contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('selectBreakpoint', 'Select breakpoint') });
 		selectBreakpointBox.onDidSelect(e => {
 			if (e.index === 0) {
 				this.triggeredByBreakpointInput = undefined;
