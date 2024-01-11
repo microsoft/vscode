@@ -447,6 +447,10 @@
 	background-color: transparent;
 }
 
+.coverage-deco-inline {
+	outline-offset: -1px;
+}
+
 .coverage-deco-inline.coverage-deco-hit {
 	background: var(--vscode-testing-coveredBackground);
 }
