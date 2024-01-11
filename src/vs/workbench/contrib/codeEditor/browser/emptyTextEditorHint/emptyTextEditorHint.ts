@@ -93,8 +93,8 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.textHintContentWidget?.dispose();
 			}
 		}));
-		this.toDispose.push(inlineChatSessionService.onDidEndSession(editor => {
-			if (this.editor === editor) {
+		this.toDispose.push(inlineChatSessionService.onDidEndSession(e => {
+			if (this.editor === e.editor) {
 				this.update();
 			}
 		}));

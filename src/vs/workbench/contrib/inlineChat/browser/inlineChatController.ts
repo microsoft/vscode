@@ -122,6 +122,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _sessionStore: DisposableStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession: MutableDisposable<StashedSession> = this._store.add(new MutableDisposable());
+	private readonly _pausedStrategies = new Map<Session, EditModeStrategy>();
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 	private _ignoreModelContentChanged = false;
@@ -164,6 +165,11 @@ export class InlineChatController implements IEditorContribution {
 			this._log('session done or paused');
 		}));
 		this._log('NEW controller');
+
+		this._store.add(this._inlineChatSessionService.onDidEndSession(e => {
+			this._pausedStrategies.get(e.session)?.dispose();
+			this._pausedStrategies.delete(e.session);
+		}));
 
 		InlineChatController._promptHistory = JSON.parse(_storageService.get(InlineChatController._storageKey, StorageScope.PROFILE, '[]'));
 		this._historyUpdate = (prompt: string) => {
@@ -312,17 +318,24 @@ export class InlineChatController implements IEditorContribution {
 			return State.CANCEL;
 		}
 
-		switch (session.editMode) {
-			case EditMode.Live:
-				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
-				break;
-			case EditMode.Preview:
-				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value);
-				break;
-			case EditMode.LivePreview:
-			default:
-				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value);
-				break;
+		if (this._pausedStrategies.has(session)) {
+			// maybe a strategy was previously paused, use it
+			this._strategy = this._pausedStrategies.get(session)!;
+			this._pausedStrategies.delete(session);
+		} else {
+			// create a new strategy
+			switch (session.editMode) {
+				case EditMode.Live:
+					this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
+					break;
+				case EditMode.Preview:
+					this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value);
+					break;
+				case EditMode.LivePreview:
+				default:
+					this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value);
+					break;
+			}
 		}
 
 		this._session = session;
@@ -786,23 +799,13 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.PAUSE]() {
+		assertType(this._session);
+		assertType(this._strategy);
 
-		this._sessionStore.clear();
-		this._ctxDidEdit.reset();
-		this._ctxUserDidEdit.reset();
-		this._ctxLastFeedbackKind.reset();
-		this._ctxSupportIssueReporting.reset();
+		this._resetWidget();
 
-		this._zone.value.hide();
-
-		// Return focus to the editor only if the current focus is within the editor widget
-		if (this._editor.hasWidgetFocus()) {
-			this._editor.focus();
-		}
-
-
-		this._strategy?.dispose();
-		this._strategy = undefined;
+		this._pausedStrategies.set(this._session, this._strategy);
+		this._strategy.pause?.();
 		this._session = undefined;
 	}
 
@@ -821,15 +824,17 @@ export class InlineChatController implements IEditorContribution {
 
 		this._inlineChatSessionService.releaseSession(this._session);
 
-		this[State.PAUSE]();
+		this._resetWidget();
+
+		this._strategy?.dispose();
+		this._strategy = undefined;
+		this._session = undefined;
 	}
 
 	private async[State.CANCEL]() {
 		assertType(this._session);
 		assertType(this._strategy);
 		this._sessionStore.clear();
-
-		const mySession = this._session;
 
 		try {
 			await this._strategy.cancel();
@@ -839,15 +844,19 @@ export class InlineChatController implements IEditorContribution {
 			this._log(err);
 		}
 
-		this[State.PAUSE]();
+		this._resetWidget();
 
 		this._stashedSession.clear();
-		if (!mySession.isUnstashed && mySession.lastExchange) {
+		if (!this._session.isUnstashed && this._session.lastExchange) {
 			// only stash sessions that had edits
-			this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, mySession);
+			this._stashedSession.value = this._instaService.createInstance(StashedSession, this._editor, this._session);
 		} else {
-			this._inlineChatSessionService.releaseSession(mySession);
+			this._inlineChatSessionService.releaseSession(this._session);
 		}
+
+		this._strategy?.dispose();
+		this._strategy = undefined;
+		this._session = undefined;
 	}
 
 	// ----
@@ -886,6 +895,21 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.show(widgetPosition);
 		} else {
 			this._zone.value.updatePositionAndHeight(widgetPosition);
+		}
+	}
+
+	private _resetWidget() {
+		this._sessionStore.clear();
+		this._ctxDidEdit.reset();
+		this._ctxUserDidEdit.reset();
+		this._ctxLastFeedbackKind.reset();
+		this._ctxSupportIssueReporting.reset();
+
+		this._zone.value.hide();
+
+		// Return focus to the editor only if the current focus is within the editor widget
+		if (this._editor.hasWidgetFocus()) {
+			this._editor.focus();
 		}
 	}
 
