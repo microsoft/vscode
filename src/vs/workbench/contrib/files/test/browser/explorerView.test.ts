@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getContext } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -20,6 +20,8 @@ import { NullFilesConfigurationService } from 'vs/workbench/test/common/workbenc
 suite('Files - ExplorerView', () => {
 
 	const $ = dom.$;
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const fileService = new TestFileService();
 	const configService = new TestConfigurationService();
@@ -87,13 +89,16 @@ suite('Files - ExplorerView', () => {
 
 		const navigationController = new CompressedNavigationController('id', [s1, s2, s3], {
 			container,
-			templateDisposables: new DisposableStore(),
-			elementDisposables: new DisposableStore(),
+			templateDisposables: ds.add(new DisposableStore()),
+			elementDisposables: ds.add(new DisposableStore()),
+			contribs: [],
 			label: <any>{
 				container: label,
 				onDidRender: emitter.event
 			}
 		}, 1, false);
+
+		ds.add(navigationController);
 
 		assert.strictEqual(navigationController.count, 3);
 		assert.strictEqual(navigationController.index, 2);

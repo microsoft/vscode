@@ -53,7 +53,11 @@ export interface IssueReporterExtensionData {
 	displayName: string | undefined;
 	repositoryUrl: string | undefined;
 	bugsUrl: string | undefined;
+	extensionData?: string;
+	extensionTemplate?: string;
 	hasIssueUriRequestHandler?: boolean;
+	hasIssueDataProviders?: boolean;
+	command?: boolean;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -67,6 +71,7 @@ export interface IssueReporterData extends WindowData {
 	githubAccessToken: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
+	readonly command?: boolean;
 }
 
 export interface ISettingSearchResult {
@@ -128,5 +133,8 @@ export interface IIssueMainService {
 	$showConfirmCloseDialog(): Promise<void>;
 	$showClipboardDialog(): Promise<boolean>;
 	$getIssueReporterUri(extensionId: string): Promise<URI>;
+	$getIssueReporterData(extensionId: string): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string): Promise<string>;
+	$getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
 	$closeReporter(): Promise<void>;
 }

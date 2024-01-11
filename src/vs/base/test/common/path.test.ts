@@ -31,9 +31,11 @@ import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Paths (Node Implementation)', () => {
 	const __filename = 'path.test.js';
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('join', () => {
 		const failures = [] as string[];
 		const backslashRE = /\\/g;

@@ -96,7 +96,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		}
 
 		const updateStatus = () => {
-			if (activeEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+			if (activeEditor.notebookOptions.getDisplayOptions().globalToolbar) {
 				// kernel info rendered in the notebook toolbar already
 				this._kernelInfoElement.clear();
 				return;

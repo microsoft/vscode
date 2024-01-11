@@ -1,7 +1,7 @@
 parameters:
   - name: channel
     type: string
-    default: 1.71.0
+    default: 1.73.0
   - name: targets
     default: []
     type: object
@@ -9,6 +9,17 @@ parameters:
 # Todo: use 1ES pipeline once extension is installed in ADO
 
 steps:
+  - task: RustInstaller@1
+    inputs:
+      rustVersion: ms-${{ parameters.channel }}
+      cratesIoFeedOverride: $(CARGO_REGISTRY)
+      additionalTargets: ${{ join(' ', parameters.targets) }}
+      toolchainFeed: https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json
+      default: true
+      addToPath: true
+    displayName: Install MSFT Rust
+    condition: and(succeeded(), ne(variables['CARGO_REGISTRY'], 'none'))
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       Invoke-WebRequest -Uri "https://win.rustup.rs" -Outfile $(Build.ArtifactStagingDirectory)/rustup-init.exe
@@ -16,7 +27,8 @@ steps:
       echo "##vso[task.prependpath]$env:USERPROFILE\.cargo\bin"
     env:
       RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
-    displayName: "Install Rust"
+    displayName: Install OSS Rust
+    condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -25,14 +37,15 @@ steps:
     env:
       RUSTUP_TOOLCHAIN: ${{ parameters.channel }}
     displayName: "Set Rust version"
+    condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
   - ${{ each target in parameters.targets }}:
     - script: rustup target add ${{ target }}
       displayName: "Adding Rust target '${{ target }}'"
+      condition: and(succeeded(), eq(variables['CARGO_REGISTRY'], 'none'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       exec { rustc --version }
       exec { cargo --version }
-      exec { rustup --version }
     displayName: "Check Rust versions"

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { isAncestor, trackFocus } from 'vs/base/browser/dom';
+import { getWindow, isAncestorOfActiveElement, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListAccessibilityProvider, IListOptions } from 'vs/base/browser/ui/list/listWidget';
@@ -111,7 +111,7 @@ export class NotificationsList extends Disposable {
 		// This ensures that when the focus comes back, the notification is still focused
 		const listFocusTracker = this._register(trackFocus(list.getHTMLElement()));
 		this._register(listFocusTracker.onDidBlur(() => {
-			if (document.hasFocus()) {
+			if (getWindow(this.listContainer).document.hasFocus()) {
 				list.setFocus([]);
 			}
 		}));
@@ -133,7 +133,7 @@ export class NotificationsList extends Disposable {
 
 	updateNotificationsList(start: number, deleteCount: number, items: INotificationViewItem[] = []) {
 		const [list, listContainer] = assertAllDefined(this.list, this.listContainer);
-		const listHasDOMFocus = isAncestor(document.activeElement, listContainer);
+		const listHasDOMFocus = isAncestorOfActiveElement(listContainer);
 
 		// Remember focus and relative top of that item
 		const focusedIndex = list.getFocus()[0];
@@ -223,7 +223,7 @@ export class NotificationsList extends Disposable {
 			return false; // not created yet
 		}
 
-		return isAncestor(document.activeElement, this.listContainer);
+		return isAncestorOfActiveElement(this.listContainer);
 	}
 
 	layout(width: number, maxHeight?: number): void {

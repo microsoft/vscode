@@ -239,6 +239,10 @@ export class PlaywrightDriver {
 		return new Promise<void>(resolve => setTimeout(resolve, ms));
 	}
 
+	whenWorkbenchRestored(): Promise<void> {
+		return this.evaluateWithDriver(([driver]) => driver.whenWorkbenchRestored());
+	}
+
 	private async getDriverHandle(): Promise<playwright.JSHandle<IWindowDriver>> {
 		return this.page.evaluateHandle('window.driver');
 	}

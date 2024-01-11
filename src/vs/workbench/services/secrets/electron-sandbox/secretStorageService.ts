@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { isLinux } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
@@ -52,7 +52,7 @@ export class NativeSecretStorageService extends BaseSecretStorageService {
 		return super.set(key, value);
 	}
 
-	private notifyOfNoEncryptionOnce = once(() => this.notifyOfNoEncryption());
+	private notifyOfNoEncryptionOnce = createSingleCallFunction(() => this.notifyOfNoEncryption());
 	private async notifyOfNoEncryption(): Promise<void> {
 		const buttons: IPromptChoice[] = [];
 		const troubleshootingButton: IPromptChoice = {

@@ -183,7 +183,9 @@ nav#
 				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1, '#121212');
 				callBack(result2, '!important');
 				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
@@ -244,7 +246,9 @@ nav#
 				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1, '#121212');
 				callBack(result2, '!important');
 				editor.selections = [new Selection(3, 12, 3, 12), new Selection(3, 14, 3, 14)];
@@ -303,7 +307,9 @@ nav#
 				assert.strictEqual((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1, '#121212');
 				callBack(result2, '!important');
 				editor.selections = [new Selection(2, 12, 2, 12), new Selection(2, 14, 2, 14)];
@@ -361,7 +367,9 @@ nav#
 				assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+			return Promise.all([completionPromise1, completionPromise2]).then(([result1, result2]) => {
+				assert.ok(result1);
+				assert.ok(result2);
 				callBack(result1);
 				callBack(result2);
 				return Promise.resolve();
@@ -421,7 +429,11 @@ nav#
 				assert.strictEqual(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 			};
 
-			return Promise.all<CompletionList>([completionPromise1, completionPromise2, completionPromise3, completionPromise4]).then(([result1, result2, result3, result4]) => {
+			return Promise.all([completionPromise1, completionPromise2, completionPromise3, completionPromise4]).then(([result1, result2, result3, result4]) => {
+				assert.ok(result1);
+				assert.ok(result2);
+				assert.ok(result3);
+				assert.ok(result4);
 				callBack(result1, 'p10', 'padding: 10px;');
 				callBack(result2, 'p20', 'padding: 20px;');
 				callBack(result3, 'p30', 'padding: 30px;');

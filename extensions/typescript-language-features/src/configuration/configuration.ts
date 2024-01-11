@@ -122,6 +122,7 @@ export interface TypeScriptServiceConfiguration {
 	readonly enableTsServerTracing: boolean;
 	readonly localNodePath: string | null;
 	readonly globalNodePath: string | null;
+	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -158,6 +159,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
 			localNodePath: this.readLocalNodePath(configuration),
 			globalNodePath: this.readGlobalNodePath(configuration),
+			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
 		};
 	}
 
@@ -254,5 +256,9 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	private readWebProjectWideIntellisenseSuppressSemanticErrors(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', true);
+	}
+
+	private readWorkspaceSymbolsExcludeLibrarySymbols(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.workspaceSymbols.excludeLibrarySymbols', true);
 	}
 }

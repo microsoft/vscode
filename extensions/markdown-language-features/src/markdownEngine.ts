@@ -118,6 +118,12 @@ export class MarkdownItEngine implements IMdParser {
 		});
 	}
 
+
+	public async getEngine(resource: vscode.Uri | undefined): Promise<MarkdownIt> {
+		const config = this._getConfig(resource);
+		return this._getEngine(config);
+	}
+
 	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
 		if (!this._md) {
 			this._md = (async () => {
@@ -398,15 +404,14 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 			lang = normalizeHighlightLang(lang);
 			if (lang && hljs.getLanguage(lang)) {
 				try {
-					const highlighted = hljs.highlight(str, {
+					return hljs.highlight(str, {
 						language: lang,
 						ignoreIllegals: true,
 					}).value;
-					return `<div>${highlighted}</div>`;
 				}
 				catch (error) { }
 			}
-			return `<code><div>${md().utils.escapeHtml(str)}</div></code>`;
+			return md().utils.escapeHtml(str);
 		}
 	};
 }

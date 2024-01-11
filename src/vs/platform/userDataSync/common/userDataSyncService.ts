@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -30,7 +31,7 @@ import {
 	ALL_SYNC_RESOURCES, Change, createSyncHeaders, IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError,
 	IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, ISyncUserDataProfile, IUserDataManifest, IUserDataResourceManifest, IUserDataSyncConfiguration,
 	IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService,
-	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService
+	MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE, IUserDataSyncResourceProviderService, IUserDataActivityData, IUserDataSyncLocalStoreService
 } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
@@ -81,6 +82,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private activeProfileSynchronizers = new Map<string, [ProfileSynchronizer, IDisposable]>();
 
 	constructor(
+		@IFileService private readonly fileService: IFileService,
 		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -90,6 +92,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataSyncResourceProviderService private readonly userDataSyncResourceProviderService: IUserDataSyncResourceProviderService,
+		@IUserDataSyncLocalStoreService private readonly userDataSyncLocalStoreService: IUserDataSyncLocalStoreService,
 	) {
 		super();
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
@@ -216,6 +219,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				await this.syncRemoteProfiles(syncProfiles, manifest, merge, executionId, token);
 			}
 		} finally {
+			if (this.status !== SyncStatus.HasConflicts) {
+				this.setStatus(SyncStatus.Idle);
+			}
 			this._onSyncErrors.fire(this._syncErrors);
 		}
 	}
@@ -337,26 +343,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		});
 	}
 
-	getRemoteProfiles(): Promise<ISyncUserDataProfile[]> {
-		return this.userDataSyncResourceProviderService.getRemoteSyncedProfiles();
-	}
-
-	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]> {
-		return this.userDataSyncResourceProviderService.getRemoteSyncResourceHandles(syncResource, profile);
-	}
-
-	async getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]> {
-		return this.userDataSyncResourceProviderService.getLocalSyncResourceHandles(syncResource, profile ?? this.userDataProfilesService.defaultProfile);
-	}
-
-	async getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		return this.userDataSyncResourceProviderService.getAssociatedResources(syncResourceHandle);
-	}
-
-	async getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		return this.userDataSyncResourceProviderService.getMachineId(syncResourceHandle);
-	}
-
 	async hasLocalData(): Promise<boolean> {
 		const result = await this.performAction(this.userDataProfilesService.defaultProfile, async synchronizer => {
 			// skip global state synchronizer
@@ -433,6 +419,35 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.logService.info(`Updated remote profiles on server`);
 			} finally {
 				profileManifestSynchronizer.dispose();
+			}
+		}
+	}
+
+	async saveRemoteActivityData(location: URI): Promise<void> {
+		this.checkEnablement();
+		const data = await this.userDataSyncStoreService.getActivityData();
+		await this.fileService.writeFile(location, data);
+	}
+
+	async extractActivityData(activityDataResource: URI, location: URI): Promise<void> {
+		const content = (await this.fileService.readFile(activityDataResource)).value.toString();
+		const activityData: IUserDataActivityData = JSON.parse(content);
+
+		if (activityData.resources) {
+			for (const resource in activityData.resources) {
+				for (const version of activityData.resources[resource]) {
+					await this.userDataSyncLocalStoreService.writeResource(resource as SyncResource, version.content, new Date(version.created * 1000), undefined, location);
+				}
+			}
+		}
+
+		if (activityData.collections) {
+			for (const collection in activityData.collections) {
+				for (const resource in activityData.collections[collection].resources) {
+					for (const version of activityData.collections[collection].resources?.[resource] ?? []) {
+						await this.userDataSyncLocalStoreService.writeResource(resource as SyncResource, version.content, new Date(version.created * 1000), collection, location);
+					}
+				}
 			}
 		}
 	}

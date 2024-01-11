@@ -38,7 +38,6 @@ const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 // Targets
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'darwin', arch: 'x64' },
 	{ platform: 'darwin', arch: 'arm64' },
@@ -185,9 +184,7 @@ function nodejs(platform, arch) {
 	const untar = require('gulp-untar');
 	const crypto = require('crypto');
 
-	if (arch === 'ia32') {
-		arch = 'x86';
-	} else if (arch === 'armhf') {
+	if (arch === 'armhf') {
 		arch = 'armv7l';
 	} else if (arch === 'alpine') {
 		platform = 'alpine';

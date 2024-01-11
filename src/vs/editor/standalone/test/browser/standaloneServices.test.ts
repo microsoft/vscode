@@ -5,8 +5,10 @@
 
 import * as assert from 'assert';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { StandaloneConfigurationService, StandaloneNotificationService, StandaloneCommandService, StandaloneKeybindingService } from 'vs/editor/standalone/browser/standaloneServices';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { StandaloneCodeEditorService } from 'vs/editor/standalone/browser/standaloneCodeEditorService';
+import { StandaloneCommandService, StandaloneConfigurationService, StandaloneKeybindingService, StandaloneNotificationService } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -17,6 +19,8 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 
 suite('StandaloneKeybindingService', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	class TestStandaloneKeybindingService extends StandaloneKeybindingService {
 		public testDispatch(e: IKeyboardEvent): void {
 			super._dispatch(e, null!);
@@ -25,20 +29,21 @@ suite('StandaloneKeybindingService', () => {
 
 	test('issue microsoft/monaco-editor#167', () => {
 
+		const disposables = new DisposableStore();
 		const serviceCollection = new ServiceCollection();
 		const instantiationService = new InstantiationService(serviceCollection, true);
 		const configurationService = new StandaloneConfigurationService();
-		const contextKeyService = new ContextKeyService(configurationService);
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const commandService = new StandaloneCommandService(instantiationService);
 		const notificationService = new StandaloneNotificationService();
-		const standaloneThemeService = new StandaloneThemeService();
-		const codeEditorService = new StandaloneCodeEditorService(contextKeyService, standaloneThemeService);
-		const keybindingService = new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), codeEditorService);
+		const standaloneThemeService = disposables.add(new StandaloneThemeService());
+		const codeEditorService = disposables.add(new StandaloneCodeEditorService(contextKeyService, standaloneThemeService));
+		const keybindingService = disposables.add(new TestStandaloneKeybindingService(contextKeyService, commandService, NullTelemetryService, notificationService, new NullLogService(), codeEditorService));
 
 		let commandInvoked = false;
-		keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
+		disposables.add(keybindingService.addDynamicKeybinding('testCommand', KeyCode.F9, () => {
 			commandInvoked = true;
-		}, undefined);
+		}, undefined));
 
 		keybindingService.testDispatch({
 			_standardKeyboardEventBrand: true,
@@ -52,5 +57,7 @@ suite('StandaloneKeybindingService', () => {
 		});
 
 		assert.ok(commandInvoked, 'command invoked');
+
+		disposables.dispose();
 	});
 });

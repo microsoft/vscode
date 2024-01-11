@@ -145,6 +145,24 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.changeTitle', "The Source Control inline change menu")
 	},
 	{
+		key: 'scm/inputBox',
+		id: MenuId.SCMInputBox,
+		description: localize('menus.input', "The Source Control input box menu"),
+		proposed: 'contribSourceControlInputBoxMenu'
+	},
+	{
+		key: 'scm/incomingChanges/historyItem/context',
+		id: MenuId.SCMIncomingChangesHistoryItemContext,
+		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/historyItem/context',
+		id: MenuId.SCMOutgoingChangesHistoryItemContext,
+		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
@@ -153,14 +171,12 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'terminal/context',
 		id: MenuId.TerminalInstanceContext,
-		description: localize('menus.terminalContext', "The terminal context menu"),
-		proposed: 'terminalContextMenu'
+		description: localize('menus.terminalContext', "The terminal context menu")
 	},
 	{
 		key: 'terminal/title/context',
 		id: MenuId.TerminalTabContext,
-		description: localize('menus.terminalTabContext', "The terminal tabs context menu"),
-		proposed: 'terminalContextMenu'
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu")
 	},
 	{
 		key: 'view/title',

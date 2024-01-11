@@ -21,6 +21,7 @@ import { hostname, homedir } from 'os';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isString } from 'vs/base/common/types';
 import { StreamSplitter } from 'vs/base/node/nodeStreams';
+import { joinPath } from 'vs/base/common/resources';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
@@ -93,7 +94,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
-		this._logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this._logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
@@ -208,20 +209,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess = undefined;
 		}
 
-		if (!this._mode.active) {
-			return;
-		}
+		if (this._mode.active) {
+			// Be careful to only uninstall the service if we're the ones who installed it:
+			const needsServiceUninstall = this._mode.asService;
+			this.setMode(INACTIVE_TUNNEL_MODE);
 
-		// Be careful to only uninstall the service if we're the ones who installed it:
-		const needsServiceUninstall = this._mode.asService;
-		this.setMode(INACTIVE_TUNNEL_MODE);
-
-		try {
-			if (needsServiceUninstall) {
-				this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+			try {
+				if (needsServiceUninstall) {
+					this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+				}
+			} catch (e) {
+				this._logger.error(e);
 			}
-		} catch (e) {
-			this._logger.error(e);
 		}
 
 		try {
@@ -267,10 +266,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 			// split and find the line, since in dev builds additional noise is
 			// added by cargo to the output.
-			const status: {
+			let status: {
 				service_installed: boolean;
 				tunnel: object | null;
-			} = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			};
+
+			try {
+				status = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			} catch (e) {
+				this._logger.error(`Could not parse status output: ${JSON.stringify(output.trim())}`);
+				this.setTunnelStatus(TunnelStates.disconnected());
+				return;
+			}
 
 			isServiceInstalled = status.service_installed;
 			this._logger.info(status.tunnel ? 'Other tunnel running, attaching...' : 'No other tunnel running');

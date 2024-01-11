@@ -6,13 +6,11 @@
 use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
 use std::os::windows::process::CommandExt;
-use std::{
-	path::PathBuf,
-	process::{Command, Stdio},
-};
+use std::{path::PathBuf, process::Stdio};
 use winapi::um::winbase::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
+use crate::util::command::new_std_command;
 use crate::{
 	constants::TUNNEL_ACTIVITY_NAME,
 	log,
@@ -54,7 +52,7 @@ impl CliServiceManager for WindowsService {
 		let key = WindowsService::open_key()?;
 
 		let mut reg_str = String::new();
-		let mut cmd = Command::new(&exe);
+		let mut cmd = new_std_command(&exe);
 		reg_str.push_str(shell_escape(exe.to_string_lossy()).as_ref());
 
 		let mut add_arg = |arg: &str| {
@@ -102,7 +100,7 @@ impl CliServiceManager for WindowsService {
 		// Start as a hidden subprocess to avoid showing cmd.exe on startup.
 		// Fixes https://github.com/microsoft/vscode/issues/184058
 		// I also tried the winapi ShowWindow, but that didn't yield fruit.
-		Command::new(std::env::current_exe().unwrap())
+		new_std_command(std::env::current_exe().unwrap())
 			.args(std::env::args().skip(1))
 			.env(DID_LAUNCH_AS_HIDDEN_PROCESS, "1")
 			.stderr(Stdio::null())

@@ -1007,7 +1007,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
+		const value = values.map(s => s.replaceAll(/[|\\,]/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -1227,6 +1227,25 @@ export class DocumentHighlight {
 	}
 }
 
+@es5ClassCompat
+export class MultiDocumentHighlight {
+
+	uri: URI;
+	highlights: DocumentHighlight[];
+
+	constructor(uri: URI, highlights: DocumentHighlight[]) {
+		this.uri = uri;
+		this.highlights = highlights;
+	}
+
+	toJSON(): any {
+		return {
+			uri: this.uri,
+			highlights: this.highlights.map(h => h.toJSON())
+		};
+	}
+}
+
 export enum SymbolKind {
 	File = 0,
 	Module = 1,
@@ -1394,16 +1413,6 @@ export class CodeActionKind {
 
 	public contains(other: CodeActionKind): boolean {
 		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
-	}
-}
-
-export class NotebookCodeActionKind extends CodeActionKind {
-	public static override Notebook: CodeActionKind;
-
-	constructor(
-		public override readonly value: string
-	) {
-		super(value);
 	}
 }
 
@@ -1869,6 +1878,24 @@ export namespace TextEditorSelectionChangeKind {
 			case 'api': return TextEditorSelectionChangeKind.Command;
 		}
 		return undefined;
+	}
+}
+
+export enum SyntaxTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 3
+}
+export namespace SyntaxTokenType {
+	export function toString(v: SyntaxTokenType | unknown): 'other' | 'comment' | 'string' | 'regex' {
+		switch (v) {
+			case SyntaxTokenType.Other: return 'other';
+			case SyntaxTokenType.Comment: return 'comment';
+			case SyntaxTokenType.String: return 'string';
+			case SyntaxTokenType.RegEx: return 'regex';
+		}
+		return 'other';
 	}
 }
 
@@ -3790,6 +3817,11 @@ export class NotebookKernelSourceAction {
 	) { }
 }
 
+export enum NotebookVariablesRequestKind {
+	Named = 1,
+	Indexed = 2
+}
+
 //#endregion
 
 //#region Timeline
@@ -3915,12 +3947,17 @@ export class TestTag implements vscode.TestTag {
 //#endregion
 
 //#region Test Coverage
-@es5ClassCompat
 export class CoveredCount implements vscode.CoveredCount {
-	constructor(public covered: number, public total: number) { }
+	constructor(public covered: number, public total: number) {
+	}
 }
 
-@es5ClassCompat
+const validateCC = (cc?: vscode.CoveredCount) => {
+	if (cc && cc.covered > cc.total) {
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
+	}
+};
+
 export class FileCoverage implements vscode.FileCoverage {
 	public static fromDetails(uri: vscode.Uri, details: vscode.DetailedCoverage[]): vscode.FileCoverage {
 		const statements = new CoveredCount(0, 0);
@@ -3961,10 +3998,13 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.CoveredCount,
 		public branchCoverage?: vscode.CoveredCount,
 		public functionCoverage?: vscode.CoveredCount,
-	) { }
+	) {
+		validateCC(statementCoverage);
+		validateCC(branchCoverage);
+		validateCC(functionCoverage);
+	}
 }
 
-@es5ClassCompat
 export class StatementCoverage implements vscode.StatementCoverage {
 	constructor(
 		public executionCount: number,
@@ -3973,7 +4013,6 @@ export class StatementCoverage implements vscode.StatementCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class BranchCoverage implements vscode.BranchCoverage {
 	constructor(
 		public executionCount: number,
@@ -3981,9 +4020,9 @@ export class BranchCoverage implements vscode.BranchCoverage {
 	) { }
 }
 
-@es5ClassCompat
 export class FunctionCoverage implements vscode.FunctionCoverage {
 	constructor(
+		public readonly name: string,
 		public executionCount: number,
 		public location: Position | Range,
 	) { }
@@ -4070,18 +4109,41 @@ export class TerminalEditorTabInput {
 export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
+
+export class ChatEditorTabInput {
+	constructor(readonly providerId: string) { }
+}
 //#endregion
 
-//#region Interactive session
+//#region Chat
 
 export enum InteractiveSessionVoteDirection {
-	Up = 1,
-	Down = 2
+	Down = 0,
+	Up = 1
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	Action = 1,
 	Toolbar = 2
+}
+
+export enum ChatVariableLevel {
+	Short = 1,
+	Medium = 2,
+	Full = 3
+}
+
+export class ChatAgentCompletionItem implements vscode.ChatAgentCompletionItem {
+	label: string | CompletionItemLabel;
+	insertText?: string;
+	values: vscode.ChatVariableValue[];
+	detail?: string;
+	documentation?: string | MarkdownString;
+
+	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.label = label;
+		this.values = values;
+	}
 }
 
 //#endregion
@@ -4092,7 +4154,8 @@ export enum InteractiveEditorResponseFeedbackKind {
 	Unhelpful = 0,
 	Helpful = 1,
 	Undone = 2,
-	Accepted = 3
+	Accepted = 3,
+	Bug = 4
 }
 
 export enum ChatMessageRole {
@@ -4100,12 +4163,6 @@ export enum ChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	Function = 3,
-}
-
-export enum ChatVariableLevel {
-	Short = 1,
-	Medium = 2,
-	Full = 3
 }
 
 export class ChatMessage implements vscode.ChatMessage {
@@ -4120,6 +4177,11 @@ export class ChatMessage implements vscode.ChatMessage {
 	}
 }
 
+export enum ChatAgentResultFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+}
+
 //#endregion
 
 //#region ai
@@ -4129,6 +4191,17 @@ export enum RelatedInformationType {
 	CommandInformation = 2,
 	SearchInformation = 3,
 	SettingInformation = 4
+}
+
+//#endregion
+
+//#region Speech
+
+export enum SpeechToTextStatus {
+	Started = 1,
+	Recognizing = 2,
+	Recognized = 3,
+	Stopped = 4
 }
 
 //#endregion

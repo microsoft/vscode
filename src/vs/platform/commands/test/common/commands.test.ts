@@ -66,7 +66,7 @@ suite('Command Tests', function () {
 			handler: function (accessor, args) {
 				return true;
 			},
-			description: {
+			metadata: {
 				description: 'a command',
 				args: [{ name: 'value', constraint: Number }]
 			}

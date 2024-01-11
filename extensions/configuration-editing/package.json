@@ -23,7 +23,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^2.2.1",
+    "jsonc-parser": "^3.2.0",
     "@octokit/rest": "19.0.4",
     "tunnel": "^0.0.6"
   },

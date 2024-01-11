@@ -21,7 +21,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,8 +34,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { contrastBorder, listInactiveSelectionBackground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, ifDefinedThenElse, listInactiveSelectionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -53,6 +52,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -134,14 +134,16 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				createEditorInput: ({ resource, options }) => {
 					const data = CellUri.parse(resource);
 					let cellOptions: IResourceEditorInput | undefined;
+					let IwResource = resource;
 
 					if (data) {
 						cellOptions = { resource, options };
+						IwResource = data.notebook;
 					}
 
 					const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
 
-					const editorInput = createEditor(resource, this.instantiationService);
+					const editorInput = createEditor(IwResource, this.instantiationService);
 					return {
 						editor: editorInput,
 						options: notebookOptions
@@ -300,11 +302,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: '_interactive.open',
-			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
+			title: localize2('interactive.open', 'Open Interactive Window'),
 			f1: false,
 			category: interactiveWindowCategory,
-			description: {
-				description: localize('interactive.open', "Open Interactive Window"),
+			metadata: {
+				description: localize('interactive.open', 'Open Interactive Window'),
 				args: [
 					{
 						name: 'showOptions',
@@ -418,7 +420,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.execute',
-			title: { value: localize('interactive.execute', "Execute Code"), original: 'Execute Code' },
+			title: localize2('interactive.execute', 'Execute Code'),
 			category: interactiveWindowCategory,
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -436,7 +438,7 @@ registerAction2(class extends Action2 {
 			],
 			icon: icons.executeIcon,
 			f1: false,
-			description: {
+			metadata: {
 				description: 'Execute the Contents of the Input Box',
 				args: [
 					{
@@ -487,7 +489,7 @@ registerAction2(class extends Action2 {
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
-				const collapseState = editorControl.notebookEditor.notebookOptions.getLayoutConfiguration().interactiveWindowCollapseCodeCells === 'fromEditor' ?
+				const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
 					{
 						inputCollapsed: false,
 						outputCollapsed: false
@@ -533,7 +535,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.input.clear',
-			title: { value: localize('interactive.input.clear', "Clear the interactive window input editor contents"), original: 'Clear the interactive window input editor contents' },
+			title: localize2('interactive.input.clear', 'Clear the interactive window input editor contents'),
 			category: interactiveWindowCategory,
 			f1: false
 		});
@@ -559,7 +561,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.previous',
-			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
+			title: localize2('interactive.history.previous', 'Previous value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
@@ -598,7 +600,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.next',
-			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
+			title: localize2('interactive.history.next', 'Next value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
 			keybinding: {
@@ -697,9 +699,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.input.focus',
-			title: { value: localize('interactive.input.focus', "Focus Input Editor"), original: 'Focus Input Editor' },
+			title: localize2('interactive.input.focus', 'Focus Input Editor'),
 			category: interactiveWindowCategory,
-			f1: true
+			menu: {
+				id: MenuId.CommandPalette,
+				when: InteractiveWindowOpen,
+			},
+			precondition: InteractiveWindowOpen,
 		});
 	}
 
@@ -732,7 +738,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.history.focus',
-			title: { value: localize('interactive.history.focus', "Focus History"), original: 'Focus History' },
+			title: localize2('interactive.history.focus', 'Focus History'),
 			category: interactiveWindowCategory,
 			menu: {
 				id: MenuId.CommandPalette,
@@ -752,33 +758,20 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerThemingParticipant((theme) => {
-	registerColor('interactive.activeCodeBorder', {
-		dark: theme.getColor(peekViewBorder) ?? '#007acc',
-		light: theme.getColor(peekViewBorder) ?? '#007acc',
-		hcDark: contrastBorder,
-		hcLight: contrastBorder
-	}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
+registerColor('interactive.activeCodeBorder', {
+	dark: ifDefinedThenElse(peekViewBorder, peekViewBorder, '#007acc'),
+	light: ifDefinedThenElse(peekViewBorder, peekViewBorder, '#007acc'),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
 
-	// registerColor('interactive.activeCodeBackground', {
-	// 	dark: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#001F33')).transparent(0.25),
-	// 	light: (theme.getColor(peekViewEditorBackground) ?? Color.fromHex('#F2F8FC')).transparent(0.25),
-	// 	hc: Color.black
-	// }, localize('interactive.activeCodeBackground', 'The background color for the current interactive code cell when the editor has focus.'));
-
-	registerColor('interactive.inactiveCodeBorder', {
-		dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
-		light: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
-		hcDark: PANEL_BORDER,
-		hcLight: PANEL_BORDER
-	}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
-
-	// registerColor('interactive.inactiveCodeBackground', {
-	// 	dark: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#252526')).transparent(0.25),
-	// 	light: (theme.getColor(peekViewResultsBackground) ?? Color.fromHex('#F3F3F3')).transparent(0.25),
-	// 	hc: Color.black
-	// }, localize('interactive.inactiveCodeBackground', 'The backgorund color for the current interactive code cell when the editor does not have focus.'));
-});
+registerColor('interactive.inactiveCodeBorder', {
+	//dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
+	dark: ifDefinedThenElse(listInactiveSelectionBackground, listInactiveSelectionBackground, '#37373D'),
+	light: ifDefinedThenElse(listInactiveSelectionBackground, listInactiveSelectionBackground, '#E4E6F1'),
+	hcDark: PANEL_BORDER,
+	hcLight: PANEL_BORDER
+}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'interactiveWindow',

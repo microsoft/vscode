@@ -83,7 +83,7 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 				AiRelatedInformationService.DEFAULT_TIMEOUT,
 				() => {
 					cancellablePromises.forEach(p => p.cancel());
-					throw new Error('Related information provider timed out');
+					this.logService.warn('[AiRelatedInformationService]: Related information provider timed out');
 				}
 			);
 			if (!results) {
@@ -91,8 +91,7 @@ export class AiRelatedInformationService implements IAiRelatedInformationService
 			}
 			const result = results
 				.filter(r => r.status === 'fulfilled')
-				.map(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value)
-				.flat();
+				.flatMap(r => (r as PromiseFulfilledResult<RelatedInformationResult[]>).value);
 			return result;
 		} finally {
 			stopwatch.stop();

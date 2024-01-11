@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { getCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IRange } from 'vs/editor/common/core/range';
@@ -105,7 +105,7 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 					}
 				};
 
-				disposables.add(once(token.onCancellationRequested)(() => context.restoreViewState?.()));
+				disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => context.restoreViewState?.()));
 			}
 
 			// Clean up decorations on dispose

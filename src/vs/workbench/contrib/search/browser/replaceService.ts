@@ -199,10 +199,10 @@ export class ReplaceService implements IReplaceService {
 
 		if (arg instanceof Match) {
 			if (arg instanceof MatchInNotebook) {
-				if (!arg.isWebviewMatch()) {
+				if (!arg.isReadonly()) {
 					// only apply edits if it's not a webview match, since webview matches are read-only
 					const match = <MatchInNotebook>arg;
-					edits.push(this.createEdit(match, match.replaceString, match.cell.uri));
+					edits.push(this.createEdit(match, match.replaceString, match.cell?.uri));
 				}
 			} else {
 				const match = <Match>arg;

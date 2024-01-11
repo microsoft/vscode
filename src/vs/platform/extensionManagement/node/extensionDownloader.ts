@@ -68,6 +68,12 @@ export class ExtensionsDownloader extends Disposable {
 					this.logService.trace(`Extension signature verification details for ${extension.identifier.id} ${extension.version}:\n${sigError.output}`);
 				}
 				if (verificationStatus === ExtensionSignaturetErrorCode.PackageIsInvalidZip || verificationStatus === ExtensionSignaturetErrorCode.SignatureArchiveIsInvalidZip) {
+					try {
+						// Delete the downloaded vsix before throwing the error
+						await this.delete(location);
+					} catch (error) {
+						this.logService.error(error);
+					}
 					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
 				}
 			} finally {
@@ -93,6 +99,7 @@ export class ExtensionsDownloader extends Disposable {
 
 	private shouldVerifySignature(extension: IGalleryExtension): boolean {
 		if (!extension.isSigned) {
+			this.logService.info(`Extension is not signed: ${extension.identifier.id}`);
 			return false;
 		}
 

@@ -5,7 +5,9 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml
@@ -58,6 +60,8 @@ steps:
 
   - script: |
       set -e
+      npm i -g node-gyp@9.4.0
+
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
@@ -100,22 +104,23 @@ steps:
     - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Compile & Hygiene
+      displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
     - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Compile & Hygiene
+      displayName: Compile & Hygiene (non-OSS)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
         yarn --cwd test/smoke compile
         yarn --cwd test/integration/browser compile
-      displayName: Compile test suites
+      displayName: Compile test suites (non-OSS)
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
     - task: AzureCLI@2
+      displayName: Fetch secrets
       inputs:
         azureSubscription: "vscode-builds-subscription"
         scriptType: pscore
@@ -133,10 +138,10 @@ steps:
         AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
         AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
           node build/azure-pipelines/upload-sourcemaps
-      displayName: Upload sourcemaps
+      displayName: Upload sourcemaps to Azure
 
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
-      displayName: Extract Telemetry
+      displayName: Generate lists of telemetry events
 
     - script: tar -cz --ignore-failed-read --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
       displayName: Compress compilation artifact
@@ -150,7 +155,7 @@ steps:
     - script: yarn download-builtin-extensions-cg
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Built-in extensions component details
+      displayName: Download component details of built-in extensions
 
     - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
       displayName: "Component Detection"

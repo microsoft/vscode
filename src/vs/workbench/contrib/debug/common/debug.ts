@@ -65,6 +65,7 @@ export const CONTEXT_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>(
 export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false, { type: 'boolean', description: nls.localize('loadedScriptsSupported', "True when the focused sessions supports the LOADED SCRIPTS view") });
 export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined, { type: 'string', description: nls.localize('loadedScriptsItemType', "Represents the item type of the focused element in the LOADED SCRIPTS view.") });
 export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('focusedSessionIsAttach', false, { type: 'boolean', description: nls.localize('focusedSessionIsAttach', "True when the focused session is 'attach'.") });
+export const CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG = new RawContextKey<boolean>('focusedSessionIsNoDebug', false, { type: 'boolean', description: nls.localize('focusedSessionIsNoDebug', "True when the focused session is run without debugging.") });
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false, { type: 'boolean', description: nls.localize('stepBackSupported', "True when the focused session supports 'stepBack' requests.") });
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false, { type: 'boolean', description: nls.localize('restartFrameSupported', "True when the focused session supports 'restartFrame' requests.") });
 export const CONTEXT_STACK_FRAME_SUPPORTS_RESTART = new RawContextKey<boolean>('stackFrameSupportsRestart', false, { type: 'boolean', description: nls.localize('stackFrameSupportsRestart', "True when the focused stack frame suppots 'restartFrame'.") });
@@ -117,6 +118,7 @@ export interface IRawStoppedDetails {
 	text?: string;
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
+	preserveFocusHint?: boolean;
 	framesErrorMessage?: string;
 	hitBreakpointIds?: number[];
 }
@@ -529,6 +531,7 @@ export interface IBreakpointData {
 	readonly condition?: string;
 	readonly logMessage?: string;
 	readonly hitCondition?: string;
+	readonly triggeredBy?: string;
 }
 
 export interface IBreakpointUpdateData {
@@ -537,6 +540,7 @@ export interface IBreakpointUpdateData {
 	readonly logMessage?: string;
 	readonly lineNumber?: number;
 	readonly column?: number;
+	readonly triggeredBy?: string;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -561,6 +565,15 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
+	/** An ID of the breakpoint that triggers this breakpoint. */
+	readonly triggeredBy?: string;
+	/** Pending on the trigger breakpoint, which means this breakpoint is not yet sent to DA */
+	readonly pending: boolean;
+
+	/** Marks that a session did trigger the breakpoint. */
+	setSessionDidTrigger(sessionId: string): void;
+	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
+	getSessionDidTrigger(sessionId: string): boolean;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -636,7 +649,7 @@ export interface IEvaluate {
 export interface IDebugModel extends ITreeElement {
 	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
 	getSessions(includeInactive?: boolean): IDebugSession[];
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; triggeredOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
@@ -679,12 +692,13 @@ export interface IDebugConfiguration {
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean | 'auto' | 'on' | 'off'; // boolean for back-compat
-	toolBarLocation: 'floating' | 'docked' | 'hidden';
+	toolBarLocation: 'floating' | 'docked' | 'commandCenter' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
 	showSubSessionsInToolBar: boolean;
+	closeReadonlyTabsOnEnd: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;
@@ -839,6 +853,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	hiddenWhen?: string;
 	deprecated?: string;
 	strings?: { [key in DebuggerString]: string };
 }
@@ -903,7 +918,12 @@ export interface IConfigurationManager {
 	 */
 	onDidSelectConfiguration: Event<void>;
 
-	hasDebugConfigurationProvider(debugType: string): boolean;
+	/**
+	 * Allows to register on change of selected debug configuration.
+	 */
+	onDidChangeConfigurationProviders: Event<void>;
+
+	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
 	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
@@ -1006,19 +1026,24 @@ export interface IDebugService {
 	onDidChangeState: Event<State>;
 
 	/**
-	 * Allows to register on new session events.
-	 */
-	onDidNewSession: Event<IDebugSession>;
-
-	/**
-	 * Allows to register on sessions about to be created (not yet fully initialised)
+	 * Allows to register on sessions about to be created (not yet fully initialised).
+	 * This is fired exactly one time for any given session.
 	 */
 	onWillNewSession: Event<IDebugSession>;
 
 	/**
-	 * Allows to register on end session events.
+	 * Fired when a new debug session is started. This may fire multiple times
+	 * for a single session due to restarts.
 	 */
-	onDidEndSession: Event<IDebugSession>;
+	onDidNewSession: Event<IDebugSession>;
+
+	/**
+	 * Allows to register on end session events.
+	 *
+	 * Contains a boolean indicating whether the session will restart. If restart
+	 * is true, the session should not considered to be dead yet.
+	 */
+	onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
 
 	/**
 	 * Gets the configuration manager.
@@ -1091,6 +1116,12 @@ export interface IDebugService {
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void>;
 
 	/**
+	 * Updates an already existing data breakpoint.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
+	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void>;
+
+	/**
 	 * Removes all data breakpoints. If id is passed only removes the data breakpoint with the passed id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
@@ -1117,6 +1148,11 @@ export interface IDebugService {
 	 * If session is not passed, sends all breakpoints to each session.
 	 */
 	sendAllBreakpoints(session?: IDebugSession): Promise<any>;
+
+	/**
+	 * Sends breakpoints of the given source to the passed session.
+	 */
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean, session?: IDebugSession): Promise<any>;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
@@ -1183,7 +1219,8 @@ export interface IDebugService {
 export const enum BreakpointWidgetContext {
 	CONDITION = 0,
 	HIT_COUNT = 1,
-	LOG_MESSAGE = 2
+	LOG_MESSAGE = 2,
+	TRIGGER_POINT = 3
 }
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {

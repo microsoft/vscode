@@ -102,7 +102,7 @@ const NullAccessor = new NullAccessorClass();
 suite('Fuzzy Scorer', () => {
 
 	test('score (fuzzy)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		const scores: FuzzyScore[] = [];
 		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
@@ -134,7 +134,7 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('score (non fuzzy)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		assert.ok(_doScore(target, 'HelLo-World', false)[0] > 0);
 		assert.strictEqual(_doScore(target, 'HelLo-World', false)[1].length, 'HelLo-World'.length);
@@ -1161,10 +1161,10 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('fuzzyScore2 (matching)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		for (const offset of [0, 3]) {
-			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HeLlo-World', offset);
+			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HelLo-World', offset);
 
 			assert.ok(score);
 			assert.strictEqual(matches.length, 1);
@@ -1183,7 +1183,7 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('fuzzyScore2 (multiple queries)', function () {
-		const target = 'HeLlo-World';
+		const target = 'HelLo-World';
 
 		const [firstSingleScore, firstSingleMatches] = _doScore2(target, 'HelLo');
 		const [secondSingleScore, secondSingleMatches] = _doScore2(target, 'World');

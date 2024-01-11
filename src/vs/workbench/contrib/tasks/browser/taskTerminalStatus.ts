@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -23,7 +23,7 @@ interface ITerminalData {
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
 	taskRunEnded: boolean;
-	disposeListener?: IDisposable;
+	disposeListener?: MutableDisposable<IDisposable>;
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
@@ -50,23 +50,32 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
 			}
 		}));
+		this._register(toDisposable(() => {
+			for (const terminalData of this.terminalMap.values()) {
+				terminalData.disposeListener?.dispose();
+			}
+			this.terminalMap.clear();
+		}));
 	}
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidFindFirstMatch(() => {
+		this._register(problemMatcher.onDidFindFirstMatch(() => {
 			this._marker = terminal.registerMarker();
-		});
-		problemMatcher.onDidFindErrors(() => {
+			if (this._marker) {
+				this._register(this._marker);
+			}
+		}));
+		this._register(problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
 				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
-		});
-		problemMatcher.onDidRequestInvalidateLastMarker(() => {
+		}));
+		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
 			this._marker?.dispose();
 			this._marker = undefined;
-		});
+		}));
 
 		this.terminalMap.set(terminal.instanceId, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
@@ -129,7 +138,8 @@ export class TaskTerminalStatus extends Disposable {
 			return;
 		}
 		if (!terminalData.disposeListener) {
-			terminalData.disposeListener = terminalData.terminal.onDisposed(() => {
+			terminalData.disposeListener = this._register(new MutableDisposable());
+			terminalData.disposeListener.value = terminalData.terminal.onDisposed(() => {
 				if (!event.terminalId) {
 					return;
 				}

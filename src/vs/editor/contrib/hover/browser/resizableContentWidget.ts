@@ -78,7 +78,7 @@ export abstract class ResizableContentWidget extends Disposable implements ICont
 			return;
 		}
 		const editorBox = dom.getDomNodePagePosition(editorDomNode);
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(editorDomNode.ownerDocument.body);
 		const mouseBottom = editorBox.top + mouseBox.top + mouseBox.height;
 		return bodyBox.height - mouseBottom - BOTTOM_HEIGHT;
 	}

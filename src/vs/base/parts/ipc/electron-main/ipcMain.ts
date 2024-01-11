@@ -6,6 +6,7 @@
 import { ipcMain as unsafeIpcMain, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
+import { VSCODE_AUTHORITY } from 'vs/base/common/network';
 
 type ipcMainListener = (event: IpcMainEvent, ...args: any[]) => void;
 
@@ -127,7 +128,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return false; // unexpected URL
 		}
 
-		if (host !== 'vscode-app') {
+		if (host !== VSCODE_AUTHORITY) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a bad origin of '${host}'.`);
 			return false; // unexpected sender
 		}

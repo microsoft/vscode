@@ -6,12 +6,15 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAuthenticationProvider, SyncStatus, SyncResource, IUserDataSyncResource, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { localize, localize2 } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IView } from 'vs/workbench/common/views';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IAction2Options } from 'vs/platform/actions/common/actions';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -43,6 +46,9 @@ export interface IUserDataSyncWorkbenchService {
 
 	showConflicts(conflictToOpen?: IResourcePreview): Promise<void>;
 	accept(resource: IUserDataSyncResource, conflictResource: URI, content: string | null | undefined, apply: boolean): Promise<void>;
+
+	getAllLogResources(): Promise<URI[]>;
+	downloadSyncActivity(): Promise<URI | undefined>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {
@@ -67,8 +73,7 @@ export interface IUserDataSyncConflictsView extends IView {
 	open(conflict: IResourcePreview): Promise<void>;
 }
 
-export const SYNC_ORIGINAL_TITLE = 'Settings Sync';
-export const SYNC_TITLE = localize('sync category', "Settings Sync");
+export const SYNC_TITLE: ILocalizedString = localize2('sync category', "Settings Sync");
 
 export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
 
@@ -87,3 +92,11 @@ export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog'
 // VIEWS
 export const SYNC_VIEW_CONTAINER_ID = 'workbench.view.sync';
 export const SYNC_CONFLICTS_VIEW_ID = 'workbench.views.sync.conflicts';
+
+export const DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR: Readonly<IAction2Options> = {
+	id: 'workbench.userDataSync.actions.downloadSyncActivity',
+	title: { original: 'Download Settings Sync Activity', value: localize('download sync activity title', "Download Settings Sync Activity") },
+	category: Categories.Developer,
+	f1: true,
+	precondition: ContextKeyExpr.and(CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized))
+};

@@ -80,6 +80,7 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const $ = dom.$;
 
@@ -189,6 +190,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
+		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -904,7 +906,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (focus instanceof Match) {
-				editable = (focus instanceof MatchInNotebook) ? !focus.isWebviewMatch() : true;
+				editable = (focus instanceof MatchInNotebook) ? !focus.isReadonly() : true;
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
@@ -1072,7 +1074,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
+		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
 			return false;
 		}
 
@@ -1245,7 +1247,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+		this.audioCueService.playAudioCue(AudioCue.clear);
 		this.reLayout();
 	}
 
@@ -1275,58 +1277,18 @@ export class SearchView extends ViewPane {
 	}
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestor(document.activeElement, this.getContainer())) {
+		if (dom.isAncestorOfActiveElement(this.getContainer())) {
 			return null;
 		}
 
 		editor = editor ?? this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			if (editor.getOriginalEditor().hasTextFocus()) {
-				editor = editor.getOriginalEditor();
-			} else {
-				editor = editor.getModifiedEditor();
-			}
-		}
 
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
+		if (!editor) {
 			return null;
 		}
 
-		const range = editor.getSelection();
-		if (!range) {
-			return null;
-		}
-
-		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			if (wordAtPosition) {
-				return wordAtPosition.word;
-			}
-		}
-
-		if (!range.isEmpty()) {
-			let searchText = '';
-			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-				let lineText = editor.getModel().getLineContent(i);
-				if (i === range.endLineNumber) {
-					lineText = lineText.substring(0, range.endColumn - 1);
-				}
-
-				if (i === range.startLineNumber) {
-					lineText = lineText.substring(range.startColumn - 1);
-				}
-
-				if (i !== range.startLineNumber) {
-					lineText = '\n' + lineText;
-				}
-
-				searchText += lineText;
-			}
-
-			return searchText;
-		}
-
-		return null;
+		const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
+		return getSelectionTextFromEditor(allowUnselected, editor);
 	}
 
 	private showsFileTypes(): boolean {
@@ -2177,4 +2139,55 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 		return range;
 	}
 	return undefined;
+}
+
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | null {
+
+	let editor = activeEditor;
+
+	if (isDiffEditor(editor)) {
+		if (editor.getOriginalEditor().hasTextFocus()) {
+			editor = editor.getOriginalEditor();
+		} else {
+			editor = editor.getModifiedEditor();
+		}
+	}
+
+	if (!isCodeEditor(editor) || !editor.hasModel()) {
+		return null;
+	}
+
+	const range = editor.getSelection();
+	if (!range) {
+		return null;
+	}
+
+	if (range.isEmpty()) {
+		if (allowUnselectedWord) {
+			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
+			return wordAtPosition?.word ?? null;
+		} else {
+			return null;
+		}
+	}
+
+	let searchText = '';
+	for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+		let lineText = editor.getModel().getLineContent(i);
+		if (i === range.endLineNumber) {
+			lineText = lineText.substring(0, range.endColumn - 1);
+		}
+
+		if (i === range.startLineNumber) {
+			lineText = lineText.substring(range.startColumn - 1);
+		}
+
+		if (i !== range.startLineNumber) {
+			lineText = '\n' + lineText;
+		}
+
+		searchText += lineText;
+	}
+
+	return searchText;
 }

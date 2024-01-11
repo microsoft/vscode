@@ -17,6 +17,8 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
+/* hot-reload:patch-prototype-methods */
+
 export class InlineCompletionsSource extends Disposable {
 	private readonly _updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	public readonly inlineCompletions = disposableObservableValue<UpToDateInlineCompletions | undefined>('inlineCompletions', undefined);
@@ -292,8 +294,9 @@ export class InlineCompletionWithUpdatedRange {
 			return false;
 		}
 
-		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF).toLowerCase();
-		const filterText = minimizedReplacement.text.toLowerCase();
+		// We might consider comparing by .toLowerText, but this requires GhostTextReplacement
+		const originalValue = model.getValueInRange(minimizedReplacement.range, EndOfLinePreference.LF);
+		const filterText = minimizedReplacement.text;
 
 		const cursorPosIndex = Math.max(0, cursorPosition.column - minimizedReplacement.range.startColumn);
 

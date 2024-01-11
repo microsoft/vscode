@@ -5,11 +5,12 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
@@ -22,7 +23,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import type { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
 
@@ -34,8 +35,6 @@ class TerminalLinkContribution extends DisposableStore implements ITerminalContr
 	}
 
 	private _linkManager: TerminalLinkManager | undefined;
-	get linkManager(): TerminalLinkManager | undefined { return this._linkManager; }
-
 	private _terminalLinkQuickpick: TerminalLinkQuickpick | undefined;
 	private _linkResolver: TerminalLinkResolver;
 
@@ -109,20 +108,25 @@ const category = terminalStrings.actionCategory;
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenDetectedLink,
-	title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
+	title: localize2('workbench.action.terminal.openDetectedLink', 'Open Detected Link...'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
-	keybinding: {
+	keybinding: [{
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyO,
 		weight: KeybindingWeight.WorkbenchContrib + 1,
-		when: ContextKeyExpr.or(TerminalContextKeys.focus, TerminalContextKeys.accessibleBufferFocus)
+		when: TerminalContextKeys.focus
+	}, {
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
+		weight: KeybindingWeight.WorkbenchContrib + 1,
+		when: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))
 	},
+	],
 	run: (activeInstance) => TerminalLinkContribution.get(activeInstance)?.showLinkQuickpick()
 });
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenWebLink,
-	title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last URL Link"), original: 'Open Last URL Link' },
+	title: localize2('workbench.action.terminal.openLastUrlLink', 'Open Last URL Link'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
@@ -130,7 +134,7 @@ registerActiveInstanceAction({
 });
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenFileLink,
-	title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
+	title: localize2('workbench.action.terminal.openLastLocalFileLink', 'Open Last Local File Link'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,

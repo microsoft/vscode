@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: { value: localize('miWelcome', "Welcome"), original: 'Welcome' },
+			title: localize2('miWelcome', 'Welcome'),
 			category: Categories.Help,
 			f1: true,
 			menu: {
@@ -127,13 +127,13 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
-const category = { value: localize('welcome', "Welcome"), original: 'Welcome' };
+const category = localize2('welcome', "Welcome");
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.goBack',
-			title: { value: localize('welcome.goBack', "Go Back"), original: 'Go Back' },
+			title: localize2('welcome.goBack', 'Go Back'),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
@@ -203,7 +203,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showAllWalkthroughs',
-			title: { value: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."), original: 'Open Walkthrough...' },
+			title: localize2('welcome.showAllWalkthroughs', 'Open Walkthrough...'),
 			category,
 			f1: true,
 		});
@@ -327,4 +327,4 @@ configurationRegistry.registerConfiguration({
 });
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);
+	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Starting);

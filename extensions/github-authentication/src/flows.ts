@@ -53,7 +53,7 @@ export const enum ExtensionHost {
 	Local
 }
 
-interface IFlowQuery {
+export interface IFlowQuery {
 	target: GitHubTarget;
 	extensionHost: ExtensionHost;
 	isSupportedClient: boolean;

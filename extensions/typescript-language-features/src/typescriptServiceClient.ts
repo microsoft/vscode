@@ -355,12 +355,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this._onReady!.promise.then(f);
 	}
 
-	private info(message: string, data?: any): void {
-		this.logger.info(message, data);
+	private info(message: string, ...data: any[]): void {
+		this.logger.info(message, ...data);
 	}
 
-	private error(message: string, data?: any): void {
-		this.logger.error(message, data);
+	private error(message: string, ...data: any[]): void {
+		this.logger.error(message, ...data);
 	}
 
 	private logTelemetry(eventName: string, properties?: TelemetryProperties) {
@@ -558,6 +558,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
+				excludeLibrarySymbolsInNavTo: this._configuration.workspaceSymbolsExcludeLibrarySymbols,
 			},
 			watchOptions
 		};
@@ -584,7 +585,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		return {
-			...inferredProjectCompilerOptions(ProjectType.TypeScript, configuration),
+			...inferredProjectCompilerOptions(this.apiVersion, ProjectType.TypeScript, configuration),
 			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,

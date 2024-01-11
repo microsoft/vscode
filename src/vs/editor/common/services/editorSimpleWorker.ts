@@ -410,7 +410,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return null;
 		}
 
-		return EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		const result = EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		return result;
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
@@ -574,7 +575,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
+	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;

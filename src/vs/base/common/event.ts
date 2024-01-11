@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { once as onceFn } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
@@ -394,7 +394,7 @@ export namespace Event {
 	 * this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
 	 * ```
 	 */
-	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
+	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = [], disposable?: DisposableStore): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
 
 		let listener: IDisposable | null = event(e => {
@@ -405,6 +405,10 @@ export namespace Event {
 			}
 		});
 
+		if (disposable) {
+			disposable.add(listener);
+		}
+
 		const flush = () => {
 			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
@@ -414,6 +418,9 @@ export namespace Event {
 			onWillAddFirstListener() {
 				if (!listener) {
 					listener = event(e => emitter.fire(e));
+					if (disposable) {
+						disposable.add(listener);
+					}
 				}
 			},
 
@@ -434,6 +441,10 @@ export namespace Event {
 				listener = null;
 			}
 		});
+
+		if (disposable) {
+			disposable.add(emitter);
+		}
 
 		return emitter.event;
 	}
@@ -529,8 +540,8 @@ export namespace Event {
 	export interface IChainableSythensis<T> {
 		map<O>(fn: (i: T) => O): IChainableSythensis<O>;
 		forEach(fn: (i: T) => void): IChainableSythensis<T>;
+		filter<R extends T>(fn: (e: T) => e is R): IChainableSythensis<R>;
 		filter(fn: (e: T) => boolean): IChainableSythensis<T>;
-		filter<R>(fn: (e: T | R) => e is R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R, event: T) => R, initial: R): IChainableSythensis<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R): IChainableSythensis<R>;
 		latch(equals?: (a: T, b: T) => boolean): IChainableSythensis<T>;
@@ -604,8 +615,10 @@ export namespace Event {
 	 * runAndSubscribe(dataChangeEvent, () => this._updateUI());
 	 * ```
 	 */
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
-		handler(undefined);
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+		handler(initial);
 		return event(e => handler(e));
 	}
 
@@ -695,7 +708,7 @@ export namespace Event {
 	 * Each listener is attached to the observable directly.
 	 */
 	export function fromObservableLight(observable: IObservable<any>): Event<void> {
-		return (listener) => {
+		return (listener, thisArgs, disposables) => {
 			let count = 0;
 			let didChange = false;
 			const observer: IObserver = {
@@ -708,7 +721,7 @@ export namespace Event {
 						observable.reportChanges();
 						if (didChange) {
 							didChange = false;
-							listener();
+							listener.call(thisArgs);
 						}
 					}
 				},
@@ -721,11 +734,19 @@ export namespace Event {
 			};
 			observable.addObserver(observer);
 			observable.reportChanges();
-			return {
+			const disposable = {
 				dispose() {
 					observable.removeObserver(observer);
 				}
 			};
+
+			if (disposables instanceof DisposableStore) {
+				disposables.add(disposable);
+			} else if (Array.isArray(disposables)) {
+				disposables.push(disposable);
+			}
+
+			return disposable;
 		};
 	}
 }
@@ -1438,7 +1459,7 @@ export class EventMultiplexer<T> implements IDisposable {
 			this.events.splice(idx, 1);
 		};
 
-		return toDisposable(onceFn(dispose));
+		return toDisposable(createSingleCallFunction(dispose));
 	}
 
 	private onFirstListenerAdd(): void {

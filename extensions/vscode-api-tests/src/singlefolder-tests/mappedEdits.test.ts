@@ -18,13 +18,12 @@ suite('mapped edits provider', () => {
 		const r1 = vscode.chat.registerMappedEditsProvider(tsDocFilter, {
 			provideMappedEdits: (_doc: vscode.TextDocument, codeBlocks: string[], context: vscode.MappedEditsContext, _token: vscode.CancellationToken) => {
 
-				assert(context.selections.length === 1);
-				assert(context.related.length === 1);
-				assert('uri' in context.related[0] && 'range' in context.related[0]);
+				assert((context as any).selections.length === 1); // context.selections is for backward compat
+				assert(context.documents.length === 1);
 
 				const edit = new vscode.WorkspaceEdit();
 				const text = codeBlocks.join('\n//----\n');
-				edit.replace(uri, context.selections[0], text);
+				edit.replace(uri, context.documents[0][0].ranges[0], text);
 				return edit;
 			}
 		});
@@ -37,12 +36,16 @@ suite('mapped edits provider', () => {
 				`function foo() {\n\treturn 1;\n}`,
 			],
 			{
-				selections: [new vscode.Selection(0, 0, 1, 0)],
-				related: [
-					{
-						uri,
-						range: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(1, 0))
-					}
+				documents: [
+					[
+						{
+							uri,
+							version: 1,
+							ranges: [
+								new vscode.Range(new vscode.Position(0, 0), new vscode.Position(1, 0))
+							]
+						}
+					]
 				]
 			}
 		);
@@ -60,13 +63,9 @@ suite('mapped edits provider', () => {
 		const r1 = vscode.chat.registerMappedEditsProvider(tsDocFilter, {
 			provideMappedEdits: (_doc: vscode.TextDocument, codeBlocks: string[], context: vscode.MappedEditsContext, _token: vscode.CancellationToken) => {
 
-				assert(context.selections.length === 1);
-				assert(context.related.length === 1);
-				assert('uri' in context.related[0] && 'range' in context.related[0]);
-
 				const edit = new vscode.WorkspaceEdit();
 				const text = codeBlocks.join('\n//----\n');
-				edit.replace(uri, context.selections[0], text);
+				edit.replace(uri, context.documents[0][0].ranges[0], text);
 				return edit;
 			}
 		});
@@ -80,12 +79,16 @@ suite('mapped edits provider', () => {
 				`function foo() {\n\treturn 1;\n}`,
 			],
 			{
-				selections: [new vscode.Selection(0, 0, 1, 0)],
-				related: [
-					{
-						uri,
-						range: new vscode.Range(new vscode.Position(0, 0), new vscode.Position(1, 0))
-					}
+				documents: [
+					[
+						{
+							uri,
+							version: 1,
+							ranges: [
+								new vscode.Range(new vscode.Position(0, 0), new vscode.Position(1, 0))
+							]
+						}
+					]
 				]
 			}
 		);

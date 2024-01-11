@@ -45,6 +45,17 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._updateTotalHeight(this._computeTotalHeight());
 	}
 
+	private _chatHeight = 0;
+
+	set chatHeight(newHeight: number) {
+		this._chatHeight = newHeight;
+		this._updateTotalHeight(this._computeTotalHeight());
+	}
+
+	get chatHeight() {
+		return this._chatHeight;
+	}
+
 	private _editorHeight = 0;
 	private _statusBarHeight = 0;
 	set editorHeight(newHeight: number) {
@@ -108,6 +119,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
 		this._layoutInfo = {
+			chatHeight: 0,
 			editorHeight: 0,
 			previewHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
@@ -199,6 +211,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				previewHeight,
+				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
@@ -217,6 +230,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			this._layoutInfo = {
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
+				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
 				previewHeight: this._previewHeight,
@@ -240,6 +254,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				previewHeight: this._layoutInfo.previewHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				totalHeight: totalHeight,
+				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
 				layoutState: CellLayoutState.FromCache,

@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { Platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -23,7 +23,6 @@ export const EXTENSION_INSTALL_DEP_PACK_CONTEXT = 'dependecyOrPackExtensionInsta
 export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 	switch (targetPlatform) {
 		case TargetPlatform.WIN32_X64: return 'Windows 64 bit';
-		case TargetPlatform.WIN32_IA32: return 'Windows 32 bit';
 		case TargetPlatform.WIN32_ARM64: return 'Windows ARM';
 
 		case TargetPlatform.LINUX_X64: return 'Linux 64 bit';
@@ -47,7 +46,6 @@ export function TargetPlatformToString(targetPlatform: TargetPlatform) {
 export function toTargetPlatform(targetPlatform: string): TargetPlatform {
 	switch (targetPlatform) {
 		case TargetPlatform.WIN32_X64: return TargetPlatform.WIN32_X64;
-		case TargetPlatform.WIN32_IA32: return TargetPlatform.WIN32_IA32;
 		case TargetPlatform.WIN32_ARM64: return TargetPlatform.WIN32_ARM64;
 
 		case TargetPlatform.LINUX_X64: return TargetPlatform.LINUX_X64;
@@ -72,9 +70,6 @@ export function getTargetPlatform(platform: Platform | 'alpine', arch: string | 
 		case Platform.Windows:
 			if (arch === 'x64') {
 				return TargetPlatform.WIN32_X64;
-			}
-			if (arch === 'ia32') {
-				return TargetPlatform.WIN32_IA32;
 			}
 			if (arch === 'arm64') {
 				return TargetPlatform.WIN32_ARM64;
@@ -146,17 +141,7 @@ export function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatfo
 		return true;
 	}
 
-	// Fallback
-	const fallbackTargetPlatforms = getFallbackTargetPlarforms(productTargetPlatform);
-	return fallbackTargetPlatforms.includes(extensionTargetPlatform);
-}
-
-export function getFallbackTargetPlarforms(targetPlatform: TargetPlatform): TargetPlatform[] {
-	switch (targetPlatform) {
-		case TargetPlatform.WIN32_X64: return [TargetPlatform.WIN32_IA32];
-		case TargetPlatform.WIN32_ARM64: return [TargetPlatform.WIN32_IA32];
-	}
-	return [];
+	return false;
 }
 
 export interface IGalleryExtensionProperties {
@@ -234,6 +219,7 @@ export interface IGalleryExtension {
 	properties: IGalleryExtensionProperties;
 	telemetryData?: any;
 	queryContext?: IStringDictionary<any>;
+	supportLink?: string;
 }
 
 export interface IGalleryMetadata {
@@ -438,6 +424,7 @@ export type InstallOptions = {
 	isBuiltin?: boolean;
 	isMachineScoped?: boolean;
 	isApplicationScoped?: boolean;
+	pinned?: boolean;
 	donotIncludePackAndDependencies?: boolean;
 	installGivenVersion?: boolean;
 	installPreReleaseVersion?: boolean;
@@ -538,4 +525,4 @@ export interface IExtensionTipsService {
 
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
-export const PreferencesLocalizedLabel = { value: localize('preferences', "Preferences"), original: 'Preferences' };
+export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');

@@ -251,7 +251,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			// this._onDidSelect.resume();
 		}
 
-		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingLayout.clear();
 			this._layout(this.element.size);
 			// Reset focus border
@@ -395,7 +395,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		// 	return;
 		// }
 
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this._container.ownerDocument.body);
 		const info = this._getLayoutInfo();
 
 		if (!size) {

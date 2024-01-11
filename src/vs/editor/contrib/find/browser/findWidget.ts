@@ -681,7 +681,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (!this._isVisible) {
 			return;
 		}
-		if (!dom.isInDOM(this._domNode)) {
+		if (!this._domNode.isConnected) {
 			// the widget is not in the DOM
 			return;
 		}

@@ -1,21 +1,7 @@
 [
 	{
-		"c": "%",
-		"t": "text.bibtex comment.line.percentage.bibtex punctuation.definition.comment.bibtex",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"dark_modern": "comment: #6A9955",
-			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
-		}
-	},
-	{
-		"c": "  a sample bibliography file",
-		"t": "text.bibtex comment.line.percentage.bibtex",
+		"c": "%  a sample bibliography file",
+		"t": "text.bibtex comment.block.bibtex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -29,7 +15,7 @@
 	},
 	{
 		"c": "%",
-		"t": "text.bibtex comment.line.percentage.bibtex punctuation.definition.comment.bibtex",
+		"t": "text.bibtex comment.block.bibtex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -1386,8 +1372,8 @@
 		}
 	},
 	{
-		"c": "%",
-		"t": "text.bibtex comment.line.percentage.bibtex punctuation.definition.comment.bibtex",
+		"c": "%  The authors mentioned here are almost, but not quite,",
+		"t": "text.bibtex comment.block.bibtex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
@@ -1400,36 +1386,8 @@
 		}
 	},
 	{
-		"c": "  The authors mentioned here are almost, but not quite,",
-		"t": "text.bibtex comment.line.percentage.bibtex",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"dark_modern": "comment: #6A9955",
-			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
-		}
-	},
-	{
-		"c": "%",
-		"t": "text.bibtex comment.line.percentage.bibtex punctuation.definition.comment.bibtex",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"dark_modern": "comment: #6A9955",
-			"hc_light": "comment: #515151",
-			"light_modern": "comment: #008000"
-		}
-	},
-	{
-		"c": "  entirely unrelated to Matt Groening.",
-		"t": "text.bibtex comment.line.percentage.bibtex",
+		"c": "%  entirely unrelated to Matt Groening.",
+		"t": "text.bibtex comment.block.bibtex",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",

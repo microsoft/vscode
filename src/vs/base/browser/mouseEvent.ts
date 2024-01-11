@@ -45,7 +45,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
 
-	constructor(e: MouseEvent) {
+	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
 		this.browserEvent = e;
 		this.leftButton = e.button === 0;
@@ -69,12 +69,12 @@ export class StandardMouseEvent implements IMouseEvent {
 			this.posy = e.pageY;
 		} else {
 			// Probably hit by MSGestureEvent
-			this.posx = e.clientX + document.body.scrollLeft + document.documentElement!.scrollLeft;
-			this.posy = e.clientY + document.body.scrollTop + document.documentElement!.scrollTop;
+			this.posx = e.clientX + this.target.ownerDocument.body.scrollLeft + this.target.ownerDocument.documentElement.scrollLeft;
+			this.posy = e.clientY + this.target.ownerDocument.body.scrollTop + this.target.ownerDocument.documentElement.scrollTop;
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(window, e.view);
+		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(targetWindow, e.view);
 		this.posx -= iframeOffsets.left;
 		this.posy -= iframeOffsets.top;
 	}
@@ -92,8 +92,8 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 	public readonly dataTransfer: DataTransfer;
 
-	constructor(e: MouseEvent) {
-		super(e);
+	constructor(targetWindow: Window, e: MouseEvent) {
+		super(targetWindow, e);
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
 }

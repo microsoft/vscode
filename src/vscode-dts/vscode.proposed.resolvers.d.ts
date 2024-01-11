@@ -124,6 +124,10 @@ declare module 'vscode' {
 			 * One of the the options must have the ID "private".
 			 */
 			privacyOptions: TunnelPrivacy[];
+			/**
+			 * Defaults to true for backwards compatibility.
+			 */
+			protocol?: boolean;
 		};
 	}
 
@@ -150,10 +154,228 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Exec server used for nested resolvers. The type is currently not maintained
-	 * in these types, and is a contract between extensions.
+	 * An ExecServer allows spawning processes on a remote machine. An ExecServer is provided by resolvers. It can be
+	 * acquired by `workspace.getRemoteExecServer` or from the context when in a resolver (`RemoteAuthorityResolverContext.execServer`).
 	 */
-	export type ExecServer = unknown;
+	export interface ExecServer {
+		/**
+		 * Spawns a given subprocess with the given command and arguments.
+		 * @param command The command to execute.
+		 * @param args The arguments to pass to the command.
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that gives access to the process' stdin, stdout and stderr streams, as well as the process' exit code.
+		 */
+		spawn(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<SpawnedCommand>;
+
+		/**
+		 * Spawns an connector that allows to start a remote server. It is assumed the command starts a Code CLI. Additional
+		 * arguments will be passed to the connector.
+		 * @param command The command to execute. It is assumed the command spawns a Code CLI executable.
+		 * @param args The arguments to pass to the connector
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that gives access to the spawned {@link RemoteServerConnector}. It also provides a stream to which standard
+		 * log messages are written.
+		 */
+		spawnRemoteServerConnector?(command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<RemoteServerConnector>;
+
+		/**
+		 * Downloads the CLI executable of the desired platform and quality and pipes it to the
+		 * provided process' stdin.
+		 * @param buildTarget The CLI build target to download.
+		 * @param command The command to execute. The downloaded bits will be piped to the command's stdin.
+		 * @param args The arguments to pass to the command.
+		 * @param options Additional options for the spawned process.
+		 * @returns A promise that resolves when the process exits with a {@link ProcessExit} object.
+		 */
+		downloadCliExecutable?(buildTarget: CliBuild, command: string, args: string[], options?: ExecServerSpawnOptions): Thenable<ProcessExit>;
+
+		/**
+		 * Gets the environment where the exec server is running.
+		 * @returns A promise that resolves to an {@link ExecEnvironment} object.
+		 */
+		env(): Thenable<ExecEnvironment>;
+
+		/**
+		 * Kills a process with the given ID.
+		 *
+		 * @param processId process ID to kill.
+		 */
+		kill(processId: number): Thenable<void>;
+
+		/**
+		 * Connects to the given TCP host/port on the remote.
+		 *
+		 * @param host The hostname or IP to connect to
+		 * @param port The port number to connect to
+		 * @returns a duplex stream, and a promise the resolves when both sides
+		 * have closed.
+		 */
+		tcpConnect(
+			host: string,
+			port: number,
+		): Thenable<{ stream: WriteStream & ReadStream; done: Thenable<void> }>;
+
+		/**
+		 * Access to the file system of the remote.
+		 */
+		readonly fs: RemoteFileSystem;
+	}
+
+	export type ProcessEnv = Record<string, string>;
+
+	export interface ExecServerSpawnOptions {
+		readonly env?: ProcessEnv;
+		readonly cwd?: string;
+	}
+
+	export interface SpawnedCommand {
+		readonly stdin: WriteStream;
+		readonly stdout: ReadStream;
+		readonly stderr: ReadStream;
+		readonly onExit: Thenable<ProcessExit>;
+	}
+
+	export interface RemoteServerConnector {
+		readonly logs: ReadStream;
+		readonly onExit: Thenable<ProcessExit>;
+		/**
+		 * Connect to a new code server, returning a stream that can be used to communicate with it.
+		 * @param params The parameters for the code server.
+		 * @returns A promise that resolves to a {@link ManagedMessagePassing} object that can be used with a resolver
+		 */
+		connect(params: ServeParams): Thenable<ManagedMessagePassing>;
+	}
+
+	export interface ProcessExit {
+		readonly status: number;
+		readonly message?: string;
+	}
+
+	export interface ReadStream {
+		readonly onDidReceiveMessage: Event<Uint8Array>;
+		readonly onEnd: Thenable<void>;
+	}
+
+	export interface WriteStream {
+		write(data: Uint8Array): void;
+		end(): void;
+	}
+
+	export interface ServeParams {
+		readonly socketId: number;
+		readonly commit?: string;
+		readonly quality: string;
+		readonly extensions: string[];
+		/** Whether server traffic should be compressed. */
+		readonly compress?: boolean;
+		/** Optional explicit connection token for the server. */
+		readonly connectionToken?: string;
+	}
+
+	export interface CliBuild {
+		readonly quality: string;
+		/** 'LinuxAlpineX64' | 'LinuxAlpineARM64', 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64' */
+		readonly buildTarget: string;
+		readonly commit: string;
+	}
+
+	export interface ExecEnvironment {
+		readonly env: ProcessEnv;
+		/** 'darwin' | 'linux' | 'win32' */
+		readonly osPlatform: string;
+		/** uname.version or windows version number, undefined if it could not be read. */
+		readonly osRelease?: string;
+	}
+
+	export interface RemoteFileSystem {
+		/**
+		 * Retrieve metadata about a file.
+		 *
+		 * @param path The path of the file to retrieve metadata about.
+		 * @returns The file metadata about the file.
+		 * @throws an exception when `path` doesn't exist.
+		 */
+		stat(path: string): Thenable<FileStat>;
+
+		/**
+		 * Recursively creates the given directory on the remote.
+		 *
+		 * @param path The path of the folder to create
+		 * @throws an exception when `path` is a file, or other i/o operations happen
+		 */
+		mkdirp(path: string): Thenable<void>;
+
+		/**
+		 * Recursively deletes the given path on the remote.
+		 *
+		 * @param path The path of the file or folder to delete.
+		 * @throws if an i/o error happens during removal. It does not throw if
+		 * the path already does not exist.
+		 */
+		rm(path: string): Thenable<void>;
+
+		/**
+		 * Reads the given file from the remote.
+		 *
+		 * @param path The path of the file to read.
+		 * @throws if the path doesn't exist or can't be accessed
+		 * @returns a readable stream of the file data
+		 */
+		read(path: string): Thenable<ReadStream>;
+
+		/**
+		 * Writes the given file on the remote. Truncates the file if it exists.
+		 *
+		 * @param path The path of the file to write.
+		 * @throws if the path can't be accessed
+		 * @returns a writable `stream` that accepts data, and a `done` promise that
+		 * will resolve after `stream.end()` is called once the write is complete.
+		 */
+		write(path: string): Thenable<{ stream: WriteStream; done: Thenable<void> }>;
+
+		/**
+		 * Connects to the given unix socket or named pipe on the remote.
+		 *
+		 * @param path The path of the unix socket or named pipe
+		 * @throws if the path can't be accessed
+		 * @returns a duplex stream, and a promise the resolves when both sides
+		 * have closed.
+		 */
+		connect(path: string): Thenable<{ stream: WriteStream & ReadStream; done: Thenable<void> }>;
+
+		/**
+		 * Renames the file.
+		 *
+		 * @param fromPath The existing file path.
+		 * @param toPath The new file path.
+		 * @throws if the original path doesn't exist, or the toPath can't be accessed
+		 */
+		rename(fromPath: string, toPath: string): Thenable<void>;
+
+		/**
+		 * Reads the contents of a directory.
+		 *
+		 * @param path The path of the folder to read.
+		 * @throws if the folder doesn't exist
+		 * @returns a list of directory entries
+		 */
+		readdir(path: string): Thenable<DirectoryEntry[]>;
+	}
+
+	export interface DirectoryEntry {
+		/**
+		 * The type of the file, e.g. is a regular file, a directory, or symbolic link
+		 * to a file.
+		 *
+		 * *Note:* This value might be a bitmask, e.g. `FileType.File | FileType.SymbolicLink`.
+		 */
+		type: FileType;
+
+		/**
+		 * Non-absolute name of the file in the directory.
+		 */
+		name: string;
+	}
 
 	export interface RemoteAuthorityResolver {
 		/**

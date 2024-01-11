@@ -106,7 +106,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 		this._register(c);
 		this._register(this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */)));
 
-		const collection = new MainThreadTestCollection((testId, levels) => {
+		const collection = new MainThreadTestCollection({ asCanonicalUri: u => u }, (testId, levels) => {
 			this.c.expand(testId, levels);
 			if (!this.isProcessingDiff) {
 				this.onDiff.fire(this.c.collectDiff());

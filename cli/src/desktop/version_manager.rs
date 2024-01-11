@@ -18,7 +18,10 @@ use crate::{
 	log,
 	state::{LauncherPaths, PersistedState},
 	update_service::Platform,
-	util::errors::{AnyError, InvalidRequestedVersion},
+	util::{
+		command::new_std_command,
+		errors::{AnyError, InvalidRequestedVersion},
+	},
 };
 
 /// Parsed instance that a user can request.
@@ -110,7 +113,7 @@ impl CodeVersionManager {
 
 		// Check whether the user is supplying a path to the CLI directly (e.g. #164622)
 		if let Ok(true) = path.metadata().map(|m| m.is_file()) {
-			let result = std::process::Command::new(path)
+			let result = new_std_command(path)
 				.args(["--version"])
 				.output()
 				.map(|o| o.status.success());
@@ -270,7 +273,7 @@ fn detect_installed_program(log: &log::Logger) -> io::Result<Vec<PathBuf>> {
 	// the `Location:` line for the path.
 	info!(log, "Searching for installations on your machine, this is done once and will take about 10 seconds...");
 
-	let stdout = std::process::Command::new("system_profiler")
+	let stdout = new_std_command("system_profiler")
 		.args(["SPApplicationsDataType", "-detailLevel", "mini"])
 		.output()?
 		.stdout;

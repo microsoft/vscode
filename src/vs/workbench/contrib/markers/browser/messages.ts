@@ -6,6 +6,7 @@
 import * as nls from 'vs/nls';
 import { basename } from 'vs/base/common/resources';
 import { MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Marker } from './markersModel';
 
 export default class Messages {
@@ -21,8 +22,7 @@ export default class Messages {
 	public static PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_SEVERITY: string = nls.localize('problems.panel.configuration.compareOrder.severity', "Navigate problems ordered by severity");
 	public static PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION: string = nls.localize('problems.panel.configuration.compareOrder.position', "Navigate problems ordered by position");
 
-	public static MARKERS_PANEL_ORIGINAL_TITLE_PROBLEMS: string = 'Problems';
-	public static MARKERS_PANEL_TITLE_PROBLEMS: string = nls.localize('markers.panel.title.problems', "Problems");
+	public static MARKERS_PANEL_TITLE_PROBLEMS: ILocalizedString = nls.localize2('markers.panel.title.problems', "Problems");
 
 	public static MARKERS_PANEL_NO_PROBLEMS_BUILT: string = nls.localize('markers.panel.no.problems.build', "No problems have been detected in the workspace.");
 	public static MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT: string = nls.localize('markers.panel.no.problems.activeFile.build', "No problems have been detected in the current file.");

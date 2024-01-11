@@ -15,18 +15,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('ListViewInfoAccessor', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('basics', async function () {
@@ -38,13 +38,13 @@ suite('ListViewInfoAccessor', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			(editor, viewModel) => {
-				const foldingModel = disposables.add(new FoldingModel());
+			(editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 
-				const cellList = disposables.add(createNotebookCellList(instantiationService, disposables));
+				const cellList = ds.add(createNotebookCellList(instantiationService, ds));
 				cellList.attachViewModel(viewModel);
-				const listViewInfoAccessor = disposables.add(new ListViewInfoAccessor(cellList));
+				const listViewInfoAccessor = ds.add(new ListViewInfoAccessor(cellList));
 
 				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(0)!), 0);
 				assert.strictEqual(listViewInfoAccessor.getViewIndex(viewModel.cellAt(1)!), 1);
@@ -79,6 +79,6 @@ suite('ListViewInfoAccessor', () => {
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }]), [{ start: 0, end: 2 }]);
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 2, end: 3 }]), [{ start: 2, end: 5 }]);
 				assert.deepStrictEqual(expandCellRangesWithHiddenCells(notebookEditor, [{ start: 0, end: 1 }, { start: 2, end: 3 }]), [{ start: 0, end: 5 }]);
-			}, disposables);
+			});
 	});
 });

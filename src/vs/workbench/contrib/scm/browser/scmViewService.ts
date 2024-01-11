@@ -57,7 +57,7 @@ export class SCMViewService implements ISCMViewService {
 	private didFinishLoading: boolean = false;
 	private didSelectRepository: boolean = false;
 	private previousState: ISCMViewServiceState | undefined;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	private _repositories: ISCMRepositoryView[] = [];
 

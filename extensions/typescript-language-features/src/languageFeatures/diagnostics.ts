@@ -206,7 +206,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 				this._diagnosticCodesMap.clear();
 				/* __GDPR__
 					"typescript.diagnostics" : {
-						"owner": "@aiday-mar",
+						"owner": "aiday-mar",
 						"diagnosticCodes" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
@@ -214,7 +214,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 					}
 				*/
 				this._telemetryReporter.logTelemetry('typescript.diagnostics', {
-					diagnoticCodes: diagnosticCodes
+					diagnosticCodes: diagnosticCodes
 				});
 			}
 		}, 5 * 60 * 1000); // 5 minutes

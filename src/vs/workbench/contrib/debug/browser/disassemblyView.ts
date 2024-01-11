@@ -176,7 +176,7 @@ export class DisassemblyView extends EditorPane {
 		this._enableSourceCodeRender = this._configurationService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
 		const lineHeight = this.fontInfo.lineHeight;
 		const thisOM = this;
-		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
+		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry> {
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
 				if (thisOM.isSourceCodeRender && row.showSourceLocation && row.instruction.location?.path && row.instruction.line) {
@@ -339,7 +339,7 @@ export class DisassemblyView extends EditorPane {
 	async goToInstructionAndOffset(instructionReference: string, offset: number, focus?: boolean) {
 		let addr = this._referenceToMemoryAddress.get(instructionReference);
 		if (addr === undefined) {
-			await this.loadDisassembledInstructions(instructionReference, 0, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+			await this.loadDisassembledInstructions(instructionReference, 0, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2);
 			addr = this._referenceToMemoryAddress.get(instructionReference);
 		}
 
@@ -535,7 +535,7 @@ export class DisassemblyView extends EditorPane {
 			const startN = binarySearch2(da.length, i => Number(da.row(i).address - firstAddr));
 			const start = startN < 0 ? ~startN : startN;
 			const endN = binarySearch2(da.length, i => Number(da.row(i).address - lastAddr));
-			const end = endN < 0 ? ~endN : endN;
+			const end = endN < 0 ? ~endN : endN + 1;
 			const toDelete = end - start;
 
 			// Go through everything we're about to add, and only show the source
@@ -799,6 +799,9 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				let textModel: ITextModel | undefined = undefined;
 				const sourceSB = new StringBuilder(10000);
 				const ref = await this.textModelService.createModelReference(sourceURI);
+				if (templateData.currentElement.element !== element) {
+					return; // avoid a race, #192831
+				}
 				textModel = ref.object.textEditorModel;
 				templateData.cellDisposable.push(ref);
 

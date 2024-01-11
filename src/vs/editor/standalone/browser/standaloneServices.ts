@@ -10,6 +10,7 @@ import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/editor/common/services/languageFeatureDebounce';
 import 'vs/editor/common/services/semanticTokensStylingService';
 import 'vs/editor/common/services/languageFeaturesService';
+import 'vs/editor/browser/services/hoverService';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -42,7 +43,7 @@ import { IKeybindingItem, KeybindingsRegistry } from 'vs/platform/keybinding/com
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent, Verbosity } from 'vs/platform/label/common/label';
-import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions } from 'vs/platform/notification/common/notification';
+import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, INotificationSource, INotificationSourceFilter, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService, IProgressService, IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressNotificationOptions, IProgressOptions, IProgressStep, IProgressWindowOptions } from 'vs/platform/progress/common/progress';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder, STANDALONE_EDITOR_WORKSPACE_ID } from 'vs/platform/workspace/common/workspace';
@@ -92,6 +93,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { mainWindow } from 'vs/base/browser/window';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -257,7 +259,7 @@ class StandaloneDialogService implements IDialogService {
 			messageText = messageText + '\n\n' + detail;
 		}
 
-		return window.confirm(messageText);
+		return mainWindow.confirm(messageText);
 	}
 
 	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
@@ -305,11 +307,9 @@ export class StandaloneNotificationService implements INotificationService {
 
 	readonly onDidRemoveNotification: Event<INotification> = Event.None;
 
-	readonly onDidChangeDoNotDisturbMode: Event<void> = Event.None;
+	readonly onDidChangeFilter: Event<void> = Event.None;
 
 	public _serviceBrand: undefined;
-
-	public doNotDisturbMode: boolean = false;
 
 	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
 
@@ -348,6 +348,19 @@ export class StandaloneNotificationService implements INotificationService {
 	public status(message: string | Error, options?: IStatusMessageOptions): IDisposable {
 		return Disposable.None;
 	}
+
+
+	public setFilter(filter: NotificationsFilter | INotificationSourceFilter): void { }
+
+	public getFilter(source?: INotificationSource): NotificationsFilter {
+		return NotificationsFilter.OFF;
+	}
+
+	public getFilters(): INotificationSourceFilter[] {
+		return [];
+	}
+
+	public removeFilter(sourceId: string): void { }
 }
 
 export class StandaloneCommandService implements ICommandService {
@@ -527,7 +540,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		return mainWindow.document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
@@ -758,6 +771,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly telemetryLevel = TelemetryLevel.NONE;
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
+	readonly sqmId = 'someValue.sqmId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
@@ -1045,7 +1059,11 @@ class StandaloneAudioService implements IAudioCueService {
 	async playAudioCues(cues: AudioCue[]): Promise<void> {
 	}
 
-	isEnabled(cue: AudioCue): boolean {
+	isCueEnabled(cue: AudioCue): boolean {
+		return false;
+	}
+
+	isAlertEnabled(cue: AudioCue): boolean {
 		return false;
 	}
 

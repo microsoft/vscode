@@ -444,7 +444,7 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputWidget._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const lastLineCol = viewModel.getLineLength(lastLineNumber) + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			historyNavigationBackwardsEnablement.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			historyNavigationForwardsEnablement.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);

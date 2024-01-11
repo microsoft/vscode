@@ -17,7 +17,7 @@ import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
@@ -198,7 +198,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 			}));
 
 			if (codeEditorModel) {
-				disposables.add(once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear()));
+				disposables.add(Event.once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear()));
 			}
 		}
 
