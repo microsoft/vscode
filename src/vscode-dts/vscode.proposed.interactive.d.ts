@@ -33,6 +33,7 @@ declare module 'vscode' {
 		wholeRange: Range;
 		attempt: number;
 		live: boolean;
+		withIntentDetection: boolean;
 	}
 
 	// todo@API make classes

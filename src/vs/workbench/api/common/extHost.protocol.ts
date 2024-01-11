@@ -68,7 +68,7 @@ import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFil
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { RelatedInformationResult, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IExtensionDescriptionDelta, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
@@ -80,7 +80,6 @@ import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { VariablesResult } from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1114,6 +1113,14 @@ export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
 
 export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto;
 
+export interface VariablesResult {
+	id: number;
+	name: string;
+	value: string;
+	hasNamedChildren: boolean;
+	indexedChildrenCount: number;
+}
+
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
@@ -1189,7 +1196,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 export interface IChatAgentCompletionItem {
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
-	values: IChatRequestVariableValue[];
+	values: IChatRequestVariableValueDto[];
 	detail?: string;
 	documentation?: string | IMarkdownString;
 }
@@ -1209,8 +1216,10 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
+
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -1434,7 +1443,9 @@ export type SCMRawResource = [
 	boolean /*strike through*/,
 	boolean /*faded*/,
 	string /*context value*/,
-	ICommandDto | undefined /*command*/
+	ICommandDto | undefined /*command*/,
+	UriComponents | undefined /* multiFileDiffEditorOriginalUri */,
+	UriComponents | undefined /* multiFileDiffEditorModifiedUri */,
 ];
 
 export type SCMRawResourceSplice = [
@@ -1480,7 +1491,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void;
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
@@ -1752,7 +1763,6 @@ export interface ExtHostAuthenticationShape {
 	$createSession(id: string, scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 	$removeSession(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string): Promise<void>;
-	$setProviders(providers: AuthenticationProviderInformation[]): Promise<void>;
 }
 
 export interface ExtHostAiRelatedInformationShape {
@@ -2214,7 +2224,8 @@ export interface ExtHostSCMShape {
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 	$provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
-	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
+	$provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined>;
+	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
 	$resolveHistoryItemGroupBase(sourceControlHandle: number, historyItemGroupId: string, token: CancellationToken): Promise<SCMHistoryItemGroupDto | undefined>;
 	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
@@ -2545,7 +2556,7 @@ export interface ExtHostNotebookKernelsShape {
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 	$cellExecutionChanged(uri: UriComponents, cellHandle: number, state: notebookCommon.NotebookCellExecutionState | undefined): void;
 	$provideKernelSourceActions(handle: number, token: CancellationToken): Promise<notebookCommon.INotebookKernelSourceAction[]>;
-	$provideVariables(handle: number, requestId: string, notebookUri: UriComponents, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void>;
+	$provideVariables(handle: number, requestId: string, notebookUri: UriComponents, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): Promise<void>;
 }
 
 export interface ExtHostInteractiveShape {
@@ -2633,7 +2644,7 @@ export interface ExtHostTestingShape {
 	/** Ensures any pending test diffs are flushed */
 	$syncTests(): Promise<void>;
 	/** Sets the active test run profiles */
-	$setActiveRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
+	$setDefaultRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
 }
 
 export interface ExtHostLocalizationShape {

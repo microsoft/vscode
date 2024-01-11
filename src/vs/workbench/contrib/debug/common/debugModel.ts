@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
+import { findLastIdx } from 'vs/base/common/arraysFind';
 import { DeferredPromise, RunOnceScheduler } from 'vs/base/common/async';
-import { decodeBase64, encodeBase64, VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { stringHash } from 'vs/base/common/hash';
 import { Emitter, Event } from 'vs/base/common/event';
+import { stringHash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
+import { autorun } from 'vs/base/common/observable';
 import * as resources from 'vs/base/common/resources';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI, URI as uri } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as nls from 'vs/nls';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointsChangeEvent, IBreakpointUpdateData, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
-import { getUriFromSource, Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
+import { DEBUG_MEMORY_SCHEME, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILogService } from 'vs/platform/log/common/log';
-import { autorun } from 'vs/base/common/observable';
-import { findLastIdx } from 'vs/base/common/arraysFind';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -866,6 +866,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
+	private sessionsDidTrigger?: Set<string>;
 
 	constructor(
 		private readonly _uri: uri,
@@ -879,7 +880,8 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		private readonly textFileService: ITextFileService,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly logService: ILogService,
-		id = generateUuid()
+		id = generateUuid(),
+		public triggeredBy: string | undefined = undefined
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
@@ -898,6 +900,13 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		}
 
 		return true;
+	}
+
+	get pending(): boolean {
+		if (this.data) {
+			return false;
+		}
+		return this.triggeredBy !== undefined;
 	}
 
 	get uri(): uri {
@@ -965,7 +974,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		result.lineNumber = this._lineNumber;
 		result.column = this._column;
 		result.adapterData = this.adapterData;
-
+		result.triggeredBy = this.triggeredBy;
 		return result;
 	}
 
@@ -973,21 +982,34 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
+	public setSessionDidTrigger(sessionId: string): void {
+		this.sessionsDidTrigger ??= new Set();
+		this.sessionsDidTrigger.add(sessionId);
+	}
+
+	public getSessionDidTrigger(sessionId: string): boolean {
+		return !!this.sessionsDidTrigger?.has(sessionId);
+	}
+
 	update(data: IBreakpointUpdateData): void {
-		if (!isUndefinedOrNull(data.lineNumber)) {
+		if (data.hasOwnProperty('lineNumber') && !isUndefinedOrNull(data.lineNumber)) {
 			this._lineNumber = data.lineNumber;
 		}
-		if (!isUndefinedOrNull(data.column)) {
+		if (data.hasOwnProperty('column')) {
 			this._column = data.column;
 		}
-		if (!isUndefinedOrNull(data.condition)) {
+		if (data.hasOwnProperty('condition')) {
 			this.condition = data.condition;
 		}
-		if (!isUndefinedOrNull(data.hitCondition)) {
+		if (data.hasOwnProperty('hitCondition')) {
 			this.hitCondition = data.hitCondition;
 		}
-		if (!isUndefinedOrNull(data.logMessage)) {
+		if (data.hasOwnProperty('logMessage')) {
 			this.logMessage = data.logMessage;
+		}
+		if (data.hasOwnProperty('triggeredBy')) {
+			this.triggeredBy = data.triggeredBy;
+			this.sessionsDidTrigger = undefined;
 		}
 	}
 }
@@ -1368,7 +1390,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		return { wholeCallStack, topCallStack: wholeCallStack };
 	}
 
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): IBreakpoint[] {
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; triggeredOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri?.toString();
 			const originalUriStr = filter.originalUri?.toString();
@@ -1386,6 +1408,9 @@ export class DebugModel extends Disposable implements IDebugModel {
 					return false;
 				}
 				if (filter.enabledOnly && (!this.breakpointsActivated || !bp.enabled)) {
+					return false;
+				}
+				if (filter.triggeredOnly && bp.triggeredBy === undefined) {
 					return false;
 				}
 
@@ -1462,7 +1487,9 @@ export class DebugModel extends Disposable implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => {
+			return new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, this.logService, rawBp.id, rawBp.triggeredBy);
+		});
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();

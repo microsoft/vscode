@@ -23,7 +23,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -208,12 +209,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleErrors`,
-			title: localize('toggle errors', "Toggle Errors"),
+			title: localize('show errors', "Show Errors"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowErrorsFilterContextKey,
-				title: localize('errors', "Show Errors")
-			},
+			toggled: MarkersContextKeys.ShowErrorsFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -233,12 +231,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleWarnings`,
-			title: localize('toggle warnings', "Toggle Warnings"),
+			title: localize('show warnings', "Show Warnings"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowWarningsFilterContextKey,
-				title: localize('warnings', "Show Warnings")
-			},
+			toggled: MarkersContextKeys.ShowWarningsFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -258,12 +253,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleInfos`,
-			title: localize('toggle infos', "Toggle Infos"),
+			title: localize('show infos', "Show Infos"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowInfoFilterContextKey,
-				title: localize('Infos', "Show Infos")
-			},
+			toggled: MarkersContextKeys.ShowInfoFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '1_filter',
@@ -283,12 +275,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleActiveFile`,
-			title: localize('toggle active file', "Toggle Active File"),
+			title: localize('show active file', "Show Active File Only"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowActiveFileFilterContextKey,
-				title: localize('Active File', "Show Active File Only")
-			},
+			toggled: MarkersContextKeys.ShowActiveFileFilterContextKey,
 			menu: {
 				id: viewFilterSubmenu,
 				group: '2_filter',
@@ -308,12 +297,9 @@ registerAction2(class extends ViewAction<IMarkersView> {
 	constructor() {
 		super({
 			id: `workbench.actions.${Markers.MARKERS_VIEW_ID}.toggleExcludedFiles`,
-			title: localize('toggle Excluded Files', "Toggle Excluded Files"),
+			title: localize('show excluded files', "Show Excluded Files"),
 			category: localize('problems', "Problems"),
-			toggled: {
-				condition: MarkersContextKeys.ShowExcludedFilesFilterContextKey,
-				title: localize('Excluded Files', "Hide Excluded Files")
-			},
+			toggled: MarkersContextKeys.ShowExcludedFilesFilterContextKey.negate(),
 			menu: {
 				id: viewFilterSubmenu,
 				group: '2_filter',

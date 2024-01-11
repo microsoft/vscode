@@ -9,7 +9,7 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/contrib/search/browser/searchModel';

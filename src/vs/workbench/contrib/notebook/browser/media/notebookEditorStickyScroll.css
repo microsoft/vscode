@@ -9,8 +9,8 @@
 	background-color: var(--vscode-notebook-editorBackground);
 	z-index: var(--z-index-notebook-sticky-scroll);
 	width: 100%;
-	font-family: var(--notebook-cell-input-preview-font-family);
 }
+
 .monaco-workbench
 	.notebookOverlay
 	.notebook-sticky-scroll-container

@@ -92,7 +92,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 		@IWorkingCopyBackupService private readonly _workingCopyBackupService: IWorkingCopyBackupService,
 		@ILogService private readonly logService: ILogService,
 		@INotebookEditorWorkerService private readonly _notebookEditorWorkerService: INotebookEditorWorkerService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService,
+		@IPreferencesService private readonly _preferencesService: IPreferencesService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, configurationService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -206,7 +206,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane {
 			// we need to hide it before getting a new widget
 			this._widget.value?.onWillHide();
 
-			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input, undefined, this._pagePosition?.dimension, DOM.getWindowById(group.windowId)?.window ?? mainWindow);
 
 			if (this._rootElement && this._widget.value!.getDomNode()) {
 				this._rootElement.setAttribute('aria-flowto', this._widget.value!.getDomNode().id || '');

@@ -85,6 +85,7 @@
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
 	align-items: center;
+	line-height: 16px;
 	overflow: hidden;
 }
 
