@@ -2525,18 +2525,6 @@ export class SCMViewPane extends ViewPane {
 	private readonly _onDidChangeViewSortKey = new Emitter<ViewSortKey>();
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
-	private _showActionButton = false;
-	get showActionButton(): boolean { return this._showActionButton; }
-
-	private _alwaysShowRepositories = false;
-	get alwaysShowRepositories(): boolean { return this._alwaysShowRepositories; }
-
-	private _showIncomingChanges: ShowChangesSetting | undefined;
-	get showIncomingChanges(): ShowChangesSetting { return this._showIncomingChanges ?? 'never'; }
-
-	private _showOutgoingChanges: ShowChangesSetting | undefined;
-	get showOutgoingChanges(): ShowChangesSetting { return this._showOutgoingChanges ?? 'never'; }
-
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();
 
@@ -2663,29 +2651,25 @@ export class SCMViewPane extends ViewPane {
 			if (visible) {
 				await this.tree.setInput(this.scmViewService, viewState);
 
-				const onDidChangeConfiguration = (e?: IConfigurationChangeEvent) => {
-					if (!e ||
+				Event.filter(this.configurationService.onDidChangeConfiguration,
+					e =>
+						e.affectsConfiguration('scm.alwaysShowRepositories'),
+					this.visibilityDisposables)
+					(() => {
+						this.updateActions();
+						this.updateChildren();
+					}, this, this.visibilityDisposables);
+
+				Event.filter(this.configurationService.onDidChangeConfiguration,
+					e =>
+						e.affectsConfiguration('scm.inputMinLineCount') ||
+						e.affectsConfiguration('scm.inputMaxLineCount') ||
 						e.affectsConfiguration('scm.showActionButton') ||
-						e.affectsConfiguration('scm.alwaysShowRepositories') ||
 						e.affectsConfiguration('scm.showChangesSummary') ||
 						e.affectsConfiguration('scm.showIncomingChanges') ||
-						e.affectsConfiguration('scm.showOutgoingChanges') ||
-						e.affectsConfiguration('scm.inputMinLineCount') ||
-						e.affectsConfiguration('scm.inputMaxLineCount')) {
-						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
-						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-						this._showIncomingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges');
-						this._showOutgoingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges');
-
-						if (e?.affectsConfiguration('scm.alwaysShowRepositories')) {
-							this.updateActions();
-						}
-
-						this.updateChildren();
-					}
-				};
-				this.configurationService.onDidChangeConfiguration(onDidChangeConfiguration, this, this.visibilityDisposables);
-				onDidChangeConfiguration();
+						e.affectsConfiguration('scm.showOutgoingChanges'),
+					this.visibilityDisposables)
+					(() => this.updateChildren(), this, this.visibilityDisposables);
 
 				// Add visible repositories
 				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
@@ -2729,13 +2713,7 @@ export class SCMViewPane extends ViewPane {
 		historyItemActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(historyItemActionRunner);
 
-		const treeDataSource = this.instantiationService.createInstance(
-			SCMTreeDataSource,
-			() => this.viewMode,
-			() => this.alwaysShowRepositories,
-			() => this.showActionButton,
-			() => this.showIncomingChanges,
-			() => this.showOutgoingChanges);
+		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode);
 		this.disposables.add(treeDataSource);
 
 		this.tree = this.instantiationService.createInstance(
@@ -3120,7 +3098,9 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateScmProviderContextKeys(): void {
-		if (!this.alwaysShowRepositories && this.items.size === 1) {
+		const alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+
+		if (!alwaysShowRepositories && this.items.size === 1) {
 			const provider = Iterable.first(this.items.keys())!.provider;
 			this.scmProviderContextKey.set(provider.contextValue);
 			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
@@ -3198,17 +3178,18 @@ export class SCMViewPane extends ViewPane {
 
 class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement> {
 
+	private alwaysShowRepositories: boolean = false;
+	private showActionButton: boolean = true;
 	private showChangesSummary: boolean = true;
+	private showIncomingChanges: ShowChangesSetting = 'auto';
+	private showOutgoingChanges: ShowChangesSetting = 'auto';
+
 	private readonly historyProviderCache = new Map<ISCMRepository, ISCMHistoryProviderCacheEntry>();
 	private readonly repositoryDisposables = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private readonly viewMode: () => ViewMode,
-		private readonly alwaysShowRepositories: () => boolean,
-		private readonly showActionButton: () => boolean,
-		private readonly showIncomingChanges: () => ShowChangesSetting,
-		private readonly showOutgoingChanges: () => ShowChangesSetting,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
@@ -3250,17 +3231,15 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 	async getChildren(inputOrElement: ISCMViewService | TreeElement): Promise<Iterable<TreeElement>> {
 		const repositoryCount = this.scmViewService.visibleRepositories.length;
-		const alwaysShowRepositories = this.alwaysShowRepositories();
 
-		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || alwaysShowRepositories)) {
+		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || this.alwaysShowRepositories)) {
 			return this.scmViewService.visibleRepositories;
-		} else if ((isSCMViewService(inputOrElement) && repositoryCount === 1 && !alwaysShowRepositories) || isSCMRepository(inputOrElement)) {
+		} else if ((isSCMViewService(inputOrElement) && repositoryCount === 1 && !this.alwaysShowRepositories) || isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
 
 			inputOrElement = isSCMRepository(inputOrElement) ? inputOrElement : this.scmViewService.visibleRepositories[0];
 			const actionButton = inputOrElement.provider.actionButton;
 			const resourceGroups = inputOrElement.provider.groups;
-			const showActionButton = this.showActionButton();
 
 			// SCM Input
 			if (inputOrElement.input.visible) {
@@ -3268,7 +3247,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			// Action Button
-			if (showActionButton && actionButton) {
+			if (this.showActionButton && actionButton) {
 				children.push({
 					type: 'actionButton',
 					repository: inputOrElement,
@@ -3278,7 +3257,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			// ResourceGroups
 			const hasSomeChanges = resourceGroups.some(group => group.resources.length > 0);
-			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !actionButton))) {
+			if (hasSomeChanges || (repositoryCount === 1 && (!this.showActionButton || !actionButton))) {
 				children.push(...resourceGroups);
 			}
 
@@ -3290,10 +3269,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				let label = localize('syncSeparatorHeader', "Incoming/Outgoing");
 				let ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
 
-				if (this.showIncomingChanges() !== 'never' && this.showOutgoingChanges() === 'never') {
+				if (this.showIncomingChanges !== 'never' && this.showOutgoingChanges === 'never') {
 					label = localize('syncIncomingSeparatorHeader', "Incoming");
 					ariaLabel = localize('syncIncomingSeparatorHeaderAriaLabel', "Incoming changes");
-				} else if (this.showIncomingChanges() === 'never' && this.showOutgoingChanges() !== 'never') {
+				} else if (this.showIncomingChanges === 'never' && this.showOutgoingChanges !== 'never') {
 					label = localize('syncOutgoingSeparatorHeader', "Outgoing");
 					ariaLabel = localize('syncOutgoingSeparatorHeaderAriaLabel', "Outgoing changes");
 				}
@@ -3341,7 +3320,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (this.showIncomingChanges() === 'never' && this.showOutgoingChanges() === 'never')) {
+		if (!historyProvider || !currentHistoryItemGroup || (this.showIncomingChanges === 'never' && this.showOutgoingChanges === 'never')) {
 			return [];
 		}
 
@@ -3359,8 +3338,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		// Incoming
 		if (historyItemGroupDetails?.incoming &&
-			(this.showIncomingChanges() === 'always' ||
-				(this.showIncomingChanges() === 'auto' && (historyItemGroupDetails.incoming.count ?? 0) > 0))) {
+			(this.showIncomingChanges === 'always' ||
+				(this.showIncomingChanges === 'auto' && (historyItemGroupDetails.incoming.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.incoming,
 				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", historyItemGroupDetails.incoming.label),
@@ -3371,8 +3350,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		// Outgoing
 		if (historyItemGroupDetails?.outgoing &&
-			(this.showOutgoingChanges() === 'always' ||
-				(this.showOutgoingChanges() === 'auto' && (historyItemGroupDetails.outgoing.count ?? 0) > 0))) {
+			(this.showOutgoingChanges === 'always' ||
+				(this.showOutgoingChanges === 'auto' && (historyItemGroupDetails.outgoing.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.outgoing,
 				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes from {0}", historyItemGroupDetails.outgoing.label),
@@ -3503,9 +3482,21 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
-		if (!e || e.affectsConfiguration('scm.showChangesSummary')) {
-			this.showChangesSummary = this.configurationService.getValue('scm.showChangesSummary');
-			this.historyProviderCache.clear();
+		if (!e ||
+			e.affectsConfiguration('scm.alwaysShowRepositories') ||
+			e.affectsConfiguration('scm.showActionButton') ||
+			e.affectsConfiguration('scm.showChangesSummary') ||
+			e.affectsConfiguration('scm.showIncomingChanges') ||
+			e.affectsConfiguration('scm.showOutgoingChanges')) {
+			this.alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+			this.showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
+			this.showChangesSummary = this.configurationService.getValue<boolean>('scm.showChangesSummary');
+			this.showIncomingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges');
+			this.showOutgoingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges');
+
+			if (e?.affectsConfiguration('scm.showChangesSummary')) {
+				this.historyProviderCache.clear();
+			}
 		}
 	}
 
