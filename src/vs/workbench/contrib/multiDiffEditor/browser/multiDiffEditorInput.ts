@@ -219,6 +219,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			onDidChange: documentChangeEmitter.event,
 			get documents() { return documents; },
 			contextKeys: this._resolvedMultiDiffSource.get()!.contextKeys,
+			getActionContext: this._resolvedMultiDiffSource.get()!.getActionContext
 		};
 	}
 

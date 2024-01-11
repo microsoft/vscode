@@ -10,7 +10,7 @@ import { autorun, derived, observableFromEvent } from 'vs/base/common/observable
 import { IObservable, globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { DocumentDiffItemViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
+import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
@@ -87,6 +87,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		private readonly _container: HTMLElement,
 		private readonly _overflowWidgetsDomNode: HTMLElement,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
+		private readonly _editorViewModel: IObservable<MultiDiffEditorViewModel | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -132,7 +133,15 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._outerEditorHeight = 38;
 
 		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.actions, MenuId.MultiDiffEditorFileToolbar, {
-			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.diffEditorViewModel?.model.modified.uri))),
+			actionRunner: this._register(new ActionRunnerWithContext(() => {
+				const modifiedUri = this._viewModel.get()?.diffEditorViewModel?.model.modified.uri;
+
+				if (typeof this._editorViewModel.get()?.getActionContext === 'undefined') {
+					return modifiedUri;
+				}
+
+				return modifiedUri ? this._editorViewModel.get()?.getActionContext!(modifiedUri) : undefined;
+			})),
 			menuOptions: {
 				shouldForwardArgs: true,
 			},

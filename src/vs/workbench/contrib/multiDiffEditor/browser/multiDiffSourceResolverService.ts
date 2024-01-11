@@ -32,6 +32,8 @@ export interface IResolvedMultiDiffSource {
 	readonly onDidChange: Event<void>;
 
 	readonly contextKeys?: Record<string, ContextKeyValue>;
+
+	readonly getActionContext?: (uri: URI) => any;
 }
 
 export class ConstResolvedMultiDiffSource implements IResolvedMultiDiffSource {

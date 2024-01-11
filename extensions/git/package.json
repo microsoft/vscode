@@ -25,6 +25,7 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
+    "contribMultiDiffEditorMenus",
     "contribSourceControlInputBoxMenu",
     "contribSourceControlHistoryItemMenu"
   ],
@@ -1816,6 +1817,18 @@
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
+        }
+      ],
+      "multiDiffEditor/resource/title": [
+        {
+          "command": "git.stage",
+          "group": "navigation",
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
+        },
+        {
+          "command": "git.unstage",
+          "group": "navigation",
+          "when": "scmProvider == git && scmResourceGroup == index"
         }
       ],
       "scm/change/title": [
