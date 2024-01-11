@@ -10,6 +10,8 @@ esac
 ROOT="$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 # Check platform requirements
-$ROOT/bin/helpers/check-requirements-linux.sh
+if [[ "$@" != *"--skip-requirements-check"* ]]; then
+	$ROOT/bin/helpers/check-requirements-linux.sh
+fi
 
 "$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
