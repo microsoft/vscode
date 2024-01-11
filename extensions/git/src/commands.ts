@@ -2608,14 +2608,18 @@ export class CommandCenter {
 	}
 
 	private async _unsortedQuickPick<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
+		const listeners: Disposable[] = [];
 		const quickPick = window.createQuickPick<T>();
 		quickPick.placeholder = placeHolder;
 		quickPick.sortByLabel = false;
 		quickPick.items = await items;
-		quickPick.onDidHide(() => quickPick.dispose());
+		listeners.push(quickPick.onDidHide(() => {
+			quickPick.dispose();
+			listeners.forEach(d => d.dispose());
+		}));
 		quickPick.show();
 		const choice = await new Promise<T | undefined>(resolve => {
-			quickPick.onDidAccept(() => resolve(quickPick.activeItems[0]));
+			listeners.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
 		});
 		quickPick.hide();
 		return choice;
