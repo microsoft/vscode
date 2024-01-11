@@ -474,6 +474,8 @@ class CodeActionAdapter {
 					}
 				}
 
+				const range = candidate.editRanges ? candidate.editRanges : [];
+
 				// new school: convert code action
 				actions.push({
 					cacheId: [cacheId, i],
@@ -484,7 +486,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
-					editRanges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? candidate.editRanges : undefined,
+					editRanges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
 					disabled: candidate.disabled?.reason
 				});
 			}

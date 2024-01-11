@@ -38,6 +38,7 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from '../common/types';
 import { CodeActionModel, CodeActionsState } from './codeActionModel';
+import { Range } from 'vs/editor/common/core/range';
 
 
 interface IActionShowOptions {
@@ -287,9 +288,18 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;
 					aria.status(localize('editingNewSelection', "Context: {0} at line {1} and column {2}.", selectionText, diagnostic.startLineNumber, diagnostic.startColumn));
 				} else if (action && action.action.editRanges) {
-					currentDecorations.clear();
-					const decorations: IModelDeltaDecoration[] = action.action.editRanges.map(range => ({ range, options: CodeActionController.DECORATION }));
-					currentDecorations.set(decorations);
+					if (action && action.action.editRanges) {
+						currentDecorations.clear();
+						const ranges: Range[] = action.action.editRanges.map(range => new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn));
+						const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range, options: CodeActionController.DECORATION }));
+						currentDecorations.set(decorations);
+					} else {
+						currentDecorations.clear();
+					}
+
+
+					// const decorations: IModelDeltaDecoration[] = action.action.editRanges.map(range => ({ range, options: CodeActionController.DECORATION }));
+					// currentDecorations.set(decorations);
 				} else {
 					currentDecorations.clear();
 				}

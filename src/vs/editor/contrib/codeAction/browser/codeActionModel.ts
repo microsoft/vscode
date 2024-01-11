@@ -238,11 +238,8 @@ export class CodeActionModel extends Disposable {
 							const allMarkers = this._markerService.read({ resource: model.uri });
 							for (const action of codeActionSet.validActions) {
 								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes('_typescript.applyFixAllCodeAction'))) {
-									console.log('we got here');
 									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 								}
-								// if (action.action.command?.arguments? === 'Fix all detected spelling errors') {
-								// }
 							}
 							return { validActions: codeActionSet.validActions, allActions: allCodeActions, documentation: codeActionSet.documentation, hasAutoFix: codeActionSet.hasAutoFix, hasAIFix: codeActionSet.hasAIFix, allAIFixes: codeActionSet.allAIFixes, dispose: () => { codeActionSet.dispose(); } };
 						}
@@ -278,9 +275,7 @@ export class CodeActionModel extends Disposable {
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
-												// action.highlightRange = action.action.isPreferred;
-												if (action.action.title === 'Fix all detected spelling errors') {
-													console.log('we got here');
+												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes('_typescript.applyFixAllCodeAction'))) {
 													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 												}
 

@@ -7056,7 +7056,7 @@ declare namespace monaco.languages {
 		isPreferred?: boolean;
 		isAI?: boolean;
 		disabled?: string;
-		editRanges?: Range[];
+		editRanges?: IRange[];
 	}
 
 	export enum CodeActionTriggerType {
