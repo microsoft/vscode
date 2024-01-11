@@ -85,6 +85,10 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 				}));
 			},
 			onDidChange: e => group.onDidChangeResources(() => e()),
+			contextKeys: {
+				scmResourceGroup: groupId,
+				scmProvider: repository.provider.contextValue,
+			},
 		};
 	}
 }
