@@ -3,7 +3,7 @@ pool: 1es-windows-2019-x64
 jobs:
   - job: Migrate
     displayName: Migrate stable builds
-    timeoutInMinutes: 360
+    timeoutInMinutes: 1440
     steps:
       - task: NodeTool@0
         inputs:
