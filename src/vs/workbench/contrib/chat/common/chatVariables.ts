@@ -21,7 +21,7 @@ export interface IChatVariableData {
 export interface IChatRequestVariableValue {
 	level: 'short' | 'medium' | 'full';
 	kind?: string;
-	value: string | URI | any;
+	value: string | URI;
 	description?: string;
 }
 

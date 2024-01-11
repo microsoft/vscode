@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n, LogOutputChannel } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, filterEvent } from './util';
 import { toGitUri } from './uri';
@@ -84,11 +84,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const historyItems: SourceControlHistoryItem[] = [];
 		const commits = await this.repository.log({ range: `${refParentId}..${refId}`, shortStats: true, sortByAuthorDate: true });
 
-		if (commits.length >= 2) {
-			const allChanges = await this.repository.diffBetweenShortStat(refParentId, refId);
-			historyItems.push({ id: refId, parentIds: [refParentId], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics: allChanges });
-		}
-
 		await ensureEmojis();
 
 		historyItems.push(...commits.map(commit => {
@@ -107,6 +102,16 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}));
 
 		return historyItems;
+	}
+
+	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItem> {
+		if (!historyItemParentId) {
+			const commit = await this.repository.getCommit(historyItemId);
+			historyItemParentId = commit.parents.length > 0 ? commit.parents[0] : `${historyItemId}^`;
+		}
+
+		const allChanges = await this.repository.diffBetweenShortStat(historyItemParentId, historyItemId);
+		return { id: historyItemId, parentIds: [historyItemParentId], label: '', statistics: allChanges };
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<SourceControlHistoryItemChange[]> {
