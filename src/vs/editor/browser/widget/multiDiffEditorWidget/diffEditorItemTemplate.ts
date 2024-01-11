@@ -135,7 +135,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.diffEditorViewModel?.model.modified.uri))),
 			menuOptions: {
 				shouldForwardArgs: true,
-			}
+			},
+			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
 		}));
 	}
 
