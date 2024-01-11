@@ -21,7 +21,7 @@ export default defineConfig({
 	},
 	use: {
 		baseURL: 'http://localhost:9888', 	// Base URL to use in actions like `await page.goto('/')`.
-		trace: 'on-first-retry', 			//  Collect trace when retrying the failed test
+		trace: 'on-first-retry', 			// Collect trace when retrying the failed test
 	},
 	projects: [
 		{

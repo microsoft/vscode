@@ -148,12 +148,23 @@ steps:
       - script: yarn --cwd test/smoke compile
         displayName: Compile smoke tests
 
+      - script: yarn --cwd test/playwright compile
+        displayName: Compile playwright smoke tests
+
       - script: yarn gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
       - script: yarn gulp node
         displayName: Download node.js for remote smoke tests
         retryCountOnTaskFailure: 3
+
+      - script: cd test/playwright && npx playwright test
+        timeoutInMinutes: 20
+        displayName: Run smoke tests (Playwright)
+
+      - script: cd test/playwright && npx playwright test --config=playwright.service.config.ts --workers=20
+        timeoutInMinutes: 20
+        displayName: Run smoke tests (Playwright Service)
 
       - script: yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20
