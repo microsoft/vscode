@@ -217,10 +217,9 @@ export default class FileConfigurationManager extends Disposable {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
 			const slashNormalized = p.replace(/\\/g, '/');
 			const isRelative = /^\.\.?($|\/)/.test(slashNormalized);
-			return path.isAbsolute(p) ? p :
-				p.startsWith('*') ? '/' + slashNormalized :
-					isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
-						'/**/' + slashNormalized;
+			return path.isAbsolute(p) || slashNormalized.startsWith('*') ? slashNormalized :
+				isRelative ? vscode.Uri.joinPath(workspaceFolder, p).fsPath :
+					'**/' + slashNormalized;
 		});
 	}
 }
