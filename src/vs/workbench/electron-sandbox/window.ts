@@ -1066,7 +1066,16 @@ export class NativeWindow extends BaseWindow {
 		const targetWindow = getWindowById(targetWindowId);
 		const entry = this.mapWindowIdToResetZoomStatusEntry.get(targetWindowId);
 		if (entry && targetWindow) {
-			entry.updateResetZoomEntry(getZoomLevel(targetWindow.window) !== this.configuredWindowZoomLevel);
+			const currentZoomLevel = getZoomLevel(targetWindow.window);
+
+			let text: string | undefined = undefined;
+			if (currentZoomLevel < this.configuredWindowZoomLevel) {
+				text = localize('resetZoomOut', "$(zoom-out)");
+			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
+				text = localize('resetZoomIn', "$(zoom-in)");
+			}
+
+			entry.updateResetZoomEntry(text ?? false);
 		}
 	}
 
@@ -1109,14 +1118,15 @@ class ResetZoomStatusEntry extends Disposable {
 		super();
 	}
 
-	updateResetZoomEntry(visible: boolean): void {
-		if (visible) {
+	updateResetZoomEntry(visibleOrText: false | string): void {
+		if (typeof visibleOrText === 'string') {
 			if (!this.resetZoomStatusEntry.value) {
-				const text = localize('resetZoom', "Reset Zoom");
+				const name = localize('status.resetWindowZoom', "Reset Window Zoom");
 				this.resetZoomStatusEntry.value = this.statusbarService.addEntry({
-					name: localize('status.resetWindowZoom', "Reset Window Zoom"),
-					text,
-					ariaLabel: text,
+					name,
+					text: visibleOrText,
+					tooltip: name,
+					ariaLabel: name,
 					command: 'workbench.action.zoomReset',
 					kind: 'prominent'
 				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
