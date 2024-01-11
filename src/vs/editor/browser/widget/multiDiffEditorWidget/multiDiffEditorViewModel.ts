@@ -11,6 +11,7 @@ import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEdi
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
+import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MultiDiffEditorViewModel extends Disposable {
@@ -41,6 +42,10 @@ export class MultiDiffEditorViewModel extends Disposable {
 				d.collapsed.set(false, tx);
 			}
 		});
+	}
+
+	public get contextKeys(): Record<string, ContextKeyValue> | undefined {
+		return this._model.contextKeys;
 	}
 
 	constructor(

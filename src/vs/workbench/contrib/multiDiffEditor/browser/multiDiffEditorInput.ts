@@ -130,12 +130,10 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	private readonly _viewModel = new LazyStatefulPromise(async () => {
-		this._resolvedMultiDiffSource.set(
-			this.initialResources
-				? new ConstResolvedMultiDiffSource(this.initialResources)
-				: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource),
-			undefined
-		);
+		const source = this.initialResources
+			? new ConstResolvedMultiDiffSource(this.initialResources)
+			: await this._multiDiffSourceResolverService.resolve(this.multiDiffSource);
+		this._resolvedMultiDiffSource.set(source, undefined);
 
 		const model = await this._createModel();
 		this._register(model);
@@ -220,6 +218,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			},
 			onDidChange: documentChangeEmitter.event,
 			get documents() { return documents; },
+			contextKeys: this._resolvedMultiDiffSource.get()!.contextKeys,
 		};
 	}
 

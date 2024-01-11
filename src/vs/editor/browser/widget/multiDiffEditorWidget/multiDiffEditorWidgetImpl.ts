@@ -7,7 +7,7 @@ import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/b
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { findFirstMaxBy } from 'vs/base/common/arraysFind';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, IReader, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./style';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
@@ -93,6 +93,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		super();
 
 		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
+
+		this._register(autorunWithStore((reader, store) => {
+			const viewModel = this._viewModel.read(reader);
+			if (viewModel && viewModel.contextKeys) {
+				for (const [key, value] of Object.entries(viewModel.contextKeys)) {
+					const contextKey = this._contextKeyService.createKey<ContextKeyValue>(key, undefined);
+					contextKey.set(value);
+					store.add(toDisposable(() => contextKey.reset()));
+				}
+			}
+		}));
 
 		const ctxAllCollapsed = this._parentContextKeyService.createKey<boolean>(EditorContextKeys.multiDiffEditorAllCollapsed.key, false);
 		this._register(autorun((reader) => {
