@@ -238,7 +238,7 @@ export class MarkdownItEngine implements IMdParser {
 	}
 
 	private _getConfig(resource?: vscode.Uri): MarkdownItConfig {
-		const config = MarkdownPreviewConfiguration.getForResource(resource);
+		const config = MarkdownPreviewConfiguration.getForResource(resource ?? null);
 		return {
 			breaks: config.previewLineBreaks,
 			linkify: config.previewLinkify,
