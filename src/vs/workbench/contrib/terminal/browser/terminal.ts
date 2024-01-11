@@ -23,7 +23,7 @@ import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/termi
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import type { IMarker, ITheme, IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -791,9 +791,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Registers and returns a marker
 	 */
 	registerMarker(): IMarker | undefined;
-
-
-	registerDecoration(options: IDecorationOptions): IDecoration | undefined;
 
 	/**
 	 * Adds a marker to the buffer, mapping it to an ID if provided.

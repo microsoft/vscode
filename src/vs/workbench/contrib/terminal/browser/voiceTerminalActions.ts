@@ -16,7 +16,7 @@ import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbe
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { isNumber } from 'vs/base/common/types';
-import type { IDecoration, Terminal } from '@xterm/xterm';
+import type { IDecoration } from '@xterm/xterm';
 import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
@@ -68,7 +68,6 @@ export class StopTerminalSpeechToTextAction extends Action2 {
 
 export class TerminalVoiceSession extends Disposable {
 	private _input: string = '';
-	private _xterm: Terminal | undefined;
 	private _decoration: IDecoration | undefined;
 	private _marker: IXtermMarker | undefined;
 	private static _instance: TerminalVoiceSession | undefined = undefined;
@@ -92,10 +91,6 @@ export class TerminalVoiceSession extends Disposable {
 		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 	}
 
-	activate(terminal: Terminal): void {
-		this._xterm = terminal;
-	}
-
 	start(): void {
 		this.stop();
 		let voiceTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
@@ -108,19 +103,19 @@ export class TerminalVoiceSession extends Disposable {
 		}, voiceTimeout));
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const session = this._disposables.add(this._speechService.createSpeechToTextSession(this._cancellationTokenSource!.token));
+
 		this._disposables.add(session.onDidChange((e) => {
 			if (this._cancellationTokenSource?.token.isCancellationRequested) {
 				return;
 			}
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					break;
-				case SpeechToTextStatus.Recognizing: {
 					if (!this._decoration) {
-						console.log('terminal', this._xterm);
 						// TODO: start audio cue, show in terminal by the cursor
 						this._createDecoration();
 					}
+					break;
+				case SpeechToTextStatus.Recognizing: {
 
 					if (voiceTimeout > 0) {
 						acceptTranscriptionScheduler.cancel();
@@ -129,7 +124,26 @@ export class TerminalVoiceSession extends Disposable {
 				}
 				case SpeechToTextStatus.Recognized:
 					if (e.text) {
-						this._input = [this._input, e.text].join(' ');
+						const str = [this._input, e.text].join(' ').replaceAll(/[.,?;!]/g, '');
+						const symbolMap: { [key: string]: string } = {
+							'ampersand': '&',
+							'dollar': '$',
+							'at': '@',
+							'percent': '%',
+							'asterisk': '*',
+							'plus': '+',
+							'equals': '=',
+							'exclamation': '!',
+							'slash': '/',
+							'backslash': '\\',
+							'dot': '.',
+							'period': '.',
+						};
+
+						for (const symbol in symbolMap) {
+							const regex: RegExp = new RegExp(symbol);
+							this._input = str.replace(regex, symbolMap[symbol]);
+						}
 					}
 					if (voiceTimeout > 0) {
 						acceptTranscriptionScheduler.schedule();
@@ -140,11 +154,13 @@ export class TerminalVoiceSession extends Disposable {
 					this.stop();
 					break;
 			}
+			console.log(e.status);
 		}));
 	}
 	stop(): void {
 		this._marker?.dispose();
 		this._decoration?.dispose();
+		this._decoration = undefined;
 		this._cancellationTokenSource?.cancel();
 		this._disposables.clear();
 		this._input = '';
@@ -155,15 +171,18 @@ export class TerminalVoiceSession extends Disposable {
 		if (!this._marker) {
 			return;
 		}
-		this._decoration = this._terminalService.activeInstance?.registerDecoration({
+		this._decoration = this._terminalService.activeInstance?.xterm?.raw.registerDecoration({
 			marker: this._marker,
-			layer: 'top'
+			layer: 'top',
+			x: this._terminalService.activeInstance.xterm?.raw?.buffer.active.cursorX ?? this._terminalService.activeInstance.xterm?.raw?.buffer.active.cursorX! ?? 0,
 		});
+		console.log(this._terminalService.activeInstance?.xterm?.raw?.buffer.active.cursorX);
 		this._decoration?.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.mic));
 			e.classList.add('quick-fix');
+			e.style.zIndex = '1000';
+			e.style.paddingLeft = '5px';
 		});
-		console.log(this._decoration?.element);
 	}
 }
 
