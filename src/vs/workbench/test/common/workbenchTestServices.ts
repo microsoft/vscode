@@ -311,6 +311,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	_serviceBrand: undefined;
 
 	readonly onDidChangeAutoSaveConfiguration = Event.None;
+	readonly onDidChangeAutoSaveDisabled = Event.None;
 	readonly onDidChangeReadonly = Event.None;
 	readonly onDidChangeFilesAssociation = Event.None;
 
@@ -321,6 +322,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	getAutoSaveMode(): IAutoSaveMode { throw new Error('Method not implemented.'); }
 	isShortAutoSaveDelayConfigured(): boolean { throw new Error('Method not implemented.'); }
 	toggleAutoSave(): Promise<void> { throw new Error('Method not implemented.'); }
+	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
 	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
