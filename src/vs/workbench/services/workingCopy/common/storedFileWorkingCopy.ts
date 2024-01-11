@@ -295,7 +295,7 @@ export function isStoredFileWorkingCopySaveEvent(e: IWorkingCopySaveEvent): e is
 	return !!candidate.stat;
 }
 
-export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends ResourceWorkingCopy implements IStoredFileWorkingCopy<M>  {
+export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends ResourceWorkingCopy implements IStoredFileWorkingCopy<M> {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
 

@@ -82,7 +82,13 @@ export class HideUnchangedRegionsFeature extends Disposable {
 			}
 		}));
 
-		const unchangedRegions = this._diffModel.map((m, reader) => m?.diff.read(reader)?.mappings.length === 0 ? [] : m?.unchangedRegions.read(reader) ?? []);
+		const unchangedRegions = this._diffModel.map((m, reader) => {
+			const regions = m?.unchangedRegions.read(reader) ?? [];
+			if (regions.length === 1 && regions[0].modifiedLineNumber === 1 && regions[0].lineCount === this._editors.modifiedModel.read(reader)?.getLineCount()) {
+				return [];
+			}
+			return regions;
+		});
 
 		this.viewZones = derivedWithStore(this, (reader, store) => {
 			/** @description view Zones */

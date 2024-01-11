@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -3550,14 +3550,16 @@ export class CommandCenter {
 			return;
 		}
 
-		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+		const title = `Git Stash #${stash.index}: ${stash.description}`;
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
 
+		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
 		for (const file of stashFiles) {
 			const fileUri = Uri.file(path.join(repository.root, file));
-			args.push([fileUri, toGitUri(fileUri, `stash@{${stash.index}}`), fileUri]);
+			resources.push({ originalUri: fileUri, modifiedUri: toGitUri(fileUri, `stash@{${stash.index}}`) });
 		}
 
-		commands.executeCommand('vscode.changes', `Git Stash #${stash.index}: ${stash.description}`, args);
+		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
@@ -3617,7 +3619,6 @@ export class CommandCenter {
 
 	@command('git.timeline.openCommit', { repository: false })
 	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
-		console.log('timelineOpenCommit', item);
 		if (!GitTimelineItem.is(item)) {
 			return;
 		}
@@ -3650,16 +3651,19 @@ export class CommandCenter {
 		const commit = await repository.getCommit(item.ref);
 		const commitFiles = await repository.getCommitFiles(item.ref);
 
-		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
+		const title = `${item.shortRef} - ${commit.message}`;
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), item.ref, { scheme: 'git-commit' });
+
+		const resources: { originalUri: Uri; modifiedUri: Uri }[] = [];
 		for (const commitFile of commitFiles) {
 			const commitFileUri = Uri.file(path.join(repository.root, commitFile));
-			args.push([commitFileUri, toGitUri(commitFileUri, item.previousRef), toGitUri(commitFileUri, item.ref)]);
+			resources.push({ originalUri: toGitUri(commitFileUri, item.previousRef), modifiedUri: toGitUri(commitFileUri, item.ref) });
 		}
 
 		return {
-			command: 'vscode.changes',
+			command: '_workbench.openMultiDiffEditor',
 			title: l10n.t('Open Commit'),
-			arguments: [`${item.shortRef} - ${commit.message}`, args, options]
+			arguments: [{ multiDiffSourceUri, title, resources }, options]
 		};
 	}
 
@@ -3820,24 +3824,28 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.viewChanges', { repository: true })
-	viewChanges(repository: Repository): void {
-		this._viewChanges('Git: Changes', repository.workingTreeGroup.resourceStates);
-	}
-
-	@command('git.viewStagedChanges', { repository: true })
-	viewStagedChanges(repository: Repository): void {
-		this._viewChanges('Git: Staged Changes', repository.indexGroup.resourceStates);
-	}
-
-	private _viewChanges(title: string, resources: Resource[]): void {
-		const args: [Uri, Uri | undefined, Uri | undefined][] = [];
-
-		for (const resource of resources) {
-			args.push([resource.resourceUri, resource.leftUri, resource.rightUri]);
+	@command('git.openCommit', { repository: true })
+	async openCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
+			return;
 		}
 
-		commands.executeCommand('vscode.changes', title, args);
+		const historyProvider = repository.historyProvider;
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const commitFiles = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (commitFiles.length === 0) {
+			return;
+		}
+
+		const modifiedShortRef = historyItem.id.substring(0, 8);
+		const originalShortRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedShortRef}^`;
+
+		const title = l10n.t('Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
+		const resources = commitFiles.map(change => ({ originalUri: change.originalUri, modifiedUri: change.modifiedUri }));
+
+		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

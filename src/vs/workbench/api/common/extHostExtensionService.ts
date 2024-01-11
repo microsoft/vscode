@@ -909,7 +909,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const tunnelInformation: TunnelInformation = {
 			environmentTunnels: result.environmentTunnels,
-			features: result.tunnelFeatures
+			features: result.tunnelFeatures ? {
+				elevation: result.tunnelFeatures.elevation,
+				privacyOptions: result.tunnelFeatures.privacyOptions,
+				protocol: result.tunnelFeatures.protocol === undefined ? true : result.tunnelFeatures.protocol,
+			} : undefined
 		};
 
 		// Split merged API result into separate authority/options

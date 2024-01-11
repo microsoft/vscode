@@ -405,6 +405,7 @@ export interface IMouseTargetMarginData {
 	readonly isAfterLines: boolean;
 	readonly glyphMarginLeft: number;
 	readonly glyphMarginWidth: number;
+	readonly glyphMarginLane?: GlyphMarginLane;
 	readonly lineNumbersWidth: number;
 	readonly offsetX: number;
 }

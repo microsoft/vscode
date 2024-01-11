@@ -39,7 +39,32 @@ export enum OverviewRulerLane {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3,
+}
+
+export interface IGlyphMarginLanesModel {
+	/**
+	 * The number of lanes that should be rendered in the editor.
+	 */
+	readonly requiredLanes: number;
+
+	/**
+	 * Gets the lanes that should be rendered starting at a given line number.
+	 */
+	getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+
+	/**
+	 * Resets the model and ensures it can contain at least `maxLine` lines.
+	 */
+	reset(maxLine: number): void;
+
+	/**
+	 * Registers that a lane should be visible at the Range in the model.
+	 * @param persist - if true, notes that the lane should always be visible,
+	 * even on lines where there's no specific request for that lane.
+	 */
+	push(lane: GlyphMarginLane, range: Range, persist?: boolean): void;
 }
 
 /**
@@ -68,6 +93,12 @@ export interface IModelDecorationGlyphMarginOptions {
 	 * The position in the glyph margin.
 	 */
 	position: GlyphMarginLane;
+
+	/**
+	 * Whether the glyph margin lane in {@link position} should be rendered even
+	 * outside of this decoration's range.
+	 */
+	persistLane?: boolean;
 }
 
 /**

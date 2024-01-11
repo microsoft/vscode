@@ -517,15 +517,17 @@
           "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.pasteUrlAsFormattedLink.enabled%",
-          "default": "smart",
+          "default": "smartWithSelection",
           "enum": [
             "always",
             "smart",
+            "smartWithSelection",
             "never"
           ],
           "markdownEnumDescriptions": [
             "%configuration.pasteUrlAsFormattedLink.always%",
             "%configuration.pasteUrlAsFormattedLink.smart%",
+            "%configuration.pasteUrlAsFormattedLink.smartWithSelection%",
             "%configuration.pasteUrlAsFormattedLink.never%"
           ]
         },
@@ -754,6 +756,7 @@
     "@types/picomatch": "^2.3.0",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
+    "@vscode/markdown-it-katex": "^1.0.1",
     "lodash.throttle": "^4.1.1",
     "vscode-languageserver-types": "^3.17.2",
     "vscode-markdown-languageservice": "^0.3.0-alpha.3"
