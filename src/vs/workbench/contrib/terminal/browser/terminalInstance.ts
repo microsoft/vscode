@@ -84,7 +84,7 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { importAMDNodeModule } from 'vs/amdX';
-import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IMarker, IDecorationOptions, IDecoration, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
@@ -1442,6 +1442,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public registerMarker(): IMarker | undefined {
 		return this.xterm?.raw.registerMarker();
+	}
+
+	public registerDecoration(options: IDecorationOptions): IDecoration | undefined {
+		return this.xterm?.raw.registerDecoration(options);
 	}
 
 	public addBufferMarker(properties: IMarkProperties): void {

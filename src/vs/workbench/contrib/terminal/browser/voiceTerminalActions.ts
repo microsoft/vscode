@@ -16,6 +16,10 @@ import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbe
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { isNumber } from 'vs/base/common/types';
+import type { IDecoration, Terminal } from '@xterm/xterm';
+import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class StartTerminalSpeechToTextAction extends Action2 {
 
@@ -35,7 +39,7 @@ export class StartTerminalSpeechToTextAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		VoiceSession.getInstance(instantiationService).start();
+		TerminalVoiceSession.getInstance(instantiationService).start();
 	}
 }
 
@@ -58,31 +62,40 @@ export class StopTerminalSpeechToTextAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		VoiceSession.getInstance(instantiationService).stop();
+		TerminalVoiceSession.getInstance(instantiationService).stop();
 	}
 }
 
-class VoiceSession extends Disposable {
+export class TerminalVoiceSession extends Disposable {
 	private _input: string = '';
-	private static instance: VoiceSession | undefined = undefined;
-	static getInstance(instantiationService: IInstantiationService): VoiceSession {
-		if (!VoiceSession.instance) {
-			VoiceSession.instance = instantiationService.createInstance(VoiceSession);
+	private _xterm: Terminal | undefined;
+	private _decoration: IDecoration | undefined;
+	private _marker: IXtermMarker | undefined;
+	private static _instance: TerminalVoiceSession | undefined = undefined;
+	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
+		if (!TerminalVoiceSession._instance) {
+			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
 		}
 
-		return VoiceSession.instance;
+		return TerminalVoiceSession._instance;
 	}
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private _disposables = new DisposableStore();
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@ITerminalService readonly _terminalService: ITerminalService,
-		@IConfigurationService readonly configurationService: IConfigurationService
+		@IConfigurationService readonly configurationService: IConfigurationService,
+		@IInstantiationService readonly _instantationService: IInstantiationService
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
 		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
 	}
+
+	activate(terminal: Terminal): void {
+		this._xterm = terminal;
+	}
+
 	start(): void {
 		this.stop();
 		let voiceTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
@@ -102,12 +115,18 @@ class VoiceSession extends Disposable {
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
 					break;
-				case SpeechToTextStatus.Recognizing:
-					// TODO: start audio cue, show in terminal by the cursor
+				case SpeechToTextStatus.Recognizing: {
+					if (!this._decoration) {
+						console.log('terminal', this._xterm);
+						// TODO: start audio cue, show in terminal by the cursor
+						this._createDecoration();
+					}
+
 					if (voiceTimeout > 0) {
 						acceptTranscriptionScheduler.cancel();
 					}
 					break;
+				}
 				case SpeechToTextStatus.Recognized:
 					if (e.text) {
 						this._input = [this._input, e.text].join(' ');
@@ -124,8 +143,28 @@ class VoiceSession extends Disposable {
 		}));
 	}
 	stop(): void {
+		this._marker?.dispose();
+		this._decoration?.dispose();
 		this._cancellationTokenSource?.cancel();
-		this._disposables.dispose();
+		this._disposables.clear();
 		this._input = '';
 	}
+
+	private _createDecoration(): void {
+		this._marker = this._terminalService.activeInstance?.registerMarker();
+		if (!this._marker) {
+			return;
+		}
+		this._decoration = this._terminalService.activeInstance?.registerDecoration({
+			marker: this._marker,
+			layer: 'top'
+		});
+		this._decoration?.onRender((e: HTMLElement) => {
+			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.mic));
+			e.classList.add('quick-fix');
+		});
+		console.log(this._decoration?.element);
+	}
 }
+
+
