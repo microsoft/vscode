@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derivedWithStore, observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
+import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MultiDiffEditorViewModel extends Disposable {
 	private readonly _documents = observableFromEvent(this._model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this._model.documents);
 
-	public readonly items = derivedWithStore<readonly DocumentDiffItemViewModel[]>(this,
-		(reader, store) => this._documents.read(reader).map(d => store.add(new DocumentDiffItemViewModel(d, this._instantiationService)))
-	).recomputeInitiallyAndOnChange(this._store);
+	public readonly items = mapObservableArrayCached(this._documents, this, (d, store) => store.add(new DocumentDiffItemViewModel(d, this._instantiationService)))
+		.recomputeInitiallyAndOnChange(this._store);
 
 	public readonly activeDiffItem = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
 
@@ -41,6 +42,10 @@ export class MultiDiffEditorViewModel extends Disposable {
 				d.collapsed.set(false, tx);
 			}
 		});
+	}
+
+	public get contextKeys(): Record<string, ContextKeyValue> | undefined {
+		return this._model.contextKeys;
 	}
 
 	constructor(

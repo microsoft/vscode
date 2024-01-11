@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { IRange, Range } from 'vs/base/common/range';
 import { INewScrollDimensions, Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
+import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 import { IRow, RowCache } from 'vs/base/browser/ui/list/rowCache';
 import { IObservableValue } from 'vs/base/common/observableValue';
@@ -46,6 +46,14 @@ const StaticDND = {
 
 export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 	getDragElements(element: T): T[];
+}
+
+export const enum ListViewTargetSector {
+	// drop position relative to the top of the item
+	TOP = 0, 				// [0%-25%)
+	CENTER_TOP = 1, 		// [25%-50%)
+	CENTER_BOTTOM = 2, 		// [50%-75%)
+	BOTTOM = 3				// [75%-100%)
 }
 
 export interface IListViewAccessibilityProvider<T> {
@@ -309,6 +317,7 @@ export class ListView<T> implements IListView<T> {
 	private canDrop: boolean = false;
 	private currentDragData: IDragAndDropData | undefined;
 	private currentDragFeedback: number[] | undefined;
+	private currentDragFeedbackPosition: ListDragOverEffectPosition | undefined;
 	private currentDragFeedbackDisposable: IDisposable = Disposable.None;
 	private onDragLeaveTimeout: IDisposable = Disposable.None;
 
@@ -1083,7 +1092,8 @@ export class ListView<T> implements IListView<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);
 		const item = typeof index === 'undefined' ? undefined : this.items[index];
 		const element = item && item.element;
-		return { browserEvent, index, element };
+		const sector = this.getTargetSector(browserEvent, index);
+		return { browserEvent, index, element, sector };
 	}
 
 	private onScroll(e: ScrollEvent): void {
@@ -1184,7 +1194,7 @@ export class ListView<T> implements IListView<T> {
 			}
 		}
 
-		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.browserEvent);
+		const result = this.dnd.onDragOver(this.currentDragData, event.element, event.index, event.sector, event.browserEvent);
 		this.canDrop = typeof result === 'boolean' ? result : result.accept;
 
 		if (!this.canDrop) {
@@ -1193,7 +1203,7 @@ export class ListView<T> implements IListView<T> {
 			return false;
 		}
 
-		event.browserEvent.dataTransfer.dropEffect = (typeof result !== 'boolean' && result.effect === ListDragOverEffect.Copy) ? 'copy' : 'move';
+		event.browserEvent.dataTransfer.dropEffect = (typeof result !== 'boolean' && result.effect?.type === ListDragOverEffectType.Copy) ? 'copy' : 'move';
 
 		let feedback: number[];
 
@@ -1211,26 +1221,34 @@ export class ListView<T> implements IListView<T> {
 		feedback = distinct(feedback).filter(i => i >= -1 && i < this.length).sort((a, b) => a - b);
 		feedback = feedback[0] === -1 ? [-1] : feedback;
 
-		if (equalsDragFeedback(this.currentDragFeedback, feedback)) {
+		const dragOverEffectPosition = typeof result !== 'boolean' && result.effect && result.effect.position ? result.effect.position : ListDragOverEffectPosition.Over;
+
+		if (equalsDragFeedback(this.currentDragFeedback, feedback) && this.currentDragFeedbackPosition === dragOverEffectPosition) {
 			return true;
 		}
 
 		this.currentDragFeedback = feedback;
+		this.currentDragFeedbackPosition = dragOverEffectPosition;
 		this.currentDragFeedbackDisposable.dispose();
 
 		if (feedback[0] === -1) { // entire list feedback
-			this.domNode.classList.add('drop-target');
-			this.rowsContainer.classList.add('drop-target');
+			this.domNode.classList.add(dragOverEffectPosition);
+			this.rowsContainer.classList.add(dragOverEffectPosition);
 			this.currentDragFeedbackDisposable = toDisposable(() => {
-				this.domNode.classList.remove('drop-target');
-				this.rowsContainer.classList.remove('drop-target');
+				this.domNode.classList.remove(dragOverEffectPosition);
+				this.rowsContainer.classList.remove(dragOverEffectPosition);
 			});
 		} else {
+
+			if (feedback.length > 1 && dragOverEffectPosition !== ListDragOverEffectPosition.Over) {
+				throw new Error('Can\'t use multiple feedbacks with position different than \'over\'');
+			}
+
 			for (const index of feedback) {
 				const item = this.items[index]!;
 				item.dropTarget = true;
 
-				item.row?.domNode.classList.add('drop-target');
+				item.row?.domNode.classList.add(dragOverEffectPosition);
 			}
 
 			this.currentDragFeedbackDisposable = toDisposable(() => {
@@ -1238,7 +1256,7 @@ export class ListView<T> implements IListView<T> {
 					const item = this.items[index]!;
 					item.dropTarget = false;
 
-					item.row?.domNode.classList.remove('drop-target');
+					item.row?.domNode.classList.remove(dragOverEffectPosition);
 				}
 			});
 		}
@@ -1272,7 +1290,7 @@ export class ListView<T> implements IListView<T> {
 
 		event.browserEvent.preventDefault();
 		dragData.update(event.browserEvent.dataTransfer);
-		this.dnd.drop(dragData, event.element, event.index, event.browserEvent);
+		this.dnd.drop(dragData, event.element, event.index, event.sector, event.browserEvent);
 	}
 
 	private onDragEnd(event: DragEvent): void {
@@ -1288,6 +1306,7 @@ export class ListView<T> implements IListView<T> {
 
 	private clearDragOverFeedback(): void {
 		this.currentDragFeedback = undefined;
+		this.currentDragFeedbackPosition = undefined;
 		this.currentDragFeedbackDisposable.dispose();
 		this.currentDragFeedbackDisposable = Disposable.None;
 	}
@@ -1336,6 +1355,15 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	// Util
+
+	private getTargetSector(browserEvent: DragEvent, targetIndex: number | undefined): ListViewTargetSector | undefined {
+		if (targetIndex === undefined) {
+			return undefined;
+		}
+
+		const relativePosition = browserEvent.offsetY / this.items[targetIndex].size;
+		return Math.floor(relativePosition / 0.25);
+	}
 
 	private getItemIndexFromEventTarget(target: EventTarget | null): number | undefined {
 		const scrollableElement = this.scrollableElement.getDomNode();

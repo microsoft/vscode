@@ -261,7 +261,7 @@ export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runne
  */
 export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 
-export function disposableWindowInterval(targetWindow: Window & typeof globalThis, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+export function disposableWindowInterval(targetWindow: Window, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
 	let iteration = 0;
 	const timer = targetWindow.setInterval(() => {
 		iteration++;
@@ -277,8 +277,19 @@ export function disposableWindowInterval(targetWindow: Window & typeof globalThi
 
 export class WindowIntervalTimer extends IntervalTimer {
 
-	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
-		return super.cancelAndSet(runner, interval, targetWindow);
+	private readonly defaultTarget?: Window & typeof globalThis;
+
+	/**
+	 *
+	 * @param node The optional node from which the target window is determined
+	 */
+	constructor(node?: Node) {
+		super();
+		this.defaultTarget = node && getWindow(node);
+	}
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow?: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow ?? this.defaultTarget);
 	}
 }
 

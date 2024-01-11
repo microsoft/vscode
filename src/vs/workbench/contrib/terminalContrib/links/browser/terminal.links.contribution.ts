@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -108,7 +108,7 @@ const category = terminalStrings.actionCategory;
 
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenDetectedLink,
-	title: { value: localize('workbench.action.terminal.openDetectedLink', "Open Detected Link..."), original: 'Open Detected Link...' },
+	title: localize2('workbench.action.terminal.openDetectedLink', 'Open Detected Link...'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
@@ -126,7 +126,7 @@ registerActiveInstanceAction({
 });
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenWebLink,
-	title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last URL Link"), original: 'Open Last URL Link' },
+	title: localize2('workbench.action.terminal.openLastUrlLink', 'Open Last URL Link'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,
@@ -134,7 +134,7 @@ registerActiveInstanceAction({
 });
 registerActiveInstanceAction({
 	id: TerminalCommandId.OpenFileLink,
-	title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
+	title: localize2('workbench.action.terminal.openLastLocalFileLink', 'Open Last Local File Link'),
 	f1: true,
 	category,
 	precondition: TerminalContextKeys.terminalHasBeenCreated,

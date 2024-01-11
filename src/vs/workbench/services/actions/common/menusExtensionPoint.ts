@@ -151,6 +151,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/incomingChanges/historyItem/context',
+		id: MenuId.SCMIncomingChangesHistoryItemContext,
+		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/historyItem/context',
+		id: MenuId.SCMOutgoingChangesHistoryItemContext,
+		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// https://github.com/microsoft/vscode/issues/166971
+function splitUriList(str: string): string[] {
+	return str.split('\r\n');
+}
 
-declare module 'vscode' {
-
-	export namespace workspace {
-
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean | MarkdownString }): Disposable;
-	}
+export function parseUriList(str: string): string[] {
+	return splitUriList(str)
+		.filter(value => !value.startsWith('#')) // Remove comments
+		.map(value => value.trim());
 }
