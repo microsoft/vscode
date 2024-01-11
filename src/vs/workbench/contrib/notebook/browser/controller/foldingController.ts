@@ -17,7 +17,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { FoldingRegion } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
@@ -183,7 +183,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.fold',
-			title: { value: localize('fold.cell', "Fold Cell"), original: 'Fold Cell' },
+			title: localize2('fold.cell', "Fold Cell"),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),

@@ -57,7 +57,6 @@ export class LinkDetector {
 	 * and added as a child of the returned <span>.
 	 */
 	linkify(text: string, options: LinkOptions, splitLines?: boolean): HTMLElement {
-		console.log('linkifyiiiiiing', JSON.stringify(options));
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {

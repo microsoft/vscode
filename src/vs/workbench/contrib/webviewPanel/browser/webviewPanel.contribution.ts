@@ -36,7 +36,7 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 		super();
 
 		// Add all the initial groups to be listened to
-		this.editorGroupService.mainPart.whenReady.then(() => this.editorGroupService.groups.forEach(group => {
+		this.editorGroupService.whenReady.then(() => this.editorGroupService.groups.forEach(group => {
 			this.registerGroupListener(group);
 		}));
 

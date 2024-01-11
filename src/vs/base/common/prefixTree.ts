@@ -32,9 +32,13 @@ export class WellDefinedPrefixTree<V> {
 		return this.root.children?.values() || Iterable.empty();
 	}
 
-	/** Inserts a new value in the prefix tree. */
-	insert(key: Iterable<string>, value: V): void {
-		this.opNode(key, n => n._value = value);
+	/**
+	 * Inserts a new value in the prefix tree.
+	 * @param onNode - called for each node as we descend to the insertion point,
+	 * including the insertion point itself.
+	 */
+	insert(key: Iterable<string>, value: V, onNode?: (n: IPrefixTreeNode<V>) => void): void {
+		this.opNode(key, n => n._value = value, onNode);
 	}
 
 	/** Mutates a value in the prefix tree. */
@@ -136,7 +140,7 @@ export class WellDefinedPrefixTree<V> {
 		return node._value !== unset;
 	}
 
-	private opNode(key: Iterable<string>, fn: (node: Node<V>) => void): void {
+	private opNode(key: Iterable<string>, fn: (node: Node<V>) => void, onDescend?: (node: Node<V>) => void): void {
 		let node = this.root;
 		for (const part of key) {
 			if (!node.children) {
@@ -150,6 +154,7 @@ export class WellDefinedPrefixTree<V> {
 			} else {
 				node = node.children.get(part)!;
 			}
+			onDescend?.(node);
 		}
 
 		if (node._value === unset) {
@@ -177,7 +182,7 @@ export class WellDefinedPrefixTree<V> {
 	}
 }
 
-class Node<T> implements IPrefixTreeNode<T>  {
+class Node<T> implements IPrefixTreeNode<T> {
 	public children?: Map<string, Node<T>>;
 
 	public get value() {

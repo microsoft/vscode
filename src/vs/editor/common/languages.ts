@@ -815,6 +815,14 @@ export interface DocumentPasteEdit {
 /**
  * @internal
  */
+export interface DocumentPasteContext {
+	readonly only?: string;
+	readonly trigger: 'explicit' | 'implicit';
+}
+
+/**
+ * @internal
+ */
 export interface DocumentPasteEditProvider {
 
 	readonly id: string;
@@ -824,7 +832,7 @@ export interface DocumentPasteEditProvider {
 
 	prepareDocumentPaste?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer>;
 
-	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	provideDocumentPasteEdits?(model: model.ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 /**
@@ -1769,6 +1777,12 @@ export interface CommentingRanges {
 	fileComments: boolean;
 }
 
+export interface CommentAuthorInformation {
+	name: string;
+	iconPath?: UriComponents;
+
+}
+
 /**
  * @internal
  */
@@ -1778,6 +1792,7 @@ export interface CommentReaction {
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
+	readonly reactors?: readonly string[];
 }
 
 /**

@@ -118,6 +118,7 @@ export interface IRawStoppedDetails {
 	text?: string;
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
+	preserveFocusHint?: boolean;
 	framesErrorMessage?: string;
 	hitBreakpointIds?: number[];
 }
@@ -530,6 +531,7 @@ export interface IBreakpointData {
 	readonly condition?: string;
 	readonly logMessage?: string;
 	readonly hitCondition?: string;
+	readonly triggeredBy?: string;
 }
 
 export interface IBreakpointUpdateData {
@@ -538,6 +540,7 @@ export interface IBreakpointUpdateData {
 	readonly logMessage?: string;
 	readonly lineNumber?: number;
 	readonly column?: number;
+	readonly triggeredBy?: string;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -562,6 +565,15 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endColumn?: number;
 	readonly adapterData: any;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
+	/** An ID of the breakpoint that triggers this breakpoint. */
+	readonly triggeredBy?: string;
+	/** Pending on the trigger breakpoint, which means this breakpoint is not yet sent to DA */
+	readonly pending: boolean;
+
+	/** Marks that a session did trigger the breakpoint. */
+	setSessionDidTrigger(sessionId: string): void;
+	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
+	getSessionDidTrigger(sessionId: string): boolean;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
@@ -637,7 +649,7 @@ export interface IEvaluate {
 export interface IDebugModel extends ITreeElement {
 	getSession(sessionId: string | undefined, includeInactive?: boolean): IDebugSession | undefined;
 	getSessions(includeInactive?: boolean): IDebugSession[];
-	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri; originalUri?: uri; lineNumber?: number; column?: number; enabledOnly?: boolean; triggeredOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
@@ -686,6 +698,7 @@ export interface IDebugConfiguration {
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;
 	showSubSessionsInToolBar: boolean;
+	closeReadonlyTabsOnEnd: boolean;
 	console: {
 		fontSize: number;
 		fontFamily: string;
@@ -904,6 +917,11 @@ export interface IConfigurationManager {
 	 * Allows to register on change of selected debug configuration.
 	 */
 	onDidSelectConfiguration: Event<void>;
+
+	/**
+	 * Allows to register on change of selected debug configuration.
+	 */
+	onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
 	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig } | undefined> }[]>;
@@ -1132,6 +1150,11 @@ export interface IDebugService {
 	sendAllBreakpoints(session?: IDebugSession): Promise<any>;
 
 	/**
+	 * Sends breakpoints of the given source to the passed session.
+	 */
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean, session?: IDebugSession): Promise<any>;
+
+	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
 	addWatchExpression(name?: string): void;
@@ -1196,7 +1219,8 @@ export interface IDebugService {
 export const enum BreakpointWidgetContext {
 	CONDITION = 0,
 	HIT_COUNT = 1,
-	LOG_MESSAGE = 2
+	LOG_MESSAGE = 2,
+	TRIGGER_POINT = 3
 }
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {

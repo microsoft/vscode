@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestRunTaskResults } from 'vs/workbench/contrib/testing/common/testResult';
@@ -85,7 +85,7 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 			this._isOpenKey.set(true);
 		} catch (e) {
 			if (!cts.token.isCancellationRequested) {
-				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {}', String(e)));
+				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {0}', String(e)));
 			}
 			return;
 		}

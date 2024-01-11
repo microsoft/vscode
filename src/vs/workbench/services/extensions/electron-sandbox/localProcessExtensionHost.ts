@@ -371,7 +371,11 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				clearTimeout(handle);
 
 				const onMessage = new BufferedEmitter<VSBuffer>();
-				port.onmessage = ((e) => onMessage.fire(VSBuffer.wrap(e.data)));
+				port.onmessage = ((e) => {
+					if (e.data) {
+						onMessage.fire(VSBuffer.wrap(e.data));
+					}
+				});
 				port.start();
 
 				resolve({

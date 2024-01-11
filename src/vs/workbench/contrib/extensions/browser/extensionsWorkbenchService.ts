@@ -217,6 +217,10 @@ export class Extension implements IExtension {
 		return this.gallery && this.gallery.assets.license ? this.gallery.assets.license.uri : undefined;
 	}
 
+	get supportUrl(): string | undefined {
+		return this.gallery && this.gallery.supportLink ? this.gallery.supportLink : undefined;
+	}
+
 	get state(): ExtensionState {
 		return this.stateProvider(this);
 	}
@@ -1102,7 +1106,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (isUninstalled) {
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
 			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
-			if (!canRemoveRunningExtension && isSameExtensionRunning) {
+			if (!canRemoveRunningExtension && isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
 				return nls.localize('postUninstallTooltip', "Please reload Visual Studio Code to complete the uninstallation of this extension.");
 			}
 			return undefined;

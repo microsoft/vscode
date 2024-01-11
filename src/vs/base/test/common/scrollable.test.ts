@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { SmoothScrollingOperation, SmoothScrollingUpdate } from 'vs/base/common/scrollable';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestSmoothScrollingOperation extends SmoothScrollingOperation {
 
@@ -31,6 +32,8 @@ suite('SmoothScrollingOperation', () => {
 	const VIEWPORT_HEIGHT = 800;
 	const ANIMATION_DURATION = 125;
 	const LINE_HEIGHT = 20;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function extractLines(scrollable: TestSmoothScrollingOperation, now: number): [number, number] {
 		const scrollTop = scrollable.testTick(now).scrollTop;

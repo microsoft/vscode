@@ -571,12 +571,12 @@ export namespace IFileCoverage {
 		uri: original.uri.toJSON(),
 	});
 
-	export const deserialize = (serialized: Serialized): IFileCoverage => ({
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
 		statement: serialized.statement,
 		branch: serialized.branch,
 		function: serialized.function,
 		details: serialized.details?.map(CoverageDetails.deserialize),
-		uri: URI.from(serialized.uri),
+		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 }
 
@@ -598,6 +598,7 @@ export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
 export const enum DetailType {
 	Function,
 	Statement,
+	Branch,
 }
 
 export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
@@ -631,7 +632,7 @@ export interface IFunctionCoverage {
 	type: DetailType.Function;
 	name: string;
 	count: number;
-	location?: Range | Position;
+	location: Range | Position;
 }
 
 export namespace IFunctionCoverage {
@@ -639,7 +640,7 @@ export namespace IFunctionCoverage {
 		type: DetailType.Function;
 		name: string;
 		count: number;
-		location?: IRange | IPosition;
+		location: IRange | IPosition;
 	}
 
 	export const serialize: (original: IFunctionCoverage) => Serialized = serializeThingWithLocation;
@@ -802,7 +803,7 @@ export interface IncrementalChangeCollector<T> {
 /**
  * Maintains tests in this extension host sent from the main thread.
  */
-export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem> {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
 
 	/**

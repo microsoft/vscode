@@ -9,7 +9,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
-export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: string, bracketedPasteMode: boolean | undefined): Promise<boolean> {
+export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: string, bracketedPasteMode: boolean | undefined): Promise<boolean | { modifiedText: string }> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 
@@ -70,18 +70,37 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 		detail += `\n…`;
 	}
 
-	const { confirmed, checkboxChecked } = await dialogService.confirm({
+	const { result, checkboxChecked } = await dialogService.prompt<{ confirmed: boolean; singleLine: boolean }>({
 		message: localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to paste {0} lines of text into the terminal?", textForLines.length),
 		detail,
-		primaryButton: localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
+		type: 'warning',
+		buttons: [
+			{
+				label: localize({ key: 'multiLinePasteButton', comment: ['&& denotes a mnemonic'] }, "&&Paste"),
+				run: () => ({ confirmed: true, singleLine: false })
+			},
+			{
+				label: localize({ key: 'multiLinePasteButton.oneLine', comment: ['&& denotes a mnemonic'] }, "Paste as &&one line"),
+				run: () => ({ confirmed: true, singleLine: true })
+			}
+		],
+		cancelButton: true,
 		checkbox: {
 			label: localize('doNotAskAgain', "Do not ask me again")
 		}
 	});
 
-	if (confirmed && checkboxChecked) {
+	if (!result) {
+		return false;
+	}
+
+	if (result.confirmed && checkboxChecked) {
 		await configurationService.updateValue(TerminalSettingId.EnableMultiLinePasteWarning, false);
 	}
 
-	return confirmed;
+	if (result.singleLine) {
+		return { modifiedText: text.replace(/\r?\n/g, '') };
+	}
+
+	return result.confirmed;
 }

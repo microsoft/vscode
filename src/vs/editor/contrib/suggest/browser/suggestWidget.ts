@@ -282,6 +282,9 @@ export class SuggestWidget implements IDisposable {
 				applyStatusBarStyle();
 				applyIconStyle();
 			}
+			if (this._completionModel && (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight))) {
+				this._list.splice(0, this._list.length, this._completionModel.items);
+			}
 		}));
 
 		this._ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
