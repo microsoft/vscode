@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { Action2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { isNumber } from 'vs/base/common/types';
 
 export class StartTerminalSpeechToTextAction extends Action2 {
 
@@ -59,6 +63,7 @@ export class StopTerminalSpeechToTextAction extends Action2 {
 }
 
 class VoiceSession extends Disposable {
+	private _input: string = '';
 	private static instance: VoiceSession | undefined = undefined;
 	static getInstance(instantiationService: IInstantiationService): VoiceSession {
 		if (!VoiceSession.instance) {
@@ -71,7 +76,8 @@ class VoiceSession extends Disposable {
 	private _disposables = new DisposableStore();
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
-		@ITerminalService readonly _terminalService: ITerminalService
+		@ITerminalService readonly _terminalService: ITerminalService,
+		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
@@ -79,6 +85,14 @@ class VoiceSession extends Disposable {
 	}
 	start(): void {
 		this.stop();
+		let voiceTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
+		if (!isNumber(voiceTimeout) || voiceTimeout < 0) {
+			voiceTimeout = SpeechTimeoutDefault;
+		}
+		const acceptTranscriptionScheduler = this._disposables.add(new RunOnceScheduler(() => {
+			this._terminalService.activeInstance?.sendText(this._input, false);
+			this.stop();
+		}, voiceTimeout));
 		this._cancellationTokenSource = new CancellationTokenSource();
 		const session = this._disposables.add(this._speechService.createSpeechToTextSession(this._cancellationTokenSource!.token));
 		this._disposables.add(session.onDidChange((e) => {
@@ -89,15 +103,21 @@ class VoiceSession extends Disposable {
 				case SpeechToTextStatus.Started:
 					break;
 				case SpeechToTextStatus.Recognizing:
-					// TODO: start audio cue, show in status bar
+					// TODO: start audio cue, show in terminal by the cursor
+					if (voiceTimeout > 0) {
+						acceptTranscriptionScheduler.cancel();
+					}
 					break;
 				case SpeechToTextStatus.Recognized:
 					if (e.text) {
-						this._terminalService.activeInstance?.sendText(e.text, false);
+						this._input = [this._input, e.text].join(' ');
+					}
+					if (voiceTimeout > 0) {
+						acceptTranscriptionScheduler.schedule();
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
-					// TODO: stop audio cue, hide in status bar
+					// TODO: stop audio cue, hide in terminal by the cursor
 					this.stop();
 					break;
 			}
@@ -106,5 +126,6 @@ class VoiceSession extends Disposable {
 	stop(): void {
 		this._cancellationTokenSource?.cancel();
 		this._disposables.dispose();
+		this._input = '';
 	}
 }
