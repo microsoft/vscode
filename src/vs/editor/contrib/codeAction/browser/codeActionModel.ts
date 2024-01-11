@@ -274,17 +274,6 @@ export class CodeActionModel extends Disposable {
 												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes('_typescript.applyFixAllCodeAction'))) {
 													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 												}
-
-												if (codeActionSet.allActions.length === 0) {
-													allCodeActions.push(...actionsAtMarker.allActions);
-												}
-
-												// Already filtered through to only get quickfixes, so no need to filter again.
-												if (Math.abs(currPosition.column - col) < distance) {
-													currentActions.unshift(...actionsAtMarker.validActions);
-												} else {
-													currentActions.push(...actionsAtMarker.validActions);
-												}
 											}
 
 											if (codeActionSet.allActions.length === 0) {
