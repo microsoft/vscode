@@ -456,13 +456,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent) {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
-		let text = '';
-		if (textDataTransfer) {
-			text = await textDataTransfer.asString();
-			// return;
-		}
-
-		// const text = await textDataTransfer.asString();
+		const text = (await textDataTransfer?.asString()) ?? '';
 		if (token.isCancellationRequested) {
 			return;
 		}
