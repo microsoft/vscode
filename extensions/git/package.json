@@ -698,8 +698,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.stashPreview",
-        "title": "%command.stashPreview%",
+        "command": "git.stashView",
+        "title": "%command.stashView%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1294,7 +1294,7 @@
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         },
         {
-          "command": "git.stashPreview",
+          "command": "git.stashView",
           "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
@@ -2146,7 +2146,7 @@
           "group": "4_drop@2"
         },
         {
-          "command": "git.stashPreview",
+          "command": "git.stashView",
           "when": "config.multiDiffEditor.experimental.enabled",
           "group": "5_preview@1"
         }
