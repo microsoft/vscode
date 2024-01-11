@@ -167,7 +167,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	get minimumHeight(): number {
 		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? 35 : 30;
 
-		return value / (this.useCounterZoom ? getZoomFactor(getWindow(this.element)) : 1);
+		return value / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 
 	get maximumHeight(): number { return this.minimumHeight; }
@@ -710,19 +710,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return !this.isAuxiliary && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
-	get hasNoElementsToZoom(): boolean {
-		const noMenubar = this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh);
-		const noCommandCenter = !this.isCommandCenterVisible;
-		const noToolBarActions = !this.layoutControlEnabled && !this.editorActionsEnabled && !this.activityActionsEnabled;
-		return (noMenubar && noCommandCenter && noToolBarActions);
+	get hasZoomableElements(): boolean {
+		const hasMenubar = !(this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh));
+		const hasCommandCenter = this.isCommandCenterVisible;
+		const hasToolBarActions = this.layoutControlEnabled || this.editorActionsEnabled || this.activityActionsEnabled;
+		return hasMenubar || hasCommandCenter || hasToolBarActions;
 	}
 
-	get useCounterZoom(): boolean {
+	get preventZoom(): boolean {
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the title bar
 
-		return getZoomFactor(getWindow(this.element)) < 1 || this.hasNoElementsToZoom;
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.hasZoomableElements;
 	}
 
 	override layout(width: number, height: number): void {
@@ -738,7 +738,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
 
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
-			this.rootContainer.classList.toggle('counter-zoom', this.useCounterZoom);
+			this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
 
 			if (this.customMenubar) {
 				const menubarDimension = new Dimension(0, dimension.height);
@@ -816,7 +816,13 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
 
-	override get hasNoElementsToZoom(): boolean {
-		return this.mainTitlebar.hasNoElementsToZoom;
+	override get preventZoom(): boolean {
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the main title bar
+		// The auxiliary title bar never contains any zoomable items itself,
+		// but we want to match the behavior of the main title bar.
+
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
 }

@@ -38,7 +38,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 			return super.minimumHeight;
 		}
 
-		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.useCounterZoom ? getZoomFactor(getWindow(this.element)) : 1);
+		return (this.isCommandCenterVisible ? 35 : this.macTitlebarSize) / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
@@ -326,8 +326,14 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, nativeHostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 	}
 
-	override get hasNoElementsToZoom(): boolean {
-		return this.mainTitlebar.hasNoElementsToZoom;
+	override get preventZoom(): boolean {
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the main title bar
+		// The auxiliary title bar never contains any zoomable items itself,
+		// but we want to match the behavior of the main title bar.
+
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
 }
 
