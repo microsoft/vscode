@@ -214,7 +214,6 @@
 							"src/vs/workbench/services/keybinding/test/node/fallbackKeyboardMapper.test.ts",
 							"src/vs/workbench/services/keybinding/test/node/macLinuxKeyboardMapper.test.ts",
 							"src/vs/workbench/services/keybinding/test/node/windowsKeyboardMapper.test.ts",
-							"src/vs/workbench/services/telemetry/test/browser/commonProperties.test.ts",
 							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
 							"src/vs/workbench/test/browser/quickAccess.test.ts"
 						]
