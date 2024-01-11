@@ -6,6 +6,7 @@
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { contrastBorder, diffInserted, diffRemoved, editorErrorForeground, editorForeground, editorInfoForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const testingColorIconFailed = registerColor('testing.iconFailed', {
@@ -153,3 +154,15 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Unset]: testingColorIconUnset,
 	[TestResultState.Skipped]: testingColorIconSkipped,
 };
+
+registerThemingParticipant((theme, collector) => {
+
+	collector.addRule(`
+	.coverage-deco-inline.coverage-deco-hit {
+		outline: 1px solid ${theme.getColor(testingCoveredBackground)?.transparent(0.75)};
+	}
+	.coverage-deco-inline.coverage-deco-miss {
+		outline: 1px solid ${theme.getColor(testingUncoveredBackground)?.transparent(0.75)};
+	}
+	`);
+});
