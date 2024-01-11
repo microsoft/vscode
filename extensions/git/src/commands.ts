@@ -3466,7 +3466,14 @@ export class CommandCenter {
 	}
 
 	@command('git.stashPopEditor')
-	async stashPopEditor(): Promise<void> {
+	async stashPopEditor(uri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(uri);
+		if (!result) {
+			return;
+		}
+
+		await result.repository.popStash(result.stash.index);
+		await commands.executeCommand('workbench.action.closeActiveEditor');
 	}
 
 	@command('git.stashApply', { repository: true })
@@ -3494,9 +3501,15 @@ export class CommandCenter {
 	}
 
 	@command('git.stashApplyEditor')
-	async stashApplyEditor(): Promise<void> {
-	}
+	async stashApplyEditor(uri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(uri);
+		if (!result) {
+			return;
+		}
 
+		await result.repository.applyStash(result.stash.index);
+		await commands.executeCommand('workbench.action.closeActiveEditor');
+	}
 
 	@command('git.stashDrop', { repository: true })
 	async stashDrop(repository: Repository): Promise<void> {
@@ -3534,8 +3547,8 @@ export class CommandCenter {
 	}
 
 	@command('git.stashDropEditor')
-	async stashDropEditor(stashUri: Uri): Promise<void> {
-		const result = await this.getStashFromUri(stashUri);
+	async stashDropEditor(uri: Uri): Promise<void> {
+		const result = await this.getStashFromUri(uri);
 		if (!result) {
 			return;
 		}
