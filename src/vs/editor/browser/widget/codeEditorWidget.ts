@@ -1149,9 +1149,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null, clipboardEvent?: ClipboardEvent): void {
-		// if (!this._modelData || text.length === 0) {
-		// 	return;
-		// }
 		if (!this._modelData) {
 			return;
 		}
