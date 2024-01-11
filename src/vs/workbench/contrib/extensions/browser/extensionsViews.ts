@@ -467,8 +467,8 @@ export class ExtensionsListView extends ViewPane {
 			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 		const isThemeExtension = (e: IExtension): boolean => {
-			return (Array.isArray(e.local?.manifest?.contributes?.themes) && e.local!.manifest!.contributes!.themes.length > 0)
-				|| (Array.isArray(e.local?.manifest?.contributes?.iconThemes) && e.local!.manifest!.contributes!.iconThemes.length > 0);
+			return (Array.isArray(e.local?.manifest?.contributes?.themes) && e.local.manifest.contributes.themes.length > 0)
+				|| (Array.isArray(e.local?.manifest?.contributes?.iconThemes) && e.local.manifest.contributes.iconThemes.length > 0);
 		};
 		if (showThemesOnly) {
 			const themesExtensions = result.filter(isThemeExtension);
@@ -477,7 +477,7 @@ export class ExtensionsListView extends ViewPane {
 
 		const isLanguageBasicExtension = (e: IExtension): boolean => {
 			return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
-				&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
+				&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local.manifest.contributes.grammars.length > 0);
 		};
 		if (showBasicsOnly) {
 			const basics = result.filter(isLanguageBasicExtension);

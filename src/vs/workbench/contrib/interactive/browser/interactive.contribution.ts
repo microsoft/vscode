@@ -371,7 +371,7 @@ registerAction2(class extends Action2 {
 				const editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 
 				return {
-					notebookUri: editorInput.resource!,
+					notebookUri: editorInput.resource,
 					inputUri: editorInput.inputResource,
 					notebookEditorId: editorControl?.notebookEditor?.getId()
 				};

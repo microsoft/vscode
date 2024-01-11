@@ -1220,7 +1220,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				return;
 			}
 
-			const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth!) || 0;
+			const maxWidth = parseFloat(dom.getComputedStyle(this._domNode).maxWidth) || 0;
 			if (width > maxWidth) {
 				return;
 			}

@@ -128,7 +128,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		this.updateTitleArea();
 		const id = this.getActiveComposite()?.getId();
 		if (id) {
-			this.onTitleAreaUpdate(id!);
+			this.onTitleAreaUpdate(id);
 		}
 		this.updateActivityBarVisiblity();
 		this.rememberActivityBarVisiblePosition();

@@ -460,7 +460,7 @@ export class DisassemblyView extends EditorPane {
 					const currentLine: IRange = {
 						startLineNumber: instruction.line,
 						startColumn: instruction.column ?? 0,
-						endLineNumber: instruction.endLine ?? instruction.line!,
+						endLineNumber: instruction.endLine ?? instruction.line,
 						endColumn: instruction.endColumn ?? 0,
 					};
 
@@ -776,7 +776,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 
 		const disposables = [
 			this._disassemblyView.onDidChangeStackFrame(() => this.rerenderBackground(instruction, sourcecode, currentElement.element)),
-			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction!)),
+			addStandardDisposableListener(sourcecode, 'dblclick', () => this.openSourceCode(currentElement.element?.instruction)),
 		];
 
 		return { currentElement, instruction, sourcecode, cellDisposable, disposables };
@@ -881,7 +881,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 			const sourceURI = this.getUriFromSource(instruction);
 			const selection = instruction.endLine ? {
 				startLineNumber: instruction.line!,
-				endLineNumber: instruction.endLine!,
+				endLineNumber: instruction.endLine,
 				startColumn: instruction.column || 1,
 				endColumn: instruction.endColumn || Constants.MAX_SAFE_SMALL_INTEGER,
 			} : {

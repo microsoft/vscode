@@ -74,7 +74,7 @@ export class RenameProfileAction extends Action2 {
 			value: profile.name,
 			title: localize('select profile to rename', 'Rename {0}', profile.name),
 			validateInput: async (value: string) => {
-				if (profile!.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
+				if (profile.name !== value && userDataProfilesService.profiles.some(p => p.name === value)) {
 					return localize('profileExists', "Profile with name {0} already exists.", value);
 				}
 				return undefined;

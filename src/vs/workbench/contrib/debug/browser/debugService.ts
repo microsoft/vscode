@@ -387,7 +387,7 @@ export class DebugService implements IDebugService {
 
 				const values = await Promise.all(compound.configurations.map(configData => {
 					const name = typeof configData === 'string' ? configData : configData.name;
-					if (name === compound!.name) {
+					if (name === compound.name) {
 						return Promise.resolve(false);
 					}
 
@@ -408,7 +408,7 @@ export class DebugService implements IDebugService {
 						if (launchesMatchingConfigData.length === 1) {
 							launchForName = launchesMatchingConfigData[0];
 						} else {
-							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound!.name));
+							throw new Error(nls.localize('noFolderWithName', "Can not find folder with name '{0}' for configuration '{1}' in compound '{2}'.", configData.folder, configData.name, compound.name));
 						}
 					}
 

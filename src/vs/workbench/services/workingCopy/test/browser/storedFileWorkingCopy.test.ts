@@ -599,8 +599,8 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual((lastSaveEvent! as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
-		assert.strictEqual((lastSaveEvent! as IStoredFileWorkingCopySaveEvent).source, source);
+		assert.strictEqual(lastSaveEvent!.reason, SaveReason.AUTO);
+		assert.strictEqual(lastSaveEvent!.source, source);
 	});
 
 	test('save (no errors) - multiple', async () => {

@@ -108,7 +108,7 @@ suite('Extension Test', () => {
 		properties = {
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getGalleryExtensionId(manifest.publisher!, manifest.name!) },
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name!) },
 			targetPlatform: TargetPlatform.UNDEFINED,
 			...properties
 		};

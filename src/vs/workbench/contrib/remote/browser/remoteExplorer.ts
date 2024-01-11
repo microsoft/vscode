@@ -88,7 +88,7 @@ export class ForwardedPortsView extends Disposable implements IWorkbenchContribu
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			if (viewContainer) {
 				this.remoteExplorerService.enablePortsFeatures();
-				viewsRegistry.registerViews([tunnelPanelDescriptor!], viewContainer);
+				viewsRegistry.registerViews([tunnelPanelDescriptor], viewContainer);
 			}
 		} else {
 			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {

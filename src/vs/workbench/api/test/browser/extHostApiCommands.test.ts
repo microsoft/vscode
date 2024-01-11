@@ -1048,8 +1048,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(value.length, 1);
 				const [first] = value;
 				assert.ok(first.command);
-				assert.strictEqual(first.command!.command, 'command');
-				assert.strictEqual(first.command!.title, 'command_title');
+				assert.strictEqual(first.command.command, 'command');
+				assert.strictEqual(first.command.title, 'command_title');
 				assert.strictEqual(first.kind!.value, 'foo');
 				assert.strictEqual(first.title, 'title');
 
@@ -1079,8 +1079,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.strictEqual(value.length, 1);
 				const [first] = value;
 				assert.ok(first.command);
-				assert.ok(first.command!.arguments![1] instanceof types.Selection);
-				assert.ok(first.command!.arguments![1].isEqual(selection));
+				assert.ok(first.command.arguments![1] instanceof types.Selection);
+				assert.ok(first.command.arguments![1].isEqual(selection));
 			});
 		});
 	});
@@ -1372,7 +1372,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 		assert.strictEqual(first.textEdits?.length, 1);
-		assert.strictEqual(first.textEdits![0].newText, 'Hello');
+		assert.strictEqual(first.textEdits[0].newText, 'Hello');
 
 		assert.strictEqual(second.position.line, 10);
 		assert.strictEqual(second.position.character, 11);

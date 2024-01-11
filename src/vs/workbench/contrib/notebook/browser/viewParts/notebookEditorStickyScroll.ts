@@ -249,7 +249,7 @@ export class NotebookStickyScroll extends Disposable {
 						return;
 					}
 					// using 22 instead of stickyscrollheight, as we don't necessarily render each line. 22 starts rendering sticky when we have space for at least 1 of them
-					const newStickyHeight = NotebookStickyScroll.computeStickyHeight(entry!);
+					const newStickyHeight = NotebookStickyScroll.computeStickyHeight(entry);
 					if (editorScrollTop + newStickyHeight < sectionBottom) {
 						trackedEntry = entry;
 						break;
@@ -421,7 +421,7 @@ export function computeContent(domNode: HTMLElement, notebookEditor: INotebookEd
 					return new Map();
 				}
 				// check if we can render this section of sticky
-				const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(entry!);
+				const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(entry);
 				if (editorScrollTop + currentSectionStickyHeight < sectionBottom) {
 					const linesToRender = Math.floor((sectionBottom - editorScrollTop) / 22);
 					let newMap: Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> = new Map();

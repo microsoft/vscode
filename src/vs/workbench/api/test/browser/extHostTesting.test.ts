@@ -803,7 +803,7 @@ suite('ExtHost Testing', () => {
 					contextValue: undefined,
 					expected: undefined,
 					actual: undefined,
-					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
+					location: convert.location.from({ uri: test2.uri!, range: test2.range }),
 				}]
 			]);
 

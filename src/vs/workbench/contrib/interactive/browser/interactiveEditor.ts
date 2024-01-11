@@ -526,7 +526,7 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
-			const value = editorModel!.getValue();
+			const value = editorModel.getValue();
 			if (this.input?.resource && value !== '') {
 				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
 			}

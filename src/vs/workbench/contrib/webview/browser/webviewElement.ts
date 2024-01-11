@@ -284,7 +284,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 			const elementBox = this.element.getBoundingClientRect();
-			const contextKeyService = this._contextKeyService!.createOverlay([
+			const contextKeyService = this._contextKeyService.createOverlay([
 				...Object.entries(data.context),
 				[webviewIdContext, this.providedViewType],
 			]);
