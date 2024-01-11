@@ -882,6 +882,7 @@ export class LiveStrategy extends EditModeStrategy {
 					}
 				});
 				hunkDisplayData.clear();
+				this._ctxCurrentChangeShowsDiff.reset();
 			};
 
 			this._hunkDisplay = { renderHunks, hideHunks };
