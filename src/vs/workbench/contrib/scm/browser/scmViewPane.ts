@@ -883,7 +883,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
 		}
 
-		templateData.label.setLabel(historyItem.label, historyItem.description);
+		templateData.label.setLabel(historyItem.label, historyItem.description, { title: historyItem.label });
 
 		templateData.actionBar.clear();
 		templateData.actionBar.context = historyItem;
