@@ -186,20 +186,23 @@ export class TerminalVoiceSession extends Disposable {
 	}
 
 	private _createDecoration(): void {
-		this._marker = this._terminalService.activeInstance?.registerMarker();
+		const activeInstance = this._terminalService.activeInstance;
+		const xterm = activeInstance?.xterm?.raw;
+		if (!xterm) {
+			return;
+		}
+		this._marker = activeInstance.registerMarker();
 		if (!this._marker) {
 			return;
 		}
-		this._decoration = this._terminalService.activeInstance?.xterm?.raw.registerDecoration({
+		this._decoration = xterm.registerDecoration({
 			marker: this._marker,
 			layer: 'top',
-			x: this._terminalService.activeInstance.xterm?.raw?.buffer.active.cursorX ?? this._terminalService.activeInstance.xterm?.raw?.buffer.active.cursorX! ?? 0,
+			x: xterm.buffer.active.cursorX ?? 0,
 		});
-		console.log(this._terminalService.activeInstance?.xterm?.raw?.buffer.active.cursorX);
 		this._decoration?.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.mic));
 			e.classList.add('quick-fix');
-			e.style.zIndex = '1000';
 			e.style.paddingLeft = '5px';
 		});
 	}
