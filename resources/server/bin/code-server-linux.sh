@@ -10,7 +10,7 @@ esac
 ROOT="$(dirname "$(dirname "$(readlink -f "$0")")")"
 
 # Check platform requirements
-if [[ "$@" != *"--skip-requirements-check"* ]]; then
+if [ "$(echo "$@" | grep -c -- "--skip-requirements-check")" -eq 0 ]; then
 	$ROOT/bin/helpers/check-requirements-linux.sh
 fi
 
