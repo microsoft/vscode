@@ -107,7 +107,9 @@ export class MenuId {
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMInputBox = new MenuId('SCMInputBox');
+	static readonly SCMIncomingChangesAllChangesContext = new MenuId('SCMIncomingChangesAllChangesContext');
 	static readonly SCMIncomingChangesHistoryItemContext = new MenuId('SCMIncomingChangesHistoryItemContext');
+	static readonly SCMOutgoingChangesAllChangesContext = new MenuId('SCMOutgoingChangesAllChangesContext');
 	static readonly SCMOutgoingChangesHistoryItemContext = new MenuId('SCMOutgoingChangesHistoryItemContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');

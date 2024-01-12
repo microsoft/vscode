@@ -14,7 +14,7 @@ import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/c
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISCMHistoryItem, ISCMHistoryItemGroupEntry, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProviderMenus, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 
 function actionEquals(a: IAction, b: IAction): boolean {
@@ -255,29 +255,33 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 
 export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDisposable {
 
-	private readonly historyItemMenus = new Map<ISCMHistoryItem, IMenu>();
+	private readonly historyItemMenus = new Map<SCMHistoryItemTreeElement, IMenu>();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IMenuService private readonly menuService: IMenuService) { }
 
-	getHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu {
-		return this.getOrCreateHistoryItemMenu(historyItemGroup, historyItem);
+	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
+		return this.getOrCreateHistoryItemMenu(historyItem);
 	}
 
-	private getOrCreateHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu {
+	private getOrCreateHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu {
 		let result = this.historyItemMenus.get(historyItem);
 
 		if (!result) {
-			const contextKeyService = this.contextKeyService.createOverlay([
-				['scmHistoryItem', historyItem.id],
-			]);
+			let menuId: MenuId;
+			if (historyItem.historyItemGroup.direction === 'incoming') {
+				menuId = historyItem.type === 'allChanges' ?
+					MenuId.SCMIncomingChangesAllChangesContext :
+					MenuId.SCMIncomingChangesHistoryItemContext;
+			} else {
+				menuId = historyItem.type === 'allChanges' ?
+					MenuId.SCMOutgoingChangesAllChangesContext :
+					MenuId.SCMOutgoingChangesHistoryItemContext;
+			}
 
-			const menuId = historyItemGroup.direction === 'incoming' ?
-				MenuId.SCMIncomingChangesHistoryItemContext : MenuId.SCMOutgoingChangesHistoryItemContext;
-
-			result = this.menuService.createMenu(menuId, contextKeyService);
+			result = this.menuService.createMenu(menuId, this.contextKeyService);
 			this.historyItemMenus.set(historyItem, result);
 		}
 

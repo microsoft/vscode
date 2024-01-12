@@ -3617,8 +3617,8 @@ export class CommandCenter {
 		};
 	}
 
-	@command('git.timeline.openCommit', { repository: false })
-	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
+	@command('git.timeline.viewCommit', { repository: false })
+	async timelineViewCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {
 			return;
 		}
@@ -3824,28 +3824,47 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openCommit', { repository: true })
-	async openCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+	@command('git.viewCommit', { repository: true })
+	async viewCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
 			return;
 		}
 
-		const historyProvider = repository.historyProvider;
-		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
-		const commitFiles = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+		const commit = await repository.getCommit(historyItem.id);
+		const title = `${historyItem.id.substring(0, 8)} - ${commit.message}`;
 
-		if (commitFiles.length === 0) {
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
+
+		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+	}
+
+	@command('git.viewAllChanges', { repository: true })
+	async viewAllChanges(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+		if (!repository || !historyItem) {
 			return;
 		}
 
 		const modifiedShortRef = historyItem.id.substring(0, 8);
 		const originalShortRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedShortRef}^`;
+		const title = l10n.t('All Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
 
-		const title = l10n.t('Changes ({0} ↔ {1})', originalShortRef, modifiedShortRef);
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-commit' });
-		const resources = commitFiles.map(change => ({ originalUri: change.originalUri, modifiedUri: change.modifiedUri }));
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), historyItem.id, { scheme: 'git-changes' });
 
-		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+		await this._viewChanges(repository, historyItem, multiDiffSourceUri, title);
+	}
+
+	async _viewChanges(repository: Repository, historyItem: SourceControlHistoryItem, multiDiffSourceUri: Uri, title: string): Promise<void> {
+		const historyProvider = repository.historyProvider;
+		const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		const files = await historyProvider.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+
+		if (files.length === 0) {
+			return;
+		}
+
+		const resources = files.map(f => ({ originalUri: f.originalUri, modifiedUri: f.modifiedUri }));
+
+		await commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

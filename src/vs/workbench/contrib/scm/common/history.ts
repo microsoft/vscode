@@ -10,7 +10,7 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
-	getHistoryItemMenu(historyItemGroup: ISCMHistoryItemGroupEntry, historyItem: ISCMHistoryItem): IMenu;
+	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -30,7 +30,7 @@ export interface ISCMHistoryProvider {
 
 export interface ISCMHistoryProviderCacheEntry {
 	readonly historyItemGroupDetails?: ISCMHistoryItemGroupDetails;
-	readonly historyItems: Map<string, ISCMHistoryItem[]>;
+	readonly historyItems: Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>;
 	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
@@ -89,7 +89,7 @@ export interface ISCMHistoryItem {
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
 	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
-	readonly type: 'historyItem';
+	readonly type: 'allChanges' | 'historyItem';
 }
 
 export interface ISCMHistoryItemChange {
