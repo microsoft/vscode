@@ -135,8 +135,8 @@ export class InlineChatSavingService implements IInlineChatSavingService {
 
 		progress.report({
 			message: sessions.size === 1
-				? localize('inlineChat', "Waiting for Inline Chat changes to be Accpeted or Discarded...")
-				: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accpeted or Discarded...", sessions.size)
+				? localize('inlineChat', "Waiting for Inline Chat changes to be Accepted or Discarded...")
+				: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accepted or Discarded...", sessions.size)
 		});
 
 		await this._revealInlineChatSessions(sessions.values());
