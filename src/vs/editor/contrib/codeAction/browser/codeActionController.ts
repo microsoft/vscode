@@ -279,7 +279,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.highlightRange && action.action.diagnostics) {
+				if (action && action.action.diagnostics) {
 					currentDecorations.clear();
 					const decorations: IModelDeltaDecoration[] = action.action.diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
 					currentDecorations.set(decorations);
