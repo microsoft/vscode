@@ -94,8 +94,8 @@ export const testingCoveredBackground = registerColor('testing.coveredBackground
 }, localize('testing.coveredBackground', 'Background color of text that was covered.'));
 
 export const testingCoveredGutterBackground = registerColor('testing.coveredGutterBackground', {
-	dark: diffInserted,
-	light: diffInserted,
+	dark: transparent(diffInserted, 0.8),
+	light: transparent(diffInserted, 0.8),
 	hcDark: null,
 	hcLight: null
 }, localize('testing.coveredGutterBackground', 'Gutter color of regions where code was covered.'));
@@ -108,8 +108,8 @@ export const testingUncoveredBackground = registerColor('testing.uncoveredBackgr
 }, localize('testing.uncoveredBackground', 'Background color of text that was not covered.'));
 
 export const testingUncoveredGutterBackground = registerColor('testing.uncoveredGutterBackground', {
-	dark: diffRemoved,
-	light: diffRemoved,
+	dark: transparent(diffRemoved, 1.5),
+	light: transparent(diffRemoved, 1.5),
 	hcDark: null,
 	hcLight: null
 }, localize('testing.uncoveredGutterBackground', 'Gutter color of regions where code not covered.'));

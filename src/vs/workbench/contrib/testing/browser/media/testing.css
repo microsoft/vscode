@@ -420,6 +420,7 @@
 .coverage-deco-gutter {
 	z-index: 0;
 }
+
 .coverage-deco-gutter::before {
 	content: '';
 	position: absolute;
