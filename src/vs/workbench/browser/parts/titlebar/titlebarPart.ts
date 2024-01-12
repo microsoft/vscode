@@ -19,7 +19,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -88,10 +88,33 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
+
+		this.registerActions();
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
 		return this.instantiationService.createInstance(MainBrowserTitlebarPart);
+	}
+
+	private registerActions(): void {
+
+		// Focus action
+		const that = this;
+		registerAction2(class FocusTitleBar extends Action2 {
+
+			constructor() {
+				super({
+					id: `workbench.action.focusTitleBar`,
+					title: localize2('focusTitleBar', 'Focus Title Bar'),
+					category: Categories.View,
+					f1: true,
+				});
+			}
+
+			run(): void {
+				that.getPartByDocument(getActiveDocument()).focus();
+			}
+		});
 	}
 
 	//#region Auxiliary Titlebar Parts
@@ -451,28 +474,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 		}
 
-		// Focus action
-		const that = this;
-		registerAction2(class FocusTitleBar extends Action2 {
-
-			constructor() {
-				super({
-					id: `workbench.action.focusTitleBar`,
-					title: localize2('focusTitleBar', 'Focus Title Bar'),
-					category: Categories.View,
-					f1: true,
-				});
-			}
-
-			run(): void {
-				if (that.customMenubar) {
-					that.customMenubar.toggleFocus();
-				} else {
-					(that.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement).focus();
-				}
-			}
-		});
-
 		this.updateStyles();
 
 		return this.element;
@@ -744,6 +745,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				const menubarDimension = new Dimension(0, dimension.height);
 				this.customMenubar.layout(menubarDimension);
 			}
+		}
+	}
+
+	focus(): void {
+		if (this.customMenubar) {
+			this.customMenubar.toggleFocus();
+		} else {
+			(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement).focus();
 		}
 	}
 
