@@ -10,7 +10,8 @@
   "enabledApiProposals": [
     "workspaceTrust",
     "multiDocumentHighlightProvider",
-    "mappedEditsProvider"
+    "mappedEditsProvider",
+    "codeActionAI"
   ],
   "capabilities": {
     "virtualWorkspaces": {
