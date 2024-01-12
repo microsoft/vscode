@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
+import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -68,6 +68,11 @@ export interface IObservable<T, TChange = unknown> {
 	 * Makes sure this value is computed eagerly.
 	 */
 	recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T>;
+
+	/**
+	 * Makes sure this value is cached.
+	 */
+	keepObserved(store: DisposableStore): IObservable<T>;
 
 	/**
 	 * A human-readable name for debugging purposes.
@@ -152,10 +157,15 @@ export interface ITransaction {
 }
 
 let _recomputeInitiallyAndOnChange: typeof recomputeInitiallyAndOnChange;
-
 export function _setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange: typeof _recomputeInitiallyAndOnChange) {
 	_recomputeInitiallyAndOnChange = recomputeInitiallyAndOnChange;
 }
+
+let _keepObserved: typeof keepObserved;
+export function _setKeepObserved(keepObserved: typeof _keepObserved) {
+	_keepObserved = keepObserved;
+}
+
 
 let _derived: typeof derivedOpts;
 /**
@@ -221,6 +231,16 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 
 	public recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T> {
 		store.add(_recomputeInitiallyAndOnChange!(this, handleValue));
+		return this;
+	}
+
+	/**
+	 * Ensures that this observable is observed. This keeps the cache alive.
+	 * However, in case of deriveds, it does not force eager evaluation (only when the value is read/get).
+	 * Use `recomputeInitiallyAndOnChange` for eager evaluation.
+	 */
+	public keepObserved(store: DisposableStore): IObservable<T> {
+		store.add(_keepObserved!(this));
 		return this;
 	}
 
