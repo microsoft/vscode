@@ -575,6 +575,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override pause = () => {
 		this._hunkDisplay?.hideHunks();
+		this._ctxCurrentChangeShowsDiff.reset();
 	};
 
 	async apply() {
@@ -889,7 +890,6 @@ export class LiveStrategy extends EditModeStrategy {
 					}
 				});
 				hunkDisplayData.clear();
-				this._ctxCurrentChangeShowsDiff.reset();
 			};
 
 			this._hunkDisplay = { renderHunks, hideHunks };
