@@ -1222,7 +1222,7 @@ class StickyScrollState<T, TFilterData, TRef> extends Disposable {
 }
 
 export interface IStickyScrollDelegate<T, TFilterData> {
-	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number, firstVisibleIndex: number): StickyScrollNode<T, TFilterData>[];
+	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[];
 }
 
 class DefaultStickyScrollDelegate<T, TFilterData> implements IStickyScrollDelegate<T, TFilterData> {
@@ -1442,7 +1442,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		}
 
 		// constrain sticky nodes
-		const constrainedStickyNodes = this.stickyScrollDelegate.constrainStickyScrollNodes(stickyNodes, this.stickyScrollMaxItemCount, maximumStickyWidgetHeight, this.view.firstVisibleIndex);
+		const constrainedStickyNodes = this.stickyScrollDelegate.constrainStickyScrollNodes(stickyNodes, this.stickyScrollMaxItemCount, maximumStickyWidgetHeight);
 
 		if (!constrainedStickyNodes.length) {
 			return [];

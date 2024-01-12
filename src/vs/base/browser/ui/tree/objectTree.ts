@@ -164,7 +164,7 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 		return this.compressedStickyNodes.get(node);
 	}
 
-	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number, firstVisibleIndex: number): StickyScrollNode<T, TFilterData>[] {
+	constrainStickyScrollNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], stickyScrollMaxItemCount: number, maxWidgetHeight: number): StickyScrollNode<T, TFilterData>[] {
 		this.compressedStickyNodes.clear();
 		if (stickyNodes.length === 0) {
 			return [];
@@ -178,7 +178,7 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			if (followingReachesMaxHeight || i >= stickyScrollMaxItemCount - 1 && stickyScrollMaxItemCount < stickyNodes.length) {
 				const uncompressedStickyNodes = stickyNodes.slice(0, i);
 				const overflowingStickyNodes = stickyNodes.slice(i);
-				const compressedStickyNode = this.compressStickyNodes(overflowingStickyNodes, firstVisibleIndex + i + 1);
+				const compressedStickyNode = this.compressStickyNodes(overflowingStickyNodes);
 				return [...uncompressedStickyNodes, compressedStickyNode];
 			}
 
@@ -187,7 +187,7 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 		return stickyNodes;
 	}
 
-	private compressStickyNodes(stickyNodes: StickyScrollNode<T, TFilterData>[], firstVisibleIndexUnderWidget: number): StickyScrollNode<T, TFilterData> {
+	private compressStickyNodes(stickyNodes: StickyScrollNode<T, TFilterData>[]): StickyScrollNode<T, TFilterData> {
 
 		if (!this.modelProvider().isCompressionEnabled()) {
 			return stickyNodes[0];
@@ -196,10 +196,6 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 		// Collect all elements to be compressed
 		const elements: T[] = [];
 		for (const stickyNode of stickyNodes) {
-			if (stickyNode.startIndex > firstVisibleIndexUnderWidget) {
-				break;
-			}
-
 			const compressedNode = this.modelProvider().getCompressedTreeNode(stickyNode.node.element);
 
 			if (compressedNode.element) {
