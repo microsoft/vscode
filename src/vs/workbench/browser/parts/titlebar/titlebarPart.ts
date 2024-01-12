@@ -182,6 +182,7 @@ class TitlebarPartHoverDelegate implements IHoverDelegate {
 }
 
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
+
 	//#region IView
 
 	readonly minimumWidth: number = 0;
@@ -826,6 +827,7 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 	}
 
 	override get preventZoom(): boolean {
+
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the main title bar
