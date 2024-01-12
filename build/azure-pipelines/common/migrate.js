@@ -308,7 +308,7 @@ async function download(url, path) {
 async function migrateAsset(_client, build, asset) {
     asset.url = await releaseAndProvision((...args) => console.log(`[${build.id} | ${asset.platform} | ${asset.type}]`, ...args), e('RELEASE_TENANT_ID'), e('RELEASE_CLIENT_ID'), e('RELEASE_AUTH_CERT_SUBJECT_NAME'), e('RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'), e('PROVISION_TENANT_ID'), e('PROVISION_AAD_USERNAME'), e('PROVISION_AAD_PASSWORD'), build.id, 'stable', asset.url, asset.sha256hash);
 }
-const limiter = new Limiter(3);
+const limiter = new Limiter(10);
 async function main() {
     const aadCredentials = new identity_1.ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
     const client = new cosmos_1.CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });

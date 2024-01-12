@@ -473,7 +473,7 @@ async function migrateAsset(_client: CosmosClient, build: Build, asset: Asset): 
 	);
 }
 
-const limiter = new Limiter(3);
+const limiter = new Limiter(10);
 
 async function main() {
 	const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
