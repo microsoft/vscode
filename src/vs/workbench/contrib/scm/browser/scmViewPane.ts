@@ -3373,31 +3373,43 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemsMap = historyProviderCacheEntry.historyItems;
-		let historyItems = historyProviderCacheEntry.historyItems.get(element.id);
+		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
-		if (!historyItems) {
-			historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
+		if (!historyItemsElement) {
+			const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
 
 			// All Changes
 			const { showChangesSummary } = this.getConfiguration();
-			if (showChangesSummary && historyItems.length >= 2) {
-				const allChanges = await historyProvider.provideHistoryItemSummary(element.id, element.ancestor);
-				if (allChanges) {
-					historyItems.splice(0, 0, { ...allChanges, icon: allChanges.icon ?? Codicon.files, label: localize('allChanges', "All Changes") });
-				}
-			}
+			const allChanges = showChangesSummary && historyItems.length >= 2 ?
+				await historyProvider.provideHistoryItemSummary(element.id, element.ancestor) : undefined;
+
+			historyItemsElement = [allChanges, historyItems];
 
 			this.historyProviderCache.set(repository, {
 				...historyProviderCacheEntry,
-				historyItems: historyItemsMap.set(element.id, historyItems)
+				historyItems: historyItemsMap.set(element.id, historyItemsElement)
 			});
 		}
 
-		return historyItems.map(historyItem => ({
-			...historyItem,
-			historyItemGroup: element,
-			type: 'historyItem'
-		}));
+		const children: SCMHistoryItemTreeElement[] = [];
+		if (historyItemsElement[0]) {
+			children.push({
+				...historyItemsElement[0],
+				icon: historyItemsElement[0].icon ?? Codicon.files,
+				label: localize('allChanges', "All Changes"),
+				historyItemGroup: element,
+				type: 'allChanges'
+			} satisfies SCMHistoryItemTreeElement);
+		}
+
+		children.push(...historyItemsElement[1]
+			.map(historyItem => ({
+				...historyItem,
+				historyItemGroup: element,
+				type: 'historyItem'
+			} satisfies SCMHistoryItemTreeElement)));
+
+		return children;
 	}
 
 	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
@@ -3520,7 +3532,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	private getHistoryProviderCacheEntry(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
 		return this.historyProviderCache.get(repository) ?? {
 			historyItemGroupDetails: undefined,
-			historyItems: new Map<string, ISCMHistoryItem[]>(),
+			historyItems: new Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>(),
 			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
 		};
 	}
