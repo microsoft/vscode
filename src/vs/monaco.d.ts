@@ -6454,6 +6454,8 @@ declare namespace monaco.languages {
 	 */
 	export function registerInlineCompletionsProvider(languageSelector: LanguageSelector, provider: InlineCompletionsProvider): IDisposable;
 
+	export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: InlineEditProvider): IDisposable;
+
 	/**
 	 * Register an inlay hints provider.
 	 */
@@ -7911,6 +7913,25 @@ declare namespace monaco.languages {
 		 * @returns A provider result of text edits.
 		 */
 		provideMappedEdits(document: editor.ITextModel, codeBlocks: string[], context: MappedEditsContext, token: CancellationToken): Promise<WorkspaceEdit | null>;
+	}
+
+	export interface IInlineEdit {
+		position: IPosition;
+		text: string;
+		replaceRange?: IRange;
+	}
+
+	export interface IInlineEditContext {
+		triggerKind: InlineEditTriggerKind;
+	}
+
+	export enum InlineEditTriggerKind {
+		Invoke = 0,
+		Automatic = 1
+	}
+
+	export interface InlineEditProvider {
+		provideInlineEdit(model: editor.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<IInlineEdit>;
 	}
 
 	export interface ILanguageExtensionPoint {

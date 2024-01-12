@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorDecorationsCollection, IInlineEdit, IInlineEditContext, InlineEditTriggerKind } from 'vs/editor/common/editorCommon';
+import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
@@ -17,6 +17,9 @@ import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 
 export class MultiGhostTextController extends Disposable {
@@ -37,13 +40,17 @@ export class MultiGhostTextController extends Disposable {
 	private readonly _rulerDecorations: IEditorDecorationsCollection;
 	private readonly _rulerDecoration: ModelDecorationOptions;
 
+	private _currentRequestCts: CancellationTokenSource | undefined;
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
+		//Ruler decorations for the inline edits
 		const opts: IModelDecorationOptions = {
 			description: 'multi-ghost-text-decoration',
 			overviewRuler: {
@@ -58,10 +65,21 @@ export class MultiGhostTextController extends Disposable {
 		this._rulerDecoration = ModelDecorationOptions.createDynamic(opts);
 		this._rulerDecorations = editor.createDecorationsCollection();
 
-		this._register(editor.onDidChangeModelContent(() => {
+		//Automatically request inline edit when the content was changed
+		//Cancel the previous request if there is one
+		//Remove the previous ghoust thext
+		this._register(editor.onDidChangeModelContent(async () => {
 			this._isCursorAtGhostTextContext.set(false);
 			this.clear();
+			const edit = await this.fetchInlineEdit(editor, true);
+			if (!edit) {
+				return;
+			}
+			this.showSingleGhostText(edit);
+			this.showRulerDecoration(edit);
 		}));
+
+		//Check if the cursor is at the ghost text
 		this._register(editor.onDidChangeCursorPosition((e) => {
 			if (!this._currentWidget) {
 				this._isCursorAtGhostTextContext.set(false);
@@ -75,6 +93,28 @@ export class MultiGhostTextController extends Disposable {
 				this._isCursorAtGhostTextContext.set(false);
 			}
 		}));
+	}
+
+	private async fetchInlineEdit(editor: ICodeEditor, auto: boolean): Promise<IInlineEdit | undefined> {
+		if (this._currentRequestCts) {
+			this._currentRequestCts.dispose(true);
+		}
+		const model = editor.getModel();
+		if (!model) {
+			return;
+		}
+		const providers = this.languageFeaturesService.inlineEditProvider.all(model);
+		if (providers.length === 0) {
+			return;
+		}
+		const provider = providers[0];
+		this._currentRequestCts = new CancellationTokenSource();
+		const triggerKind = auto ? InlineEditTriggerKind.Automatic : InlineEditTriggerKind.Invoke;
+		const edit = await provider.provideInlineEdit(model, { triggerKind }, this._currentRequestCts.token);
+		if (!edit) {
+			return;
+		}
+		return edit;
 	}
 
 	private showSingleGhostText(gt: IInlineEdit) {
@@ -114,13 +154,15 @@ export class MultiGhostTextController extends Disposable {
 		this._rulerDecorations.set([decoration]);
 	}
 
-	public showGhostText(ghostText: IInlineEdit, context: IInlineEditContext): void {
-		if (this._currentWidget && context.triggerKind === InlineEditTriggerKind.Automatic) {
-			//ignore auto requests if we're displaying suggestions
+	public async showNext() {
+		const edit = await this.fetchInlineEdit(this.editor, true);
+		this.clear();
+		if (!edit) {
 			return;
 		}
-		this.showSingleGhostText(ghostText);
-		this.showRulerDecoration(ghostText);
+		this.showSingleGhostText(edit);
+		this.showRulerDecoration(edit);
+		this.jumpToCurrent();
 	}
 
 	public accept(): void {

@@ -61,14 +61,29 @@ declare module 'vscode' {
 		Automatic = 1,
 	}
 
-	export interface TextEditor {
+	export interface InlineEditProvider {
+		/**
+		 * Provide inline edit for the given document.
+		 *
+		 * @param document The document for which the inline edit are computed.
+		 * @param context Additional context information about the request.
+		 * @param token A cancellation token.
+		 * @return An inline edit or a thenable that resolves to such. The lack of a result can be
+		 * signaled by returning `undefined` or `null`.
+		 */
+		provideInlineEdit(document: TextDocument, context: InlineEditContext, token: CancellationToken): ProviderResult<InlineEdit>;
+	}
+
+	export namespace languages {
 
 		/**
-		 * Add an inline edit to the text editor.
-		 * If the edit already exists, it will be replaced with the new one.
+		 * Register a provider that can handle inline edits.
 		 *
-		 * @param edit The {@link InlineEdit} to add.
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A provider that can handle inline edits.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		setInlineEdit(edit: InlineEdit, context: InlineEditContext): void;
+		export function registerInlineEditProvider(selector: DocumentSelector, provider: InlineEditProvider): Disposable;
+
 	}
 }

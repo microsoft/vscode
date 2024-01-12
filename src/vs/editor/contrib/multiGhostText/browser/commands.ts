@@ -54,6 +54,27 @@ export class JumpToGhostText extends EditorAction {
 	}
 }
 
+export class NextGhostText extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.multiGhostText.next',
+			label: 'Next Ghost Text',
+			alias: 'Next Ghost Text',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.cursorAtGhostTextContext)
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = MultiGhostTextController.get(editor);
+		controller?.showNext();
+	}
+}
+
 export class RejectGhostText extends EditorAction {
 	constructor() {
 		super({

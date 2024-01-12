@@ -10,7 +10,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
-import { IDecorationOptions, IDecorationRenderOptions, IInlineEdit, IInlineEditContext } from 'vs/editor/common/editorCommon';
+import { IDecorationOptions, IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
@@ -29,7 +29,6 @@ import { IEditorControl } from 'vs/workbench/common/editor';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DirtyDiffContribution } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { MultiGhostTextController } from 'vs/editor/contrib/multiGhostText/browser/multiGhostTextController';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -274,25 +273,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 
 		return Promise.resolve([]);
-	}
-
-	$trySetInlineEdit(id: string, edit: IInlineEdit, context: IInlineEditContext): Promise<void> {
-		const editor = this._editorLocator.getEditor(id);
-
-		if (!editor) {
-			return Promise.reject(new Error('No such TextEditor'));
-		}
-
-		const codeEditor = editor.getCodeEditor();
-		if (!codeEditor) {
-			return Promise.reject(new Error('No such CodeEditor'));
-		}
-		const controller = MultiGhostTextController.get(codeEditor);
-		if (!controller) {
-			return Promise.reject(new Error('No such GhostTextController'));
-		}
-		controller?.showGhostText(edit, context);
-		return Promise.resolve(undefined);
 	}
 }
 

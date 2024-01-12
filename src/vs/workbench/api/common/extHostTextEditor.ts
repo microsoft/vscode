@@ -566,14 +566,6 @@ export class ExtHostTextEditor {
 			},
 			hide() {
 				_proxy.$tryHideEditor(id);
-			},
-			setInlineEdit(edit: vscode.InlineEdit, context: vscode.InlineEditContext) {
-				const ed = {
-					position: TypeConverters.Position.from(edit.position),
-					text: edit.text,
-					replaceRange: TypeConverters.Range.from(edit.replaceRange)
-				};
-				_proxy.$trySetInlineEdit(id, ed, context);
 			}
 		});
 	}
