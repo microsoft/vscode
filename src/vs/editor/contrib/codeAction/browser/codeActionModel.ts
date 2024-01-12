@@ -24,6 +24,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
+export const APPLY_FIX_ALL_COMMAND_ID = '_typescript.applyFixAllCodeAction';
+
 type TriggeredCodeAction = {
 	readonly selection: Selection;
 	readonly trigger: CodeActionTrigger;
@@ -237,7 +239,7 @@ export class CodeActionModel extends Disposable {
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
-								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes('_typescript.applyFixAllCodeAction'))) {
+								if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
 									action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 								}
 							}
@@ -271,7 +273,7 @@ export class CodeActionModel extends Disposable {
 
 										if (actionsAtMarker.validActions.length !== 0) {
 											for (const action of actionsAtMarker.validActions) {
-												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes('_typescript.applyFixAllCodeAction'))) {
+												if (action.action.command?.arguments?.some(arg => typeof arg === 'string' && arg.includes(APPLY_FIX_ALL_COMMAND_ID))) {
 													action.action.diagnostics = [...allMarkers.filter(marker => marker.relatedInformation)];
 												}
 											}
