@@ -474,6 +474,7 @@ class CodeActionAdapter {
 					}
 				}
 
+				// Ensures that this is either a Range[] or an empty array so we don't get Array<Range | undefined>
 				const range = candidate.editRanges ? candidate.editRanges : [];
 
 				// new school: convert code action
