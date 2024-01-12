@@ -26,13 +26,13 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER, TAB_Drag_And_Drop_Between_Indicator } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, append } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -119,6 +119,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
+	private dndIndicator: MultiEditorTabsDndIndicator | undefined;
+
 	private dimensions: IEditorTitleControlDimensions & { used?: Dimension } = {
 		container: Dimension.None,
 		available: Dimension.None
@@ -194,6 +196,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
+
+		// Tab drag over indicator
+		this.dndIndicator = new MultiEditorTabsDndIndicator(this.tabsAndActionsContainer);
 	}
 
 	private createTabsScrollbar(scrollable: HTMLElement): ScrollableElement {
@@ -377,13 +382,21 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, true);
 			},
 
+			onDragOver: e => {
+				if (e.target === tabsContainer) {
+					this.dndIndicator?.setAfterLastTab(tabsContainer);
+				}
+			},
+
 			onDragLeave: e => {
 				this.updateDropFeedback(tabsContainer, false);
+				this.dndIndicator?.hide();
 				tabsContainer.classList.remove('scroll');
 			},
 
 			onDragEnd: e => {
 				this.updateDropFeedback(tabsContainer, false);
+				this.dndIndicator?.hide();
 				tabsContainer.classList.remove('scroll');
 
 				this.onGroupDragEnd(e, lastDragEvent, tabsContainer, isNewWindowOperation);
@@ -391,6 +404,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			onDrop: e => {
 				this.updateDropFeedback(tabsContainer, false);
+				this.dndIndicator?.hide();
 				tabsContainer.classList.remove('scroll');
 
 				if (e.target === tabsContainer) {
@@ -1054,9 +1068,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			onDragEnter: e => {
 
-				// Update class to signal drag operation
-				tab.classList.add('dragged-over');
-
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
 					if (e.dataTransfer) {
@@ -1095,22 +1106,45 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tab, true, tabIndex);
 			},
 
-			onDragOver: (_, dragDuration) => {
+			onDragOver: (e, dragDuration) => {
 				if (dragDuration >= MultiEditorTabsControl.DRAG_OVER_OPEN_TAB_THRESHOLD) {
 					const draggedOverTab = this.tabsModel.getEditorByIndex(tabIndex);
 					if (draggedOverTab && this.tabsModel.activeEditor !== draggedOverTab) {
 						this.groupView.openEditor(draggedOverTab, { preserveFocus: true });
 					}
 				}
+
+				// Set the dnd indicator position
+				const isHeadOfTab = this.isHeadOfTab(tab, e);
+				const isLastTab = tabIndex === this.tabsModel.count - 1;
+				const isFirstTab = tabIndex === 0;
+
+				// Before first tab
+				if (!isHeadOfTab && isLastTab) {
+					this.dndIndicator?.setAfterLastTab(tabsContainer);
+					return;
+				}
+
+				// After last tab
+				if (isHeadOfTab && isFirstTab) {
+					this.dndIndicator?.setBeforeFirstTab(tabsContainer);
+					return;
+				}
+
+				// Between two tabs
+				const tabBefore = isHeadOfTab ? tab.previousElementSibling : tab;
+				const tabAfter = isHeadOfTab ? tab : tab.nextElementSibling;
+
+				this.dndIndicator?.setBetweenTabs(tabBefore ? tabBefore as HTMLElement : undefined, tabAfter ? tabAfter as HTMLElement : undefined);
 			},
 
-			onDragLeave: () => {
-				tab.classList.remove('dragged-over');
+			onDragLeave: e => {
+				this.dndIndicator?.hide();
 				this.updateDropFeedback(tab, false, tabIndex);
 			},
 
 			onDragEnd: async e => {
-				tab.classList.remove('dragged-over');
+				this.dndIndicator?.hide();
 				this.updateDropFeedback(tab, false, tabIndex);
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
@@ -1140,14 +1174,39 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			},
 
 			onDrop: e => {
-				tab.classList.remove('dragged-over');
+				this.dndIndicator?.hide();
 				this.updateDropFeedback(tab, false, tabIndex);
 
-				this.onDrop(e, tabIndex, tabsContainer);
+				let targetIndex = tabIndex;
+				if (!this.isHeadOfTab(tab, e)) {
+					targetIndex++;
+				}
+
+				const editorIdentifiers = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
+				if (editorIdentifiers !== undefined) {
+
+					const draggedEditorIdentifier = editorIdentifiers[0].identifier;
+					const sourceGroup = this.editorPartsView.getGroup(draggedEditorIdentifier.groupId);
+					if (sourceGroup?.id === this.groupView.id) {
+
+						const editorIndex = sourceGroup.getIndexOfEditor(draggedEditorIdentifier.editor);
+						if (editorIndex < targetIndex) {
+							targetIndex--;
+						}
+					}
+				}
+
+				this.onDrop(e, targetIndex, tabsContainer);
 			}
 		}));
 
 		return disposables;
+	}
+
+	private isHeadOfTab(tab: HTMLElement, e: MouseEvent): boolean {
+		const rect = tab.getBoundingClientRect();
+		const offsetXRelativeToParent = e.clientX - rect.left;
+		return offsetXRelativeToParent <= rect.width / 2;
 	}
 
 	private isSupportedDropTransfer(e: DragEvent): boolean {
@@ -1176,12 +1235,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, tabIndex?: number): void {
 		const isTab = (typeof tabIndex === 'number');
-		const editor = typeof tabIndex === 'number' ? this.tabsModel.getEditorByIndex(tabIndex) : undefined;
-		const isActiveTab = isTab && !!editor && this.tabsModel.isActive(editor);
-
-		// Background
-		const noDNDBackgroundColor = isTab ? this.getColor(isActiveTab ? TAB_ACTIVE_BACKGROUND : TAB_INACTIVE_BACKGROUND) : '';
-		element.style.backgroundColor = (isDND ? this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) : noDNDBackgroundColor) || '';
 
 		// Outline
 		const activeContrastBorderColor = this.getColor(activeContrastBorder);
@@ -2129,6 +2182,85 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 }
 
+class MultiEditorTabsDndIndicator {
+
+	private readonly leftIndicatorContainer: HTMLElement;
+	private readonly rightIndicatorContainer: HTMLElement;
+
+	constructor(container: HTMLElement) {
+		this.leftIndicatorContainer = append(container, this.creatIndicator());
+		this.rightIndicatorContainer = append(container, this.creatIndicator());
+
+		this.leftIndicatorContainer.classList.add('tabs-indicator-left');
+		this.rightIndicatorContainer.classList.add('tabs-indicator-right');
+	}
+
+	private creatIndicator(): HTMLElement {
+		const indicatorContainer = document.createElement('div');
+
+		const bar = append(indicatorContainer, document.createElement('div'));
+		bar.classList.add('tabs-indicator-bar');
+
+		const trinagleTopLeft = append(indicatorContainer, document.createElement('div'));
+		const trinagleBottomLeft = append(indicatorContainer, document.createElement('div'));
+		trinagleTopLeft.classList.add('tabs-indicator-top');
+		trinagleBottomLeft.classList.add('tabs-indicator-bottom');
+
+		return indicatorContainer;
+	}
+
+	public setBetweenTabs(tabBefore: HTMLElement | undefined, tabAfter: HTMLElement | undefined): void {
+		this.set(
+			tabBefore ? { top: tabBefore.offsetTop, left: tabBefore.offsetLeft + tabBefore.offsetWidth } : undefined,
+			tabAfter ? { top: tabAfter.offsetTop, left: tabAfter.offsetLeft } : undefined
+		);
+	}
+
+	public setBeforeFirstTab(tabsContainer: HTMLElement): void {
+		this.set(
+			undefined,
+			{ top: tabsContainer.offsetTop, left: tabsContainer.offsetLeft }
+		);
+	}
+
+	public setAfterLastTab(tabsContainer: HTMLElement): void {
+		const lastTab = tabsContainer.lastElementChild as HTMLElement | null;
+		if (lastTab === null) {
+			throw new Error('Tabs container has no children');
+		}
+
+		const endOfLastTab = { top: lastTab.offsetTop, left: lastTab.offsetLeft + lastTab.offsetWidth };
+
+		this.set(endOfLastTab, endOfLastTab);
+	}
+
+	private set(left: { top: number; left: number } | undefined, right: { top: number; left: number } | undefined): void {
+		this.leftIndicatorContainer.style.display = left ? 'block' : 'none';
+		this.rightIndicatorContainer.style.display = right ? 'block' : 'none';
+
+		// If both indicators are located at the same position, we overlap the bars
+		let overlapOffset = 0;
+		if (left && right && left.left === right.left) {
+			overlapOffset = 1;
+		}
+
+		if (left) {
+			this.leftIndicatorContainer.style.top = `${left.top}px`;
+			this.leftIndicatorContainer.style.left = `${left.left + overlapOffset}px`;
+		}
+
+		if (right) {
+			this.rightIndicatorContainer.style.top = `${right.top}px`;
+			this.rightIndicatorContainer.style.left = `${right.left}px`;
+		}
+	}
+
+	public hide(): void {
+		this.leftIndicatorContainer.style.display = 'none';
+		this.rightIndicatorContainer.style.display = 'none';
+	}
+}
+
 registerThemingParticipant((theme, collector) => {
 
 	// Add bottom border to tabs when wrapping
@@ -2367,4 +2499,24 @@ registerThemingParticipant((theme, collector) => {
 			collector.addRule(makeTabBackgroundRule(adjustedColor, adjustedColorDrag, false, false));
 		}
 	}
+
+	const tabDndIndicator = theme.getColor(TAB_Drag_And_Drop_Between_Indicator);
+	if (tabDndIndicator) {
+		// DnD Feedback
+
+		collector.addRule(`
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-indicator-bar {
+				background-color: ${tabDndIndicator};
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-indicator-top{
+				border-top-color: ${tabDndIndicator};
+			}
+
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-indicator-bottom{
+				border-bottom-color: ${tabDndIndicator};
+			}
+		`);
+	}
+
 });
