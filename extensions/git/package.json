@@ -780,6 +780,13 @@
         "icon": "$(diff-multiple)",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.viewAllChanges",
+        "title": "%command.viewAllChanges%",
+        "icon": "$(diff-multiple)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1267,6 +1274,10 @@
         {
           "command": "git.openCommit",
           "when": "false"
+        },
+        {
+          "command": "git.viewAllChanges",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1734,9 +1745,23 @@
           "group": "1_modification@3"
         }
       ],
+      "scm/incomingChanges/allChanges/context": [
+        {
+          "command": "git.viewAllChanges",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        }
+      ],
       "scm/incomingChanges/historyItem/context": [
         {
           "command": "git.openCommit",
+          "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
+          "group": "inline@1"
+        }
+      ],
+      "scm/outgoingChanges/allChanges/context": [
+        {
+          "command": "git.viewAllChanges",
           "when": "scmProvider == git && config.multiDiffEditor.experimental.enabled",
           "group": "inline@1"
         }
