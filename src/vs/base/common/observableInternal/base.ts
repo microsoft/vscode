@@ -199,9 +199,9 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: object | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
-		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as object;
+	public map<TNew>(owner: Owner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: Owner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as Owner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
 		return _derived(
@@ -354,31 +354,36 @@ export class TransactionImpl implements ITransaction {
 	}
 }
 
+/**
+ * The owner object of an observable.
+ * Is only used for debugging purposes, such as computing a name for the observable by iterating over the fields of the owner.
+ */
+export type Owner = object | undefined;
 export type DebugNameFn = string | (() => string | undefined);
 
 const countPerName = new Map<string, number>();
 const cachedDebugName = new WeakMap<object, string>();
 
-export function getDebugName(obj: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: object | undefined, self: object): string | undefined {
-	const cached = cachedDebugName.get(obj);
+export function getDebugName(self: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: Owner): string | undefined {
+	const cached = cachedDebugName.get(self);
 	if (cached) {
 		return cached;
 	}
 
-	const dbgName = computeDebugName(obj, debugNameFn, fn, owner, self);
+	const dbgName = computeDebugName(self, debugNameFn, fn, owner);
 	if (dbgName) {
 		let count = countPerName.get(dbgName) ?? 0;
 		count++;
 		countPerName.set(dbgName, count);
 		const result = count === 1 ? dbgName : `${dbgName}#${count}`;
-		cachedDebugName.set(obj, result);
+		cachedDebugName.set(self, result);
 		return result;
 	}
 	return undefined;
 }
 
-function computeDebugName(obj: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: object | undefined, self: object): string | undefined {
-	const cached = cachedDebugName.get(obj);
+function computeDebugName(self: object, debugNameFn: DebugNameFn | undefined, fn: Function | undefined, owner: Owner): string | undefined {
+	const cached = cachedDebugName.get(self);
 	if (cached) {
 		return cached;
 	}
@@ -476,11 +481,11 @@ export class ObservableValue<T, TChange = void>
 	protected _value: T;
 
 	get debugName() {
-		return getDebugName(this, this._debugName, undefined, this._owner, this) ?? 'ObservableValue';
+		return getDebugName(this, this._debugName, undefined, this._owner) ?? 'ObservableValue';
 	}
 
 	constructor(
-		private readonly _owner: object | undefined,
+		private readonly _owner: Owner,
 		private readonly _debugName: string | undefined,
 		initialValue: T
 	) {

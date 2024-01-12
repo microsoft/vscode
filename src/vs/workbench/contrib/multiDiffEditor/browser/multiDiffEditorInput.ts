@@ -140,7 +140,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		// Enables delayed disposing
 		const garbage = new DisposableStore();
 
-		const documentsWithPromises = mapObservableArrayCached(source.resources, 'documentsWithPromises', async (r, store) => {
+		const documentsWithPromises = mapObservableArrayCached(undefined, source.resources, async (r, store) => {
+			/** @description documentsWithPromises */
 			let originalTextModel: ITextModel;
 			let modifiedTextModel: ITextModel;
 			let modifiedRef: IReference<IResolvedTextEditorModel> | undefined;
@@ -235,7 +236,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 	}
 
 	private readonly _resources = derived(this, reader => this._resolvedSource.cachedValue.read(reader)?.value?.resources.read(reader));
-	private readonly _isDirtyObservables = mapObservableArrayCached(this._resources.map(r => r || []), this, res => {
+	private readonly _isDirtyObservables = mapObservableArrayCached(this, this._resources.map(r => r || []), res => {
 		const isModifiedDirty = res.modified ? isUriDirty(this._textFileService, res.modified) : constObservable(false);
 		const isOriginalDirty = res.original ? isUriDirty(this._textFileService, res.original) : constObservable(false);
 		return derived(reader => /** @description modifiedDirty||originalDirty */ isModifiedDirty.read(reader) || isOriginalDirty.read(reader));
