@@ -15,7 +15,7 @@ import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MultiDiffEditorViewModel extends Disposable {
-	private readonly _documents = observableFromEvent(this._model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this._model.documents);
+	private readonly _documents = observableFromEvent(this.model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this.model.documents);
 
 	public readonly items = mapObservableArrayCached(this._documents, this, (d, store) => store.add(new DocumentDiffItemViewModel(d, this._instantiationService)))
 		.recomputeInitiallyAndOnChange(this._store);
@@ -45,11 +45,11 @@ export class MultiDiffEditorViewModel extends Disposable {
 	}
 
 	public get contextKeys(): Record<string, ContextKeyValue> | undefined {
-		return this._model.contextKeys;
+		return this.model.contextKeys;
 	}
 
 	constructor(
-		private readonly _model: IMultiDiffEditorModel,
+		public readonly model: IMultiDiffEditorModel,
 		private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
