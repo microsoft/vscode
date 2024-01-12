@@ -193,8 +193,11 @@ export class InlineChatQuickVoice implements IEditorContribution {
 				case SpeechToTextStatus.Stopped:
 					break;
 				case SpeechToTextStatus.Recognizing:
+					// TODO@jrieken special rendering for "in-flight" message?
+					this._widget.updateInput(!message ? e.text : `${message} ${e.text}`);
+					break;
 				case SpeechToTextStatus.Recognized:
-					message = e.text;
+					message = !message ? e.text : `${message} ${e.text}`;
 					this._widget.updateInput(message);
 					break;
 			}
