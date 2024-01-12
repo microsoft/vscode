@@ -47,6 +47,7 @@ interface IHoverAction {
 export interface IUpdatableHoverOptions {
 	actions?: IHoverAction[];
 	linkHandler?(url: string): void;
+	disableHideOnMouseDown?: boolean;
 }
 
 export interface ICustomHover extends IDisposable {
@@ -194,7 +195,9 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 	let isMouseDown = false;
 	const mouseDownEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_DOWN, () => {
 		isMouseDown = true;
-		hideHover(true, true);
+		if (!options?.disableHideOnMouseDown) {
+			hideHover(true, true);
+		}
 	}, true);
 	const mouseUpEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_UP, () => {
 		isMouseDown = false;
