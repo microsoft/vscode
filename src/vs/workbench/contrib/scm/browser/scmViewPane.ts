@@ -3381,7 +3381,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// All Changes
 			const { showChangesSummary } = this.getConfiguration();
 			const allChanges = showChangesSummary && historyItems.length >= 2 ?
-				await historyProvider.provideHistoryItemSummary(element.id, element.ancestor) : undefined;
+				await historyProvider.provideHistoryItemSummary(historyItems[0].id, element.ancestor) : undefined;
 
 			historyItemsElement = [allChanges, historyItems];
 
