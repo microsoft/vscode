@@ -40,8 +40,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			DiffEditorItemTemplate,
 			this._elements.content,
 			this._elements.overflowWidgetsDomNode,
-			this._workbenchUIElementFactory,
-			this._viewModel
+			this._workbenchUIElementFactory
 		);
 		template.setData(data);
 		return template;

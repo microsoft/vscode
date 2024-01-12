@@ -6,7 +6,6 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -90,9 +89,6 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 				scmResourceGroup: groupId,
 				scmProvider: repository.provider.contextValue,
 			},
-			getActionContext: (uri: URI) => {
-				return group.resources.find(r => isEqual(r.multiFileDiffEditorModifiedUri, uri));
-			}
 		};
 	}
 }

@@ -6,7 +6,6 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { observableFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
-import { URI } from 'vs/base/common/uri';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
@@ -47,10 +46,6 @@ export class MultiDiffEditorViewModel extends Disposable {
 
 	public get contextKeys(): Record<string, ContextKeyValue> | undefined {
 		return this._model.contextKeys;
-	}
-
-	public get getActionContext(): ((uri: URI) => any) | undefined {
-		return this._model.getActionContext;
 	}
 
 	constructor(
