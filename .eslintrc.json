@@ -173,7 +173,6 @@
 							"src/vs/platform/contextkey/test/common/contextkey.test.ts",
 							"src/vs/platform/contextkey/test/common/parser.test.ts",
 							"src/vs/platform/contextkey/test/common/scanner.test.ts",
-							"src/vs/platform/extensionManagement/test/common/extensionManagement.test.ts",
 							"src/vs/platform/extensions/test/common/extensionValidator.test.ts",
 							"src/vs/platform/instantiation/test/common/graph.test.ts",
 							"src/vs/platform/instantiation/test/common/instantiationService.test.ts",
@@ -202,7 +201,6 @@
 							"src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts",
 							"src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts",
 							"src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts",
-							"src/vs/workbench/contrib/extensions/test/electron-sandbox/extension.test.ts",
 							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts",
 							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts",
 							"src/vs/workbench/contrib/snippets/test/browser/snippetFile.test.ts",
@@ -216,7 +214,6 @@
 							"src/vs/workbench/services/keybinding/test/node/fallbackKeyboardMapper.test.ts",
 							"src/vs/workbench/services/keybinding/test/node/macLinuxKeyboardMapper.test.ts",
 							"src/vs/workbench/services/keybinding/test/node/windowsKeyboardMapper.test.ts",
-							"src/vs/workbench/services/telemetry/test/browser/commonProperties.test.ts",
 							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
 							"src/vs/workbench/test/browser/quickAccess.test.ts"
 						]

@@ -2299,6 +2299,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly glyphMargin?: model.IModelDecorationGlyphMarginOptions | null | undefined;
 	readonly glyphMarginClassName: string | null;
 	readonly linesDecorationsClassName: string | null;
+	readonly lineNumberClassName: string | null;
+	readonly lineNumberHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly linesDecorationsTooltip: string | null;
 	readonly firstLineDecorationClassName: string | null;
 	readonly marginClassName: string | null;
@@ -2323,6 +2325,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
 		this.hoverMessage = options.hoverMessage || null;
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
+		this.lineNumberHoverMessage = options.lineNumberHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;
@@ -2331,6 +2334,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.glyphMargin = options.glyphMarginClassName ? new ModelDecorationGlyphMarginOptions(options.glyphMargin) : null;
 		this.glyphMarginClassName = options.glyphMarginClassName ? cleanClassName(options.glyphMarginClassName) : null;
 		this.linesDecorationsClassName = options.linesDecorationsClassName ? cleanClassName(options.linesDecorationsClassName) : null;
+		this.lineNumberClassName = options.lineNumberClassName ? cleanClassName(options.lineNumberClassName) : null;
 		this.linesDecorationsTooltip = options.linesDecorationsTooltip ? strings.htmlAttributeEncodeValue(options.linesDecorationsTooltip) : null;
 		this.firstLineDecorationClassName = options.firstLineDecorationClassName ? cleanClassName(options.firstLineDecorationClassName) : null;
 		this.marginClassName = options.marginClassName ? cleanClassName(options.marginClassName) : null;
@@ -2374,6 +2378,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
 	private _affectsGlyphMargin: boolean;
+	private _affectsLineNumber: boolean;
 
 	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
 		super();
@@ -2382,6 +2387,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 		this._affectsMinimap = false;
 		this._affectsOverviewRuler = false;
 		this._affectsGlyphMargin = false;
+		this._affectsLineNumber = false;
 	}
 
 	hasListeners(): boolean {
@@ -2412,15 +2418,10 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {
-		if (!this._affectsMinimap) {
-			this._affectsMinimap = options.minimap && options.minimap.position ? true : false;
-		}
-		if (!this._affectsOverviewRuler) {
-			this._affectsOverviewRuler = options.overviewRuler && options.overviewRuler.color ? true : false;
-		}
-		if (!this._affectsGlyphMargin) {
-			this._affectsGlyphMargin = options.glyphMarginClassName ? true : false;
-		}
+		this._affectsMinimap ||= !!options.minimap?.position;
+		this._affectsOverviewRuler ||= !!options.overviewRuler?.color;
+		this._affectsGlyphMargin ||= !!options.glyphMarginClassName;
+		this._affectsLineNumber ||= !!options.lineNumberClassName;
 		this.tryFire();
 	}
 
@@ -2445,7 +2446,8 @@ class DidChangeDecorationsEmitter extends Disposable {
 		const event: IModelDecorationsChangedEvent = {
 			affectsMinimap: this._affectsMinimap,
 			affectsOverviewRuler: this._affectsOverviewRuler,
-			affectsGlyphMargin: this._affectsGlyphMargin
+			affectsGlyphMargin: this._affectsGlyphMargin,
+			affectsLineNumber: this._affectsLineNumber,
 		};
 		this._shouldFireDeferred = false;
 		this._affectsMinimap = false;

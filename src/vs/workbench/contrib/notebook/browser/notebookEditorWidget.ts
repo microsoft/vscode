@@ -869,7 +869,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// chat
 		styleSheets.push(`
 		.monaco-workbench .notebookOverlay .cell-chat-part {
-			margin: 0 ${cellRightMargin}px 6px 6px;
+			margin: 0 ${cellRightMargin}px 6px 4px;
 		}
 		`);
 

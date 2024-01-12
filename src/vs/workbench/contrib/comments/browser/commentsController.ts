@@ -516,6 +516,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 		this._editorDisposables.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this._editorDisposables.push(this.editor.onMouseLeave(() => this.onEditorMouseLeave()));
 		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
 		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor?.getPosition() ?? null)));
 		this._editorDisposables.push(this.editor.onDidChangeCursorSelection(e => this.onEditorChangeCursorSelection(e)));
@@ -525,6 +526,10 @@ export class CommentController implements IEditorContribution {
 	private clearEditorListeners() {
 		dispose(this._editorDisposables);
 		this._editorDisposables = [];
+	}
+
+	private onEditorMouseLeave() {
+		this._commentingRangeDecorator.updateHover();
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {

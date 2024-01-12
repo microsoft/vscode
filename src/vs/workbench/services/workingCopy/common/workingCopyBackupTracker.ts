@@ -231,7 +231,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
 			backupScheduleDelay = 'default'; // auto-save is never on for untitled working copies
 		} else {
-			backupScheduleDelay = this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource) ? 'delayed' : 'default';
+			backupScheduleDelay = this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource) ? 'delayed' : 'default';
 		}
 
 		return WorkingCopyBackupTracker.DEFAULT_BACKUP_SCHEDULE_DELAYS[backupScheduleDelay];

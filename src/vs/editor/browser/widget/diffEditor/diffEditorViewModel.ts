@@ -181,7 +181,8 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					(cur, prev) => !prev || (cur.modifiedLineNumber >= prev.modifiedLineNumber + prev.lineCount && cur.originalLineNumber >= prev.originalLineNumber + prev.lineCount)
 				);
 
-				const hiddenRegions = updatedLastUnchangedRegions.map(r => new LineRangeMapping(r.getHiddenOriginalRange(reader), r.getHiddenModifiedRange(reader)));
+				let hiddenRegions = updatedLastUnchangedRegions.map(r => new LineRangeMapping(r.getHiddenOriginalRange(reader), r.getHiddenModifiedRange(reader)));
+				hiddenRegions = LineRangeMapping.clip(hiddenRegions, LineRange.ofLength(1, model.original.getLineCount()), LineRange.ofLength(1, model.modified.getLineCount()));
 				visibleRegions = LineRangeMapping.inverse(hiddenRegions, model.original.getLineCount(), model.modified.getLineCount());
 			}
 
@@ -310,27 +311,27 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		}));
 	}
 
-	public ensureModifiedLineIsVisible(lineNumber: number, tx: ITransaction | undefined): void {
+	public ensureModifiedLineIsVisible(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
 		if (this.diff.get()?.mappings.length === 0) {
 			return;
 		}
 		const unchangedRegions = this._unchangedRegions.get()?.regions || [];
 		for (const r of unchangedRegions) {
 			if (r.getHiddenModifiedRange(undefined).contains(lineNumber)) {
-				r.showModifiedLine(lineNumber, tx);
+				r.showModifiedLine(lineNumber, preference, tx);
 				return;
 			}
 		}
 	}
 
-	public ensureOriginalLineIsVisible(lineNumber: number, tx: ITransaction | undefined): void {
+	public ensureOriginalLineIsVisible(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
 		if (this.diff.get()?.mappings.length === 0) {
 			return;
 		}
 		const unchangedRegions = this._unchangedRegions.get()?.regions || [];
 		for (const r of unchangedRegions) {
 			if (r.getHiddenOriginalRange(undefined).contains(lineNumber)) {
-				r.showOriginalLine(lineNumber, tx);
+				r.showOriginalLine(lineNumber, preference, tx);
 				return;
 			}
 		}
@@ -589,20 +590,20 @@ export class UnchangedRegion {
 		this._visibleLineCountBottom.set(this.lineCount - this._visibleLineCountTop.get(), tx);
 	}
 
-	public showModifiedLine(lineNumber: number, tx: ITransaction | undefined): void {
+	public showModifiedLine(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
 		const top = lineNumber + 1 - (this.modifiedLineNumber + this._visibleLineCountTop.get());
 		const bottom = (this.modifiedLineNumber - this._visibleLineCountBottom.get() + this.lineCount) - lineNumber;
-		if (top < bottom) {
+		if (preference === RevealPreference.FromCloserSide && top < bottom || preference === RevealPreference.FromTop) {
 			this._visibleLineCountTop.set(this._visibleLineCountTop.get() + top, tx);
 		} else {
 			this._visibleLineCountBottom.set(this._visibleLineCountBottom.get() + bottom, tx);
 		}
 	}
 
-	public showOriginalLine(lineNumber: number, tx: ITransaction | undefined): void {
+	public showOriginalLine(lineNumber: number, preference: RevealPreference, tx: ITransaction | undefined): void {
 		const top = lineNumber - this.originalLineNumber;
 		const bottom = (this.originalLineNumber + this.lineCount) - lineNumber;
-		if (top < bottom) {
+		if (preference === RevealPreference.FromCloserSide && top < bottom || preference === RevealPreference.FromTop) {
 			this._visibleLineCountTop.set(Math.min(this._visibleLineCountTop.get() + bottom - top, this.getMaxVisibleLineCountTop()), tx);
 		} else {
 			this._visibleLineCountBottom.set(Math.min(this._visibleLineCountBottom.get() + top - bottom, this.getMaxVisibleLineCountBottom()), tx);
@@ -621,6 +622,12 @@ export class UnchangedRegion {
 		this._visibleLineCountTop.set(visibleLineCountTop, tx);
 		this._visibleLineCountBottom.set(visibleLineCountBottom, tx);
 	}
+}
+
+export const enum RevealPreference {
+	FromCloserSide,
+	FromTop,
+	FromBottom,
 }
 
 function applyOriginalEdits(diff: IDocumentDiff, textEdits: TextEditInfo[], originalTextModel: ITextModel, modifiedTextModel: ITextModel): IDocumentDiff | undefined {

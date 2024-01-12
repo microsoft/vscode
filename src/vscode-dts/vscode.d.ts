@@ -13635,8 +13635,9 @@ declare module 'vscode' {
 			readonly isCaseSensitive?: boolean;
 			/**
 			 * Whether the file system provider is readonly, no modifications like write, delete, create are possible.
+			 * If a {@link MarkdownString} is given, it will be shown as the reason why the file system is readonly.
 			 */
-			readonly isReadonly?: boolean;
+			readonly isReadonly?: boolean | MarkdownString;
 		}): Disposable;
 
 		/**

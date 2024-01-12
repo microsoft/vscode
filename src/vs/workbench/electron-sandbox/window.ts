@@ -391,7 +391,7 @@ export class NativeWindow extends BaseWindow {
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
@@ -1066,7 +1066,16 @@ export class NativeWindow extends BaseWindow {
 		const targetWindow = getWindowById(targetWindowId);
 		const entry = this.mapWindowIdToResetZoomStatusEntry.get(targetWindowId);
 		if (entry && targetWindow) {
-			entry.updateResetZoomEntry(getZoomLevel(targetWindow.window) !== this.configuredWindowZoomLevel);
+			const currentZoomLevel = getZoomLevel(targetWindow.window);
+
+			let text: string | undefined = undefined;
+			if (currentZoomLevel < this.configuredWindowZoomLevel) {
+				text = localize('resetZoomOut', "$(zoom-out)");
+			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
+				text = localize('resetZoomIn', "$(zoom-in)");
+			}
+
+			entry.updateResetZoomEntry(text ?? false);
 		}
 	}
 
@@ -1109,14 +1118,15 @@ class ResetZoomStatusEntry extends Disposable {
 		super();
 	}
 
-	updateResetZoomEntry(visible: boolean): void {
-		if (visible) {
+	updateResetZoomEntry(visibleOrText: false | string): void {
+		if (typeof visibleOrText === 'string') {
 			if (!this.resetZoomStatusEntry.value) {
-				const text = localize('resetZoom', "Reset Zoom");
+				const name = localize('status.resetWindowZoom', "Reset Window Zoom");
 				this.resetZoomStatusEntry.value = this.statusbarService.addEntry({
-					name: localize('status.resetWindowZoom', "Reset Window Zoom"),
-					text,
-					ariaLabel: text,
+					name,
+					text: visibleOrText,
+					tooltip: name,
+					ariaLabel: name,
 					command: 'workbench.action.zoomReset',
 					kind: 'prominent'
 				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
