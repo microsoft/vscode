@@ -7,8 +7,11 @@ import * as assert from 'assert';
 import { BidirectionalMap, LinkedMap, LRUCache, mapsStrictEqualIgnoreOrder, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Map', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('LinkedMap - Simple', () => {
 		const map = new LinkedMap<string, string>();
@@ -505,6 +508,8 @@ suite('Map', () => {
 });
 
 suite('BidirectionalMap', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('should set and get values correctly', () => {
 		const map = new BidirectionalMap<string, number>();
 		map.set('one', 1);
@@ -592,6 +597,8 @@ suite('BidirectionalMap', () => {
 });
 
 suite('SetMap', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('add and get', () => {
 		const setMap = new SetMap<string, number>();

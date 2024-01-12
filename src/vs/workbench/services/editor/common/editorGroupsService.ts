@@ -590,6 +590,11 @@ export interface IEditorGroup {
 	readonly id: GroupIdentifier;
 
 	/**
+	 * The identifier of the `CodeWindow` this editor group is part of.
+	 */
+	readonly windowId: number;
+
+	/**
 	 * A number that indicates the position of this group in the visual
 	 * order of groups from left to right and top to bottom. The lowest
 	 * index will likely be top-left while the largest index in most

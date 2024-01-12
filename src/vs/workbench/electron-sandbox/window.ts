@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/window';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindowId, getWindows } from 'vs/base/browser/dom';
-import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -57,7 +58,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { AuthInfo } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -73,7 +74,9 @@ import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sand
 import { mainWindow } from 'vs/base/browser/window';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class NativeWindow extends BaseWindow {
 
@@ -339,7 +342,7 @@ export class NativeWindow extends BaseWindow {
 		this._register(onDidChangeZoomLevel(targetWindowId => this.handleOnDidChangeZoomLevel(targetWindowId)));
 
 		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables, part }) => {
-			this.createResetWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
+			this.createWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
 		}));
 
 		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
@@ -391,7 +394,7 @@ export class NativeWindow extends BaseWindow {
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 
@@ -470,33 +473,6 @@ export class NativeWindow extends BaseWindow {
 				this.dialogService.onWillShowDialog		// or when a dialog asks for input
 			));
 		});
-	}
-
-	static async confirmOnShutdown(accessor: ServicesAccessor, reason: ShutdownReason): Promise<boolean> {
-		const dialogService = accessor.get(IDialogService);
-		const configurationService = accessor.get(IConfigurationService);
-
-		const message = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize('quitMessageMac', "Are you sure you want to quit?") : localize('quitMessage', "Are you sure you want to exit?")) :
-			localize('closeWindowMessage', "Are you sure you want to close the window?");
-		const primaryButton = reason === ShutdownReason.QUIT ?
-			(isMacintosh ? localize({ key: 'quitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Quit") : localize({ key: 'exitButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Exit")) :
-			localize({ key: 'closeWindowButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Close Window");
-
-		const res = await dialogService.confirm({
-			message,
-			primaryButton,
-			checkbox: {
-				label: localize('doNotAskAgain', "Do not ask me again")
-			}
-		});
-
-		// Update setting if checkbox checked
-		if (res.confirmed && res.checkboxChecked) {
-			await configurationService.updateValue('window.confirmBeforeClose', 'never');
-		}
-
-		return res.confirmed;
 	}
 
 	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
@@ -684,7 +660,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Zoom status
 		for (const { window, disposables } of getWindows()) {
-			this.createResetWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
+			this.createWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
 		}
 
 		// Smoke Test Driver
@@ -1054,7 +1030,7 @@ export class NativeWindow extends BaseWindow {
 
 	//#region Window Zoom
 
-	private readonly mapWindowIdToResetZoomStatusEntry = new Map<number, ResetZoomStatusEntry>();
+	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
 	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
 
@@ -1067,7 +1043,7 @@ export class NativeWindow extends BaseWindow {
 	private handleOnDidChangeZoomLevel(targetWindowId: number): void {
 
 		// Zoom status entry
-		this.updateResetWindowZoomStatusEntry(targetWindowId);
+		this.updateWindowZoomStatusEntry(targetWindowId);
 
 		// Notify main process about a custom zoom level
 		if (targetWindowId === mainWindow.vscodeWindowId) {
@@ -1082,18 +1058,27 @@ export class NativeWindow extends BaseWindow {
 		}
 	}
 
-	private createResetWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
-		this.mapWindowIdToResetZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ResetZoomStatusEntry)));
-		disposables.add(toDisposable(() => this.mapWindowIdToResetZoomStatusEntry.delete(targetWindowId)));
+	private createWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
+		this.mapWindowIdToZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ZoomStatusEntry)));
+		disposables.add(toDisposable(() => this.mapWindowIdToZoomStatusEntry.delete(targetWindowId)));
 
-		this.updateResetWindowZoomStatusEntry(targetWindowId);
+		this.updateWindowZoomStatusEntry(targetWindowId);
 	}
 
-	private updateResetWindowZoomStatusEntry(targetWindowId: number): void {
+	private updateWindowZoomStatusEntry(targetWindowId: number): void {
 		const targetWindow = getWindowById(targetWindowId);
-		const entry = this.mapWindowIdToResetZoomStatusEntry.get(targetWindowId);
+		const entry = this.mapWindowIdToZoomStatusEntry.get(targetWindowId);
 		if (entry && targetWindow) {
-			entry.updateResetZoomEntry(getZoomLevel(targetWindow.window) !== this.configuredWindowZoomLevel);
+			const currentZoomLevel = getZoomLevel(targetWindow.window);
+
+			let text: string | undefined = undefined;
+			if (currentZoomLevel < this.configuredWindowZoomLevel) {
+				text = localize('zoomedOut', "$(zoom-out)");
+			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
+				text = localize('zoomedIn', "$(zoom-in)");
+			}
+
+			entry.updateZoomEntry(text ?? false, targetWindowId);
 		}
 	}
 
@@ -1111,6 +1096,10 @@ export class NativeWindow extends BaseWindow {
 		if (applyZoomLevel) {
 			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
 		}
+
+		for (const [windowId] of this.mapWindowIdToZoomStatusEntry) {
+			this.updateWindowZoomStatusEntry(windowId);
+		}
 	}
 
 	//#endregion
@@ -1118,34 +1107,78 @@ export class NativeWindow extends BaseWindow {
 	override dispose(): void {
 		super.dispose();
 
-		for (const [, entry] of this.mapWindowIdToResetZoomStatusEntry) {
+		for (const [, entry] of this.mapWindowIdToZoomStatusEntry) {
 			entry.dispose();
 		}
 	}
 }
 
-class ResetZoomStatusEntry extends Disposable {
+class ZoomStatusEntry extends Disposable {
 
-	private readonly resetZoomStatusEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly disposable = this._register(new MutableDisposable<DisposableStore>());
+	private labelContainer: HTMLElement | undefined = undefined;
 
-	constructor(@IStatusbarService private readonly statusbarService: IStatusbarService) {
+	constructor(
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ICommandService private readonly commandService: ICommandService
+	) {
 		super();
 	}
 
-	updateResetZoomEntry(visible: boolean): void {
-		if (visible) {
-			if (!this.resetZoomStatusEntry.value) {
-				const text = localize('resetZoom', "Reset Zoom");
-				this.resetZoomStatusEntry.value = this.statusbarService.addEntry({
-					name: localize('status.resetWindowZoom', "Reset Window Zoom"),
-					text,
-					ariaLabel: text,
-					command: 'workbench.action.zoomReset',
-					kind: 'prominent'
-				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
+	updateZoomEntry(visibleOrText: false | string, targetWindowId: number): void {
+		if (typeof visibleOrText === 'string') {
+			if (!this.disposable.value) {
+				this.createZoomEntry(targetWindowId, visibleOrText);
+			} else {
+				this.updateZoomEntryLabel(targetWindowId);
 			}
 		} else {
-			this.resetZoomStatusEntry.clear();
+			this.disposable.clear();
+		}
+	}
+	private createZoomEntry(targetWindowId: number, visibleOrText: string) {
+		const disposables = new DisposableStore();
+		this.disposable.value = disposables;
+
+		const element = document.createElement('div');
+		element.classList.add('zoom-status');
+
+		this.labelContainer = document.createElement('div');
+		element.appendChild(this.labelContainer);
+		disposables.add(toDisposable(() => this.labelContainer = undefined));
+		this.labelContainer.classList.add('left');
+		this.updateZoomEntryLabel(targetWindowId);
+
+		const actionsContainer = document.createElement('div');
+		actionsContainer.classList.add('right');
+		element.appendChild(actionsContainer);
+
+		const actionBar = disposables.add(new ActionBar(actionsContainer, {}));
+
+		actionBar.push([
+			disposables.add(new Action('zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.zoomOut), true, () => this.commandService.executeCommand('workbench.action.zoomOut'))),
+			disposables.add(new Action('zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.zoomIn), true, () => this.commandService.executeCommand('workbench.action.zoomIn')))
+		], { icon: true, label: false });
+
+		actionBar.push(
+			disposables.add(new Action('zoomReset', localize('zoomReset', "Reset"), undefined, true, async () => this.commandService.executeCommand('workbench.action.zoomReset'))),
+			{ icon: false, label: true }
+		);
+
+		const name = localize('status.windowZoom', "Window Zoom");
+		disposables.add(this.statusbarService.addEntry({
+			name,
+			text: visibleOrText,
+			tooltip: element,
+			ariaLabel: name,
+			command: ShowTooltipCommand,
+			kind: 'prominent'
+		}, 'status.windowZoom', StatusbarAlignment.RIGHT, 102));
+	}
+
+	private updateZoomEntryLabel(targetWindowId: number): void {
+		if (this.labelContainer) {
+			this.labelContainer.textContent = localize('zoomLevel', "Zoom Level: {0}", getZoomLevel(getWindowById(targetWindowId)?.window ?? mainWindow));
 		}
 	}
 }

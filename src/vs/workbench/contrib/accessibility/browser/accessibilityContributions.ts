@@ -32,7 +32,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -104,7 +104,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const listService = accessor.get(IListService);
 			const commandService = accessor.get(ICommandService);
-			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+			const audioCueService = accessor.get(IAudioCueService);
 
 			function renderAccessibleView(): boolean {
 				const notification = getNotificationFromContext(listService);
@@ -165,7 +165,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: { type: AccessibleViewType.View },
-					actions: getActionsFromNotification(notification, accessibleNotificationService)
+					actions: getActionsFromNotification(notification, audioCueService)
 				});
 				return true;
 			}
@@ -174,7 +174,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 	}
 }
 
-function getActionsFromNotification(notification: INotificationViewItem, accessibleNotificationService: IAccessibleNotificationService): IAction[] | undefined {
+function getActionsFromNotification(notification: INotificationViewItem, audioCueService: IAudioCueService): IAction[] | undefined {
 	let actions = undefined;
 	if (notification.actions) {
 		actions = [];
@@ -203,7 +203,7 @@ function getActionsFromNotification(notification: INotificationViewItem, accessi
 		actions.push({
 			id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => {
 				notification.close();
-				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+				audioCueService.playAudioCue(AudioCue.clear);
 			}, enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll)
 		});
 	}
@@ -272,3 +272,4 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 		}));
 	}
 }
+

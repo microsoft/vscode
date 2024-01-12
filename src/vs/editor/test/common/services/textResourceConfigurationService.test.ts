@@ -35,8 +35,8 @@ suite('TextResourceConfigurationService - Update', () => {
 
 	setup(() => {
 		instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IModelService, <Partial<IModelService>>{ getModel() { return null; } });
-		instantiationService.stub(ILanguageService, <Partial<ILanguageService>>{ guessLanguageIdByFilepathOrFirstLine() { return language; } });
+		instantiationService.stub(IModelService, { getModel() { return null; } });
+		instantiationService.stub(ILanguageService, { guessLanguageIdByFilepathOrFirstLine() { return language; } });
 		instantiationService.stub(IConfigurationService, configurationService);
 		testObject = disposables.add(instantiationService.createInstance(TextResourceConfigurationService));
 	});

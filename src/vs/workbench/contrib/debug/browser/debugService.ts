@@ -33,14 +33,15 @@ import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/p
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { DebugMemoryFileSystemProvider } from 'vs/workbench/contrib/debug/browser/debugMemory';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_HAS_DEBUGGED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, DEBUG_MEMORY_SCHEME, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, DEBUG_SCHEME } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_HAS_DEBUGGED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, DEBUG_MEMORY_SCHEME, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, DEBUG_SCHEME, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -1004,6 +1005,7 @@ export class DebugService implements IDebugService {
 			this.model.setEnablement(breakpoint, enable);
 			this.debugStorage.storeBreakpoints(this.model);
 			if (breakpoint instanceof Breakpoint) {
+				await this.makeTriggeredBreakpointsMatchEnablement(enable, breakpoint);
 				await this.sendBreakpoints(breakpoint.originalUri);
 			} else if (breakpoint instanceof FunctionBreakpoint) {
 				await this.sendFunctionBreakpoints();
@@ -1036,7 +1038,7 @@ export class DebugService implements IDebugService {
 		return breakpoints;
 	}
 
-	async updateBreakpoints(uri: uri, data: Map<string, DebugProtocol.Breakpoint>, sendOnResourceSaved: boolean): Promise<void> {
+	async updateBreakpoints(uri: uri, data: Map<string, IBreakpointUpdateData>, sendOnResourceSaved: boolean): Promise<void> {
 		this.model.updateBreakpoints(data);
 		this.debugStorage.storeBreakpoints(this.model);
 		if (sendOnResourceSaved) {
@@ -1048,15 +1050,17 @@ export class DebugService implements IDebugService {
 	}
 
 	async removeBreakpoints(id?: string): Promise<void> {
-		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
+		const breakpoints = this.model.getBreakpoints();
+		const toRemove = breakpoints.filter(bp => !id || bp.getId() === id);
 		// note: using the debugger-resolved uri for aria to reflect UI state
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
-		const urisToClear = distinct(toRemove, bp => bp.originalUri.toString()).map(bp => bp.originalUri);
+		const urisToClear = new Set(toRemove.map(bp => bp.originalUri.toString()));
 
 		this.model.removeBreakpoints(toRemove);
+		this.unlinkTriggeredBreakpoints(breakpoints, toRemove).forEach(uri => urisToClear.add(uri.toString()));
 
 		this.debugStorage.storeBreakpoints(this.model);
-		await Promise.all(urisToClear.map(uri => this.sendBreakpoints(uri)));
+		await Promise.all([...urisToClear].map(uri => this.sendBreakpoints(URI.parse(uri))));
 	}
 
 	setBreakpointsActivated(activated: boolean): Promise<void> {
@@ -1152,11 +1156,50 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
+	/**
+	 * Removes the condition of triggered breakpoints that depended on
+	 * breakpoints in `removedBreakpoints`. Returns the URIs of resources that
+	 * had their breakpoints changed in this way.
+	 */
+	private unlinkTriggeredBreakpoints(allBreakpoints: readonly IBreakpoint[], removedBreakpoints: readonly IBreakpoint[]): uri[] {
+		const affectedUris: uri[] = [];
+		for (const removed of removedBreakpoints) {
+			for (const existing of allBreakpoints) {
+				if (!removedBreakpoints.includes(existing) && existing.triggeredBy === removed.getId()) {
+					this.model.updateBreakpoints(new Map([[existing.getId(), { triggeredBy: undefined }]]));
+					affectedUris.push(existing.originalUri);
+				}
+			}
+		}
+
+		return affectedUris;
+	}
+
+	private async makeTriggeredBreakpointsMatchEnablement(enable: boolean, breakpoint: Breakpoint) {
+		if (enable) {
+			/** If the breakpoint is being enabled, also ensure its triggerer is enabled */
+			if (breakpoint.triggeredBy) {
+				const trigger = this.model.getBreakpoints().find(bp => breakpoint.triggeredBy === bp.getId());
+				if (trigger && !trigger.enabled) {
+					await this.enableOrDisableBreakpoints(enable, trigger);
+				}
+			}
+		}
+
+
+		/** Makes its triggeree states match the state of this breakpoint */
+		await Promise.all(this.model.getBreakpoints()
+			.filter(bp => bp.triggeredBy === breakpoint.getId() && bp.enabled !== enable)
+			.map(bp => this.enableOrDisableBreakpoints(enable, bp))
+		);
+	}
+
+	public async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getBreakpoints({ originalUri: modelUri, enabledOnly: true });
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (!s.configuration.noDebug) {
-				await s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified);
+				const sessionBps = breakpointsToSend.filter(bp => !bp.triggeredBy || bp.getSessionDidTrigger(s.getId()));
+				await s.sendBreakpoints(modelUri, sessionBps, sourceModified);
 			}
 		});
 	}

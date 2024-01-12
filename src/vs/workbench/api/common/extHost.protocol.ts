@@ -1197,7 +1197,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 export interface IChatAgentCompletionItem {
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
-	values: IChatRequestVariableValue[];
+	values: IChatRequestVariableValueDto[];
 	detail?: string;
 	documentation?: string | IMarkdownString;
 }
@@ -1217,8 +1217,10 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
+export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
+
 export interface ExtHostChatVariablesShape {
-	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	$resolveVariable(handle: number, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto[] | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -1442,7 +1444,9 @@ export type SCMRawResource = [
 	boolean /*strike through*/,
 	boolean /*faded*/,
 	string /*context value*/,
-	ICommandDto | undefined /*command*/
+	ICommandDto | undefined /*command*/,
+	UriComponents | undefined /* multiFileDiffEditorOriginalUri */,
+	UriComponents | undefined /* multiFileDiffEditorModifiedUri */,
 ];
 
 export type SCMRawResourceSplice = [
@@ -1488,7 +1492,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void;
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
@@ -2222,6 +2226,7 @@ export interface ExtHostSCMShape {
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;
 	$setSelectedSourceControl(selectedSourceControlHandle: number | undefined): Promise<void>;
 	$provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
+	$provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined>;
 	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
 	$resolveHistoryItemGroupBase(sourceControlHandle: number, historyItemGroupId: string, token: CancellationToken): Promise<SCMHistoryItemGroupDto | undefined>;
 	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
@@ -2641,7 +2646,7 @@ export interface ExtHostTestingShape {
 	/** Ensures any pending test diffs are flushed */
 	$syncTests(): Promise<void>;
 	/** Sets the active test run profiles */
-	$setActiveRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
+	$setDefaultRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
 }
 
 export interface ExtHostLocalizationShape {

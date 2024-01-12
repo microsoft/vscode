@@ -19,7 +19,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -88,10 +88,33 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 		super('workbench.titleService', themeService, storageService);
 
 		this._register(this.registerPart(this.mainPart));
+
+		this.registerActions();
 	}
 
 	protected createMainTitlebarPart(): BrowserTitlebarPart {
 		return this.instantiationService.createInstance(MainBrowserTitlebarPart);
+	}
+
+	private registerActions(): void {
+
+		// Focus action
+		const that = this;
+		registerAction2(class FocusTitleBar extends Action2 {
+
+			constructor() {
+				super({
+					id: `workbench.action.focusTitleBar`,
+					title: localize2('focusTitleBar', 'Focus Title Bar'),
+					category: Categories.View,
+					f1: true,
+				});
+			}
+
+			run(): void {
+				that.getPartByDocument(getActiveDocument()).focus();
+			}
+		});
 	}
 
 	//#region Auxiliary Titlebar Parts
@@ -117,7 +140,7 @@ export class BrowserTitleService extends MultiWindowParts<BrowserTitlebarPart> i
 	}
 
 	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer): BrowserTitlebarPart & IAuxiliaryTitlebarPart {
-		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, container, editorGroupsContainer);
+		return this.instantiationService.createInstance(AuxiliaryBrowserTitlebarPart, container, editorGroupsContainer, this.mainPart);
 	}
 
 	//#endregion
@@ -159,9 +182,6 @@ class TitlebarPartHoverDelegate implements IHoverDelegate {
 }
 
 export class BrowserTitlebarPart extends Part implements ITitlebarPart {
-
-	declare readonly _serviceBrand: undefined;
-
 	//#region IView
 
 	readonly minimumWidth: number = 0;
@@ -170,7 +190,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	get minimumHeight(): number {
 		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? 35 : 30;
 
-		return value / (this.useCounterZoom ? getZoomFactor(getWindow(this.element)) : 1);
+		return value / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
 
 	get maximumHeight(): number { return this.minimumHeight; }
@@ -454,28 +474,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 		}
 
-		// Focus action
-		const that = this;
-		registerAction2(class FocusTitleBar extends Action2 {
-
-			constructor() {
-				super({
-					id: `workbench.action.focusTitleBar`,
-					title: localize2('focusTitleBar', 'Focus Title Bar'),
-					category: Categories.View,
-					f1: true,
-				});
-			}
-
-			run(): void {
-				if (that.customMenubar) {
-					that.customMenubar.toggleFocus();
-				} else {
-					(that.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement).focus();
-				}
-			}
-		});
-
 		this.updateStyles();
 
 		return this.element;
@@ -713,19 +711,19 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return !this.isAuxiliary && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
 	}
 
-	protected get useCounterZoom(): boolean {
+	get hasZoomableElements(): boolean {
+		const hasMenubar = !(this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh));
+		const hasCommandCenter = this.isCommandCenterVisible;
+		const hasToolBarActions = this.layoutControlEnabled || this.editorActionsEnabled || this.activityActionsEnabled;
+		return hasMenubar || hasCommandCenter || hasToolBarActions;
+	}
 
+	get preventZoom(): boolean {
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the title bar
 
-		const zoomFactor = getZoomFactor(getWindow(this.element));
-
-		const noMenubar = this.currentMenubarVisibility === 'hidden' || this.currentMenubarVisibility === 'compact' || (!isWeb && isMacintosh);
-		const noCommandCenter = !this.isCommandCenterVisible;
-		const noToolBarActions = !this.layoutControlEnabled && !this.editorActionsEnabled && !this.activityActionsEnabled;
-
-		return zoomFactor < 1 || (noMenubar && noCommandCenter && noToolBarActions);
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.hasZoomableElements;
 	}
 
 	override layout(width: number, height: number): void {
@@ -741,12 +739,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
 
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
-			this.rootContainer.classList.toggle('counter-zoom', this.useCounterZoom);
+			this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
 
 			if (this.customMenubar) {
 				const menubarDimension = new Dimension(0, dimension.height);
 				this.customMenubar.layout(menubarDimension);
 			}
+		}
+	}
+
+	focus(): void {
+		if (this.customMenubar) {
+			this.customMenubar.toggleFocus();
+		} else {
+			(this.element.querySelector('[tabindex]:not([tabindex="-1"])') as HTMLElement).focus();
 		}
 	}
 
@@ -799,6 +805,7 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 	constructor(
 		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
+		private readonly mainTitlebar: BrowserTitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
@@ -816,5 +823,15 @@ export class AuxiliaryBrowserTitlebarPart extends BrowserTitlebarPart implements
 	) {
 		const id = AuxiliaryBrowserTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
+	}
+
+	override get preventZoom(): boolean {
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the main title bar
+		// The auxiliary title bar never contains any zoomable items itself,
+		// but we want to match the behavior of the main title bar.
+
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
 }

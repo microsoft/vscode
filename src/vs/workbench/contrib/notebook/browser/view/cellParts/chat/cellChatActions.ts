@@ -5,15 +5,17 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_TOOLBAR, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
@@ -34,7 +36,7 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyCode.Enter
 				},
 				menu: {
-					id: MENU_CELL_CHAT_WIDGET,
+					id: MENU_CELL_CHAT_INPUT,
 					group: 'main',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.negate()
@@ -63,7 +65,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				icon: Codicon.debugStop,
 				menu: {
-					id: MENU_CELL_CHAT_WIDGET,
+					id: MENU_CELL_CHAT_INPUT,
 					group: 'main',
 					order: 1,
 					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST
@@ -92,7 +94,7 @@ registerAction2(class extends NotebookCellAction {
 				},
 				icon: Codicon.close,
 				menu: {
-					id: MENU_CELL_CHAT_WIDGET_TOOLBAR,
+					id: MENU_CELL_CHAT_WIDGET,
 					group: 'main',
 					order: 2
 				}
@@ -172,6 +174,8 @@ registerAction2(class extends NotebookCellAction {
 
 		// todo discard
 		ctrl.dismiss(true);
+		// focus on the cell editor container
+		context.notebookEditor.focusNotebookCell(context.cell, 'container');
 	}
 });
 
@@ -271,17 +275,7 @@ registerAction2(class extends NotebookCellAction {
 							CTX_INLINE_CHAT_HAS_PROVIDER,
 							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
 						)
-					},
-					{
-						id: MenuId.NotebookCellListTop,
-						group: 'inline',
-						order: -1,
-						when: ContextKeyExpr.and(
-							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-							CTX_INLINE_CHAT_HAS_PROVIDER,
-							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
-						)
-					},
+					}
 				]
 			});
 	}
@@ -307,4 +301,71 @@ registerAction2(class extends NotebookCellAction {
 
 		ctrl.show();
 	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.insertCodeCellWithChatAtTop',
+				title: {
+					value: '$(sparkle) ' + localize('notebookActions.menu.insertCodeCellWithChat', "Generate"),
+					original: '$(sparkle) Generate',
+				},
+				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+				menu: [
+					{
+						id: MenuId.NotebookCellListTop,
+						group: 'inline',
+						order: -1,
+						when: ContextKeyExpr.and(
+							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+							CTX_INLINE_CHAT_HAS_PROVIDER,
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+						)
+					},
+				]
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const languageService = accessor.get(ILanguageService);
+		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
+
+		if (!newCell) {
+			return;
+		}
+		await context.notebookEditor.focusNotebookCell(newCell, 'container');
+		const ctrl = NotebookCellChatController.get(newCell);
+		if (!ctrl) {
+			return;
+		}
+
+		context.notebookEditor.getCellsInRange().forEach(cell => {
+			const cellCtrl = NotebookCellChatController.get(cell);
+			if (cellCtrl) {
+				cellCtrl.dismiss(false);
+			}
+		});
+
+		ctrl.show();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
+	command: {
+		id: 'notebook.cell.insertCodeCellWithChat',
+		icon: Codicon.sparkle,
+		title: localize('notebookActions.menu.insertCode.ontoolbar', "Generate"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Generate Code Cell with Chat")
+	},
+	order: -10,
+	group: 'navigation/add',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
+		CTX_INLINE_CHAT_HAS_PROVIDER,
+		ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+	)
 });
