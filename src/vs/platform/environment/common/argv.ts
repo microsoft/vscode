@@ -105,6 +105,7 @@ export interface NativeParsedArgs {
 	'remote'?: string;
 	'force'?: boolean;
 	'do-not-sync'?: boolean;
+	'preserve-env'?: boolean;
 	'force-user-env'?: boolean;
 	'force-disable-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
