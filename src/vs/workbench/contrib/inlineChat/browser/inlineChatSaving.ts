@@ -4,12 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellation } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IInlineChatSessionService, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -44,6 +49,7 @@ export class InlineChatSavingService implements IInlineChatSavingService {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		this._store.add(_inlineChatSessionService.onDidEndSession(e => {
 			this._sessionData.get(e.session)?.dispose();
@@ -80,60 +86,66 @@ export class InlineChatSavingService implements IInlineChatSavingService {
 
 	private _installSaveParticpant(): void {
 		this._saveParticipant.value = this._textFileService.files.addSaveParticipant({
-			participate: async (model, context, progress, token) => {
+			participate: (model, context, progress, token) => this._participate(model.textEditorModel, context.reason, progress, token)
+		});
+	}
 
-				if (context.reason !== SaveReason.EXPLICIT) {
-					// all saves that we are concerned about are explicit
-					// because we have disabled auto-save for them
+	private async _participate(model: ITextModel | null, reason: SaveReason, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+
+		if (reason !== SaveReason.EXPLICIT) {
+			// all saves that we are concerned about are explicit
+			// because we have disabled auto-save for them
+			return;
+		}
+
+		if (!this._configService.getValue<boolean>(InlineChatConfigKeys.AcceptedOrDiscardBeforeSave)) {
+			// disabled
+			return;
+		}
+
+		const sessions = new Map<Session, SessionData>();
+		for (const [session, data] of this._sessionData) {
+			if (model === session.textModelN) {
+				sessions.set(session, data);
+			}
+		}
+
+		if (sessions.size === 0) {
+			return;
+		}
+
+		const store = new DisposableStore();
+
+		const allDone = new Promise<void>(resolve => {
+			store.add(this._inlineChatSessionService.onDidEndSession(e => {
+
+				const data = sessions.get(e.session);
+				if (!data) {
 					return;
 				}
 
-				const sessions = new Map<Session, SessionData>();
-				for (const [session, data] of this._sessionData) {
-					if (model.textEditorModel === session.textModelN) {
-						sessions.set(session, data);
-					}
-				}
+				data.dispose();
+				sessions.delete(e.session);
 
 				if (sessions.size === 0) {
-					return;
+					resolve(); // DONE, release save block!
 				}
-
-				const store = new DisposableStore();
-
-				const allDone = new Promise<void>(resolve => {
-					store.add(this._inlineChatSessionService.onDidEndSession(e => {
-
-						const data = sessions.get(e.session);
-						if (!data) {
-							return;
-						}
-
-						data.dispose();
-						sessions.delete(e.session);
-
-						if (sessions.size === 0) {
-							resolve(); // DONE, release save block!
-						}
-					}));
-				});
-
-
-				progress.report({
-					message: sessions.size === 1
-						? localize('inlineChat', "Waiting for Inline Chat changes to be Accpeted or Discarded...")
-						: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accpeted or Discarded...", sessions.size)
-				});
-
-				await this._revealInlineChatSessions(sessions.values());
-
-				try {
-					await raceCancellation(allDone, token);
-				} finally {
-					store.dispose();
-				}
-			}
+			}));
 		});
+
+		progress.report({
+			message: sessions.size === 1
+				? localize('inlineChat', "Waiting for Inline Chat changes to be Accpeted or Discarded...")
+				: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accpeted or Discarded...", sessions.size)
+		});
+
+		await this._revealInlineChatSessions(sessions.values());
+
+		try {
+			await raceCancellation(allDone, token);
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private _getEditorGroup(session: Session): IEditorGroup {
