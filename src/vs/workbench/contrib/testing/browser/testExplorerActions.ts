@@ -30,7 +30,6 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -51,6 +50,7 @@ import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingP
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const category = Categories.Test;
 
@@ -1611,18 +1611,22 @@ export class CancelTestRefreshAction extends Action2 {
 	}
 }
 
-export class TestCoverageClose extends Action2 {
+export class CloseCoverage extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.CoverageClose,
 			title: localize2('testing.closeCoverage', 'Close Coverage'),
 			icon: widgetClose,
-			menu: {
+			category,
+			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: ActionOrder.Refresh,
 				when: ContextKeyExpr.equals('view', Testing.CoverageViewId)
-			}
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.isTestCoverageOpen.isEqualTo(true),
+			}]
 		});
 	}
 
@@ -1631,10 +1635,37 @@ export class TestCoverageClose extends Action2 {
 	}
 }
 
+export class OpenCoverage extends Action2 {
+	constructor() {
+		super({
+			id: TestCommandId.OpenCoverage,
+			title: localize2('testing.openCoverage', 'Open Coverage'),
+			category,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+			}]
+		});
+	}
+
+	public override run(accessor: ServicesAccessor) {
+		const results = accessor.get(ITestResultService).results;
+		const task = results.length && results[0].tasks.find(r => r.coverage);
+		if (!task) {
+			const notificationService = accessor.get(INotificationService);
+			notificationService.info(localize('testing.noCoverage', 'No coverage information available on the last test run.'));
+			return;
+		}
+
+		accessor.get(ITestCoverageService).openCoverage(task, true);
+	}
+}
+
 export const allTestActions = [
 	CancelTestRefreshAction,
 	CancelTestRunAction,
 	ClearTestResultsAction,
+	CloseCoverage,
 	CollapseAllAction,
 	ConfigureTestProfilesAction,
 	ContinuousRunTestAction,
@@ -1658,6 +1689,7 @@ export const allTestActions = [
 	GetSelectedProfiles,
 	GoToTest,
 	HideTestAction,
+	OpenCoverage,
 	OpenOutputPeek,
 	RefreshTestsAction,
 	ReRunFailedTests,
@@ -1674,7 +1706,6 @@ export const allTestActions = [
 	ShowMostRecentOutputAction,
 	StartContinuousRunAction,
 	StopContinuousRunAction,
-	TestCoverageClose,
 	TestingSortByDurationAction,
 	TestingSortByLocationAction,
 	TestingSortByStatusAction,
