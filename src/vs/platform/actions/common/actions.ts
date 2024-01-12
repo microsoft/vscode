@@ -579,8 +579,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const { f1, menu, keybinding, ...command } = action.desc;
 
 	if (CommandsRegistry.getCommand(command.id)) {
-		// throw new Error(`Cannot register two commands with the same id: ${command.id}`);
-		console.warn(`Cannot register two commands with the same id: ${command.id}`);
+		throw new Error(`Cannot register two commands with the same id: ${command.id}`);
 	}
 
 	// command
