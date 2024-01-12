@@ -475,6 +475,9 @@ class Hunk {
 }
 
 type HunkTrackedRange = {
+	/**
+	 * The first element [0] is the whole modified range and subsequent elements are word-level changes
+	 */
 	getRanges(): Range[];
 };
 
@@ -565,7 +568,6 @@ export class LiveStrategy extends EditModeStrategy {
 	private _resetDiff(): void {
 		this._ctxCurrentChangeHasDiff.reset();
 		this._ctxCurrentChangeShowsDiff.reset();
-		this._hunkDisplay?.hideHunks();
 		this._renderStore.clear();
 		this._zone.widget.updateStatus('');
 		this._progressiveEditingDecorations.clear();
@@ -671,6 +673,11 @@ export class LiveStrategy extends EditModeStrategy {
 		this._progressiveEditingDecorations.clear();
 
 		if (!this._hunkDisplay) {
+
+			this._renderStore.add(toDisposable(() => {
+				this._hunkDisplay?.hideHunks();
+				this._hunkDisplay = undefined;
+			}));
 
 			const hunkTrackedRanges = new Map<Hunk, HunkTrackedRange>();
 			const hunkDisplayData = new Map<Hunk, HunkDisplayData>();
