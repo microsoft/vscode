@@ -890,7 +890,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(historyItem.historyItemGroup.repository.provider);
 		if (menus.historyProviderMenu) {
-			const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem.historyItemGroup, historyItem);
+			const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem);
 			templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(historyItemMenu, templateData.actionBar));
 		}
 
