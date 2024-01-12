@@ -3617,8 +3617,8 @@ export class CommandCenter {
 		};
 	}
 
-	@command('git.timeline.openCommit', { repository: false })
-	async timelineOpenCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
+	@command('git.timeline.viewCommit', { repository: false })
+	async timelineViewCommit(item: TimelineItem, uri: Uri | undefined, _source: string) {
 		if (!GitTimelineItem.is(item)) {
 			return;
 		}
@@ -3824,8 +3824,8 @@ export class CommandCenter {
 		}
 	}
 
-	@command('git.openCommit', { repository: true })
-	async openCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
+	@command('git.viewCommit', { repository: true })
+	async viewCommit(repository: Repository, historyItem: SourceControlHistoryItem): Promise<void> {
 		if (!repository || !historyItem) {
 			return;
 		}

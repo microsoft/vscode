@@ -113,7 +113,7 @@
 	"command.manageUnsafeRepositories": "Manage Unsafe Repositories",
 	"command.openRepositoriesInParentFolders": "Open Repositories In Parent Folders",
 	"command.viewAllChanges": "View All Changes",
-	"command.openCommit": "Open Commit",
+	"command.viewCommit": "View Commit",
 	"command.api.getRepositories": "Get Repositories",
 	"command.api.getRepositoryState": "Get Repository State",
 	"command.api.getRemoteSources": "Get Remote Sources",
