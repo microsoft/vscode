@@ -2253,6 +2253,7 @@ export namespace ChatVariable {
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
+			kind: variable.kind,
 			value: isUriComponents(variable.value) ? URI.revive(variable.value) : variable.value,
 			description: variable.description
 		};
@@ -2261,6 +2262,7 @@ export namespace ChatVariable {
 	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
 		return {
 			level: ChatVariableLevel.from(variable.level),
+			kind: variable.kind,
 			value: variable.value,
 			description: variable.description
 		};
