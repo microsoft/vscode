@@ -391,7 +391,7 @@ export class NativeWindow extends BaseWindow {
 		// Document edited: indicate for dirty working copies
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.isShortAutoSaveDelayConfigured(workingCopy.resource)) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 

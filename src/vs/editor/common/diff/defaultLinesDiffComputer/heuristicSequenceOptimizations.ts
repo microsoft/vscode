@@ -456,7 +456,11 @@ export function removeVeryShortMatchingTextBetweenLongDiffs(sequence1: LinesSlic
 			next ? next.getStarts() : OffsetPair.max,
 		);
 		const result = newDiff.intersect(availableSpace)!;
-		newDiffs.push(result);
+		if (newDiffs.length > 0 && result.getStarts().equals(newDiffs[newDiffs.length - 1].getEndExclusives())) {
+			newDiffs[newDiffs.length - 1] = newDiffs[newDiffs.length - 1].join(result);
+		} else {
+			newDiffs.push(result);
+		}
 	});
 
 	return newDiffs;

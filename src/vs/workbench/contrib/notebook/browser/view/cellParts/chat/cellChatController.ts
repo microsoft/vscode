@@ -174,17 +174,17 @@ export class NotebookCellChatController extends Disposable {
 	}
 
 	private _updateHeight() {
-		const margin = 6;
-		const heightWithMargin = this._isVisible && this._widget
-			? (this._widget.getHeight() - 8 /** shadow */ - 18 /** padding */ + margin /** bottom margin for the cell part */)
+		const surrounding = 6 * 2 /** padding */ + 6 /** cell chat widget margin bottom */ + 2 /** border */;
+		const heightWithPadding = this._isVisible && this._widget
+			? (this._widget.getHeight() - 8 /** shadow */ - 18 /** padding */ - 6 /** widget's internal margin top */ + surrounding)
 			: 0;
 
-		if (this._cell.chatHeight === heightWithMargin) {
+		if (this._cell.chatHeight === heightWithPadding) {
 			return;
 		}
 
-		this._cell.chatHeight = heightWithMargin;
-		this._partContainer.style.height = `${heightWithMargin - margin}px`;
+		this._cell.chatHeight = heightWithPadding;
+		this._partContainer.style.height = `${heightWithPadding - surrounding}px`;
 	}
 
 	async show() {

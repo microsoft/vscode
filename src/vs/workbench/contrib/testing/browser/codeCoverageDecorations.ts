@@ -3,42 +3,64 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
+import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
-import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { isDefined } from 'vs/base/common/types';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { localize } from 'vs/nls';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { CoverageDetails, DetailType, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
+import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
-const GLYPH_LANE = GlyphMarginLane.Left;
 const MAX_HOVERED_LINES = 30;
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
+const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline Coverage');
+const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
+	public static showInline = observableValue('inlineCoverage', false);
+
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
 	private readonly hoveredStore = this._register(new DisposableStore());
+	private readonly lineHoverWidget: Lazy<LineHoverWidget>;
 	private decorationIds = new Map<string, {
 		options: IModelDecorationOptions;
 		hoverOptions: Partial<IModelDecorationOptions>;
 	}>();
 	private hoveredLineNumber?: number;
+	private details?: CoverageDetailsModel;
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@ITestCoverageService coverage: ITestCoverageService,
 		@ILogService private readonly log: ILogService,
 	) {
 		super();
+
+		this.lineHoverWidget = new Lazy(() => this._register(instantiationService.createInstance(LineHoverWidget, this.editor)));
 
 		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
 
@@ -59,16 +81,17 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
 			if (c) {
-				this.apply(editor.getModel()!, c);
+				this.apply(editor.getModel()!, c, CodeCoverageDecorations.showInline.read(reader));
 			} else {
 				this.clear();
 			}
 		}));
 
 		this._register(editor.onMouseMove(e => {
-			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN
-				&& e.target.detail.glyphMarginLane === GLYPH_LANE) {
+			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
+			} else if (this.lineHoverWidget.hasValue && this.lineHoverWidget.value.getDomNode().contains(e.target.element)) {
+				// don't dismiss the hover
 			} else {
 				this.hoveredStore.clear();
 			}
@@ -111,11 +134,16 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			}
 		});
 
-		this.hoveredStore.add(this.editor.onMouseLeave(e => {
+		this.lineHoverWidget.value.startShowingAt(lineNumber, this.details!);
+
+		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();
 		}));
 
 		this.hoveredStore.add(toDisposable(() => {
+			this.lineHoverWidget.value.hide();
+			this.hoveredLineNumber = -1;
+
 			model.changeDecorations(e => {
 				for (const id of toEnable) {
 					const deco = this.decorationIds.get(id);
@@ -127,53 +155,46 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 	}
 
-	private async apply(model: ITextModel, coverage: FileCoverage) {
+	private async apply(model: ITextModel, coverage: FileCoverage, showInlineByDefault: boolean) {
 		const details = await this.loadDetails(coverage);
 		if (!details) {
 			return this.clear();
 		}
 
-		const detailModel = new CoverageDetailsModel(details);
+		this.displayedStore.clear();
+		const detailModel = this.details = new CoverageDetailsModel(details);
 
 		model.changeDecorations(e => {
 			for (const { metadata: detail, range } of detailModel.ranges) {
 				if (detail.type === DetailType.Branch) {
 					const hits = detail.detail.branches![detail.branch].count;
 					const cls = hits ? CLASS_HIT : CLASS_MISS;
-					const opts: IModelDecorationOptions = {
+					const options: IModelDecorationOptions = {
 						showIfCollapsed: false,
 						description: 'coverage-gutter',
-						glyphMargin: { position: GlyphMarginLane.Left, persistLane: true },
-						glyphMarginHoverMessage: new MarkdownString()
-							.appendCodeblock(model.getLanguageId(), model.getValueInRange(range))
-							.appendText(localize('testing.branchHitCount', 'Branch hit count: {0}', hits)),
-						glyphMarginClassName: `coverage-deco-gutter ${cls}`,
+						lineNumberClassName: `coverage-deco-gutter ${cls}`,
 					};
 
-					this.decorationIds.set(e.addDecoration(range, opts), {
-						options: opts,
-						hoverOptions: {
-							className: `coverage-deco-inline ${cls}`,
-						}
-					});
+					const hoverOptions: Partial<IModelDecorationOptions> = { className: `coverage-deco-inline ${cls}` };
+					if (showInlineByDefault) {
+						Object.assign(options, hoverOptions);
+					}
+
+					this.decorationIds.set(e.addDecoration(range, options), { options, hoverOptions });
 				} else if (detail.type === DetailType.Statement) {
 					const cls = detail.count ? CLASS_HIT : CLASS_MISS;
-					const opts: IModelDecorationOptions = {
+					const options: IModelDecorationOptions = {
 						showIfCollapsed: false,
 						description: 'coverage-inline',
-						glyphMargin: { position: GlyphMarginLane.Left, persistLane: true },
-						glyphMarginHoverMessage: new MarkdownString()
-							.appendCodeblock(model.getLanguageId(), model.getValueInRange(range))
-							.appendText(localize('testing.hitCount', 'Hit count: {0}', detail.count)),
-						glyphMarginClassName: `coverage-deco-gutter ${cls}`,
+						lineNumberClassName: `coverage-deco-gutter ${cls}`,
 					};
 
-					this.decorationIds.set(e.addDecoration(range, opts), {
-						options: opts,
-						hoverOptions: {
-							className: `coverage-deco-inline ${cls}`,
-						}
-					});
+					const hoverOptions: Partial<IModelDecorationOptions> = { className: `coverage-deco-inline ${cls}` };
+					if (showInlineByDefault) {
+						Object.assign(options, hoverOptions);
+					}
+
+					this.decorationIds.set(e.addDecoration(range, options), { options, hoverOptions });
 				}
 			}
 		});
@@ -294,3 +315,176 @@ function tidyLocation(location: Range | Position): Range {
 
 	return location;
 }
+
+class LineHoverComputer implements IHoverComputer<IMarkdownString> {
+	public line = -1;
+	public lineContents = '';
+	public details!: CoverageDetailsModel;
+
+	constructor(@IKeybindingService private readonly keybindingService: IKeybindingService) { }
+
+	/** @inheritdoc */
+	public computeSync(): IMarkdownString[] {
+		const bestDetails: DetailRange[] = [];
+		let bestLine = -1;
+		for (const detail of this.details.ranges) {
+			if (detail.range.startLineNumber > this.line) {
+				break;
+			}
+			if (detail.range.endLineNumber < this.line) {
+				continue;
+			}
+			if (detail.range.startLineNumber !== bestLine) {
+				bestDetails.length = 0;
+			}
+			bestLine = detail.range.startLineNumber;
+			bestDetails.push(detail);
+		}
+
+		const strs = bestDetails.map(({ range, metadata: detail }) => {
+			if (detail.type === DetailType.Function) {
+				return new MarkdownString().appendMarkdown(localize('coverage.fnExecutedCount', 'Function `{0}` was executed {1} time(s).', detail.name, detail.count));
+			} else if (detail.type === DetailType.Statement) {
+				const text = normalizeName(this.lineContents.slice(range.startColumn - 1, range.endLineNumber === range.startLineNumber ? range.endColumn + 1 : undefined) || `<empty statement>`);
+				const str = new MarkdownString();
+				if (detail.branches?.length) {
+					const covered = detail.branches.filter(b => b.count > 0).length;
+					str.appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in `{2}` were covered.', covered, detail.branches.length, text));
+				} else {
+					str.appendMarkdown(localize('coverage.codeExecutedCount', '`{0}` was executed {1} time(s).', text, detail.count));
+				}
+				return str;
+			} else {
+				return undefined;
+			}
+		}).filter(isDefined);
+
+		if (strs.length) {
+			const s = new MarkdownString().appendMarkdown(`[${TOGGLE_INLINE_COMMAND_TEXT}](command:${TOGGLE_INLINE_COMMAND_ID})`);
+			s.isTrusted = true;
+			const binding = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
+			if (binding) {
+				s.appendText(` (${binding.getLabel()})`);
+			}
+			strs.push(s);
+		}
+
+		return strs;
+	}
+}
+
+function normalizeName(functionNameOrCode: string) {
+	functionNameOrCode = functionNameOrCode.replace(/[\n\r`]/g, '');
+	if (functionNameOrCode.length > 50) {
+		functionNameOrCode = functionNameOrCode.slice(0, 40) + '...';
+	}
+	return functionNameOrCode;
+}
+
+class LineHoverWidget extends Disposable implements IOverlayWidget {
+	public static readonly ID = 'editor.contrib.testingCoverageLineHoverWidget';
+
+	private readonly computer: LineHoverComputer;
+	private readonly hoverOperation: HoverOperation<IMarkdownString>;
+	private readonly hover = this._register(new HoverWidget());
+	private readonly renderDisposables = this._register(new DisposableStore());
+	private readonly markdownRenderer: MarkdownRenderer;
+
+	constructor(private readonly editor: ICodeEditor, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		this.computer = instantiationService.createInstance(LineHoverComputer);
+		this.markdownRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, { editor: this.editor }));
+		this.hoverOperation = this._register(new HoverOperation(this.editor, this.computer));
+		this.hover.containerDomNode.classList.add('hidden');
+		this.hoverOperation.onResult(result => {
+			if (result.value.length) {
+				this.render(result.value);
+			} else {
+				this.hide();
+			}
+		});
+		this.editor.addOverlayWidget(this);
+	}
+
+	/** @inheritdoc */
+	getId(): string {
+		return LineHoverWidget.ID;
+	}
+
+	/** @inheritdoc */
+	public getDomNode(): HTMLElement {
+		return this.hover.containerDomNode;
+	}
+
+	/** @inheritdoc */
+	public getPosition(): IOverlayWidgetPosition | null {
+		return null;
+	}
+
+	/** @inheritdoc */
+	public override dispose(): void {
+		this.editor.removeOverlayWidget(this);
+		super.dispose();
+	}
+
+	/** Shows the hover widget at the given line */
+	public startShowingAt(lineNumber: number, details: CoverageDetailsModel) {
+		this.hide();
+		this.computer.line = lineNumber;
+		this.computer.lineContents = this.editor.getModel()?.getLineContent(lineNumber) || '';
+		this.computer.details = details;
+		this.hoverOperation.start(HoverStartMode.Delayed);
+	}
+
+	/** Hides the hover widget */
+	public hide() {
+		this.hoverOperation.cancel();
+		this.hover.containerDomNode.classList.add('hidden');
+	}
+
+	private render(elements: IMarkdownString[]) {
+		const { hover: h, editor: editor } = this;
+		const fragment = document.createDocumentFragment();
+
+		for (const msg of elements) {
+			const markdownHoverElement = dom.$('div.hover-row.markdown-hover');
+			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
+			const renderedContents = this.renderDisposables.add(this.markdownRenderer.render(msg));
+			hoverContentsElement.appendChild(renderedContents.element);
+			fragment.appendChild(markdownHoverElement);
+		}
+
+		dom.clearNode(h.contentsDomNode);
+		h.contentsDomNode.appendChild(fragment);
+
+		h.containerDomNode.classList.remove('hidden');
+		const editorLayout = editor.getLayoutInfo();
+		const topForLineNumber = editor.getTopForLineNumber(this.computer.line);
+		const editorScrollTop = editor.getScrollTop();
+		const lineHeight = editor.getOption(EditorOption.lineHeight);
+		const nodeHeight = h.containerDomNode.clientHeight;
+		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
+		const left = editorLayout.lineNumbersLeft + editorLayout.lineNumbersWidth;
+		h.containerDomNode.style.left = `${left}px`;
+		h.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
+	}
+}
+
+registerAction2(class ToggleInlineCoverage extends Action2 {
+	constructor() {
+		super({
+			id: TOGGLE_INLINE_COMMAND_ID,
+			title: { value: localize('coverage.toggleInline', "Toggle Inline Coverage"), original: 'Toggle Inline Coverage' },
+			category: Categories.Test,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI),
+			},
+			precondition: TestingContextKeys.isTestCoverageOpen,
+		});
+	}
+
+	public run() {
+		CodeCoverageDecorations.showInline.set(!CodeCoverageDecorations.showInline.get(), undefined);
+	}
+});
