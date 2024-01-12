@@ -10,6 +10,7 @@ import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEdito
 import { DiffEditorViewModel } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -60,6 +61,11 @@ export class DocumentDiffItemViewModel extends Disposable {
 	public readonly diffEditorViewModel: IDiffEditorViewModel;
 	public readonly collapsed = observableValue<boolean>(this, false);
 
+	public readonly lastTemplateData = observableValue<{ contentHeight: number; selections: Selection[] | undefined }>(
+		this,
+		{ contentHeight: 500, selections: undefined, }
+	);
+
 	constructor(
 		public readonly entry: LazyPromise<IDocumentDiffItem>,
 		private readonly _instantiationService: IInstantiationService,
@@ -86,5 +92,12 @@ export class DocumentDiffItemViewModel extends Disposable {
 			original: entry.value!.original!,
 			modified: entry.value!.modified!,
 		}, options));
+	}
+
+	public getKey(): string {
+		return JSON.stringify([
+			this.diffEditorViewModel.model.original.uri.toString(),
+			this.diffEditorViewModel.model.modified.uri.toString()
+		]);
 	}
 }
