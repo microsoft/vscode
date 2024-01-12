@@ -1180,26 +1180,27 @@ export interface StickyScrollNode<T, TFilterData> {
 	readonly position: number;
 }
 
+function stickyScrollNodeStateEquals<T, TFilterData>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
+	return node1.position === node2.position && stickyScrollNodeEquals(node1, node2);
+}
+
 function stickyScrollNodeEquals<T, TFilterData>(node1: StickyScrollNode<T, TFilterData>, node2: StickyScrollNode<T, TFilterData>) {
-	return node1.position === node2.position &&
-		node1.node.element === node2.node.element &&
+	return node1.node.element === node2.node.element &&
 		node1.startIndex === node2.startIndex &&
 		node1.height === node2.height &&
 		node1.endIndex === node2.endIndex;
 }
 
-class StickyScrollState<T, TFilterData, TRef> extends Disposable {
+class StickyScrollState<T, TFilterData, TRef> {
 
 	constructor(
 		readonly stickyNodes: StickyScrollNode<T, TFilterData>[] = []
-	) {
-		super();
-	}
+	) { }
 
 	get count(): number { return this.stickyNodes.length; }
 
 	equal(state: StickyScrollState<T, TFilterData, TRef>): boolean {
-		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeEquals);
+		return equals(this.stickyNodes, state.stickyNodes, stickyScrollNodeStateEquals);
 	}
 
 	lastNodePartiallyVisible(): boolean {
@@ -1216,8 +1217,19 @@ class StickyScrollState<T, TFilterData, TRef> extends Disposable {
 		return secondLastStickyNode.position + secondLastStickyNode.height !== lastStickyNode.position;
 	}
 
-	addDisposable(disposable: IDisposable): void {
-		this._register(disposable);
+	animationStateChanged(previousState: StickyScrollState<T, TFilterData, TRef>): boolean {
+		if (!equals(this.stickyNodes, previousState.stickyNodes, stickyScrollNodeEquals)) {
+			return false;
+		}
+
+		if (this.count === 0) {
+			return false;
+		}
+
+		const lastStickyNode = this.stickyNodes[this.count - 1];
+		const previousLastStickyNode = previousState.stickyNodes[previousState.count - 1];
+
+		return lastStickyNode.position !== previousLastStickyNode.position;
 	}
 }
 
@@ -1541,6 +1553,8 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	private readonly _rootDomNode: HTMLElement;
 	private _previousState: StickyScrollState<T, TFilterData, TRef> | undefined;
+	private _previousElements: HTMLElement[] = [];
+	private _previousStateDisposables: DisposableStore = new DisposableStore();
 
 	private stickyScrollFocus: StickyScrollFocus<T, TFilterData, TRef>;
 	readonly onDidChangeHasFocus: Event<boolean>;
@@ -1555,9 +1569,11 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		private readonly accessibilityProvider: IListAccessibilityProvider<T> | undefined,
 	) {
 
-		this._rootDomNode = document.createElement('div');
-		this._rootDomNode.classList.add('monaco-tree-sticky-container');
+		this._rootDomNode = $('.monaco-tree-sticky-container');
 		container.appendChild(this._rootDomNode);
+
+		const shadow = $('.monaco-tree-sticky-container-shadow');
+		this._rootDomNode.appendChild(shadow);
 
 		this.stickyScrollFocus = new StickyScrollFocus(this._rootDomNode, view);
 		this.onDidChangeHasFocus = this.stickyScrollFocus.onDidChangeHasFocus;
@@ -1595,34 +1611,41 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			this.setVisible(isVisible);
 		}
 
-		// Remove previous state
-		this._previousState?.dispose();
-		this._previousState = state;
-
 		if (!isVisible) {
+			this._previousState = undefined;
+			this._previousElements = [];
+			this._previousStateDisposables.clear();
 			return;
 		}
 
-		const elements = Array(state.count);
-		for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
-			const stickyNode = state.stickyNodes[stickyIndex];
+		const lastStickyNode = state.stickyNodes[state.count - 1];
 
-			const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
-			elements[stickyIndex] = element;
+		// If the new state is only a change in the last node's position, update the position of the last element
+		if (this._previousState && state.animationStateChanged(this._previousState)) {
+			this._previousElements[this._previousState.count - 1].style.top = `${lastStickyNode.position}px`;
+		}
+		// create new dom elements
+		else {
+			this._previousStateDisposables.clear();
 
-			this._rootDomNode.appendChild(element);
-			state.addDisposable(disposable);
+			const elements = Array(state.count);
+			for (let stickyIndex = state.count - 1; stickyIndex >= 0; stickyIndex--) {
+				const stickyNode = state.stickyNodes[stickyIndex];
+
+				const { element, disposable } = this.createElement(stickyNode, stickyIndex, state.count);
+				elements[stickyIndex] = element;
+
+				this._rootDomNode.appendChild(element);
+				this._previousStateDisposables.add(disposable);
+			}
+
+			this.stickyScrollFocus.updateElements(elements, state);
+
+			this._previousState = state;
+			this._previousElements = elements;
 		}
 
-		this.stickyScrollFocus.updateElements(elements, state);
-
-		// Add shadow element to the end of the widget
-		const shadow = $('.monaco-tree-sticky-container-shadow');
-		this._rootDomNode.appendChild(shadow);
-		state.addDisposable(toDisposable(() => shadow.remove()));
-
 		// Set the height of the widget to the bottom of the last sticky node
-		const lastStickyNode = state.stickyNodes[state.count - 1];
 		this._rootDomNode.style.height = `${lastStickyNode.position + lastStickyNode.height}px`;
 	}
 
@@ -1723,7 +1746,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 	dispose(): void {
 		this.stickyScrollFocus.dispose();
-		this._previousState?.dispose();
+		this._previousStateDisposables.dispose();
 		this._rootDomNode.remove();
 	}
 }
