@@ -27,8 +27,8 @@ import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/se
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchService, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { PickState } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
+import { IPatternInfo, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { EditorViewState } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { Event } from 'vs/base/common/event';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
@@ -50,11 +50,8 @@ interface ITextSearchQuickAccessItem extends IPickerQuickAccessItem {
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearchQuickAccessItem> {
 	private queryBuilder: QueryBuilder;
 	private searchModel: SearchModel;
-	private navigatedAwayUsingPick = false;
-	private readonly pickState = new PickState(
-		this._instantiationService,
-		this._contextService,
-		this._searchService,
+	private storedOriginalLocation = false;
+	private readonly editorViewState = new EditorViewState(
 		this._editorService
 	);
 
@@ -80,8 +77,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ISearchService private readonly _searchService: ISearchService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super(TEXT_SEARCH_QUICK_ACCESS_PREFIX, { canAcceptInBackground: true, shouldSkipTrimPickFilter: true });
 
@@ -109,10 +105,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			const [item] = picker.activeItems;
 
 			if (item.match) {
-				if (!this.navigatedAwayUsingPick) {
+				// only store location once, or else it will store new state every time we change active pick
+				if (!this.storedOriginalLocation) {
 					// we must remember our curret view state to be able to restore
-					this.pickState.rememberEditorViewState();
-					this.navigatedAwayUsingPick = true;
+					this.editorViewState.set();
+					this.storedOriginalLocation = true;
 				}
 				// open it
 				this._editorService.openEditor({
@@ -122,18 +119,18 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			}
 		}));
 
-		// Restore view state upon cancellation if we changed it
-		// but only when the picker was closed via explicit user
-		// gesture and not e.g. when focus was lost because that
-		// could mean the user clicked into the editor directly.
 		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
+			// Restore view state upon cancellation if we changed it
+			// but only when the picker was closed via explicit user
+			// gesture and not e.g. when focus was lost because that
+			// could mean the user clicked into the editor directly.
 			if (reason === QuickInputHideReason.Gesture) {
-				this.pickState.restoreEditorViewState();
+				this.editorViewState.restore();
 			}
+			this.searchModel.searchResult.toggleHighlights(false);
 		}));
 
 		disposables.add(super.provide(picker, token, runOptions));
-		disposables.add(picker.onDidHide(() => this.searchModel.searchResult.toggleHighlights(false)));
 		disposables.add(picker.onDidAccept(() => this.searchModel.searchResult.toggleHighlights(false)));
 		return disposables;
 	}

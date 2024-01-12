@@ -71,68 +71,23 @@ function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEd
 	return !!candidate?.range && !!candidate.resource;
 }
 
-export class PickState {
-	picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
-
-	editorViewState: {
+export class EditorViewState {
+	private _editorViewState: {
 		editor: EditorInput;
 		group: IEditorGroup;
 		state: ICodeEditorViewState | IDiffEditorViewState | undefined;
 	} | undefined = undefined;
 
-	scorerCache: FuzzyScorerCache = Object.create(null);
-	fileQueryCache: FileQueryCacheState | undefined = undefined;
+	constructor(private readonly editorService: IEditorService) { }
 
-	lastOriginalFilter: string | undefined = undefined;
-	lastFilter: string | undefined = undefined;
-	lastRange: IRange | undefined = undefined;
-
-	lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
-
-	isQuickNavigating: boolean | undefined = undefined;
-
-	private readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
-
-	constructor(
-		private readonly instantiationService: IInstantiationService,
-		private readonly contextService: IWorkspaceContextService,
-		private readonly searchService: ISearchService,
-		private readonly editorService: IEditorService) { }
-
-	set(picker: IQuickPick<IAnythingQuickPickItem>): void {
-
-		// Picker for this run
-		this.picker = picker;
-		Event.once(picker.onDispose)(() => {
-			if (picker === this.picker) {
-				this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
-			}
-		});
-
-		// Caches
-		const isQuickNavigating = !!picker.quickNavigate;
-		if (!isQuickNavigating) {
-			this.fileQueryCache = this.createFileQueryCache();
-			this.scorerCache = Object.create(null);
-		}
-
-		// Other
-		this.isQuickNavigating = isQuickNavigating;
-		this.lastOriginalFilter = undefined;
-		this.lastFilter = undefined;
-		this.lastRange = undefined;
-		this.lastGlobalPicks = undefined;
-		this.editorViewState = undefined;
-	}
-
-	rememberEditorViewState(): void {
-		if (this.editorViewState) {
+	set(): void {
+		if (this._editorViewState) {
 			return; // return early if already done
 		}
 
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane) {
-			this.editorViewState = {
+			this._editorViewState = {
 				group: activeEditorPane.group,
 				editor: activeEditorPane.input,
 				state: getIEditor(activeEditorPane.getControl())?.saveViewState() ?? undefined,
@@ -140,36 +95,19 @@ export class PickState {
 		}
 	}
 
-	getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
-		return {
-			_reason: 'openFileHandler', // used for telemetry - do not change
-			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
-			filePattern: input.filePattern || '',
-			cacheKey: input.cacheKey,
-			maxResults: input.maxResults || 0,
-			sortByScore: true
-		};
-	}
-
-	async restoreEditorViewState(): Promise<void> {
-		if (this.editorViewState) {
+	async restore(): Promise<void> {
+		if (this._editorViewState) {
 			const options: IEditorOptions = {
-				viewState: this.editorViewState.state,
+				viewState: this._editorViewState.state,
 				preserveFocus: true /* import to not close the picker as a result */
 			};
 
-			await this.editorViewState.group.openEditor(this.editorViewState.editor, options);
+			await this._editorViewState.group.openEditor(this._editorViewState.editor, options);
 		}
 	}
 
-
-	private createFileQueryCache(): FileQueryCacheState {
-		return new FileQueryCacheState(
-			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({ cacheKey })),
-			query => this.searchService.fileSearch(query),
-			cacheKey => this.searchService.clearCache(cacheKey),
-			this.fileQueryCache
-		).load();
+	reset() {
+		this._editorViewState = undefined;
 	}
 }
 
@@ -187,12 +125,53 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
-	private readonly pickState = new PickState(
-		this.instantiationService,
-		this.contextService,
-		this.searchService,
-		this.editorService
-	);
+	private readonly pickState = new class {
+
+		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
+
+		editorViewState: EditorViewState;
+
+		scorerCache: FuzzyScorerCache = Object.create(null);
+		fileQueryCache: FileQueryCacheState | undefined = undefined;
+
+		lastOriginalFilter: string | undefined = undefined;
+		lastFilter: string | undefined = undefined;
+		lastRange: IRange | undefined = undefined;
+
+		lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
+
+		isQuickNavigating: boolean | undefined = undefined;
+
+		constructor(private readonly provider: AnythingQuickAccessProvider, editorService: IEditorService) {
+			this.editorViewState = new EditorViewState(editorService);
+		}
+
+		set(picker: IQuickPick<IAnythingQuickPickItem>): void {
+
+			// Picker for this run
+			this.picker = picker;
+			Event.once(picker.onDispose)(() => {
+				if (picker === this.picker) {
+					this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
+				}
+			});
+
+			// Caches
+			const isQuickNavigating = !!picker.quickNavigate;
+			if (!isQuickNavigating) {
+				this.fileQueryCache = this.provider.createFileQueryCache();
+				this.scorerCache = Object.create(null);
+			}
+
+			// Other
+			this.isQuickNavigating = isQuickNavigating;
+			this.lastOriginalFilter = undefined;
+			this.lastFilter = undefined;
+			this.lastRange = undefined;
+			this.lastGlobalPicks = undefined;
+			this.editorViewState.reset();
+		}
+	}(this, this.editorService);
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -270,7 +249,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// could mean the user clicked into the editor directly.
 		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
 			if (reason === QuickInputHideReason.Gesture) {
-				this.pickState.restoreEditorViewState();
+				this.pickState.editorViewState.restore();
 			}
 		}));
 
@@ -292,7 +271,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// we must remember our curret view state to be able to restore
-		this.pickState.rememberEditorViewState();
+		this.pickState.editorViewState.set();
 
 		// Reveal
 		activeEditorControl.revealRangeInCenter(pick.range.selection, ScrollType.Smooth);
@@ -543,6 +522,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
 
+	private createFileQueryCache(): FileQueryCacheState {
+		return new FileQueryCacheState(
+			cacheKey => this.fileQueryBuilder.file(this.contextService.getWorkspace().folders, this.getFileQueryOptions({ cacheKey })),
+			query => this.searchService.fileSearch(query),
+			cacheKey => this.searchService.clearCache(cacheKey),
+			this.pickState.fileQueryCache
+		).load();
+	}
 
 	private async getFilePicks(query: IPreparedQuery, excludes: ResourceMap<boolean>, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (!query.normalized) {
@@ -686,7 +673,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return this.searchService.fileSearch(
 			this.fileQueryBuilder.file(
 				this.contextService.getWorkspace().folders,
-				this.pickState.getFileQueryOptions({
+				this.getFileQueryOptions({
 					filePattern,
 					cacheKey: this.pickState.fileQueryCache?.cacheKey,
 					maxResults: AnythingQuickAccessProvider.MAX_RESULTS
@@ -694,6 +681,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			), token);
 	}
 
+	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
+		return {
+			_reason: 'openFileHandler', // used for telemetry - do not change
+			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
+			filePattern: input.filePattern || '',
+			cacheKey: input.cacheKey,
+			maxResults: input.maxResults || 0,
+			sortByScore: true
+		};
+	}
 
 	private async getAbsolutePathFileResult(query: IPreparedQuery, token: CancellationToken): Promise<URI | undefined> {
 		if (!query.containsPathSeparator) {
@@ -886,7 +883,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		try {
 
 			// we must remember our curret view state to be able to restore
-			this.pickState.rememberEditorViewState();
+			this.pickState.editorViewState.set();
 
 			// open it
 			await this.editorService.openEditor({
@@ -1054,7 +1051,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Restore any view state if the target is the side group
 		if (targetGroup === SIDE_GROUP) {
-			await this.pickState.restoreEditorViewState();
+			await this.pickState.editorViewState.restore();
 		}
 
 		// Open editor (typed)
