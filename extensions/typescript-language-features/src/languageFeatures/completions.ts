@@ -374,7 +374,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		// If TS returns an explicit replacement range, we should use it for both types of completion
 		return {
-			inserting: replaceRange,
+			inserting: new vscode.Range(replaceRange.start, this.position),
 			replacing: replaceRange,
 		};
 	}

@@ -29,9 +29,9 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
 	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
 
-	// Auto save: waiting on errors to clear
-	private readonly waitingOnErrorAutoSaveWorkingCopies = new ResourceMap<{ readonly workingCopy: IWorkingCopy; readonly reason: SaveReason }>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
-	private readonly waitingOnErrorAutoSaveEditors = new ResourceMap<{ readonly editor: IEditorIdentifier; readonly reason: SaveReason }>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	// Auto save: waiting on specific condition
+	private readonly waitingOnConditionAutoSaveWorkingCopies = new ResourceMap<{ readonly workingCopy: IWorkingCopy; readonly reason: SaveReason; condition: AutoSaveDisabledReason }>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	private readonly waitingOnConditionAutoSaveEditors = new ResourceMap<{ readonly editor: IEditorIdentifier; readonly reason: SaveReason; condition: AutoSaveDisabledReason }>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
@@ -65,38 +65,40 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.onDidChangeDirty(workingCopy)));
 		this._register(this.workingCopyService.onDidChangeContent(workingCopy => this.onDidChangeContent(workingCopy)));
 
-		// Marker events
-		this._register(this.markerService.onMarkerChanged(e => this.onMarkerChanged(e)));
+		// Condition changes
+		this._register(this.markerService.onMarkerChanged(e => this.onConditionChanged(e, AutoSaveDisabledReason.ERRORS)));
+		this._register(this.filesConfigurationService.onDidChangeAutoSaveDisabled(resource => this.onConditionChanged([resource], AutoSaveDisabledReason.DISABLED)));
 	}
 
-	private onMarkerChanged(resources: readonly URI[]): void {
+	private onConditionChanged(resources: readonly URI[], condition: AutoSaveDisabledReason.ERRORS | AutoSaveDisabledReason.DISABLED): void {
 		for (const resource of resources) {
 
 			// Waiting working copies
-			const workingCopyResult = this.waitingOnErrorAutoSaveWorkingCopies.get(resource);
-			if (workingCopyResult) {
+			const workingCopyResult = this.waitingOnConditionAutoSaveWorkingCopies.get(resource);
+			if (workingCopyResult?.condition === condition) {
 				if (
 					workingCopyResult.workingCopy.isDirty() &&
 					this.filesConfigurationService.getAutoSaveMode(workingCopyResult.workingCopy.resource).mode !== AutoSaveMode.OFF
 				) {
 					this.discardAutoSave(workingCopyResult.workingCopy);
 
-					this.logService.info(`[editor auto save] running auto save from marker change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
+					this.logService.info(`[editor auto save] running auto save from condition change event`, workingCopyResult.workingCopy.resource.toString(), workingCopyResult.workingCopy.typeId);
 					workingCopyResult.workingCopy.save({ reason: workingCopyResult.reason });
 				}
 			}
 
 			// Waiting editors
 			else {
-				const editorResult = this.waitingOnErrorAutoSaveEditors.get(resource);
+				const editorResult = this.waitingOnConditionAutoSaveEditors.get(resource);
 				if (
-					!editorResult?.editor.editor.isDisposed() &&
-					editorResult?.editor.editor.isDirty() &&
+					editorResult?.condition === condition &&
+					!editorResult.editor.editor.isDisposed() &&
+					editorResult.editor.editor.isDirty() &&
 					this.filesConfigurationService.getAutoSaveMode(editorResult.editor.editor).mode !== AutoSaveMode.OFF
 				) {
-					this.waitingOnErrorAutoSaveEditors.delete(resource);
+					this.waitingOnConditionAutoSaveEditors.delete(resource);
 
-					this.logService.info(`[editor auto save] running auto save from marker change event with reason ${editorResult.reason}`);
+					this.logService.info(`[editor auto save] running auto save from condition change event with reason ${editorResult.reason}`);
 					this.editorService.save(editorResult.editor, { reason: editorResult.reason });
 				}
 			}
@@ -158,8 +160,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 					this.logService.trace(`[editor auto save] triggering auto save with reason ${reason}`);
 					this.editorService.save(editorIdentifier, { reason });
 				}
-			} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS && editorIdentifier.editor.resource) {
-				this.waitingOnErrorAutoSaveEditors.set(editorIdentifier.editor.resource, { editor: editorIdentifier, reason });
+			} else if (editorIdentifier.editor.resource && (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED)) {
+				this.waitingOnConditionAutoSaveEditors.set(editorIdentifier.editor.resource, { editor: editorIdentifier, reason, condition: autoSaveMode.reason });
 			}
 		} else {
 			this.saveAllDirtyAutoSaveables(reason);
@@ -197,8 +199,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			const autoSaveMode = this.filesConfigurationService.getAutoSaveMode(workingCopy.resource);
 			if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 				workingCopy.save({ reason });
-			} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS) {
-				this.waitingOnErrorAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason });
+			} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED) {
+				this.waitingOnConditionAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason, condition: autoSaveMode.reason });
 			}
 		}
 	}
@@ -257,8 +259,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 				if (autoSaveMode.mode !== AutoSaveMode.OFF) {
 					this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
 					workingCopy.save({ reason: SaveReason.AUTO });
-				} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS) {
-					this.waitingOnErrorAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason: SaveReason.AUTO });
+				} else if (autoSaveMode.reason === AutoSaveDisabledReason.ERRORS || autoSaveMode.reason === AutoSaveDisabledReason.DISABLED) {
+					this.waitingOnConditionAutoSaveWorkingCopies.set(workingCopy.resource, { workingCopy, reason: SaveReason.AUTO, condition: autoSaveMode.reason });
 				}
 			}
 		}, autoSaveAfterDelay);
@@ -275,7 +277,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		dispose(this.scheduledAutoSavesAfterDelay.get(workingCopy));
 		this.scheduledAutoSavesAfterDelay.delete(workingCopy);
 
-		this.waitingOnErrorAutoSaveWorkingCopies.delete(workingCopy.resource);
-		this.waitingOnErrorAutoSaveEditors.delete(workingCopy.resource);
+		this.waitingOnConditionAutoSaveWorkingCopies.delete(workingCopy.resource);
+		this.waitingOnConditionAutoSaveEditors.delete(workingCopy.resource);
 	}
 }

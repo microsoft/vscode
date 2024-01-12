@@ -9,6 +9,7 @@ import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 import type { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as rendererApi from 'vscode-notebook-renderer';
+import * as browser from 'vs/base/browser/browser';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -482,9 +483,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				deltaX: event.deltaX,
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
-				wheelDelta: event.wheelDelta,
-				wheelDeltaX: event.wheelDeltaX,
-				wheelDeltaY: event.wheelDeltaY,
+				// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
+				wheelDelta: event.wheelDelta && browser.isChrome ? (event.wheelDelta / $window.devicePixelRatio) : event.wheelDelta,
+				wheelDeltaX: event.wheelDeltaX && browser.isChrome ? (event.wheelDeltaX / $window.devicePixelRatio) : event.wheelDeltaX,
+				wheelDeltaY: event.wheelDeltaY && browser.isChrome ? (event.wheelDeltaY / $window.devicePixelRatio) : event.wheelDeltaY,
 				detail: event.detail,
 				shiftKey: event.shiftKey,
 				type: event.type
