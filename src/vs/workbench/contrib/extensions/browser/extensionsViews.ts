@@ -56,8 +56,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { isOfflineError } from 'vs/base/parts/request/common/request';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
-// Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
-const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
+export const NONE_CATEGORY = 'none';
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
@@ -410,7 +409,11 @@ export class ExtensionsListView extends ViewPane {
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
 
-		if (/@builtin/i.test(value)) {
+		if (/@category/i.test(query.value)) {
+			extensions = this.filterExtensionsByCategory(local, query, options);
+		}
+
+		else if (/@builtin/i.test(value)) {
 			extensions = this.filterBuiltinExtensions(local, query, options);
 			canIncludeInstalledExtensions = false;
 		}
@@ -447,52 +450,41 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterBuiltinExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let value = query.value;
-		const showThemesOnly = /@builtin:themes/i.test(value);
-		if (showThemesOnly) {
-			value = value.replace(/@builtin:themes/g, '');
-		}
-		const showBasicsOnly = /@builtin:basics/i.test(value);
-		if (showBasicsOnly) {
-			value = value.replace(/@builtin:basics/g, '');
-		}
-		const showFeaturesOnly = /@builtin:features/i.test(value);
-		if (showFeaturesOnly) {
-			value = value.replace(/@builtin:features/g, '');
-		}
-
-		value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		const value = query.value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 		const result = local
 			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
-		const isThemeExtension = (e: IExtension): boolean => {
-			return (Array.isArray(e.local?.manifest?.contributes?.themes) && e.local!.manifest!.contributes!.themes.length > 0)
-				|| (Array.isArray(e.local?.manifest?.contributes?.iconThemes) && e.local!.manifest!.contributes!.iconThemes.length > 0);
-		};
-		if (showThemesOnly) {
-			const themesExtensions = result.filter(isThemeExtension);
-			return this.sortExtensions(themesExtensions, options);
-		}
+		return this.sortExtensions(result, options);
+	}
 
-		const isLanguageBasicExtension = (e: IExtension): boolean => {
-			return FORCE_FEATURE_EXTENSIONS.indexOf(e.identifier.id) === -1
-				&& (Array.isArray(e.local?.manifest?.contributes?.grammars) && e.local!.manifest!.contributes!.grammars.length > 0);
-		};
-		if (showBasicsOnly) {
-			const basics = result.filter(isLanguageBasicExtension);
-			return this.sortExtensions(basics, options);
+	private filterExtensionsByCategory(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let value = query.value;
+		const isBuiltin = /@builtin/i.test(value);
+		if (isBuiltin) {
+			value = value.replace(/@builtin/g, '').trim();
 		}
-		if (showFeaturesOnly) {
-			const others = result.filter(e => {
-				return e.local
-					&& e.local.manifest
-					&& !isThemeExtension(e)
-					&& !isLanguageBasicExtension(e);
-			});
-			return this.sortExtensions(others, options);
+		const isInstalled = /@installed/i.test(value);
+		if (isInstalled) {
+			value = value.replace(/@installed/g, '').trim();
 		}
-
+		value = value.substring('@category:'.length).trim().toLowerCase();
+		const categories = value.split(',');
+		const includeCategories = categories.filter(c => !c.startsWith('-'));
+		const excludeCategories = categories.filter(c => c.startsWith('-')).map(c => c.substring(1));
+		const result = local.filter(e => {
+			if (e.isBuiltin !== isBuiltin) {
+				return false;
+			}
+			if (e.categories.length) {
+				if (excludeCategories.length && e.categories.some(category => excludeCategories.includes(category.toLowerCase()))) {
+					return false;
+				}
+				return e.categories.some(category => includeCategories.includes(category.toLowerCase()));
+			} else {
+				return categories.includes(NONE_CATEGORY);
+			}
+		});
 		return this.sortExtensions(result, options);
 	}
 
@@ -1082,6 +1074,7 @@ export class ExtensionsListView extends ViewPane {
 
 	static isLocalExtensionsQuery(query: string, sortBy?: string): boolean {
 		return this.isInstalledExtensionsQuery(query)
+			|| this.isSearchInstalledExtensionsQuery(query)
 			|| this.isOutdatedExtensionsQuery(query)
 			|| this.isEnabledExtensionsQuery(query)
 			|| this.isDisabledExtensionsQuery(query)
@@ -1092,7 +1085,8 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
-			|| this.isSortInstalledExtensionsQuery(query, sortBy);
+			|| this.isSortInstalledExtensionsQuery(query, sortBy)
+			|| this.isCategoryExtensionsQuery(query);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -1112,7 +1106,11 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	static isInstalledExtensionsQuery(query: string): boolean {
-		return /@installed/i.test(query);
+		return /@installed$/i.test(query);
+	}
+
+	static isSearchInstalledExtensionsQuery(query: string): boolean {
+		return /@installed\s./i.test(query);
 	}
 
 	static isOutdatedExtensionsQuery(query: string): boolean {
@@ -1161,6 +1159,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isSortInstalledExtensionsQuery(query: string, sortBy?: string): boolean {
 		return (sortBy !== undefined && sortBy !== '' && query === '') || (!sortBy && /^@sort:\S*$/i.test(query));
+	}
+
+	static isCategoryExtensionsQuery(query: string): boolean {
+		return /^\s*@category:.+$/i.test(query.trim());
 	}
 
 	static isSearchPopularQuery(query: string): boolean {
@@ -1265,6 +1267,54 @@ export class RecentlyUpdatedExtensionsView extends ExtensionsListView {
 export class BuiltInFeatureExtensionsView extends ExtensionsListView {
 	override async show(query: string): Promise<IPagedModel<IExtension>> {
 		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:features');
+	}
+}
+
+export interface StaticQueryExtensionsViewOptions extends ExtensionsListViewOptions {
+	readonly query: string;
+}
+
+export class StaticQueryExtensionsView extends ExtensionsListView {
+
+	constructor(
+		protected override readonly options: StaticQueryExtensionsViewOptions,
+		viewletViewOptions: IViewletViewOptions,
+		@INotificationService notificationService: INotificationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IExtensionService extensionService: IExtensionService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionRecommendationsService extensionRecommendationsService: IExtensionRecommendationsService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IWorkbenchExtensionManagementService extensionManagementService: IWorkbenchExtensionManagementService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
+		@IProductService productService: IProductService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IOpenerService openerService: IOpenerService,
+		@IPreferencesService preferencesService: IPreferencesService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ILogService logService: ILogService
+	) {
+		super(options, viewletViewOptions, notificationService, keybindingService, contextMenuService, instantiationService, themeService, extensionService,
+			extensionsWorkbenchService, extensionRecommendationsService, telemetryService, configurationService, contextService, extensionManagementServerService,
+			extensionManifestPropertiesService, extensionManagementService, workspaceService, productService, contextKeyService, viewDescriptorService, openerService,
+			preferencesService, storageService, workspaceTrustManagementService, extensionEnablementService, layoutService, logService);
+	}
+
+	override async show(): Promise<IPagedModel<IExtension>> {
+		const model = await super.show(this.options.query);
+		this.setExpanded(model.length > 0);
+		return model;
 	}
 }
 

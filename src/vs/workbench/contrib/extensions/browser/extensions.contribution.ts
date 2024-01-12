@@ -13,7 +13,7 @@ import { EnablementState, IExtensionManagementServerService, IWorkbenchExtension
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension, extensionsSearchActionsMenu, UPDATE_ACTIONS_GROUP, ExtensionsGroupsConfigurationKey, EnableGroupingConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction, ToggleAutoUpdateForExtensionAction, ToggleAutoUpdatesForPublisherAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -79,6 +79,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
 import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
+import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -103,7 +104,6 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	[
 		new SyncDescriptor(ExtensionsInput)
 	]);
-
 
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
@@ -256,6 +256,39 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsDeferredStartupFinishedActivation', "When enabled, extensions which declare the `onStartupFinished` activation event will be activated after a timeout."),
 				default: false
+			},
+			[EnableGroupingConfigurationKey]: {
+				type: 'boolean',
+				markdownDescription: localize('extensions.enableGrouping', "When enabled, installed extensions will be grouped by categories as configured in {0}", '`#extensions.groups#`'),
+				default: false,
+			},
+			[ExtensionsGroupsConfigurationKey]: {
+				type: 'object',
+				description: localize('extensions.group.desc', "Configure extension groups."),
+				properties: EXTENSION_CATEGORIES.reduce<IJSONSchemaMap>((schema, category) => {
+					schema[category] = {
+						type: 'array',
+						description: localize('category desc', "Configure extensions to show in this group."),
+						items: {
+							type: 'string',
+							enum: EXTENSION_CATEGORIES,
+						},
+						default: [category],
+					};
+					return schema;
+				}, {}),
+				additionalProperties: {
+					type: 'array',
+					description: localize('category desc', "Configure extensions to show in this group."),
+					items: {
+						type: 'string',
+						enum: EXTENSION_CATEGORIES,
+					},
+				},
+				default: {
+					'Programming Languages': ['Programming Languages'],
+					'Themes': ['Themes'],
+				}
 			}
 		}
 	});
@@ -1127,7 +1160,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					const viewlet = await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar, true);
 					const extensionsViewPaneContainer = viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 					const currentQuery = Query.parse(extensionsViewPaneContainer.searchValue || '');
-					extensionsViewPaneContainer.search(new Query(currentQuery.value, id, currentQuery.groupBy).toString());
+					extensionsViewPaneContainer.search(new Query(currentQuery.value, id).toString());
 					extensionsViewPaneContainer.focus();
 				}
 			});

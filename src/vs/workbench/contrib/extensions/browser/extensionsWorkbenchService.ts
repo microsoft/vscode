@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
 import { Event, Emitter } from 'vs/base/common/event';
-import { index } from 'vs/base/common/arrays';
+import { distinct, index } from 'vs/base/common/arrays';
 import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -23,7 +23,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstalledExtensionsCategoriesContext } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -720,6 +720,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	declare readonly _serviceBrand: undefined;
 
 	private hasOutdatedExtensionsContextKey: IContextKey<boolean>;
+	private installedExtensionsCategoriesContext: IContextKey<string>;
 
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;
@@ -775,6 +776,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.preferPreReleases = !!preferPreReleasesValue;
 		}
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
+		this.installedExtensionsCategoriesContext = InstalledExtensionsCategoriesContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions, extensionManagementServerService.localExtensionManagementServer, ext => this.getExtensionState(ext), ext => this.getReloadStatus(ext)));
 			this._register(this.localExtensions.onChange(e => this.onDidChangeExtensions(e?.extension)));
@@ -820,6 +822,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this._store.isDisposed) {
 			return;
 		}
+
+		this.updateInstalledExtensionsCategoriesContext();
+
 		this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
 		this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
 
@@ -831,6 +836,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.reportInstalledExtensionsTelemetry();
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.reportProgressFromOtherSources()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange(false)));
+	}
+
+	private updateInstalledExtensionsCategoriesContext() {
+		const categories = distinct(this.local.map(e => e.categories).flat()).map(c => c.toLowerCase());
+		this.installedExtensionsCategoriesContext.set(categories.join(','));
 	}
 
 	private initializeAutoUpdate(): void {
@@ -912,6 +922,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this._installed = undefined;
 		this._local = undefined;
 		this._onChange.fire(extension);
+		this.updateInstalledExtensionsCategoriesContext();
 	}
 
 	private _local: IExtension[] | undefined;
