@@ -479,6 +479,8 @@ type HunkTrackedRange = {
 	 * The first element [0] is the whole modified range and subsequent elements are word-level changes
 	 */
 	getRanges(): Range[];
+
+	discardChanges(): void;
 };
 
 const enum HunkState {
@@ -503,6 +505,7 @@ type HunkDisplayData = {
 interface HunkDisplay {
 	renderHunks(): HunkDisplayData | undefined;
 	hideHunks(): void;
+	discardHunks(): void;
 }
 
 export class LiveStrategy extends EditModeStrategy {
@@ -593,13 +596,8 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
+		this._hunkDisplay?.discardHunks();
 		this._resetDiff();
-		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
-		if (modelN.isDisposed()) {
-			return;
-		}
-		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -686,7 +684,7 @@ export class LiveStrategy extends EditModeStrategy {
 			// (INIT) compute hunks
 			const hunks = await this._computeHunks();
 			if (hunks.length === 0) {
-				this._hunkDisplay = { renderHunks() { return undefined; }, hideHunks() { } };
+				this._hunkDisplay = { renderHunks() { return undefined; }, hideHunks() { }, discardHunks() { } };
 				return undefined;
 			}
 
@@ -700,13 +698,26 @@ export class LiveStrategy extends EditModeStrategy {
 					for (const change of hunk.changes) {
 						decorationIds.push(accessor.addDecoration(change.modifiedRange, this._decoTrackedRange));
 					}
-					hunkTrackedRanges.set(hunk, {
+					const hunkLiveInfo: HunkTrackedRange = {
 						getRanges: () => {
 							const ranges = decorationIds.map(id => model.getDecorationRange(id));
 							coalesceInPlace(ranges);
 							return ranges;
+						},
+						discardChanges: () => {
+							const edits: ISingleEditOperation[] = [];
+							const ranges = hunkLiveInfo.getRanges();
+							for (let i = 1; i < ranges.length; i++) {
+								// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
+								// which was created above so that typing in the editor keeps discard working.
+								const modifiedRange = ranges[i];
+								const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
+								edits.push(EditOperation.replace(modifiedRange, originalValue));
+							}
+							this._session.textModelN.pushEditOperations(null, edits, () => null);
 						}
-					});
+					};
+					hunkTrackedRanges.set(hunk, hunkLiveInfo);
 					this._renderStore.add(toDisposable(() => {
 						model.deltaDecorations(decorationIds, []);
 					}));
@@ -742,16 +753,8 @@ export class LiveStrategy extends EditModeStrategy {
 							};
 
 							const discardHunk = () => {
-								const edits: ISingleEditOperation[] = [];
-								const hunkRanges = hunkTrackedRanges.get(hunk)!.getRanges();
-								for (let i = 1; i < hunkRanges.length; i++) {
-									// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
-									// which was created above so that typing in the editor keeps discard working.
-									const modifiedRange = hunkRanges[i];
-									const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
-									edits.push(EditOperation.replace(modifiedRange, originalValue));
-								}
-								this._session.textModelN.pushEditOperations(null, edits, () => null);
+								const info = hunkTrackedRanges.get(hunk)!;
+								info.discardChanges();
 								hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
 								renderHunks();
 							};
@@ -892,7 +895,13 @@ export class LiveStrategy extends EditModeStrategy {
 				hunkDisplayData.clear();
 			};
 
-			this._hunkDisplay = { renderHunks, hideHunks };
+			const discardHunks = () => {
+				for (const data of hunkTrackedRanges.values()) {
+					data.discardChanges();
+				}
+			};
+
+			this._hunkDisplay = { renderHunks, hideHunks, discardHunks };
 		}
 
 		return this._hunkDisplay?.renderHunks()?.position;
