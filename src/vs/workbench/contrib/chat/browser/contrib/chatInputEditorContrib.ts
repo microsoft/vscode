@@ -534,7 +534,7 @@ class BuiltinDynamicCompletions extends Disposable {
 					return null;
 				}
 
-				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.endColumn + 'file:'.length);
+				const afterRange = new Range(position.lineNumber, range.replace.startColumn, position.lineNumber, range.replace.startColumn + '#file:'.length);
 				return <CompletionList>{
 					suggestions: [
 						<CompletionItem>{
