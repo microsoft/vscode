@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 export class MultiDiffEditorViewModel extends Disposable {
 	private readonly _documents = observableFromEvent(this.model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this.model.documents);
 
-	public readonly items = mapObservableArrayCached(this._documents, this, (d, store) => store.add(new DocumentDiffItemViewModel(d, this._instantiationService)))
+	public readonly items = mapObservableArrayCached(this, this._documents, (d, store) => store.add(new DocumentDiffItemViewModel(d, this._instantiationService)))
 		.recomputeInitiallyAndOnChange(this._store);
 
 	public readonly activeDiffItem = observableValue<DocumentDiffItemViewModel | undefined>(this, undefined);
