@@ -182,7 +182,7 @@ export class WellDefinedPrefixTree<V> {
 	}
 }
 
-class Node<T> implements IPrefixTreeNode<T>  {
+class Node<T> implements IPrefixTreeNode<T> {
 	public children?: Map<string, Node<T>>;
 
 	public get value() {

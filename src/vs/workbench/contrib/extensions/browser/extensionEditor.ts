@@ -940,6 +940,11 @@ export class ExtensionEditor extends EditorPane {
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
 		}
+		if (extension.url && extension.supportUrl) {
+			try {
+				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
+			} catch (error) {/* Ignore */ }
+		}
 		if (extension.repository) {
 			try {
 				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);

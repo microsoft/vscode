@@ -598,6 +598,7 @@ export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
 export const enum DetailType {
 	Function,
 	Statement,
+	Branch,
 }
 
 export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
@@ -802,7 +803,7 @@ export interface IncrementalChangeCollector<T> {
 /**
  * Maintains tests in this extension host sent from the main thread.
  */
-export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem>  {
+export abstract class AbstractIncrementalTestCollection<T extends IncrementalTestCollectionItem> {
 	private readonly _tags = new Map<string, ITestTagDisplayInfo>();
 
 	/**
