@@ -417,12 +417,15 @@
 
 /** -- coverage decorations  */
 
+.coverage-deco-gutter {
+	z-index: 0;
+}
+
 .coverage-deco-gutter::before {
 	content: '';
 	position: absolute;
 	inset: 0;
-	right: 25%;
-	left: 25%;
+	z-index: -1;
 }
 
 .coverage-deco-gutter.coverage-deco-hit::before {

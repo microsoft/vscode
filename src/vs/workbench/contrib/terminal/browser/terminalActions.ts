@@ -1902,7 +1902,9 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
 	let instance: ITerminalInstance | undefined = resource as ITerminalInstance;
-	if (!instance) {
+	// Check if the 'instance' does not exist or if 'instance.rename' is not defined
+	if (!instance || !instance?.rename) {
+		// If not, obtain the resource instance using 'getResourceOrActiveInstance'
 		instance = getResourceOrActiveInstance(c, resource);
 	}
 
