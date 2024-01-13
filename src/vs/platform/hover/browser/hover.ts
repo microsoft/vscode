@@ -120,7 +120,7 @@ export interface IHoverOptions {
 	 * target element. This should be set when clicking the target element
 	 * shows the hover to prevent flicker.
 	 */
-	disableHideOnMouseClick?: boolean;
+	disableHideOnClick?: boolean;
 }
 
 export interface IHoverPositionOptions {

@@ -97,7 +97,7 @@ export class HoverService implements IHoverService {
 				}
 			}));
 		} else {
-			if (!options.disableHideOnMouseClick) {
+			if (!options.disableHideOnClick) {
 				if ('targetElements' in options.target) {
 					for (const element of options.target.targetElements) {
 						hoverDisposables.add(addDisposableListener(element, EventType.CLICK, () => this.hideHover()));
