@@ -741,7 +741,7 @@ export class QuickInputList {
 		if (items.length > 0) {
 			const focused = this.list.getFocus()[0];
 			if (typeof focused === 'number') {
-				this.list.reveal(focused);
+				this.list.reveal(focused, 0, 0, true);
 			}
 		}
 	}

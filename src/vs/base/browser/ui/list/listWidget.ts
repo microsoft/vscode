@@ -1868,7 +1868,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.getFocus().map(i => this.view.element(i));
 	}
 
-	reveal(index: number, relativeTop?: number, paddingTop: number = 0): void {
+	reveal(index: number, relativeTop?: number, paddingTop: number = 0, applyRelativeTopOnlyIfNotVisible: boolean = false): void {
 		if (index < 0 || index >= this.length) {
 			throw new ListError(this.user, `Invalid index ${index}`);
 		}
@@ -1878,9 +1878,20 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		const elementHeight = this.view.elementHeight(index);
 
 		if (isNumber(relativeTop)) {
-			// y = mx + b
-			const m = elementHeight - this.view.renderHeight + paddingTop;
-			this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop);
+			let applyRelativeTop: boolean;
+			if (applyRelativeTopOnlyIfNotVisible) {
+				const viewItemBottom = elementTop + elementHeight;
+				const scrollBottom = scrollTop + this.view.renderHeight;
+
+				applyRelativeTop = elementTop < scrollTop + paddingTop || viewItemBottom >= scrollBottom;
+			} else {
+				applyRelativeTop = true;
+			}
+			if (applyRelativeTop) {
+				// y = mx + b
+				const m = elementHeight - this.view.renderHeight + paddingTop;
+				this.view.setScrollTop(m * clamp(relativeTop, 0, 1) + elementTop - paddingTop);
+			}
 		} else {
 			const viewItemBottom = elementTop + elementHeight;
 			const scrollBottom = scrollTop + this.view.renderHeight;
