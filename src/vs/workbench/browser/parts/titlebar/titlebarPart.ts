@@ -7,7 +7,7 @@ import 'vs/css!./media/titlebarpart';
 import { localize, localize2 } from 'vs/nls';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
-import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
+import { getZoomFactor, isWCOEnabled, onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -206,6 +206,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	private _onDidChangeSize = this._register(new Emitter<{ width: number; height: number } | undefined>());
+	override get onDidChange() { return this._onDidChangeSize.event; }
+
 	//#endregion
 
 	protected rootContainer!: HTMLElement;
@@ -280,6 +283,14 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
+		this._register(onDidChangeZoomLevel(windowId => {
+			if (windowId === targetWindowId && this.preventZoom) {
+				// when we prevent zooming, we change our `minimumHeight`
+				// to counter the zoom effect. any change to height must
+				// emit a `onDidChange` event to notify the grid container
+				this._onDidChangeSize.fire(undefined);
+			}
+		}));
 	}
 
 	private onBlur(): void {
