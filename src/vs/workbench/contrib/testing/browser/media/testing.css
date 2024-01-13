@@ -461,3 +461,23 @@
 .coverage-deco-inline.coverage-deco-miss {
 	background: var(--vscode-testing-uncoveredBackground);
 }
+
+.coverage-deco-branch-miss-indicator {
+	height: 100%;
+	width: 4ch;
+	position: relative;
+	display: inline-block;
+	font: inherit !important;
+}
+
+.coverage-deco-branch-miss-indicator::before {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	text-align: center;
+	transform: translate(-50%, -50%);
+	padding: calc(var(--vscode-testing-coverage-lineHeight) / 10);
+	border-radius: 2px;
+	font: normal normal normal calc(var(--vscode-testing-coverage-lineHeight) / 2)/1 codicon;
+	border: 1px solid;
+}

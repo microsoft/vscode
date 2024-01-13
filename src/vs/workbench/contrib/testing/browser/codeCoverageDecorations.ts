@@ -5,12 +5,14 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -18,7 +20,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -27,6 +29,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { testingCoverageMissingBranch } from 'vs/workbench/contrib/testing/browser/icons';
 import { FileCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestCoverageService } from 'vs/workbench/contrib/testing/common/testCoverageService';
 import { CoverageDetails, DetailType, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -37,19 +40,22 @@ const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
 const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline Coverage');
 const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
+const BRANCH_MISS_INDICATOR_CHARS = 4;
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
 	public static showInline = observableValue('inlineCoverage', false);
+	private static readonly fileCoverageDecorations = new WeakMap<FileCoverage, CoverageDetailsModel>();
 
 	private loadingCancellation?: CancellationTokenSource;
 	private readonly displayedStore = this._register(new DisposableStore());
 	private readonly hoveredStore = this._register(new DisposableStore());
 	private readonly lineHoverWidget: Lazy<LineHoverWidget>;
 	private decorationIds = new Map<string, {
+		detail: DetailRange;
 		options: IModelDecorationOptions;
-		hoverOptions: Partial<IModelDecorationOptions>;
+		applyHoverOptions(target: IModelDecorationOptions): void;
 	}>();
-	private hoveredLineNumber?: number;
+	private hoveredSubject?: unknown;
 	private details?: CoverageDetailsModel;
 
 	constructor(
@@ -63,6 +69,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this.lineHoverWidget = new Lazy(() => this._register(instantiationService.createInstance(LineHoverWidget, this.editor)));
 
 		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
+		const configObs = observableFromEvent(editor.onDidChangeConfiguration, i => i);
 
 		const fileCoverage = derived(reader => {
 			const report = coverage.selected.read(reader);
@@ -87,54 +94,121 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			}
 		}));
 
+		this._register(autorun(reader => {
+			const c = fileCoverage.read(reader);
+			if (c) {
+				const evt = configObs.read(reader);
+				if (evt?.hasChanged(EditorOption.lineHeight) !== false) {
+					this.updateEditorStyles();
+				}
+			}
+		}));
+
 		this._register(editor.onMouseMove(e => {
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
 			} else if (this.lineHoverWidget.hasValue && this.lineHoverWidget.value.getDomNode().contains(e.target.element)) {
 				// don't dismiss the hover
+			} else if (CodeCoverageDecorations.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT) {
+				this.hoverInlineDecoration(editor.getModel()!, e.target.position);
 			} else {
 				this.hoveredStore.clear();
 			}
 		}));
+
+		this._register(editor.onWillChangeModel(() => {
+			const model = editor.getModel();
+			if (!this.details || !model) {
+				return;
+			}
+
+			// Decorations adjust to local changes made in-editor, keep them synced in case the file is reopened:
+			for (const decoration of model.getAllDecorations()) {
+				const own = this.decorationIds.get(decoration.id);
+				if (own) {
+					own.detail.range = decoration.range;
+				}
+			}
+		}));
 	}
 
-	private hoverLineNumber(model: ITextModel, lineNumber: number) {
-		if (lineNumber === this.hoveredLineNumber) {
+	private updateEditorStyles() {
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const { style } = this.editor.getContainerDomNode();
+		style.setProperty('--vscode-testing-coverage-lineHeight', `${lineHeight}px`);
+	}
+
+	private hoverInlineDecoration(model: ITextModel, position: Position) {
+		const allDecorations = model.getDecorationsInRange(Range.fromPositions(position));
+		const decoration = mapFindFirst(allDecorations, ({ id }) => this.decorationIds.has(id) ? { id, deco: this.decorationIds.get(id)! } : undefined);
+		if (decoration === this.hoveredSubject) {
 			return;
 		}
 
-		this.hoveredLineNumber = lineNumber;
 		this.hoveredStore.clear();
+		this.hoveredSubject = decoration;
 
-		const todo = [{ line: lineNumber, dir: 0 }];
-		const toEnable = new Set<string>();
-		for (let i = 0; i < todo.length && i < MAX_HOVERED_LINES; i++) {
-			const { line, dir } = todo[i];
-			let found = false;
-			for (const decoration of model.getLineDecorations(line)) {
-				if (this.decorationIds.has(decoration.id)) {
-					toEnable.add(decoration.id);
-					found = true;
-				}
-			}
-			if (found) {
-				if (dir <= 0) {
-					todo.push({ line: line - 1, dir: -1 });
-				}
-				if (dir >= 0) {
-					todo.push({ line: line + 1, dir: 1 });
-				}
-			}
+		if (!decoration) {
+			return;
 		}
 
 		model.changeDecorations(e => {
-			for (const id of toEnable) {
-				const { hoverOptions, options } = this.decorationIds.get(id)!;
-				e.changeDecorationOptions(id, { ...options, ...hoverOptions });
-			}
+			e.changeDecorationOptions(decoration.id, {
+				...decoration.deco.options,
+				className: `${decoration.deco.options.className} coverage-deco-hovered`,
+			});
 		});
 
-		this.lineHoverWidget.value.startShowingAt(lineNumber, this.details!);
+		this.hoveredStore.add(toDisposable(() => {
+			this.hoveredSubject = undefined;
+			model.changeDecorations(e => {
+				e.changeDecorationOptions(decoration!.id, decoration!.deco.options);
+			});
+		}));
+	}
+
+	private hoverLineNumber(model: ITextModel, lineNumber: number) {
+		if (lineNumber === this.hoveredSubject) {
+			return;
+		}
+
+		const wasPreviouslyHovering = typeof this.hoveredSubject === 'number';
+		this.hoveredStore.clear();
+		this.hoveredSubject = lineNumber;
+
+		const todo = [{ line: lineNumber, dir: 0 }];
+		const toEnable = new Set<string>();
+		if (!CodeCoverageDecorations.showInline.get()) {
+			for (let i = 0; i < todo.length && i < MAX_HOVERED_LINES; i++) {
+				const { line, dir } = todo[i];
+				let found = false;
+				for (const decoration of model.getLineDecorations(line)) {
+					if (this.decorationIds.has(decoration.id)) {
+						toEnable.add(decoration.id);
+						found = true;
+					}
+				}
+				if (found) {
+					if (dir <= 0) {
+						todo.push({ line: line - 1, dir: -1 });
+					}
+					if (dir >= 0) {
+						todo.push({ line: line + 1, dir: 1 });
+					}
+				}
+			}
+
+			model.changeDecorations(e => {
+				for (const id of toEnable) {
+					const { applyHoverOptions, options } = this.decorationIds.get(id)!;
+					const dup = { ...options };
+					applyHoverOptions(dup);
+					e.changeDecorationOptions(id, dup);
+				}
+			});
+		}
+
+		this.lineHoverWidget.value.startShowingAt(lineNumber, this.details!, wasPreviouslyHovering);
 
 		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();
@@ -142,7 +216,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		this.hoveredStore.add(toDisposable(() => {
 			this.lineHoverWidget.value.hide();
-			this.hoveredLineNumber = -1;
+			this.hoveredSubject = undefined;
 
 			model.changeDecorations(e => {
 				for (const id of toEnable) {
@@ -156,31 +230,46 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	}
 
 	private async apply(model: ITextModel, coverage: FileCoverage, showInlineByDefault: boolean) {
-		const details = await this.loadDetails(coverage);
+		const details = this.details = await this.loadDetails(coverage, model);
 		if (!details) {
 			return this.clear();
 		}
 
 		this.displayedStore.clear();
-		const detailModel = this.details = new CoverageDetailsModel(details);
 
 		model.changeDecorations(e => {
-			for (const { metadata: detail, range } of detailModel.ranges) {
+			for (const detailRange of details.ranges) {
+				const { metadata: { detail, description }, range } = detailRange;
 				if (detail.type === DetailType.Branch) {
 					const hits = detail.detail.branches![detail.branch].count;
 					const cls = hits ? CLASS_HIT : CLASS_MISS;
+					// don't bother showing the miss indicator if the condition wasn't executed at all:
+					const showMissIndicator = !hits && range.isEmpty() && detail.detail.branches!.some(b => b.count);
 					const options: IModelDecorationOptions = {
-						showIfCollapsed: false,
+						showIfCollapsed: showMissIndicator, // only avoid collapsing if we want to show the miss indicator
 						description: 'coverage-gutter',
 						lineNumberClassName: `coverage-deco-gutter ${cls}`,
 					};
 
-					const hoverOptions: Partial<IModelDecorationOptions> = { className: `coverage-deco-inline ${cls}` };
+					const applyHoverOptions = (target: IModelDecorationOptions) => {
+						target.hoverMessage = description;
+						if (showMissIndicator) {
+							target.after = {
+								content: '\xa0'.repeat(BRANCH_MISS_INDICATOR_CHARS), // nbsp
+								inlineClassName: `coverage-deco-branch-miss-indicator ${ThemeIcon.asClassName(testingCoverageMissingBranch)}`,
+								inlineClassNameAffectsLetterSpacing: true,
+								cursorStops: InjectedTextCursorStops.None,
+							};
+						} else {
+							target.className = `coverage-deco-inline ${cls}`;
+						}
+					};
+
 					if (showInlineByDefault) {
-						Object.assign(options, hoverOptions);
+						applyHoverOptions(options);
 					}
 
-					this.decorationIds.set(e.addDecoration(range, options), { options, hoverOptions });
+					this.decorationIds.set(e.addDecoration(range, options), { options, applyHoverOptions, detail: detailRange });
 				} else if (detail.type === DetailType.Statement) {
 					const cls = detail.count ? CLASS_HIT : CLASS_MISS;
 					const options: IModelDecorationOptions = {
@@ -189,12 +278,16 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 						lineNumberClassName: `coverage-deco-gutter ${cls}`,
 					};
 
-					const hoverOptions: Partial<IModelDecorationOptions> = { className: `coverage-deco-inline ${cls}` };
+					const applyHoverOptions = (target: IModelDecorationOptions) => {
+						target.className = `coverage-deco-inline ${cls}`;
+						target.hoverMessage = description;
+					};
+
 					if (showInlineByDefault) {
-						Object.assign(options, hoverOptions);
+						applyHoverOptions(options);
 					}
 
-					this.decorationIds.set(e.addDecoration(range, options), { options, hoverOptions });
+					this.decorationIds.set(e.addDecoration(range, options), { options, applyHoverOptions, detail: detailRange });
 				}
 			}
 		});
@@ -216,15 +309,24 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this.hoveredStore.clear();
 	}
 
-	private async loadDetails(coverage: FileCoverage) {
+	private async loadDetails(coverage: FileCoverage, textModel: ITextModel) {
+		const existing = CodeCoverageDecorations.fileCoverageDecorations.get(coverage);
+		if (existing) {
+			return existing;
+		}
+
 		const cts = this.loadingCancellation = new CancellationTokenSource();
 		this.displayedStore.add(this.loadingCancellation);
 
 		try {
 			const details = await coverage.details(this.loadingCancellation.token);
-			if (!cts.token.isCancellationRequested) {
-				return details;
+			if (cts.token.isCancellationRequested) {
+				return;
 			}
+			const model = CodeCoverageDecorations.fileCoverageDecorations.get(coverage)
+				|| new CoverageDetailsModel(details, textModel);
+			CodeCoverageDecorations.fileCoverageDecorations.set(coverage, model);
+			return model;
 		} catch (e) {
 			this.log.error('Error loading coverage details', e);
 		}
@@ -234,32 +336,41 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 }
 
 type CoverageDetailsWithBranch = CoverageDetails | { type: DetailType.Branch; branch: number; detail: IStatementCoverage };
-type DetailRange = { range: Range; metadata: CoverageDetailsWithBranch };
+type DetailRange = { range: Range; metadata: { detail: CoverageDetailsWithBranch; description: IMarkdownString | undefined } };
 
 export class CoverageDetailsModel {
-	public ranges: DetailRange[] = [];
+	public readonly ranges: DetailRange[] = [];
 
-	constructor(public readonly details: CoverageDetails[]) {
+	constructor(public readonly details: CoverageDetails[], textModel: ITextModel) {
 
 		//#region decoration generation
 		// Coverage from a provider can have a range that contains smaller ranges,
 		// such as a function declarationt that has nested statements. In this we
 		// make sequential, non-overlapping ranges for each detail for display in
 		// the editor without ugly overlaps.
-		const detailRanges: DetailRange[] = details.map(d => ({ range: tidyLocation(d.location), metadata: d }));
+		const detailRanges: DetailRange[] = details.map(detail => ({
+			range: tidyLocation(detail.location),
+			metadata: { detail, description: this.describe(detail, textModel) }
+		}));
 
-		for (const { range, metadata: detail } of detailRanges) {
+		for (const { range, metadata: { detail } } of detailRanges) {
 			if (detail.type === DetailType.Statement && detail.branches) {
 				for (let i = 0; i < detail.branches.length; i++) {
+					const branch: CoverageDetailsWithBranch = { type: DetailType.Branch, branch: i, detail };
 					detailRanges.push({
 						range: tidyLocation(detail.branches[i].location || Range.fromPositions(range.getEndPosition())),
-						metadata: { type: DetailType.Branch, branch: i, detail },
+						metadata: {
+							detail: branch,
+							description: this.describe(branch, textModel),
+						},
 					});
 				}
 			}
 		}
 
-		detailRanges.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
+		// type ordering is done so that function declarations come first on a tie so that
+		// single-statement functions (`() => foo()` for example) get inline decorations.
+		detailRanges.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range) || a.metadata.detail.type - b.metadata.detail.type);
 
 		const stack: DetailRange[] = [];
 		const result: DetailRange[] = this.ranges = [];
@@ -294,6 +405,8 @@ export class CoverageDetailsModel {
 			if (prev) {
 				const si = prev.range.setEndPosition(start.lineNumber, start.column);
 				prev.range = prev.range.setStartPosition(item.range.endLineNumber, item.range.endColumn);
+				// discard the previous range if it became empty, e.g. a nested statement
+				if (prev.range.isEmpty()) { stack.pop(); }
 				result.push({ range: si, metadata: prev.metadata });
 			}
 
@@ -303,6 +416,34 @@ export class CoverageDetailsModel {
 			pop();
 		}
 		//#endregion
+	}
+
+	/** Gets the markdown description for the given detail */
+	public describe(detail: CoverageDetailsWithBranch, model: ITextModel): IMarkdownString | undefined {
+		if (detail.type === DetailType.Function) {
+			return new MarkdownString().appendMarkdown(localize('coverage.fnExecutedCount', 'Function `{0}` was executed {1} time(s).', detail.name, detail.count));
+		} else if (detail.type === DetailType.Statement) {
+			const text = wrapName(model.getValueInRange(tidyLocation(detail.location)).trim() || `<empty statement>`);
+			const str = new MarkdownString();
+			if (detail.branches?.length) {
+				const covered = detail.branches.filter(b => b.count > 0).length;
+				str.appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in {2} were covered.', covered, detail.branches.length, text));
+			} else {
+				str.appendMarkdown(localize('coverage.codeExecutedCount', '{0} was executed {1} time(s).', text, detail.count));
+			}
+			return str;
+		} else if (detail.type === DetailType.Branch) {
+			const text = wrapName(model.getValueInRange(tidyLocation(detail.detail.location)).trim() || `<empty statement>`);
+			const { count, label } = detail.detail.branches![detail.branch];
+			const label2 = label ? wrapInBackticks(label) : `#${detail.branch + 1}`;
+			if (count === 0) {
+				return new MarkdownString().appendMarkdown(localize('coverage.branchNotCovered', 'Branch {0} in {1} was not covered.', label2, text));
+			} else {
+				return new MarkdownString().appendMarkdown(localize('coverage.branchCovered', 'Branch {0} in {1} was executed {2} time(s).', label2, text, count));
+			}
+		}
+
+		return undefined;
 	}
 }
 
@@ -318,7 +459,7 @@ function tidyLocation(location: Range | Position): Range {
 
 class LineHoverComputer implements IHoverComputer<IMarkdownString> {
 	public line = -1;
-	public lineContents = '';
+	public textModel!: ITextModel;
 	public details!: CoverageDetailsModel;
 
 	constructor(@IKeybindingService private readonly keybindingService: IKeybindingService) { }
@@ -341,24 +482,7 @@ class LineHoverComputer implements IHoverComputer<IMarkdownString> {
 			bestDetails.push(detail);
 		}
 
-		const strs = bestDetails.map(({ range, metadata: detail }) => {
-			if (detail.type === DetailType.Function) {
-				return new MarkdownString().appendMarkdown(localize('coverage.fnExecutedCount', 'Function `{0}` was executed {1} time(s).', detail.name, detail.count));
-			} else if (detail.type === DetailType.Statement) {
-				const text = normalizeName(this.lineContents.slice(range.startColumn - 1, range.endLineNumber === range.startLineNumber ? range.endColumn + 1 : undefined) || `<empty statement>`);
-				const str = new MarkdownString();
-				if (detail.branches?.length) {
-					const covered = detail.branches.filter(b => b.count > 0).length;
-					str.appendMarkdown(localize('coverage.branches', '{0} of {1} of branches in `{2}` were covered.', covered, detail.branches.length, text));
-				} else {
-					str.appendMarkdown(localize('coverage.codeExecutedCount', '`{0}` was executed {1} time(s).', text, detail.count));
-				}
-				return str;
-			} else {
-				return undefined;
-			}
-		}).filter(isDefined);
-
+		const strs = bestDetails.map(d => d.metadata.detail.type === DetailType.Branch ? undefined : d.metadata.description).filter(isDefined);
 		if (strs.length) {
 			const s = new MarkdownString().appendMarkdown(`[${TOGGLE_INLINE_COMMAND_TEXT}](command:${TOGGLE_INLINE_COMMAND_ID})`);
 			s.isTrusted = true;
@@ -373,12 +497,15 @@ class LineHoverComputer implements IHoverComputer<IMarkdownString> {
 	}
 }
 
-function normalizeName(functionNameOrCode: string) {
-	functionNameOrCode = functionNameOrCode.replace(/[\n\r`]/g, '');
+function wrapInBackticks(str: string) {
+	return '`' + str.replace(/[\n\r`]/g, '') + '`';
+}
+
+function wrapName(functionNameOrCode: string) {
 	if (functionNameOrCode.length > 50) {
 		functionNameOrCode = functionNameOrCode.slice(0, 40) + '...';
 	}
-	return functionNameOrCode;
+	return wrapInBackticks(functionNameOrCode);
 }
 
 class LineHoverWidget extends Disposable implements IOverlayWidget {
@@ -428,12 +555,17 @@ class LineHoverWidget extends Disposable implements IOverlayWidget {
 	}
 
 	/** Shows the hover widget at the given line */
-	public startShowingAt(lineNumber: number, details: CoverageDetailsModel) {
+	public startShowingAt(lineNumber: number, details: CoverageDetailsModel, showImmediate: boolean) {
 		this.hide();
+		const textModel = this.editor.getModel();
+		if (!textModel) {
+			return;
+		}
+
 		this.computer.line = lineNumber;
-		this.computer.lineContents = this.editor.getModel()?.getLineContent(lineNumber) || '';
+		this.computer.textModel = textModel;
 		this.computer.details = details;
-		this.hoverOperation.start(HoverStartMode.Delayed);
+		this.hoverOperation.start(showImmediate ? HoverStartMode.Immediate : HoverStartMode.Delayed);
 	}
 
 	/** Hides the hover widget */
