@@ -119,9 +119,9 @@ export class StatusbarEntryItem extends Disposable {
 			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
 			const entryOpensTooltip = entry.command === ShowTooltipCommand;
 			if (this.hover) {
-				this.hover.update(hoverContents, { disableHideOnMouseDown: entryOpensTooltip });
+				this.hover.update(hoverContents, { disableHideOnClick: entryOpensTooltip });
 			} else {
-				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents, { disableHideOnMouseDown: entryOpensTooltip }));
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents, { disableHideOnClick: entryOpensTooltip }));
 			}
 			this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, (e) => {
 				EventHelper.stop(e);
