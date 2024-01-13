@@ -342,7 +342,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
-			f(markdownIt);
+			try {
+				f(markdownIt);
+			} catch (err) {
+				console.error('Error extending markdown-it', err);
+			}
 		}
 	};
 };
