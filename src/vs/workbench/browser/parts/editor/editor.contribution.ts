@@ -1013,7 +1013,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 		id: 'workbench.action.focusSecondEditorGroup',
 		title: localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2")
 	},
-	order: 2
+	order: 2,
+	when: MultipleEditorGroupsContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
@@ -1023,7 +1024,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 		title: localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3"),
 		precondition: MultipleEditorGroupsContext
 	},
-	order: 3
+	order: 3,
+	when: MultipleEditorGroupsContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
@@ -1033,7 +1035,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 		title: localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4"),
 		precondition: MultipleEditorGroupsContext
 	},
-	order: 4
+	order: 4,
+	when: MultipleEditorGroupsContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
@@ -1043,7 +1046,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 		title: localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5"),
 		precondition: MultipleEditorGroupsContext
 	},
-	order: 5
+	order: 5,
+	when: MultipleEditorGroupsContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
