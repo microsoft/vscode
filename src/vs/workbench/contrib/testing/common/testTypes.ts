@@ -615,14 +615,14 @@ export namespace CoverageDetails {
 
 export interface IBranchCoverage {
 	count: number;
-	label: string | undefined;
+	label?: string;
 	location?: Range | Position;
 }
 
 export namespace IBranchCoverage {
 	export interface Serialized {
 		count: number;
-		label: string | undefined;
+		label?: string;
 		location?: IRange | IPosition;
 	}
 
