@@ -1248,12 +1248,6 @@ export class RecentlyUpdatedExtensionsView extends ExtensionsListView {
 
 }
 
-export class BuiltInFeatureExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:features');
-	}
-}
-
 export interface StaticQueryExtensionsViewOptions extends ExtensionsListViewOptions {
 	readonly query: string;
 }
@@ -1295,22 +1289,8 @@ export class StaticQueryExtensionsView extends ExtensionsListView {
 			preferencesService, storageService, workspaceTrustManagementService, extensionEnablementService, layoutService, logService);
 	}
 
-	override async show(): Promise<IPagedModel<IExtension>> {
-		const model = await super.show(this.options.query);
-		this.setExpanded(model.length > 0);
-		return model;
-	}
-}
-
-export class BuiltInThemesExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:themes');
-	}
-}
-
-export class BuiltInProgrammingLanguageExtensionsView extends ExtensionsListView {
-	override async show(query: string): Promise<IPagedModel<IExtension>> {
-		return (query && query.trim() !== '@builtin') ? this.showEmptyModel() : super.show('@builtin:basics');
+	override show(): Promise<IPagedModel<IExtension>> {
+		return super.show(this.options.query);
 	}
 }
 

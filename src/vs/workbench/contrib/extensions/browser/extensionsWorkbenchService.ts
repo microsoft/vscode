@@ -820,7 +820,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this._store.isDisposed) {
 			return;
 		}
-
 		this.onDidChangeRunningExtensions(this.extensionService.extensions, []);
 		this._register(this.extensionService.onDidChangeExtensions(({ added, removed }) => this.onDidChangeRunningExtensions(added, removed)));
 

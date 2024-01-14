@@ -121,8 +121,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		/* Other Local Filtered extensions views */
 		viewDescriptors.push(...this.createOtherLocalFilteredExtensionsViewDescriptors());
 
-		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews(viewDescriptors, this.container);
+		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, this.container);
 	}
 
 	private createDefaultExtensionsViewDescriptors(): IViewDescriptor[] {
