@@ -60,6 +60,7 @@ class InputEditorDecorations extends Disposable {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -80,6 +81,7 @@ class InputEditorDecorations extends Disposable {
 				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand.name));
 			}
 		}));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
 
 		this.registerViewModelListeners();
 	}

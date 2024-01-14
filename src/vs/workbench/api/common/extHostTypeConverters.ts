@@ -2363,7 +2363,7 @@ export namespace ChatResponseProgress {
 		} else if ('treeData' in progress) {
 			return { treeData: progress.treeData, kind: 'treeData' };
 		} else if ('message' in progress) {
-			return { content: progress.message, kind: 'progressMessage' };
+			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
 			return undefined;
 		}
