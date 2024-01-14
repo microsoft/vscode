@@ -5,16 +5,37 @@
 
 .monaco-workbench .zoom-status {
 	display: flex;
-	padding: 2px 8px;
-	vertical-align: middle;
+	padding-top: 2px;
+	padding-bottom: 2px;
+	padding-left: 8px;
+	padding-right: 2px;
 }
 
-.monaco-workbench .zoom-status > .left {
+.monaco-workbench .zoom-status .action-label.codicon::before {
+	/*
+	 * the hover sets font-size: inherit which makes actions
+	 * have a size of 13px. but codicons have a size of 16px
+	 * so we want to ensure the icon is still centered
+	 */
+	margin: auto;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-left {
+	display: flex;
 	margin-top: auto;
 	margin-bottom: auto;
-	margin-right: 20px;
+	margin-right: 8px;
 }
 
-.monaco-workbench .zoom-status > .right {
-	margin: auto 0;
+.monaco-workbench .zoom-status > .zoom-status-center {
+	display: flex;
+	margin-top: auto;
+	margin-bottom: auto;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-right {
+	display: flex;
+	margin-top: auto;
+	margin-bottom: auto;
+	margin-left: 8px;
 }
