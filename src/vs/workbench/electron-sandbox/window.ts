@@ -1116,7 +1116,9 @@ export class NativeWindow extends BaseWindow {
 class ZoomStatusEntry extends Disposable {
 
 	private readonly disposable = this._register(new MutableDisposable<DisposableStore>());
-	private resetZoomAction: Action | undefined = undefined;
+
+	private zoomLabel: Action | undefined = undefined;
+	private zoomReset: Action | undefined = undefined;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -1129,9 +1131,9 @@ class ZoomStatusEntry extends Disposable {
 		if (typeof visibleOrText === 'string') {
 			if (!this.disposable.value) {
 				this.createZoomEntry(targetWindowId, visibleOrText);
-			} else {
-				this.updateZoomResetAction(targetWindowId);
 			}
+
+			this.updateZoomActions(targetWindowId);
 		} else {
 			this.disposable.clear();
 		}
@@ -1152,19 +1154,17 @@ class ZoomStatusEntry extends Disposable {
 		center.classList.add('zoom-status-center');
 		container.appendChild(center);
 
-		const actionBarZoom = disposables.add(new ActionBar(center));
-		actionBarZoom.push(
+		const actionBarCenter = disposables.add(new ActionBar(center));
+		actionBarCenter.push(
 			disposables.add(new Action('zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand('workbench.action.zoomOut'))),
 			{ icon: true, label: false }
 		);
 
-		this.resetZoomAction = disposables.add(new Action('zoomReset', '', undefined, true, async () => this.commandService.executeCommand('workbench.action.zoomReset')));
-		this.updateZoomResetAction(targetWindowId);
-		disposables.add(toDisposable(() => this.resetZoomAction = undefined));
-		this.resetZoomAction.tooltip = localize('resetZoom', "Reset Zoom");
-		actionBarZoom.push(this.resetZoomAction, { icon: false, label: true });
+		this.zoomLabel = disposables.add(new Action('zoomLabel', '', undefined, false));
+		disposables.add(toDisposable(() => this.zoomLabel = undefined));
+		actionBarCenter.push(this.zoomLabel, { icon: false, label: true });
 
-		actionBarZoom.push(
+		actionBarCenter.push(
 			disposables.add(new Action('zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand('workbench.action.zoomIn'))),
 			{ icon: true, label: false }
 		);
@@ -1173,9 +1173,16 @@ class ZoomStatusEntry extends Disposable {
 		right.classList.add('zoom-status-right');
 		container.appendChild(right);
 
-		const actionBarSettings = disposables.add(new ActionBar(right));
-		actionBarSettings.push(
-			disposables.add(new Action('zoomSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand('workbench.action.openSettings', 'window.zoom'))),
+		const actionBarRight = disposables.add(new ActionBar(right));
+
+		this.zoomReset = disposables.add(new Action('zoomReset', localize('zoomReset', "Reset Zoom"), undefined, true, () => this.commandService.executeCommand('workbench.action.zoomReset')));
+		disposables.add(toDisposable(() => this.zoomReset = undefined));
+
+		actionBarRight.push(
+			[
+				this.zoomReset,
+				disposables.add(new Action('zoomSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand('workbench.action.openSettings', 'window.zoom')))
+			],
 			{ icon: true, label: false }
 		);
 
@@ -1188,13 +1195,20 @@ class ZoomStatusEntry extends Disposable {
 			command: ShowTooltipCommand,
 			kind: 'prominent'
 		}, 'status.windowZoom', StatusbarAlignment.RIGHT, 102));
-
-		console.log(container);
 	}
 
-	private updateZoomResetAction(targetWindowId: number): void {
-		if (this.resetZoomAction) {
-			this.resetZoomAction.label = localize('zoomLevel', "{0}%", Math.round(getZoomFactor(getWindowById(targetWindowId)?.window ?? mainWindow) * 100));
+	private updateZoomActions(targetWindowId: number): void {
+		const targetWindow = getWindowById(targetWindowId)?.window ?? mainWindow;
+		const zoomFactor = Math.round(getZoomFactor(targetWindow) * 100);
+		const zoomLevel = getZoomLevel(targetWindow);
+
+		if (this.zoomLabel) {
+			this.zoomLabel.label = localize('zoomLevel', "{0}%", zoomFactor);
+			this.zoomLabel.tooltip = localize('zoomNumber', "Zoom Level: {0}", zoomLevel);
+		}
+
+		if (this.zoomReset) {
+			this.zoomReset.class = zoomLevel > 0 ? ThemeIcon.asClassName(Codicon.screenNormal) : ThemeIcon.asClassName(Codicon.screenFull);
 		}
 	}
 }

@@ -123,16 +123,16 @@ export class StatusbarEntryItem extends Disposable {
 			} else {
 				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents, { disableHideOnClick: entryOpensTooltip }));
 			}
-			this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, (e) => {
-				EventHelper.stop(e);
-				this.hover?.show(false);
-			});
-			this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, (e) => {
-				EventHelper.stop(e);
-				if (!entryOpensTooltip) {
+			if (!entryOpensTooltip) {
+				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
+					EventHelper.stop(e);
+					this.hover?.show(false);
+				});
+				this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, e => {
+					EventHelper.stop(e);
 					this.hover?.hide();
-				}
-			});
+				});
+			}
 		}
 
 		// Update: Command
