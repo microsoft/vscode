@@ -86,7 +86,7 @@ const SortByUpdateDateContext = new RawContextKey<boolean>('sortByUpdateDate', f
 
 const REMOTE_CATEGORY: ILocalizedString = { value: localize({ key: 'remote', comment: ['Remote as in remote machine'] }, "Remote"), original: 'Remote' };
 
-export class ExtensionsViewletViewsContribution extends Disposable implements IWorkbenchContribution {
+export class ExtensionsViewletViewsContribution implements IWorkbenchContribution {
 
 	private readonly container: ViewContainer;
 
@@ -94,9 +94,8 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		super();
 		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
 		this.registerViews();
 	}
@@ -400,7 +399,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		const configuredCategories = ['themes', 'programming languages'];
 		const otherCategories = EXTENSION_CATEGORIES.filter(c => !configuredCategories.includes(c.toLowerCase()));
 		otherCategories.push(NONE_CATEGORY);
-		const otherCategoriesQuery = `@category:${otherCategories.join(',')},${configuredCategories.map(c => `-${c}`).join(',')}`;
+		const otherCategoriesQuery = `${otherCategories.map(c => `category:"${c}"`).join(' ')} ${configuredCategories.map(c => `category:"-${c}"`).join(' ')}`;
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinFeatureExtensions',
 			name: localize2('builtinFeatureExtensions', "Features"),
@@ -411,14 +410,14 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinThemeExtensions',
 			name: localize2('builtInThemesExtensions', "Themes"),
-			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin @category:themes` }]),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin category:themes` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.builtinProgrammingLanguageExtensions',
 			name: localize2('builtinProgrammingLanguageExtensions', "Programming Languages"),
-			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin @category:programming languages` }]),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin category:"programming languages"` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 

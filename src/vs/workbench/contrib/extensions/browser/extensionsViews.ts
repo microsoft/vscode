@@ -409,11 +409,7 @@ export class ExtensionsListView extends ViewPane {
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
 
-		if (/@category/i.test(query.value)) {
-			extensions = this.filterExtensionsByCategory(local, query, options);
-		}
-
-		else if (/@builtin/i.test(value)) {
+		if (/@builtin/i.test(value)) {
 			extensions = this.filterBuiltinExtensions(local, query, options);
 			canIncludeInstalledExtensions = false;
 		}
@@ -450,63 +446,56 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterBuiltinExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		const value = query.value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+		value = value.replace(/@builtin/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 		const result = local
-			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+			.filter(e => e.isBuiltin && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+				&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByCategory(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let value = query.value;
-		const isBuiltin = /@builtin/i.test(value);
-		if (isBuiltin) {
-			value = value.replace(/@builtin/g, '').trim();
+	private filterExtensionByCategory(e: IExtension, includedCategories: string[], excludedCategories: string[]): boolean {
+		if (!includedCategories.length && !excludedCategories.length) {
+			return true;
 		}
-		const isInstalled = /@installed/i.test(value);
-		if (isInstalled) {
-			value = value.replace(/@installed/g, '').trim();
-		}
-		value = value.substring('@category:'.length).trim().toLowerCase();
-		const categories = value.split(',');
-		const includeCategories = categories.filter(c => !c.startsWith('-'));
-		const excludeCategories = categories.filter(c => c.startsWith('-')).map(c => c.substring(1));
-		const result = local.filter(e => {
-			if (e.isBuiltin !== isBuiltin) {
+		if (e.categories.length) {
+			if (excludedCategories.length && e.categories.some(category => excludedCategories.includes(category.toLowerCase()))) {
 				return false;
 			}
-			if (e.categories.length) {
-				if (excludeCategories.length && e.categories.some(category => excludeCategories.includes(category.toLowerCase()))) {
-					return false;
-				}
-				return e.categories.some(category => includeCategories.includes(category.toLowerCase()));
-			} else {
-				return categories.includes(NONE_CATEGORY);
-			}
-		});
-		return this.sortExtensions(result, options);
+			return e.categories.some(category => includedCategories.includes(category.toLowerCase()));
+		} else {
+			return includedCategories.includes(NONE_CATEGORY);
+		}
 	}
 
-	private parseCategories(value: string): { value: string; categories: string[] } {
-		const categories: string[] = [];
+	private parseCategories(value: string): { value: string; includedCategories: string[]; excludedCategories: string[] } {
+		const includedCategories: string[] = [];
+		const excludedCategories: string[] = [];
 		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
 			const entry = (category || quotedCategory || '').toLowerCase();
-			if (categories.indexOf(entry) === -1) {
-				categories.push(entry);
+			if (entry.startsWith('-')) {
+				if (excludedCategories.indexOf(entry) === -1) {
+					excludedCategories.push(entry);
+				}
+			} else {
+				if (includedCategories.indexOf(entry) === -1) {
+					includedCategories.push(entry);
+				}
 			}
 			return '';
 		});
-		return { value, categories };
+		return { value, includedCategories, excludedCategories };
 	}
 
 	private filterInstalledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 
 		value = value.replace(/@installed/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 		const matchingText = (e: IExtension) => (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1 || e.description.toLowerCase().indexOf(value) > -1)
-			&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category)));
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories);
 		let result;
 
 		if (options.sortBy !== undefined) {
@@ -562,7 +551,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterOutdatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 
 		value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
@@ -570,13 +559,13 @@ export class ExtensionsListView extends ViewPane {
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 			.filter(extension => extension.outdated
 				&& (extension.name.toLowerCase().indexOf(value) > -1 || extension.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => !!extension.local && extension.local.manifest.categories!.some(c => c.toLowerCase() === category))));
+				&& this.filterExtensionByCategory(extension, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
 
 	private filterDisabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 
 		value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
@@ -584,13 +573,13 @@ export class ExtensionsListView extends ViewPane {
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 			.filter(e => runningExtensions.every(r => !areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))
 				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+				&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
 
 	private filterEnabledExtensions(local: IExtension[], runningExtensions: readonly IExtensionDescription[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 
 		value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
@@ -599,7 +588,7 @@ export class ExtensionsListView extends ViewPane {
 			.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 			.filter(e => runningExtensions.some(r => areSameExtensions({ id: r.identifier.value, uuid: r.uuid }, e.identifier))
 				&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
-				&& (!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+				&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
@@ -673,15 +662,15 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	private filterRecentlyUpdatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
-		let { value, categories } = this.parseCategories(query.value);
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
 		const currentTime = Date.now();
 		local = local.filter(e => !e.isBuiltin && !e.outdated && e.local?.updated && e.local?.installedTimestamp !== undefined && currentTime - e.local.installedTimestamp < ExtensionsListView.RECENT_UPDATE_DURATION);
 
 		value = value.replace(/@recentlyUpdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 		const result = local.filter(e =>
-			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1) &&
-			(!categories.length || categories.some(category => (e.local && e.local.manifest.categories || []).some(c => c.toLowerCase() === category))));
+			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		options.sortBy = options.sortBy ?? LocalSortBy.UpdateDate;
 
@@ -1085,8 +1074,7 @@ export class ExtensionsListView extends ViewPane {
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
-			|| this.isSortInstalledExtensionsQuery(query, sortBy)
-			|| this.isCategoryExtensionsQuery(query);
+			|| this.isSortInstalledExtensionsQuery(query, sortBy);
 	}
 
 	static isSearchBuiltInExtensionsQuery(query: string): boolean {
@@ -1159,10 +1147,6 @@ export class ExtensionsListView extends ViewPane {
 
 	static isSortInstalledExtensionsQuery(query: string, sortBy?: string): boolean {
 		return (sortBy !== undefined && sortBy !== '' && query === '') || (!sortBy && /^@sort:\S*$/i.test(query));
-	}
-
-	static isCategoryExtensionsQuery(query: string): boolean {
-		return /^\s*@category:.+$/i.test(query.trim());
 	}
 
 	static isSearchPopularQuery(query: string): boolean {
