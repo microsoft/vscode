@@ -43,7 +43,8 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';

@@ -99,6 +99,7 @@ export class ExtensionsDownloader extends Disposable {
 
 	private shouldVerifySignature(extension: IGalleryExtension): boolean {
 		if (!extension.isSigned) {
+			this.logService.info(`Extension is not signed: ${extension.identifier.id}`);
 			return false;
 		}
 

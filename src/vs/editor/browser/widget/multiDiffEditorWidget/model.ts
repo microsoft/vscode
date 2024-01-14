@@ -6,10 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
+import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IMultiDiffEditorModel {
 	readonly documents: readonly LazyPromise<IDocumentDiffItem>[];
 	readonly onDidChange: Event<void>;
+	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 
 export interface LazyPromise<T> {

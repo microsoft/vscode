@@ -598,6 +598,7 @@ export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
 export const enum DetailType {
 	Function,
 	Statement,
+	Branch,
 }
 
 export type CoverageDetails = IFunctionCoverage | IStatementCoverage;
@@ -614,12 +615,14 @@ export namespace CoverageDetails {
 
 export interface IBranchCoverage {
 	count: number;
+	label?: string;
 	location?: Range | Position;
 }
 
 export namespace IBranchCoverage {
 	export interface Serialized {
 		count: number;
+		label?: string;
 		location?: IRange | IPosition;
 	}
 

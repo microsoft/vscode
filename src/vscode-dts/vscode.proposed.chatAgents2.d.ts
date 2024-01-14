@@ -64,12 +64,12 @@ declare module 'vscode' {
 	/**
 	 * Represents user feedback for a result.
 	 */
-	export interface ChatAgentResult2Feedback {
+	export interface ChatAgentResult2Feedback<TResult extends ChatAgentResult2> {
 		/**
 		 * This instance of ChatAgentResult2 is the same instance that was returned from the chat agent,
 		 * and it can be extended with arbitrary properties if needed.
 		 */
-		readonly result: ChatAgentResult2;
+		readonly result: TResult;
 
 		/**
 		 * The kind of feedback that was received.
@@ -161,16 +161,16 @@ declare module 'vscode' {
 	/**
 	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
 	 */
-	export interface FollowupProvider {
+	export interface FollowupProvider<TResult extends ChatAgentResult2> {
 		/**
 		 *
 		 * @param result The same instance of the result object that was returned by the chat agent, and it can be extended with arbitrary properties if needed.
 		 * @param token A cancellation token.
 		 */
-		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
+		provideFollowups(result: TResult, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
 	}
 
-	export interface ChatAgent2 {
+	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 
 		/**
 		 * The short name by which this agent is referred to in the UI, e.g `workspace`.
@@ -209,7 +209,7 @@ declare module 'vscode' {
 		/**
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
-		followupProvider?: FollowupProvider;
+		followupProvider?: FollowupProvider<TResult>;
 
 		/**
 		 * When the user clicks this agent in `/help`, this text will be submitted to this slash command
@@ -223,7 +223,7 @@ declare module 'vscode' {
 		 * The passed {@link ChatAgentResult2Feedback.result result} is guaranteed to be the same instance that was
 		 * previously returned from this chat agent.
 		 */
-		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
+		onDidReceiveFeedback: Event<ChatAgentResult2Feedback<TResult>>;
 
 		/**
 		 * Dispose this agent and free resources
@@ -250,15 +250,18 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	// TODO@API we need to arrive at a state where we can put things into buckets-by-name of (1) rendered data, (2) metadata, etc pp
-	export type ChatAgentProgress =
+	export type ChatAgentContentProgress =
 		| ChatAgentContent
-		| ChatAgentTask
 		| ChatAgentFileTree
+		| ChatAgentInlineContentReference
+		| ChatAgentTask;
+
+	export type ChatAgentMetadataProgress =
 		| ChatAgentUsedContext
 		| ChatAgentContentReference
-		| ChatAgentInlineContentReference
 		| ChatAgentProgressMessage;
+
+	export type ChatAgentProgress = ChatAgentContentProgress | ChatAgentMetadataProgress;
 
 	/**
 	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
@@ -383,6 +386,57 @@ declare module 'vscode' {
 		 * @param handler The reply-handler of the agent.
 		 * @returns A new chat agent
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentHandler): ChatAgent2;
+		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentHandler): ChatAgent2<TResult>;
+
+		/**
+		 * Register a variable which can be used in a chat request to any agent.
+		 * @param name The name of the variable, to be used in the chat input as `#name`.
+		 * @param description A description of the variable for the chat input suggest widget.
+		 * @param resolver Will be called to provide the chat variable's value when it is used.
+		 */
+		export function registerVariable(name: string, description: string, resolver: ChatVariableResolver): Disposable;
+	}
+
+	/**
+	 * The detail level of this chat variable value.
+	 */
+	export enum ChatVariableLevel {
+		Short = 1,
+		Medium = 2,
+		Full = 3
+	}
+
+	export interface ChatVariableValue {
+		/**
+		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
+		 */
+		level: ChatVariableLevel;
+
+		/**
+		 * The variable's value, which can be included in an LLM prompt as-is, or the chat agent may decide to read the value and do something else with it.
+		 */
+		value: string | Uri;
+
+		/**
+		 * A description of this value, which could be provided to the LLM as a hint.
+		 */
+		description?: string;
+	}
+
+	export interface ChatVariableContext {
+		/**
+		 * The message entered by the user, which includes this variable.
+		 */
+		prompt: string;
+	}
+
+	export interface ChatVariableResolver {
+		/**
+		 * A callback to resolve the value of a chat variable.
+		 * @param name The name of the variable.
+		 * @param context Contextual information about this chat request.
+		 * @param token A cancellation token.
+		 */
+		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }

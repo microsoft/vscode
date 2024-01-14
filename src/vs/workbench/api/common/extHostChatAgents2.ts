@@ -28,7 +28,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	private static _idPool = 0;
 
-	private readonly _agents = new Map<number, ExtHostChatAgent>();
+	private readonly _agents = new Map<number, ExtHostChatAgent<any>>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
 	private readonly _previousResultMap: Map<string, vscode.ChatAgentResult2> = new Map();
@@ -42,9 +42,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2 {
+	createChatAgent<TResult extends vscode.ChatAgentResult2>(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2<TResult> {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent<TResult>(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, name, {});
@@ -228,11 +228,11 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	}
 }
 
-class ExtHostChatAgent {
+class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 
 	private _slashCommandProvider: vscode.ChatAgentSlashCommandProvider | undefined;
 	private _lastSlashCommands: vscode.ChatAgentSlashCommand[] | undefined;
-	private _followupProvider: vscode.FollowupProvider | undefined;
+	private _followupProvider: vscode.FollowupProvider<TResult> | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
@@ -241,7 +241,7 @@ class ExtHostChatAgent {
 	private _helpTextPostfix: string | vscode.MarkdownString | undefined;
 	private _sampleRequest?: string;
 	private _isSecondary: boolean | undefined;
-	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
+	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback<TResult>>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 	private _supportIssueReporting: boolean | undefined;
 	private _agentVariableProvider?: { provider: vscode.ChatAgentCompletionItemProvider; triggerCharacters: string[] };
@@ -254,7 +254,7 @@ class ExtHostChatAgent {
 		private readonly _callback: vscode.ChatAgentExtendedHandler,
 	) { }
 
-	acceptFeedback(feedback: vscode.ChatAgentResult2Feedback) {
+	acceptFeedback(feedback: vscode.ChatAgentResult2Feedback<TResult>) {
 		this._onDidReceiveFeedback.fire(feedback);
 	}
 
@@ -302,7 +302,7 @@ class ExtHostChatAgent {
 			}));
 	}
 
-	async provideFollowups(result: vscode.ChatAgentResult2, token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideFollowups(result: TResult, token: CancellationToken): Promise<IChatFollowup[]> {
 		if (!this._followupProvider) {
 			return [];
 		}
@@ -313,7 +313,7 @@ class ExtHostChatAgent {
 		return followups.map(f => typeConvert.ChatFollowup.from(f));
 	}
 
-	get apiAgent(): vscode.ChatAgent2 {
+	get apiAgent(): vscode.ChatAgent2<TResult> {
 		let disposed = false;
 		let updateScheduled = false;
 		const updateMetadataSoon = () => {
@@ -478,7 +478,7 @@ class ExtHostChatAgent {
 				that._onDidReceiveFeedback.dispose();
 				that._proxy.$unregisterAgent(that._handle);
 			},
-		} satisfies vscode.ChatAgent2;
+		} satisfies vscode.ChatAgent2<TResult>;
 	}
 
 	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.ChatAgentExtendedProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {

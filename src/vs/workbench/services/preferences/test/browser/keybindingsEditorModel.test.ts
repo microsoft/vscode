@@ -41,9 +41,9 @@ suite('KeybindingsEditorModel', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
-			get extensions() { return extensions; }
+			get extensions() { return extensions as IExtensionDescription[]; }
 		});
 		testObject = disposables.add(instantiationService.createInstance(KeybindingsEditorModel, OS));
 

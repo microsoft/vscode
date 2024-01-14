@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	DidUninstallExtensionEvent, InstallExtensionEvent, InstallExtensionResult, getTargetPlatform, IExtensionInfo, UninstallExtensionEvent, SortBy
+	getTargetPlatform, IExtensionInfo, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -19,7 +19,7 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -55,10 +55,6 @@ suite('ExtensionsViews Tests', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testableView: ExtensionsListView;
-	let installEvent: Emitter<InstallExtensionEvent>,
-		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
-		uninstallEvent: Emitter<UninstallExtensionEvent>,
-		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
 	const localEnabledTheme = aLocalExtension('first-enabled-extension', { categories: ['Themes', 'random'] }, { installedTimestamp: 123456 });
 	const localEnabledLanguage = aLocalExtension('second-enabled-extension', { categories: ['Programming languages'], version: '1.0.0' }, { installedTimestamp: Date.now(), updated: false });
@@ -79,11 +75,6 @@ suite('ExtensionsViews Tests', () => {
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
 
 	setup(async () => {
-		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
-		didInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
-		uninstallEvent = disposableStore.add(new Emitter<UninstallExtensionEvent>());
-		didUninstallEvent = disposableStore.add(new Emitter<DidUninstallExtensionEvent>());
-
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
@@ -95,13 +86,13 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
-			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			onDidChangeProfile: Event.None,
+		instantiationService.stub(IWorkbenchExtensionManagementService, {
+			onInstallExtension: Event.None,
+			onDidInstallExtensions: Event.None,
+			onUninstallExtension: Event.None,
+			onDidUninstallExtension: Event.None,
 			onDidUpdateExtensionMetadata: Event.None,
+			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
@@ -113,7 +104,7 @@ suite('ExtensionsViews Tests', () => {
 		instantiationService.stub(IMenuService, new TestMenuService());
 
 		const localExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService, label: 'local', id: 'vscode-local' };
-		instantiationService.stub(IExtensionManagementServerService, <Partial<IExtensionManagementServerService>>{
+		instantiationService.stub(IExtensionManagementServerService, {
 			get localExtensionManagementServer(): IExtensionManagementServer {
 				return localExtensionManagementServer;
 			},
@@ -134,7 +125,7 @@ suite('ExtensionsViews Tests', () => {
 		reasons[fileBasedRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[otherRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Executable };
 		reasons[configBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.WorkspaceConfig };
-		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
+		instantiationService.stub(IExtensionRecommendationsService, {
 			getWorkspaceRecommendations() {
 				return Promise.resolve([
 					workspaceRecommendationA.identifier.id,
@@ -181,7 +172,7 @@ suite('ExtensionsViews Tests', () => {
 			onDidChangeLocation: Event.None
 		});
 
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [
 				toExtensionDescription(localEnabledTheme),

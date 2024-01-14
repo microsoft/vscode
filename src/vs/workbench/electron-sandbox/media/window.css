@@ -1,0 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .zoom-status {
+	display: flex;
+	padding: 2px 8px;
+	vertical-align: middle;
+}
+
+.monaco-workbench .zoom-status > .left {
+	margin-top: auto;
+	margin-bottom: auto;
+	margin-right: 20px;
+}
+
+.monaco-workbench .zoom-status > .right {
+	margin: auto 0;
+}

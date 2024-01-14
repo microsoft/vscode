@@ -80,6 +80,7 @@ export const enum TestCommandId {
 	GoToTest = 'testing.editFocusedTest',
 	HideTestAction = 'testing.hideTest',
 	OpenOutputPeek = 'testing.openOutputPeek',
+	OpenCoverage = 'testing.openCoverage',
 	RefreshTestsAction = 'testing.refreshTests',
 	ReRunFailedTests = 'testing.reRunFailTests',
 	ReRunLastRun = 'testing.reRunLastRun',

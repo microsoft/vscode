@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeFullscreen } from 'vs/base/browser/browser';
+import { onDidChangeFullscreen, onDidChangeZoomLevel } from 'vs/base/browser/browser';
 import { detectFullscreen, hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -113,6 +113,18 @@ export class AuxiliaryEditorPart {
 			titlebarPartVisible = true;
 
 			disposables.add(titlebarPart.onDidChange(() => updateEditorPartHeight(true)));
+			disposables.add(onDidChangeZoomLevel(targetWindowId => {
+				if (auxiliaryWindow.window.vscodeWindowId === targetWindowId && titlebarPartVisible) {
+
+					// This is a workaround for https://github.com/microsoft/vscode/issues/202377
+					// The title bar part prevents zooming in certain cases and when doing so,
+					// adjusts its size accordingly. This is however not reported from the
+					// `onDidchange` event that we listen to above, so we manually update the
+					// editor part height here.
+
+					updateEditorPartHeight(true);
+				}
+			}));
 
 			disposables.add(onDidChangeFullscreen(windowId => {
 				if (windowId !== auxiliaryWindow.window.vscodeWindowId) {
@@ -195,7 +207,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
-		readonly windowId: number,
+		windowId: number,
 		editorPartsView: IEditorPartsView,
 		private readonly state: IEditorPartUIState | undefined,
 		groupsLabel: string,
@@ -208,7 +220,7 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const id = AuxiliaryEditorPartImpl.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
 	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean): void {

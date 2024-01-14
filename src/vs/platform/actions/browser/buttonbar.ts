@@ -82,11 +82,13 @@ export class WorkbenchButtonBar extends ButtonBar {
 					actionRunner: this._actionRunner,
 					actions: rest,
 					contextMenuProvider: this._contextMenuService,
+					ariaLabel: action.label
 				});
 			} else {
 				action = actionOrSubmenu;
 				btn = this.addButton({
 					secondary: conifgProvider(action)?.isSecondary ?? secondary,
+					ariaLabel: action.label
 				});
 			}
 
