@@ -18,7 +18,7 @@ import { WindowMinimumSize, IOpenFileRequest, getTitleBarStyle, IAddFoldersReque
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { setFullscreen, getZoomLevel, onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { setFullscreen, getZoomLevel, onDidChangeZoomLevel, getZoomFactor } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -1116,7 +1116,7 @@ export class NativeWindow extends BaseWindow {
 class ZoomStatusEntry extends Disposable {
 
 	private readonly disposable = this._register(new MutableDisposable<DisposableStore>());
-	private labelContainer: HTMLElement | undefined = undefined;
+	private resetZoomAction: Action | undefined = undefined;
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -1130,7 +1130,7 @@ class ZoomStatusEntry extends Disposable {
 			if (!this.disposable.value) {
 				this.createZoomEntry(targetWindowId, visibleOrText);
 			} else {
-				this.updateZoomEntryLabel(targetWindowId);
+				this.updateZoomResetAction(targetWindowId);
 			}
 		} else {
 			this.disposable.clear();
@@ -1140,45 +1140,61 @@ class ZoomStatusEntry extends Disposable {
 		const disposables = new DisposableStore();
 		this.disposable.value = disposables;
 
-		const element = document.createElement('div');
-		element.classList.add('zoom-status');
+		const container = document.createElement('div');
+		container.classList.add('zoom-status');
 
-		this.labelContainer = document.createElement('div');
-		element.appendChild(this.labelContainer);
-		disposables.add(toDisposable(() => this.labelContainer = undefined));
-		this.labelContainer.classList.add('left');
-		this.updateZoomEntryLabel(targetWindowId);
+		const left = document.createElement('div');
+		left.classList.add('zoom-status-left');
+		left.textContent = localize('zoomLabel', "Zoom");
+		container.appendChild(left);
 
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('right');
-		element.appendChild(actionsContainer);
+		const center = document.createElement('div');
+		center.classList.add('zoom-status-center');
+		container.appendChild(center);
 
-		const actionBar = disposables.add(new ActionBar(actionsContainer, {}));
+		const actionBarZoom = disposables.add(new ActionBar(center));
+		actionBarZoom.push(
+			disposables.add(new Action('zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand('workbench.action.zoomOut'))),
+			{ icon: true, label: false }
+		);
 
-		actionBar.push([
-			disposables.add(new Action('zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.zoomOut), true, () => this.commandService.executeCommand('workbench.action.zoomOut'))),
-			disposables.add(new Action('zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.zoomIn), true, () => this.commandService.executeCommand('workbench.action.zoomIn')))
-		], { icon: true, label: false });
+		this.resetZoomAction = disposables.add(new Action('zoomReset', '', undefined, true, async () => this.commandService.executeCommand('workbench.action.zoomReset')));
+		this.updateZoomResetAction(targetWindowId);
+		disposables.add(toDisposable(() => this.resetZoomAction = undefined));
+		this.resetZoomAction.tooltip = localize('resetZoom', "Reset Zoom");
+		actionBarZoom.push(this.resetZoomAction, { icon: false, label: true });
 
-		actionBar.push(
-			disposables.add(new Action('zoomReset', localize('zoomReset', "Reset"), undefined, true, async () => this.commandService.executeCommand('workbench.action.zoomReset'))),
-			{ icon: false, label: true }
+		actionBarZoom.push(
+			disposables.add(new Action('zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand('workbench.action.zoomIn'))),
+			{ icon: true, label: false }
+		);
+
+		const right = document.createElement('div');
+		right.classList.add('zoom-status-right');
+		container.appendChild(right);
+
+		const actionBarSettings = disposables.add(new ActionBar(right));
+		actionBarSettings.push(
+			disposables.add(new Action('zoomSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand('workbench.action.openSettings', 'window.zoom'))),
+			{ icon: true, label: false }
 		);
 
 		const name = localize('status.windowZoom', "Window Zoom");
 		disposables.add(this.statusbarService.addEntry({
 			name,
 			text: visibleOrText,
-			tooltip: element,
+			tooltip: container,
 			ariaLabel: name,
 			command: ShowTooltipCommand,
 			kind: 'prominent'
 		}, 'status.windowZoom', StatusbarAlignment.RIGHT, 102));
+
+		console.log(container);
 	}
 
-	private updateZoomEntryLabel(targetWindowId: number): void {
-		if (this.labelContainer) {
-			this.labelContainer.textContent = localize('zoomLevel', "Zoom Level: {0}", getZoomLevel(getWindowById(targetWindowId)?.window ?? mainWindow));
+	private updateZoomResetAction(targetWindowId: number): void {
+		if (this.resetZoomAction) {
+			this.resetZoomAction.label = localize('zoomLevel', "{0}%", Math.round(getZoomFactor(getWindowById(targetWindowId)?.window ?? mainWindow) * 100));
 		}
 	}
 }
