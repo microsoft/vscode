@@ -11,7 +11,8 @@
     "vscode": "^1.54.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
