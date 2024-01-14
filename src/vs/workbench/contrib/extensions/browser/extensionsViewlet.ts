@@ -16,7 +16,7 @@ import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus } fro
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, ExtensionsGroupsConfigurationKey, EnableGroupingConfigurationKey, InstalledExtensionsCategoriesContext } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu } from '../common/extensions';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -31,7 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey, ContextKeyRegexExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
@@ -64,7 +64,6 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IStringDictionary } from 'vs/base/common/collections';
 
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
@@ -96,7 +95,6 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		@ILabelService private readonly labelService: ILabelService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.container = viewDescriptorService.getViewContainerById(VIEWLET_ID)!;
@@ -115,6 +113,9 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		/* Recommendations views */
 		viewDescriptors.push(...this.createRecommendedExtensionsViewDescriptors());
 
+		/* Built-in extensions views */
+		viewDescriptors.push(...this.createBuiltinExtensionsViewDescriptors());
+
 		/* Trust Required extensions views */
 		viewDescriptors.push(...this.createUnsupportedWorkspaceExtensionsViewDescriptors());
 
@@ -123,17 +124,6 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews(viewDescriptors, this.container);
-
-		/* Grouped Extensions views */
-		let groupedViewDescriptors = this.createGroupedExtensionsViewDescriptors();
-		viewsRegistry.registerViews(groupedViewDescriptors, this.container);
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ExtensionsGroupsConfigurationKey)) {
-				viewsRegistry.deregisterViews(groupedViewDescriptors, this.container);
-				groupedViewDescriptors = this.createGroupedExtensionsViewDescriptors();
-				viewsRegistry.registerViews(groupedViewDescriptors, this.container);
-			}
-		}));
 	}
 
 	private createDefaultExtensionsViewDescriptors(): IViewDescriptor[] {
@@ -177,7 +167,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 				},
 				weight: 100,
 				order: 1,
-				when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.has(`config.${EnableGroupingConfigurationKey}`).negate()),
+				when: ContextKeyExpr.and(DefaultViewsContext),
 				ctorDescriptor: new SyncDescriptor(ServerInstalledExtensionsView, [{ server, flexibleHeight: true, onDidChangeTitle }]),
 				/* Installed extensions views shall not be allowed to hidden when there are more than one server */
 				canToggleVisibility: servers.length === 1
@@ -314,7 +304,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			id: 'workbench.views.extensions.searchInstalled',
 			name: localize2('installed', "Installed"),
 			ctorDescriptor: new SyncDescriptor(ExtensionsListView, [{}]),
-			when: ContextKeyExpr.or(ContextKeyExpr.has('searchInstalledExtensions'), ContextKeyExpr.and(ContextKeyExpr.has('installedExtensions'), ContextKeyExpr.not(`config.${EnableGroupingConfigurationKey}`))),
+			when: ContextKeyExpr.or(ContextKeyExpr.has('searchInstalledExtensions'), ContextKeyExpr.has('installedExtensions')),
 		});
 
 		/*
@@ -404,47 +394,31 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		return viewDescriptors;
 	}
 
-	private createGroupedExtensionsViewDescriptors(): IViewDescriptor[] {
+	private createBuiltinExtensionsViewDescriptors(): IViewDescriptor[] {
 		const viewDescriptors: IViewDescriptor[] = [];
-		const groups: IStringDictionary<string[]> = this.configurationService.getValue(ExtensionsGroupsConfigurationKey);
-		const configuredCategories: string[] = [];
-		const installedWhenContext = ContextKeyExpr.and(ContextKeyExpr.has(`config.${EnableGroupingConfigurationKey}`), ContextKeyExpr.or(ContextKeyExpr.and(DefaultViewsContext), ContextKeyExpr.has('installedExtensions')));
-		for (const group of Object.keys(groups)) {
-			const categories = groups[group].map(c => c.toLowerCase());
-			if (categories.length) {
-				viewDescriptors.push({
-					id: `workbench.views.extensions.installed-group-${group}`,
-					name: { value: group, original: group },
-					ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@installed @category:${categories.join(',')}`, flexibleHeight: true }]),
-					when: ContextKeyExpr.and(installedWhenContext, ContextKeyRegexExpr.create(InstalledExtensionsCategoriesContext.key, new RegExp(`${categories.join('|')}`, 'i'))),
-					order: 1,
-				});
-				viewDescriptors.push({
-					id: `workbench.views.extensions.builtin-group-${group}`,
-					name: { value: group, original: group },
-					ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin @category:${categories.join(',')}`, flexibleHeight: true }]),
-					when: ContextKeyExpr.has('builtInExtensions'),
-				});
-				configuredCategories.push(...categories);
-			}
-		}
 
-		const notConfiguredCategories = EXTENSION_CATEGORIES.filter(c => !configuredCategories.includes(c.toLowerCase()));
-		notConfiguredCategories.push(NONE_CATEGORY);
-
-		const otherCategoriesQuery = `@category:${notConfiguredCategories.join(',')},${configuredCategories.map(c => `-${c}`).join(',')}`;
+		const configuredCategories = ['themes', 'programming languages'];
+		const otherCategories = EXTENSION_CATEGORIES.filter(c => !configuredCategories.includes(c.toLowerCase()));
+		otherCategories.push(NONE_CATEGORY);
+		const otherCategoriesQuery = `@category:${otherCategories.join(',')},${configuredCategories.map(c => `-${c}`).join(',')}`;
 		viewDescriptors.push({
-			id: 'workbench.views.extensions.other-installed-group',
-			name: localize2('other', "Others"),
-			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@installed ${otherCategoriesQuery}`, flexibleHeight: true }]),
-			when: ContextKeyExpr.and(installedWhenContext, ContextKeyRegexExpr.create(InstalledExtensionsCategoriesContext.key, new RegExp(`${configuredCategories.join('|')}`, 'i'))),
-			order: 1,
+			id: 'workbench.views.extensions.builtinFeatureExtensions',
+			name: localize2('builtinFeatureExtensions', "Features"),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin ${otherCategoriesQuery}` }]),
+			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 
 		viewDescriptors.push({
-			id: 'workbench.views.extensions.other-builtin-group',
-			name: localize2('other', "Others"),
-			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin ${otherCategoriesQuery}`, flexibleHeight: true }]),
+			id: 'workbench.views.extensions.builtinThemeExtensions',
+			name: localize2('builtInThemesExtensions', "Themes"),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin @category:themes` }]),
+			when: ContextKeyExpr.has('builtInExtensions'),
+		});
+
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.builtinProgrammingLanguageExtensions',
+			name: localize2('builtinProgrammingLanguageExtensions', "Programming Languages"),
+			ctorDescriptor: new SyncDescriptor(StaticQueryExtensionsView, [{ query: `@builtin @category:programming languages` }]),
 			when: ContextKeyExpr.has('builtInExtensions'),
 		});
 

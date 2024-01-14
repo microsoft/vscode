@@ -141,8 +141,6 @@ export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 export const AutoCheckUpdatesConfigurationKey = 'extensions.autoCheckUpdates';
 export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
-export const EnableGroupingConfigurationKey = 'extensions.enableGrouping';
-export const ExtensionsGroupsConfigurationKey = 'extensions.groups';
 
 export type AutoUpdateConfigurationValue = boolean | 'onlyEnabledExtensions' | 'onlySelectedExtensions';
 
@@ -202,7 +200,6 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 
 // Context Keys
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
-export const InstalledExtensionsCategoriesContext = new RawContextKey<string>('installedExtensionsCategories', '');
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
 
 // Context Menu Groups
