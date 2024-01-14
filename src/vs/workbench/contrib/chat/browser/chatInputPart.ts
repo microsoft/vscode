@@ -86,6 +86,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private historyStates: Map<string, any> = new Map();
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
+	private onHistoryEntry = false;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
@@ -160,6 +161,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const historyInput = (previous ?
 			(this.history.previous() ?? this.history.first()) : this.history.next())
 			?? '';
+
+		this.onHistoryEntry = previous || this.history.current() !== null;
 
 		aria.status(historyInput);
 		this.setValue(historyInput);
@@ -272,6 +275,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValueLength() > 0;
 			this.inputEditorHasText.set(inputHasText);
+			if (!this.onHistoryEntry) {
+				this.historyNavigationForewardsEnablement.set(!inputHasText);
+				this.historyNavigationBackwardsEnablement.set(!inputHasText);
+			}
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this._onDidFocus.fire();
@@ -289,9 +296,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const atTop = e.position.column === 1 && e.position.lineNumber === 1;
-			this.historyNavigationBackwardsEnablement.set(atTop);
 			this.chatCursorAtTop.set(atTop);
-			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+
+			if (this.onHistoryEntry) {
+				this.historyNavigationBackwardsEnablement.set(atTop);
+				this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
+			}
 		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, MenuId.ChatExecute, {
