@@ -17,7 +17,8 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { InlineChatAccessibleViewContribution } from './inlineChatAccessibleView';
-import { IInlineChatSavingService, InlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSaving';
+import { InlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSavingServiceImpl';
+import { IInlineChatSavingService } from './inlineChatSavingService';
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);

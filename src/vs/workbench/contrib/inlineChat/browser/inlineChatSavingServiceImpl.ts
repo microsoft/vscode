@@ -10,7 +10,6 @@ import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -20,15 +19,7 @@ import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/se
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-
-export const IInlineChatSavingService = createDecorator<IInlineChatSavingService>('IInlineChatSavingService	');
-
-export interface IInlineChatSavingService {
-	_serviceBrand: undefined;
-
-	markChanged(session: Session): void;
-
-}
+import { IInlineChatSavingService } from './inlineChatSavingService';
 
 interface SessionData {
 	readonly dispose: () => void;

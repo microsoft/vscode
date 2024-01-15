@@ -39,7 +39,7 @@ import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/cont
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSaving';
+import { IInlineChatSavingService } from './inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ExpansionState, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';

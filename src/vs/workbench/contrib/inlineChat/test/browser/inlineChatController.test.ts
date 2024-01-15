@@ -32,7 +32,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSaving';
+import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatSessionService } from '../../browser/inlineChatSessionServiceImpl';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
