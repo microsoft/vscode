@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
-import { dispose, grep, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -1126,14 +1126,25 @@ export class CommandCenter {
 	}
 
 	@command('git.close', { repository: true })
-	async close(repository: Repository): Promise<void> {
-		this.model.close(repository);
+	async close(repository: Repository, ...args: SourceControl[]): Promise<void> {
+		const otherRepositories = args
+			.map(sourceControl => this.model.getRepository(sourceControl))
+			.filter(isDefined);
+
+		for (const r of [repository, ...otherRepositories]) {
+			this.model.close(r);
+		}
 	}
 
 	@command('git.closeOtherRepositories', { repository: true })
-	async closeOtherRepositories(repository: Repository): Promise<void> {
+	async closeOtherRepositories(repository: Repository, ...args: SourceControl[]): Promise<void> {
+		const otherRepositories = args
+			.map(sourceControl => this.model.getRepository(sourceControl))
+			.filter(isDefined);
+
+		const selectedRepositories = [repository, ...otherRepositories];
 		for (const r of this.model.repositories) {
-			if (r === repository) {
+			if (selectedRepositories.includes(r)) {
 				continue;
 			}
 			this.model.close(r);
