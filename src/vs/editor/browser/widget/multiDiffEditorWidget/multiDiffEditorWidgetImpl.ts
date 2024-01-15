@@ -22,6 +22,9 @@ import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/comm
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -212,6 +215,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				}
 			}
 		});
+	}
+
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		const item = this._viewItems.get().find(v =>
+			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
+			|| v.viewModel.diffEditorViewModel.model.original.uri.toString() === resource.toString()
+		);
+		const editor = item?.template.get()?.editor;
+		if (!editor) {
+			return undefined;
+		}
+		if (item.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()) {
+			return { diffEditor: editor, editor: editor.getModifiedEditor() };
+		} else {
+			return { diffEditor: editor, editor: editor.getOriginalEditor() };
+		}
 	}
 
 	private render(reader: IReader | undefined) {
