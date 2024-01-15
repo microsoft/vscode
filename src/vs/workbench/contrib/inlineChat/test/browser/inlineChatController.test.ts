@@ -34,7 +34,7 @@ import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatVie
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { InlineChatSessionService } from '../../browser/inlineChatSessionServiceImpl';
+import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
 import { EditMode, IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
@@ -108,7 +108,7 @@ suite('InteractiveChatController', function () {
 			[IContextKeyService, contextKeyService],
 			[IInlineChatService, inlineChatService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
-			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
+			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop

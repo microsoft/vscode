@@ -17,14 +17,15 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { raceCancellation } from 'vs/base/common/async';
 import { Recording, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService';
-import { Session, SessionWholeRange, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { HunkData, Session, SessionWholeRange, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 
 type SessionData = {
 	session: Session;
 	store: IDisposable;
 };
 
-export class InlineChatSessionService implements IInlineChatSessionService {
+export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;
 
@@ -43,6 +44,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@ILogService private readonly _logService: ILogService
 	) { }
 
@@ -107,7 +109,10 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);
 		store.add(wholeRangeMgr);
 
-		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr);
+		const hunkData = new HunkData(this._editorWorkerService, textModel0, textModel);
+		store.add(hunkData);
+
+		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr, hunkData);
 
 		// store: key -> session
 		const key = this._key(editor, textModel.uri);

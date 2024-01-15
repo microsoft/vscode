@@ -15,7 +15,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -24,6 +24,11 @@ import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { Recording } from './inlineChatSessionService';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { coalesceInPlace } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 
 
 export type TelemetryData = {
@@ -141,7 +146,8 @@ export class Session {
 		readonly textModelN: ITextModel,
 		readonly provider: IInlineChatSessionProvider,
 		readonly session: IInlineChatSession,
-		readonly wholeRange: SessionWholeRange
+		readonly wholeRange: SessionWholeRange,
+		readonly hunkData: HunkData,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
@@ -397,4 +403,203 @@ export class ReplyResponse {
 			this.responseType = InlineChatResponseTypes.Empty;
 		}
 	}
+}
+
+// ---
+
+export class HunkData {
+
+	private static readonly _HUNK_TRACKED_RANGE = ModelDecorationOptions.register({
+		description: 'inline-chat-hunk-tracked-range',
+	});
+
+	private static readonly _HUNK_THRESHOLD = 8;
+
+	private readonly _data = new Map<RawHunk, { textModelNDecorations: string[]; textModel0Decorations: string[]; state: HunkState }>();
+
+	constructor(
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		private readonly _textModel0: ITextModel,
+		private readonly _textModelN: ITextModel,
+	) { }
+
+	dispose(): void {
+		if (!this._textModelN.isDisposed()) {
+			this._textModelN.changeDecorations(accessor => {
+				for (const { textModelNDecorations } of this._data.values()) {
+					textModelNDecorations.forEach(accessor.removeDecoration, accessor);
+				}
+			});
+		}
+		if (!this._textModel0.isDisposed()) {
+			this._textModel0.changeDecorations(accessor => {
+				for (const { textModel0Decorations } of this._data.values()) {
+					textModel0Decorations.forEach(accessor.removeDecoration, accessor);
+				}
+			});
+		}
+	}
+
+	async recompute() {
+
+		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+
+		if (!diff || diff.changes.length === 0) {
+			// return new HunkData([], session);
+			return;
+		}
+
+		// merge changes neighboring changes
+		const mergedChanges = [diff.changes[0]];
+		for (let i = 1; i < diff.changes.length; i++) {
+			const lastChange = mergedChanges[mergedChanges.length - 1];
+			const thisChange = diff.changes[i];
+			if (thisChange.modified.startLineNumber - lastChange.modified.endLineNumberExclusive <= HunkData._HUNK_THRESHOLD) {
+				mergedChanges[mergedChanges.length - 1] = new DetailedLineRangeMapping(
+					lastChange.original.join(thisChange.original),
+					lastChange.modified.join(thisChange.modified),
+					(lastChange.innerChanges ?? []).concat(thisChange.innerChanges ?? [])
+				);
+			} else {
+				mergedChanges.push(thisChange);
+			}
+		}
+
+		const hunks = mergedChanges.map(change => new RawHunk(change.original, change.modified, change.innerChanges ?? []));
+
+		this._textModelN.changeDecorations(accessorN => {
+
+			this._textModel0.changeDecorations(accessor0 => {
+
+				// clean up old decorations
+				for (const { textModelNDecorations, textModel0Decorations } of this._data.values()) {
+					textModelNDecorations.forEach(accessorN.removeDecoration, accessorN);
+					textModel0Decorations.forEach(accessor0.removeDecoration, accessor0);
+				}
+
+				this._data.clear();
+
+				// add new decorations
+				for (const hunk of hunks) {
+
+					const textModelNDecorations: string[] = [];
+					const textModel0Decorations: string[] = [];
+
+					textModelNDecorations.push(accessorN.addDecoration(asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
+					textModel0Decorations.push(accessor0.addDecoration(asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
+
+					for (const change of hunk.changes) {
+						textModelNDecorations.push(accessorN.addDecoration(change.modifiedRange, HunkData._HUNK_TRACKED_RANGE));
+						textModel0Decorations.push(accessor0.addDecoration(change.originalRange, HunkData._HUNK_TRACKED_RANGE));
+					}
+
+					this._data.set(hunk, {
+						textModelNDecorations,
+						textModel0Decorations,
+						state: HunkState.Pending
+					});
+				}
+			});
+		});
+	}
+
+	get size(): number {
+		return this._data.size;
+	}
+
+	get pending(): number {
+		return Iterable.reduce(this._data.values(), (r, { state }) => r + (state === HunkState.Pending ? 1 : 0), 0);
+	}
+
+	getInfo(): HunkInformation[] {
+
+		const result: HunkInformation[] = [];
+
+		for (const [hunk, data] of this._data.entries()) {
+			const item: HunkInformation = {
+				getState: () => {
+					return data.state;
+				},
+				isInsertion: () => {
+					return hunk.original.isEmpty;
+				},
+				getRangesN: () => {
+					const ranges = data.textModelNDecorations.map(id => this._textModelN.getDecorationRange(id));
+					coalesceInPlace(ranges);
+					return ranges;
+				},
+				getRanges0: () => {
+					const ranges = data.textModel0Decorations.map(id => this._textModel0.getDecorationRange(id));
+					coalesceInPlace(ranges);
+					return ranges;
+				},
+				discardChanges: () => {
+					// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
+					// which was created above so that typing in the editor keeps discard working.
+					if (data.state === HunkState.Pending) {
+						const edits: ISingleEditOperation[] = [];
+						const rangesN = item.getRangesN();
+						const ranges0 = item.getRanges0();
+						for (let i = 1; i < rangesN.length; i++) {
+							const modifiedRange = rangesN[i];
+							const originalValue = this._textModel0.getValueInRange(ranges0[i]);
+							edits.push(EditOperation.replace(modifiedRange, originalValue));
+						}
+						this._textModelN.pushEditOperations(null, edits, () => null);
+						data.state = HunkState.Rejected;
+					}
+				},
+				acceptChanges: () => {
+					// ACCEPT: replace original range with modified value. The modified value is retrieved from the model via
+					// its decoration and the original range is retrieved from the hunk.
+					if (data.state === HunkState.Pending) {
+						const edits: ISingleEditOperation[] = [];
+						const rangesN = item.getRangesN();
+						const ranges0 = item.getRanges0();
+						for (let i = 1; i < ranges0.length; i++) {
+							const originalRange = ranges0[i];
+							const modifiedValue = this._textModelN.getValueInRange(rangesN[i]);
+							edits.push(EditOperation.replace(originalRange, modifiedValue));
+						}
+						this._textModel0.pushEditOperations(null, edits, () => null);
+						data.state = HunkState.Accepted;
+					}
+				}
+			};
+			result.push(item);
+		}
+
+		return result;
+	}
+}
+
+class RawHunk {
+	constructor(
+		readonly original: LineRange,
+		readonly modified: LineRange,
+		readonly changes: RangeMapping[]
+	) { }
+}
+
+export const enum HunkState {
+	Pending = 0,
+	Accepted = 1,
+	Rejected = 2
+}
+
+export interface HunkInformation {
+	/**
+	 * The first element [0] is the whole modified range and subsequent elements are word-level changes
+	 */
+	getRangesN(): Range[];
+
+	getRanges0(): Range[];
+
+	isInsertion(): boolean;
+
+	discardChanges(): void;
+
+	acceptChanges(): void;
+
+	getState(): HunkState;
 }

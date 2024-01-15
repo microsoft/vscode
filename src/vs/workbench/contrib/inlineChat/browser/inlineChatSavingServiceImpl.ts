@@ -27,7 +27,7 @@ interface SessionData {
 	readonly group: IEditorGroup;
 }
 
-export class InlineChatSavingService implements IInlineChatSavingService {
+export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -131,6 +131,7 @@ export class InlineChatSavingService implements IInlineChatSavingService {
 				: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accepted or Discarded...", sessions.size)
 		});
 
+		// TODO@jrieken this needs to show session per group in order!
 		await this._revealInlineChatSessions(sessions.values());
 
 		try {
