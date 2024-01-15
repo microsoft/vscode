@@ -2660,15 +2660,13 @@ export class CommandCenter {
 		quickPick.placeholder = placeHolder;
 		quickPick.sortByLabel = false;
 		quickPick.items = await items;
-		listeners.push(quickPick.onDidHide(() => {
-			quickPick.dispose();
-			listeners.forEach(d => d.dispose());
-		}));
 		quickPick.show();
 		const choice = await new Promise<T | undefined>(resolve => {
+			listeners.push(quickPick.onDidHide(() => resolve(undefined)));
 			listeners.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
 		});
-		quickPick.hide();
+		quickPick.dispose();
+		listeners.forEach(d => d.dispose());
 		return choice;
 	}
 
