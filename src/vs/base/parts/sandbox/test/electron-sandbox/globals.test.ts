@@ -5,8 +5,10 @@
 
 import * as assert from 'assert';
 import { context, ipcRenderer, process, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Sandbox', () => {
+
 	test('globals', async () => {
 		assert.ok(typeof ipcRenderer.send === 'function');
 		assert.ok(typeof webFrame.setZoomLevel === 'function');
@@ -16,4 +18,6 @@ suite('Sandbox', () => {
 		assert.ok(config);
 		assert.ok(context.configuration());
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

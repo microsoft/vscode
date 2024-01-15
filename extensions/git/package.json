@@ -25,6 +25,7 @@
     "tabInputTextMerge",
     "timeline",
     "contribMergeEditorMenus",
+    "contribMultiDiffEditorMenus",
     "contribSourceControlInputBoxMenu",
     "contribSourceControlHistoryItemMenu"
   ],
@@ -196,6 +197,13 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stageFile",
+        "title": "%command.stage%",
+        "category": "Git",
+        "icon": "$(add)",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.revertChange",
         "title": "%command.revertChange%",
         "category": "Git",
@@ -220,6 +228,13 @@
         "command": "git.unstageSelectedRanges",
         "title": "%command.unstageSelectedRanges%",
         "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.unstageFile",
+        "title": "%command.unstage%",
+        "category": "Git",
+        "icon": "$(remove)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1278,6 +1293,14 @@
         {
           "command": "git.viewAllChanges",
           "when": "false"
+        },
+        {
+          "command": "git.stageFile",
+          "when": "false"
+        },
+        {
+          "command": "git.unstageFile",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1841,6 +1864,23 @@
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
           "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges"
+        }
+      ],
+      "multiDiffEditor/resource/title": [
+        {
+          "command": "git.stageFile",
+          "group": "navigation",
+          "when": "scmProvider == git && scmResourceGroup == workingTree"
+        },
+        {
+          "command": "git.stageFile",
+          "group": "navigation",
+          "when": "scmProvider == git && scmResourceGroup == untracked"
+        },
+        {
+          "command": "git.unstageFile",
+          "group": "navigation",
+          "when": "scmProvider == git && scmResourceGroup == index"
         }
       ],
       "scm/change/title": [

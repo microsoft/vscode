@@ -678,6 +678,24 @@ suite('MarkdownRenderer', () => {
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test('incomplete link target 2', () => {
+				const incomplete = 'foo [text](http://microsoft.com';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg', () => {
+				const incomplete = 'foo [text](http://microsoft.com "more text here ';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '")');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test.skip('incomplete link in list', () => {
 				const incomplete = '- [text';
 				const tokens = marked.lexer(incomplete);

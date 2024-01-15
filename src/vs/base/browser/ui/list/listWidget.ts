@@ -1762,9 +1762,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
+	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean, getPaddingTop: () => number = () => 0): Promise<void> {
 		let firstPageIndex: number;
-		const scrollTop = this.view.getScrollTop();
+		const paddingTop = getPaddingTop();
+		const scrollTop = this.view.getScrollTop() + paddingTop;
 
 		if (scrollTop === 0) {
 			firstPageIndex = this.view.indexAt(scrollTop);
@@ -1784,14 +1785,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		} else {
 			const previousScrollTop = scrollTop;
-			this.view.setScrollTop(scrollTop - this.view.renderHeight);
+			this.view.setScrollTop(scrollTop - this.view.renderHeight - paddingTop);
 
-			if (this.view.getScrollTop() !== previousScrollTop) {
+			if (this.view.getScrollTop() + getPaddingTop() !== previousScrollTop) {
 				this.setFocus([]);
 
 				// Let the scroll event listener run
 				await timeout(0);
-				await this.focusPreviousPage(browserEvent, filter);
+				await this.focusPreviousPage(browserEvent, filter, getPaddingTop);
 			}
 		}
 	}
