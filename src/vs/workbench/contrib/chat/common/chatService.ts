@@ -129,7 +129,7 @@ export interface IChatAsyncContent {
 }
 
 export interface IChatProgressMessage {
-	content: string;
+	content: IMarkdownString;
 	kind: 'progressMessage';
 }
 

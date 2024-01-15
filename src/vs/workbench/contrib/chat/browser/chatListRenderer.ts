@@ -59,8 +59,8 @@ import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents'
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatContentReference, IChatProgressMessage, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
@@ -310,7 +310,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.progressSteps);
 		if (isResponseVM(element)) {
 			this.renderDetail(element, templateData);
-			this.renderProgressSteps(element, templateData);
 		}
 
 		// Do a progressive render if
@@ -373,19 +372,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			templateData.detail.title = '';
 		}
-	}
-
-	private renderProgressSteps(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
-		if (element.response.value.length || element.isComplete) {
-			return;
-		}
-
-		element.progressMessages.forEach((msg, index) => {
-			const last = index === element.progressMessages.length - 1;
-			const icon = last ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.check;
-			const step = dom.$('.progress-step', undefined, renderIcon(icon), dom.$('span.progress-step-message', undefined, msg.content));
-			templateData.progressSteps.appendChild(step);
-		});
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -451,15 +437,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
 		let fileTreeIndex = 0;
-		for (const data of value) {
+		value.forEach((data, index) => {
 			const result = data.kind === 'treeData'
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
-					: this.renderPlaceholder(new MarkdownString(data.content), templateData);
-			templateData.value.appendChild(result.element);
-			templateData.elementDisposables.add(result);
-		}
+					: data.kind === 'asyncContent' ? this.renderPlaceholder(new MarkdownString(data.content), templateData)
+						: onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false)
+							: undefined;
+			if (result) {
+				templateData.value.appendChild(result.element);
+				templateData.elementDisposables.add(result);
+			}
+		});
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
 			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
@@ -541,8 +531,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		disposables.clear();
 
-		const annotatedResult = annotateSpecialMarkdownContent(element.response.value);
-		const renderableResponse = annotatedResult;
+		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 		let isFullyRendered = false;
 		if (element.isCanceled) {
 			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
@@ -554,7 +543,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData ??= { renderedParts: [] };
 			const renderedParts = element.renderData.renderedParts;
 			const wordCountResults: IWordCountResult[] = [];
-			const partsToRender: IChatResponseRenderData['renderedParts'] = [];
+			const partsToRender: IChatRenderData[] = [];
 
 			let somePartIsNotFullyRendered = false;
 			renderableResponse.forEach((part, index) => {
@@ -563,6 +552,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (!renderedPart) {
 					if (part.kind === 'treeData') {
 						partsToRender[index] = part.treeData;
+					} else if (part.kind === 'progressMessage') {
+						partsToRender[index] = {
+							progressMessage: part,
+							isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
+							isLast: index === renderableResponse.length - 1,
+						} satisfies IChatProgressMessageRenderData;
 					} else {
 						const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), { renderedWordCount: 0, lastRenderTime: 0 });
 						if (wordCountResult !== undefined) {
@@ -583,7 +578,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				// Did this part's content change?
-				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart)) {
+				else if (part.kind !== 'treeData' && !isInteractiveProgressTreeData(renderedPart) && !isProgressMessageRenderData(renderedPart)) {
 					const wordCountResult = this.getDataForProgressiveRender(element, contentToMarkdown(part.content), renderedPart);
 					// Check if there are any new words to render
 					if (wordCountResult !== undefined && renderedPart.renderedWordCount !== wordCountResult?.actualWordCount) {
@@ -598,6 +593,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						// This part is not fully rendered, but not enough time has passed to render more content
 						somePartIsNotFullyRendered = true;
 					}
+				}
+
+				// Is it a progress message that needs to be rerendered?
+				else if (part.kind === 'progressMessage' && isProgressMessageRenderData(renderedPart) && (
+					(renderedPart.isAtEndOfResponse !== onlyProgressMessagesAfterI(renderableResponse, index)) ||
+					renderedPart.isLast !== (index === renderableResponse.length - 1))) {
+					partsToRender[index] = {
+						progressMessage: part,
+						isAtEndOfResponse: onlyProgressMessagesAfterI(renderableResponse, index),
+						isLast: index === renderableResponse.length - 1,
+					} satisfies IChatProgressMessageRenderData;
 				}
 			});
 
@@ -617,13 +623,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return;
 					}
 
-					let result;
+					// Undefined => don't do anything. null => remove the rendered element
+					let result: { element: HTMLElement } & IDisposable | undefined | null;
 					if (isInteractiveProgressTreeData(partToRender)) {
 						result = this.renderTreeData(partToRender, element, templateData, index);
+					} else if (isProgressMessageRenderData(partToRender)) {
+						if (onlyProgressMessageRenderDatasAfterI(partsToRender, index)) {
+							result = this.renderProgressMessage(partToRender.progressMessage, index === partsToRender.length - 1);
+						} else {
+							result = null;
+						}
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
-					else if (!hasRenderedOneMarkdownBlock) {
+					else if (!hasRenderedOneMarkdownBlock && wordCountResults[index]) {
 						const { value } = wordCountResults[index];
 						result = renderableResponse[index].kind === 'asyncContent'
 							? this.renderPlaceholder(new MarkdownString(value), templateData)
@@ -631,7 +644,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						hasRenderedOneMarkdownBlock = true;
 					}
 
-					if (!result) {
+					if (result === undefined) {
 						return;
 					}
 
@@ -639,11 +652,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					renderedParts[index] = partToRender;
 					const existingElement = templateData.value.children[index];
 					if (existingElement) {
-						templateData.value.replaceChild(result.element, existingElement);
-					} else {
+						if (result === null) {
+							templateData.value.replaceChild($('span.placeholder-for-deleted-thing'), existingElement);
+						} else {
+							templateData.value.replaceChild(result.element, existingElement);
+						}
+					} else if (result) {
 						templateData.value.appendChild(result.element);
 					}
-					disposables.add(result);
+
+					if (result) {
+						disposables.add(result);
+					}
 				});
 			} else {
 				// Nothing new to render, not done, keep waiting
@@ -810,6 +830,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		result.appendChild(content.element);
 
 		return { element: result, dispose: () => content.dispose() };
+	}
+
+	private renderProgressMessage(progress: IChatProgressMessage, showSpinner: boolean): IMarkdownRenderResult {
+		const codicon = showSpinner ? ThemeIcon.modify(Codicon.sync, 'spin').id : Codicon.check.id;
+		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
+			supportThemeIcons: true
+		});
+		const result = this.renderer.render(markdown);
+		result.element.classList.add('progress-step');
+		return result;
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
@@ -1324,10 +1354,26 @@ class ChatListTreeDataSource implements IAsyncDataSource<IChatResponseProgressFi
 	}
 }
 
-function isInteractiveProgressTreeData(item: IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IMarkdownString): item is IChatResponseProgressFileTreeData {
+function isInteractiveProgressTreeData(item: Object): item is IChatResponseProgressFileTreeData {
 	return 'label' in item;
 }
 
 function contentToMarkdown(str: string | IMarkdownString): IMarkdownString {
 	return typeof str === 'string' ? { value: str } : str;
+}
+
+function isProgressMessage(item: any): item is IChatProgressMessage {
+	return item && 'kind' in item && item.kind === 'progressMessage';
+}
+
+function isProgressMessageRenderData(item: IChatRenderData): item is IChatProgressMessageRenderData {
+	return item && 'isAtEndOfResponse' in item;
+}
+
+function onlyProgressMessagesAfterI(items: ReadonlyArray<IChatProgressRenderableResponseContent>, i: number): boolean {
+	return items.slice(i).every(isProgressMessage);
+}
+
+function onlyProgressMessageRenderDatasAfterI(items: ReadonlyArray<IChatRenderData>, i: number): boolean {
+	return items.slice(i).every(isProgressMessageRenderData);
 }
