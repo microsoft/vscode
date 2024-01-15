@@ -114,6 +114,13 @@ export interface IHoverOptions {
 	 * Options that define how the hover looks.
 	 */
 	appearance?: IHoverAppearanceOptions;
+
+	/**
+	 * Option to disable automated hiding of the hover when clicking its
+	 * target element. This should be set when clicking the target element
+	 * shows the hover to prevent flicker.
+	 */
+	disableHideOnClick?: boolean;
 }
 
 export interface IHoverPositionOptions {

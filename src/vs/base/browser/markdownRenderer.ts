@@ -581,7 +581,8 @@ function mergeRawTokenText(tokens: marked.Token[]): string {
 }
 
 function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens.Paragraph): marked.Token | undefined {
-	for (const subtoken of token.tokens) {
+	for (let i = 0; i < token.tokens.length; i++) {
+		const subtoken = token.tokens[i];
 		if (subtoken.type === 'text') {
 			const lines = subtoken.raw.split('\n');
 			const lastLine = lines[lines.length - 1];
@@ -596,6 +597,13 @@ function completeSingleLinePattern(token: marked.Tokens.ListItem | marked.Tokens
 			} else if (lastLine.match(/(^|\s)_\w/)) {
 				return completeUnderscore(token);
 			} else if (lastLine.match(/(^|\s)\[.*\]\(\w*/)) {
+				const nextTwoSubTokens = token.tokens.slice(i + 1);
+				if (nextTwoSubTokens[0]?.type === 'link' && nextTwoSubTokens[1]?.type === 'text' && nextTwoSubTokens[1].raw.match(/^ *"[^"]*$/)) {
+					// A markdown link can look like
+					// [link text](https://microsoft.com "more text")
+					// Where "more text" is a title for the link or an argument to a vscode command link
+					return completeLinkTargetArg(token);
+				}
 				return completeLinkTarget(token);
 			} else if (lastLine.match(/(^|\s)\[\w/)) {
 				return completeLinkText(token);
@@ -691,6 +699,10 @@ function completeUnderscore(tokens: marked.Token): marked.Token {
 
 function completeLinkTarget(tokens: marked.Token): marked.Token {
 	return completeWithString(tokens, ')');
+}
+
+function completeLinkTargetArg(tokens: marked.Token): marked.Token {
+	return completeWithString(tokens, '")');
 }
 
 function completeLinkText(tokens: marked.Token): marked.Token {

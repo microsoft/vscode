@@ -8,7 +8,7 @@ import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollable
 import { findFirstMaxBy } from 'vs/base/common/arraysFind';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorun, autorunWithStore, derived, derivedObservableWithCache, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
+import { ITransaction, disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./style';
 import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
@@ -21,6 +21,7 @@ import { ObjectPool } from './objectPool';
 import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -68,7 +69,16 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				return [];
 			}
 			const items = vm.items.read(reader);
-			return items.map(d => store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft)));
+			return items.map(d => {
+				const item = store.add(new VirtualizedViewItem(d, this._objectPool, this.scrollLeft));
+				const data = this._lastDocStates?.[item.getKey()];
+				if (data) {
+					transaction(tx => {
+						item.setViewState(data, tx);
+					});
+				}
+				return item;
+			});
 		}
 	);
 
@@ -171,6 +181,37 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
+	public getViewState(): IMultiDiffEditorViewState {
+		return {
+			scrollState: {
+				top: this.scrollTop.get(),
+				left: this.scrollLeft.get(),
+			},
+			docStates: Object.fromEntries(this._viewItems.get().map(i => [i.getKey(), i.getViewState()])),
+		};
+	}
+
+	/** This accounts for documents that are not loaded yet. */
+	private _lastDocStates: IMultiDiffEditorViewState['docStates'] = {};
+
+	public setViewState(viewState: IMultiDiffEditorViewState): void {
+		this.setScrollState(viewState.scrollState);
+
+		this._lastDocStates = viewState.docStates;
+
+		transaction(tx => {
+			/** setViewState */
+			if (viewState.docStates) {
+				for (const i of this._viewItems.get()) {
+					const state = viewState.docStates[i.getKey()];
+					if (state) {
+						i.setViewState(state, tx);
+					}
+				}
+			}
+		});
+	}
+
 	private render(reader: IReader | undefined) {
 		const scrollTop = this.scrollTop.read(reader);
 		let contentScrollOffsetToScrollOffset = 0;
@@ -209,19 +250,24 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 }
 
+export interface IMultiDiffEditorViewState {
+	scrollState: { top: number; left: number };
+	docStates?: Record<string, IMultiDiffDocState>;
+}
+
+interface IMultiDiffDocState {
+	collapsed: boolean;
+	selections?: ISelection[];
+}
+
 class VirtualizedViewItem extends Disposable {
-	// TODO this should be in the view model
-	private readonly _lastTemplateData = observableValue<{ contentHeight: number; maxScroll: { maxScroll: number; width: number } }>(
-		this,
-		{ contentHeight: 500, maxScroll: { maxScroll: 0, width: 0 }, }
-	);
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
 
 	public readonly contentHeight = derived(this, reader =>
-		this._templateRef.read(reader)?.object.contentHeight?.read(reader) ?? this._lastTemplateData.read(reader).contentHeight
+		this._templateRef.read(reader)?.object.contentHeight?.read(reader) ?? this.viewModel.lastTemplateData.read(reader).contentHeight
 	);
 
-	public readonly maxScroll = derived(this, reader => this._templateRef.read(reader)?.object.maxScroll.read(reader) ?? this._lastTemplateData.read(reader).maxScroll);
+	public readonly maxScroll = derived(this, reader => this._templateRef.read(reader)?.object.maxScroll.read(reader) ?? { maxScroll: 0, scrollWidth: 0 });
 
 	public readonly template = derived(this, reader => this._templateRef.read(reader)?.object);
 	private _isHidden = observableValue(this, false);
@@ -260,16 +306,53 @@ class VirtualizedViewItem extends Disposable {
 		return `VirtualViewItem(${this.viewModel.entry.value!.modified?.uri.toString()})`;
 	}
 
+	public getKey(): string {
+		return this.viewModel.getKey();
+	}
+
+	public getViewState(): IMultiDiffDocState {
+		transaction(tx => {
+			this._updateTemplateData(tx);
+		});
+		return {
+			collapsed: this.viewModel.collapsed.get(),
+			selections: this.viewModel.lastTemplateData.get().selections,
+		};
+	}
+
+	public setViewState(viewState: IMultiDiffDocState, tx: ITransaction): void {
+		this.viewModel.collapsed.set(viewState.collapsed, tx);
+
+		this._updateTemplateData(tx);
+		const data = this.viewModel.lastTemplateData.get();
+		const selections = viewState.selections?.map(Selection.liftSelection);
+		this.viewModel.lastTemplateData.set({
+			...data,
+			selections,
+		}, tx);
+		const ref = this._templateRef.get();
+		if (ref) {
+			if (selections) {
+				ref.object.editor.setSelections(selections);
+			}
+		}
+	}
+
+	private _updateTemplateData(tx: ITransaction): void {
+		const ref = this._templateRef.get();
+		if (!ref) { return; }
+		this.viewModel.lastTemplateData.set({
+			contentHeight: ref.object.contentHeight.get(),
+			selections: ref.object.editor.getSelections() ?? undefined,
+		}, tx);
+	}
+
 	private _clear(): void {
 		const ref = this._templateRef.get();
 		if (!ref) { return; }
 		transaction(tx => {
-			this._lastTemplateData.set({
-				contentHeight: ref.object.contentHeight.get(),
-				maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
-			}, tx);
+			this._updateTemplateData(tx);
 			ref.object.hide();
-
 			this._templateRef.set(undefined, tx);
 		});
 	}
@@ -285,6 +368,11 @@ class VirtualizedViewItem extends Disposable {
 		if (!ref) {
 			ref = this._objectPool.getUnusedObj(new TemplateData(this.viewModel));
 			this._templateRef.set(ref, undefined);
+
+			const selections = this.viewModel.lastTemplateData.get().selections;
+			if (selections) {
+				ref.object.editor.setSelections(selections);
+			}
 		}
 		ref.object.render(verticalSpace, width, offset, viewPort);
 	}

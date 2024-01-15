@@ -398,12 +398,18 @@ export enum ExtensionManagementErrorCode {
 	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',
 	Download = 'Download',
+	DownloadSignature = 'DownloadSignature',
+	UpdateMetadata = 'UpdateMetadata',
 	Extract = 'Extract',
+	Scanning = 'Scanning',
 	Delete = 'Delete',
 	Rename = 'Rename',
 	CorruptZip = 'CorruptZip',
 	IncompleteZip = 'IncompleteZip',
 	Signature = 'Signature',
+	NotAllowed = 'NotAllowed',
+	Gallery = 'Gallery',
+	Unknown = 'Unknown',
 	Internal = 'Internal',
 }
 
@@ -415,6 +421,19 @@ export enum ExtensionSignaturetErrorCode {
 
 export class ExtensionManagementError extends Error {
 	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
+		super(message);
+		this.name = code;
+	}
+}
+
+export enum ExtensionGalleryErrorCode {
+	Timeout = 'Timeout',
+	Cancelled = 'Cancelled',
+	Failed = 'Failed'
+}
+
+export class ExtensionGalleryError extends Error {
+	constructor(message: string, readonly code: ExtensionGalleryErrorCode) {
 		super(message);
 		this.name = code;
 	}
