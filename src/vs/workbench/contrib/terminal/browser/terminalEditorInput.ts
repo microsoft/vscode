@@ -42,6 +42,9 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 
 	setGroup(group: IEditorGroup | undefined) {
 		this._group = group;
+		if (group?.scopedContextKeyService) {
+			this._terminalInstance?.setParentContextKeyService(group.scopedContextKeyService);
+		}
 	}
 
 	get group(): IEditorGroup | undefined {
@@ -57,7 +60,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.ForceDescription;
 	}
 
 	setTerminalInstance(instance: ITerminalInstance): void {
@@ -127,7 +130,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IDialogService private readonly _dialogService: IDialogService
 	) {
 		super();
@@ -191,11 +194,18 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		return this._terminalInstance?.title || this.resource.fragment;
 	}
 
+	override getIcon(): ThemeIcon | undefined {
+		if (!this._terminalInstance || !ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
+			return undefined;
+		}
+		return this._terminalInstance.icon;
+	}
+
 	override getLabelExtraClasses(): string[] {
 		if (!this._terminalInstance) {
 			return [];
 		}
-		const extraClasses: string[] = ['terminal-tab'];
+		const extraClasses: string[] = ['terminal-tab', 'predefined-file-icon'];
 		const colorClass = getColorClass(this._terminalInstance);
 		if (colorClass) {
 			extraClasses.push(colorClass);
@@ -203,9 +213,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 		const uriClasses = getUriClasses(this._terminalInstance, this._themeService.getColorTheme().type);
 		if (uriClasses) {
 			extraClasses.push(...uriClasses);
-		}
-		if (ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
-			extraClasses.push(`codicon-${this._terminalInstance.icon.id}`);
 		}
 		return extraClasses;
 	}
@@ -217,6 +224,7 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	detachInstance() {
 		if (!this._isShuttingDown) {
 			this._terminalInstance?.detachFromElement();
+			this._terminalInstance?.setParentContextKeyService(this._contextKeyService);
 			this._isDetached = true;
 		}
 	}

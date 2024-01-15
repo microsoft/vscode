@@ -460,7 +460,7 @@ export class EditorsObserver extends Disposable {
 
 	private async loadState(): Promise<void> {
 		if (this.editorGroupsContainer === this.editorGroupService.mainPart || this.editorGroupsContainer === this.editorGroupService) {
-			await this.editorGroupService.mainPart.whenReady;
+			await this.editorGroupService.whenReady;
 		}
 
 		// Previous state: Load editors map from persisted state

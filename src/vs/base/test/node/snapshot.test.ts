@@ -9,7 +9,7 @@ import { Promises } from 'vs/base/node/pfs';
 import { SnapshotContext, assertSnapshot } from 'vs/base/test/common/snapshot';
 import { URI } from 'vs/base/common/uri';
 import * as path from 'path';
-import { assertThrowsAsync } from 'vs/base/test/common/utils';
+import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 // tests for snapshot are in Node so that we can use native FS operations to
 // set up and validate things.
@@ -18,6 +18,8 @@ import { assertThrowsAsync } from 'vs/base/test/common/utils';
 
 suite('snapshot', () => {
 	let testDir: string;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'snapshot');

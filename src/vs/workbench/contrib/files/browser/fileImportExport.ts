@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
-import { isDragEvent, triggerDownload } from 'vs/base/browser/dom';
+import { getActiveWindow, isDragEvent, triggerDownload } from 'vs/base/browser/dom';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -402,7 +402,7 @@ export class ExternalFileImport {
 	) {
 	}
 
-	async import(target: ExplorerItem, source: DragEvent): Promise<void> {
+	async import(target: ExplorerItem, source: DragEvent, targetWindow: Window): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		// Indicate progress globally
@@ -413,7 +413,7 @@ export class ExternalFileImport {
 				cancellable: true,
 				title: localize('copyingFiles', "Copying...")
 			},
-			async () => await this.doImport(target, source, cts.token),
+			async () => await this.doImport(target, source, targetWindow, cts.token),
 			() => cts.dispose(true)
 		);
 
@@ -423,7 +423,7 @@ export class ExternalFileImport {
 		return importPromise;
 	}
 
-	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
+	private async doImport(target: ExplorerItem, source: DragEvent, targetWindow: Window, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
 		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, source))).map(editor => editor.resource));
@@ -438,7 +438,7 @@ export class ExternalFileImport {
 		}
 
 		// Pass focus to window
-		this.hostService.focus();
+		this.hostService.focus(targetWindow);
 
 		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = resolvedFiles.filter(resolvedFile => resolvedFile.success && resolvedFile.stat?.isDirectory).map(resolvedFile => ({ uri: resolvedFile.stat!.resource }));
@@ -654,9 +654,10 @@ export class FileDownload {
 		const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
 
 		// Folder: use FS APIs to download files and folders if available and preferred
-		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(activeWindow)) {
 			try {
-				const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
+				const parentFolder: FileSystemDirectoryHandle = await activeWindow.showDirectoryPicker();
 				const operation: IDownloadOperation = {
 					startTime: Date.now(),
 					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),

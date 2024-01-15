@@ -78,15 +78,31 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 				extHost.dispose();
 				this._extHosts.delete(id);
 			});
+
+			// See https://github.com/microsoft/vscode/issues/194477
+			// We have observed that sometimes the process sends an exit
+			// event, but does not really exit and is stuck in an endless
+			// loop. In these cases we kill the process forcefully after
+			// a certain timeout.
+			setTimeout(() => {
+				try {
+					process.kill(pid, 0); // will throw if the process doesn't exist anymore.
+					this._logService.error(`Extension host with pid ${pid} still exists, forcefully killing it...`);
+					process.kill(pid);
+				} catch (er) {
+					// ignore, as the process is already gone
+				}
+			}, 1000);
 		});
 		return { id };
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<void> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }> {
 		if (this._shutdown) {
 			throw canceled();
 		}
-		this._getExtHost(id).start({
+		const extHost = this._getExtHost(id);
+		extHost.start({
 			...opts,
 			type: 'extensionHost',
 			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
@@ -96,6 +112,8 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			forceAllocationsToV8Sandbox: true,
 			correlationId: id
 		});
+		const pid = await Event.toPromise(extHost.onSpawn);
+		return { pid };
 	}
 
 	async enableInspectPort(id: string): Promise<boolean> {

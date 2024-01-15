@@ -68,6 +68,12 @@ declare module 'vscode' {
 		isRevoked: boolean;
 
 		/**
+		 * The name of the model that is used for this chat access. It is expected that the model name can
+		 * be used to lookup properties like token limits and ChatML support
+		 */
+		model: string;
+
+		/**
 		 * Make a chat request.
 		 *
 		 * The actual response will be reported back via the `progress` callback. The promise returned by this function

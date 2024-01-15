@@ -447,7 +447,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _attachModel() {
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 		const updateInsets = () => {
-			DOM.scheduleAtNextAnimationFrame(() => {
+			DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._listViewContainer), () => {
 				if (this._isDisposed) {
 					return;
 				}
@@ -761,7 +761,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 
-		DOM.scheduleAtNextAnimationFrame(() => {
+		DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._listViewContainer), () => {
 			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
 		}, 10);
 	}
@@ -779,7 +779,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._listViewContainer), () => {
 			this.pendingLayouts.delete(cell);
 
 			relayout(cell, height);

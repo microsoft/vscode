@@ -142,6 +142,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
 
+	protected readonly _onWillChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onWillChangeModel: Event<editorCommon.IModelChangedEvent> = this._onWillChangeModel.event;
+
 	protected readonly _onDidChangeModel: Emitter<editorCommon.IModelChangedEvent> = this._register(new Emitter<editorCommon.IModelChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModel: Event<editorCommon.IModelChangedEvent> = this._onDidChangeModel.event;
 
@@ -345,10 +348,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.id,
 				action.label,
 				action.alias,
+				action.metadata,
 				action.precondition ?? undefined,
-				(): Promise<void> => {
+				(args: unknown): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
-						return Promise.resolve(action.runEditorCommand(accessor, this, null));
+						return Promise.resolve(action.runEditorCommand(accessor, this, args));
 					});
 				},
 				this._contextKeyService
@@ -362,7 +366,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 
 		this._register(new dom.DragAndDropObserver(this._domElement, {
-			onDragEnter: () => undefined,
 			onDragOver: e => {
 				if (!isDropIntoEnabled()) {
 					return;
@@ -502,17 +505,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			// Current model is the new model
 			return;
 		}
+
+		const e: editorCommon.IModelChangedEvent = {
+			oldModelUrl: this._modelData?.model.uri || null,
+			newModelUrl: model?.uri || null
+		};
+		this._onWillChangeModel.fire(e);
+
 		const hasTextFocus = this.hasTextFocus();
 		const detachedModel = this._detachModel();
 		this._attachModel(model);
 		if (hasTextFocus && this.hasModel()) {
 			this.focus();
 		}
-
-		const e: editorCommon.IModelChangedEvent = {
-			oldModelUrl: detachedModel ? detachedModel.uri : null,
-			newModelUrl: model ? model.uri : null
-		};
 
 		this._removeDecorationTypes();
 		this._onDidChangeModel.fire(e);
@@ -1417,9 +1422,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.view.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	public layout(dimension?: IDimension): void {
+	public layout(dimension?: IDimension, postponeRendering: boolean = false): void {
 		this._configuration.observeContainer(dimension);
-		this.render();
+		if (!postponeRendering) {
+			this.render();
+		}
 	}
 
 	public focus(): void {
@@ -1490,7 +1497,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		this._overlayWidgets[widget.getId()] = widgetData;
-
 		if (this._modelData && this._modelData.hasRealView) {
 			this._modelData.view.addOverlayWidget(widgetData);
 		}
@@ -1646,9 +1652,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			DOMLineBreaksComputerFactory.create(),
+			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
-			(callback) => dom.scheduleAtNextAnimationFrame(callback),
+			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,
@@ -2310,6 +2316,20 @@ class EditorDecorationsCollection implements editorCommon.IEditorDecorationsColl
 			this._isChangingDecorations = false;
 		}
 		return this._decorationIds;
+	}
+
+	public append(newDecorations: readonly IModelDeltaDecoration[]): string[] {
+		let newDecorationIds: string[] = [];
+		try {
+			this._isChangingDecorations = true;
+			this._editor.changeDecorations((accessor) => {
+				newDecorationIds = accessor.deltaDecorations([], newDecorations);
+				this._decorationIds = this._decorationIds.concat(newDecorationIds);
+			});
+		} finally {
+			this._isChangingDecorations = false;
+		}
+		return newDecorationIds;
 	}
 }
 

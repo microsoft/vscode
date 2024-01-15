@@ -258,7 +258,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 
 			} else if (ranges) {
 				// formatted modified ranges
-				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token, false);
 			}
 		}
 	}

@@ -617,16 +617,22 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	readonly onDidBlur = this._onDidBlur.event;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider | undefined, options: IHistoryInputOptions) {
-		const NLS_PLACEHOLDER_HISTORY_HINT = nls.localize({ key: 'history.inputbox.hint', comment: ['Text will be prefixed with \u21C5 plus a single space, then used as a hint where input field keeps history'] }, "for history");
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX = ` or \u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT}`;
-		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = ` (\u21C5 ${NLS_PLACEHOLDER_HISTORY_HINT})`;
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS = nls.localize({
+			key: 'history.inputbox.hint.suffix.noparens',
+			comment: ['Text is the suffix of an input field placeholder coming after the action the input field performs, this will be used when the input field ends in a closing parenthesis ")", for example "Filter (e.g. text, !exclude)". The character inserted into the final string is \u21C5 to represent the up and down arrow keys.']
+		}, ' or {0} for history', `\u21C5`);
+		const NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS = nls.localize({
+			key: 'history.inputbox.hint.suffix.inparens',
+			comment: ['Text is the suffix of an input field placeholder coming after the action the input field performs, this will be used when the input field does NOT end in a closing parenthesis (eg. "Find"). The character inserted into the final string is \u21C5 to represent the up and down arrow keys.']
+		}, ' ({0} for history)', `\u21C5`);
+
 		super(container, contextViewProvider, options);
 		this.history = new HistoryNavigator<string>(options.history, 100);
 
 		// Function to append the history suffix to the placeholder if necessary
 		const addSuffix = () => {
-			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
-				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
+			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
+				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
 				const suffixedPlaceholder = this.placeholder + suffix;
 				if (options.showPlaceholderOnFocus && !dom.isActiveElement(this.input)) {
 					this.placeholder = suffixedPlaceholder;
@@ -666,7 +672,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 				}
 			};
 			if (!resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS)) {
-				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX);
+				resetPlaceholder(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_NO_PARENS);
 			}
 		});
 	}
@@ -746,6 +752,11 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public clearHistory(): void {
 		this.history.clear();
+	}
+
+	public override setPlaceHolder(placeHolder: string): void {
+		super.setPlaceHolder(placeHolder);
+		this.setTooltip(placeHolder);
 	}
 
 	protected override onBlur(): void {

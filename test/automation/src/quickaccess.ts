@@ -198,9 +198,6 @@ export class QuickAccess {
 			this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
 			await this.quickInput.closeQuickInput();
 
-			// Wait for workbench to be restored
-			await this.code.whenWorkbenchRestored();
-
 			let retries = 0;
 			while (++retries < 5) {
 				hasCommandFound = await openCommandPalletteAndTypeCommand();
@@ -217,7 +214,6 @@ export class QuickAccess {
 				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command.`);
 			}
 		}
-
 
 		// wait and click on best choice
 		await this.quickInput.selectQuickInputElement(0, keepOpen);

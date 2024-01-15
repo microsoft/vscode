@@ -547,7 +547,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			const window = dom.getWindow(this.selectElement);
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
-			const styles = getComputedStyle(this.selectElement);
+			const styles = dom.getWindow(this.selectElement).getComputedStyle(this.selectElement);
 			const verticalPadding = parseFloat(styles.getPropertyValue('--dropdown-padding-top')) + parseFloat(styles.getPropertyValue('--dropdown-padding-bottom'));
 			const maxSelectDropDownHeightBelow = (window.innerHeight - selectPosition.top - selectPosition.height - (this.selectBoxOptions.minBottomMargin || 0));
 			const maxSelectDropDownHeightAbove = (selectPosition.top - SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN);

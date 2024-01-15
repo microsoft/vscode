@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DomUtils from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { Event as EventUtils } from 'vs/base/common/event';
@@ -93,9 +94,9 @@ export class Gesture extends Disposable {
 
 		this._register(EventUtils.runAndSubscribe(DomUtils.onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
-			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(window, e)));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {
@@ -126,7 +127,7 @@ export class Gesture extends Disposable {
 	static isTouchDevice(): boolean {
 		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
 		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		return 'ontouchstart' in mainWindow || navigator.maxTouchPoints > 0;
 	}
 
 	public override dispose(): void {
@@ -173,7 +174,7 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private onTouchEnd(e: TouchEvent): void {
+	private onTouchEnd(targetWindow: Window, e: TouchEvent): void {
 		const timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
 
 		const activeTouchCount = Object.keys(this.activeTouches).length;
@@ -218,13 +219,13 @@ export class Gesture extends Disposable {
 
 				// We need to get all the dispatch targets on the start of the inertia event
 				const dispatchTo = [...this.targets].filter(t => data.initialTarget instanceof Node && t.contains(data.initialTarget));
-				this.inertia(dispatchTo, timestamp,		// time now
-					Math.abs(deltaX) / deltaT,	// speed
-					deltaX > 0 ? 1 : -1,		// x direction
-					finalX,						// x now
-					Math.abs(deltaY) / deltaT,  // y speed
-					deltaY > 0 ? 1 : -1,		// y direction
-					finalY						// y now
+				this.inertia(targetWindow, dispatchTo, timestamp,	// time now
+					Math.abs(deltaX) / deltaT,						// speed
+					deltaX > 0 ? 1 : -1,							// x direction
+					finalX,											// x now
+					Math.abs(deltaY) / deltaT,  					// y speed
+					deltaY > 0 ? 1 : -1,							// y direction
+					finalY											// y now
 				);
 			}
 
@@ -282,8 +283,8 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private inertia(dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
-		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
+	private inertia(targetWindow: Window, dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
+		this.handle = DomUtils.scheduleAtNextAnimationFrame(targetWindow, () => {
 			const now = Date.now();
 
 			// velocity: old speed + accel_over_time
@@ -311,7 +312,7 @@ export class Gesture extends Disposable {
 			dispatchTo.forEach(d => d.dispatchEvent(evt));
 
 			if (!stopped) {
-				this.inertia(dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
+				this.inertia(targetWindow, dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
 			}
 		});
 	}

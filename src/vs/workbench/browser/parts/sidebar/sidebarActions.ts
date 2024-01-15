@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/sidebarpart';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -19,7 +19,7 @@ export class FocusSideBarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusSideBar',
-			title: { value: localize('focusSideBar', "Focus into Primary Side Bar"), original: 'Focus into Primary Side Bar' },
+			title: localize2('focusSideBar', 'Focus into Primary Side Bar'),
 			category: Categories.View,
 			f1: true,
 			keybinding: {

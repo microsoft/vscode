@@ -15,6 +15,7 @@ import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLo
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ILogService } from 'vs/platform/log/common/log';
+import { mainWindow } from 'vs/base/browser/window';
 
 interface IBundledExtension {
 	extensionPath: string;
@@ -55,7 +56,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 					bundledExtensions = [/*BUILD->INSERT_BUILTIN_EXTENSIONS*/];
 				} else {
 					// Find builtin extensions by checking for DOM
-					const builtinExtensionsElement = document.getElementById('vscode-workbench-builtin-extensions');
+					const builtinExtensionsElement = mainWindow.document.getElementById('vscode-workbench-builtin-extensions');
 					const builtinExtensionsElementAttribute = builtinExtensionsElement ? builtinExtensionsElement.getAttribute('data-settings') : undefined;
 					if (builtinExtensionsElementAttribute) {
 						try {

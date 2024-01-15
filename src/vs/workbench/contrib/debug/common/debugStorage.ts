@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ExceptionBreakpoint, Expression, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { IEvaluate, IExpression, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILogService } from 'vs/platform/log/common/log';
-import { observableValue } from 'vs/base/common/observable';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { observableValue } from 'vs/base/common/observable';
+import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IDebugModel, IEvaluate, IExpression } from 'vs/workbench/contrib/debug/common/debug';
+import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, Expression, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
@@ -66,7 +66,7 @@ export class DebugStorage extends Disposable {
 		let result: Breakpoint[] | undefined;
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((breakpoint: any) => {
-				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id);
+				return new Breakpoint(URI.parse(breakpoint.uri.external || breakpoint.source.uri.external), breakpoint.lineNumber, breakpoint.column, breakpoint.enabled, breakpoint.condition, breakpoint.hitCondition, breakpoint.logMessage, breakpoint.adapterData, this.textFileService, this.uriIdentityService, this.logService, breakpoint.id, breakpoint.triggeredBy);
 			});
 		} catch (e) { }
 

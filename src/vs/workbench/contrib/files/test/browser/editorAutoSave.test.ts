@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestEnvironmentService, TestFileService, TestTextResourceConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -21,10 +21,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 suite('EditorAutoSave', () => {
 
@@ -44,14 +43,16 @@ suite('EditorAutoSave', () => {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('files', autoSaveConfig);
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IAccessibleNotificationService, disposables.add(new TestAccessibleNotificationService()));
+		instantiationService.stub(IAudioCueService, { playAudioCue: async () => { }, isEnabled(cue: unknown) { return false; } } as any);
 		instantiationService.stub(IFilesConfigurationService, disposables.add(new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
 			configurationService,
 			new TestContextService(TestWorkspace),
 			TestEnvironmentService,
 			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
-			disposables.add(new TestFileService())
+			disposables.add(new TestFileService()),
+			new TestMarkerService(),
+			new TestTextResourceConfigurationService(configurationService)
 		)));
 
 		const part = await createEditorPart(instantiationService, disposables);

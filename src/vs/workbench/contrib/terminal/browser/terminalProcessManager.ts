@@ -22,11 +22,11 @@ import { FlowControlConstants, IProcessDataEvent, IProcessProperty, IProcessProp
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigHelper, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
 import { serializeEnvironmentVariableCollections } from 'vs/platform/terminal/common/environmentVariableShared';
-import { IBeforeProcessDataEvent, ITerminalConfigHelper, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IBeforeProcessDataEvent, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -38,7 +38,8 @@ import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { generateUuid } from 'vs/base/common/uuid';
-import { runWhenIdle } from 'vs/base/common/async';
+import { getActiveWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 const enum ProcessConstants {
 	/**
@@ -394,7 +395,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		// Report the latency to the pty host when idle
-		runWhenIdle(() => {
+		runWhenWindowIdle(getActiveWindow(), () => {
 			this.backend?.getLatency().then(measurements => {
 				this._logService.info(`Latency measurements for ${this.remoteAuthority ?? 'local'} backend\n${measurements.map(e => `${e.label}: ${e.latency.toFixed(2)}ms`).join('\n')}`);
 			});
@@ -748,7 +749,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 			this.triggerSwap();
 		}
 
-		this._swapTimeout = window.setTimeout(() => this.triggerSwap(), SeamlessRelaunchConstants.SwapWaitMaximumDuration);
+		this._swapTimeout = mainWindow.setTimeout(() => this.triggerSwap(), SeamlessRelaunchConstants.SwapWaitMaximumDuration);
 
 		// Pause all outgoing data events
 		this._dataListener?.dispose();
@@ -773,7 +774,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 	triggerSwap() {
 		// Clear the swap timeout if it exists
 		if (this._swapTimeout) {
-			window.clearTimeout(this._swapTimeout);
+			mainWindow.clearTimeout(this._swapTimeout);
 			this._swapTimeout = undefined;
 		}
 

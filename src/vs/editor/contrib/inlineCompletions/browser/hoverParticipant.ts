@@ -15,7 +15,7 @@ import { IModelDecoration } from 'vs/editor/common/model';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import * as nls from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -83,7 +83,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
-		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always') {
+		if (this._editor.getOption(EditorOption.inlineSuggest).showToolbar !== 'onHover') {
 			return [];
 		}
 

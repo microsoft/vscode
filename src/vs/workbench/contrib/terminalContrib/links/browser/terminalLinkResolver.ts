@@ -12,6 +12,7 @@ import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPath, posix, win32 } from 'vs/base/common/path';
 import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
 	declare _serviceBrand: undefined;
@@ -169,9 +170,9 @@ class LinkCache {
 	set(link: string | URI, value: ResolvedLink) {
 		// Reset cached link TTL on any set
 		if (this._cacheTilTimeout) {
-			window.clearTimeout(this._cacheTilTimeout);
+			mainWindow.clearTimeout(this._cacheTilTimeout);
 		}
-		this._cacheTilTimeout = window.setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
+		this._cacheTilTimeout = mainWindow.setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
 		this._cache.set(this._getKey(link), value);
 	}
 

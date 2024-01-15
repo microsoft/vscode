@@ -865,9 +865,14 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 	}
 
 	protected async install(token: CancellationToken): Promise<[ILocalExtension, Metadata]> {
-		const installed = await this.extensionsScanner.scanExtensions(null, this.options.profileLocation);
-		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.gallery.identifier));
+		let installed;
+		try {
+			installed = await this.extensionsScanner.scanExtensions(null, this.options.profileLocation);
+		} catch (error) {
+			throw new ExtensionManagementError(error, ExtensionManagementErrorCode.Scanning);
+		}
 
+		const existingExtension = installed.find(i => areSameExtensions(i.identifier, this.gallery.identifier));
 		if (existingExtension) {
 			this._operation = InstallOperation.Update;
 		}
@@ -884,7 +889,7 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 			updated: !!existingExtension,
 			isPreReleaseVersion: this.gallery.properties.isPreReleaseVersion,
 			installedTimestamp: Date.now(),
-			pinned: this.options.installGivenVersion ? true : undefined,
+			pinned: this.options.installGivenVersion ? true : (this.options.pinned ?? existingExtension?.pinned),
 			preRelease: this.gallery.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
@@ -892,8 +897,12 @@ export class InstallGalleryExtensionTask extends InstallExtensionTask {
 		};
 
 		if (existingExtension?.manifest.version === this.gallery.version) {
-			const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
-			return [local, metadata];
+			try {
+				const local = await this.extensionsScanner.updateMetadata(existingExtension, metadata);
+				return [local, metadata];
+			} catch (error) {
+				throw new ExtensionManagementError(getErrorMessage(error), ExtensionManagementErrorCode.UpdateMetadata);
+			}
 		}
 
 		const { location, verificationStatus } = await this.extensionsDownloader.download(this.gallery, this._operation, !this.options.donotVerifySignature);
@@ -955,7 +964,7 @@ class InstallVSIXTask extends InstallExtensionTask {
 			isMachineScoped: this.options.isMachineScoped || existing?.isMachineScoped,
 			isBuiltin: this.options.isBuiltin || existing?.isBuiltin,
 			installedTimestamp: Date.now(),
-			pinned: this.options.installGivenVersion ? true : undefined,
+			pinned: this.options.installGivenVersion ? true : (this.options.pinned ?? existing?.pinned),
 		};
 
 		if (existing) {

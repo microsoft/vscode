@@ -42,7 +42,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
 		// The difference is minimal and keeps this function clean
-		return this.layoutService.dimension.height * 0.4;
+		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {

@@ -80,6 +80,7 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 const $ = dom.$;
 
@@ -189,6 +190,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
+		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -1245,7 +1247,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+		this.audioCueService.playAudioCue(AudioCue.clear);
 		this.reLayout();
 	}
 
@@ -1280,13 +1282,6 @@ export class SearchView extends ViewPane {
 		}
 
 		editor = editor ?? this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			if (editor.getOriginalEditor().hasTextFocus()) {
-				editor = editor.getOriginalEditor();
-			} else {
-				editor = editor.getModifiedEditor();
-			}
-		}
 
 		if (!editor) {
 			return null;
@@ -2146,7 +2141,17 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 	return undefined;
 }
 
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor): string | null {
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | null {
+
+	let editor = activeEditor;
+
+	if (isDiffEditor(editor)) {
+		if (editor.getOriginalEditor().hasTextFocus()) {
+			editor = editor.getOriginalEditor();
+		} else {
+			editor = editor.getModifiedEditor();
+		}
+	}
 
 	if (!isCodeEditor(editor) || !editor.hasModel()) {
 		return null;

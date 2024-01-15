@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as crypto from 'crypto';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { getHashedRemotesFromConfig as baseGetHashedRemotesFromConfig } from 'vs/workbench/contrib/tags/common/workspaceTags';
 
 function hash(value: string): string {
@@ -58,4 +59,6 @@ suite('Telemetry - WorkspaceTags', () => {
 	fetch = +refs/heads/*:refs/remotes/origin/*
 `;
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

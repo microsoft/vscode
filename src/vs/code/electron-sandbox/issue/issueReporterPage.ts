@@ -11,7 +11,7 @@ const sendProcessInfoLabel = escape(localize('sendProcessInfo', "Include my curr
 const sendWorkspaceInfoLabel = escape(localize('sendWorkspaceInfo', "Include my workspace metadata"));
 const sendExtensionsLabel = escape(localize('sendExtensions', "Include my enabled extensions"));
 const sendExperimentsLabel = escape(localize('sendExperiments', "Include A/B experiment info"));
-const sendExtensionData = escape(localize('sendExtensionData', "Include Additional Extension info"));
+const sendExtensionData = escape(localize('sendExtensionData', "Include additional extension info"));
 const reviewGuidanceLabel = localize( // intentionally not escaped because of its embedded tags
 	{
 		key: 'reviewGuidanceLabel',
@@ -93,9 +93,9 @@ export default (): string => `
 				<span id="ext-loading" hidden></span>
 				<span class="ext-parens" hidden>(</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a><span class="ext-parens" hidden>)</span>
 			</label>
-			<div class="block-info hidden">
-				<textarea name="extension-data" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}"></textarea>
-			</div>
+			<pre class="block-info" id="extension-data" placeholder="${escape(localize('extensionData', "Extension does not have additional data to include."))}">
+				<!-- To be dynamically filled -->
+			</pre>
 		</div>
 
 		<div class="block block-system">

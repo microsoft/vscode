@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2 {
+	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
 		 * When true, this agent is invoked by default when no other agent is being invoked
 		 */
@@ -16,5 +16,15 @@ declare module 'vscode' {
 		 * TODO@API name
 		 */
 		isSecondary?: boolean;
+
+		/**
+		 * A string that will be added before the listing of chat agents in `/help`.
+		 */
+		helpTextPrefix?: string | MarkdownString;
+
+		/**
+		 * A string that will be appended after the listing of chat agents in `/help`.
+		 */
+		helpTextPostfix?: string | MarkdownString;
 	}
 }

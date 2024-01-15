@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -134,7 +134,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.toggleLineNumbers',
-			title: { value: localize('notebook.toggleLineNumbers', "Toggle Notebook Line Numbers"), original: 'Toggle Notebook Line Numbers' },
+			title: localize2('notebook.toggleLineNumbers', 'Toggle Notebook Line Numbers'),
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [
 				{

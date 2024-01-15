@@ -29,15 +29,17 @@ import { GlobPattern } from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
-import { IRawFileMatch2, resultIsMatch } from 'vs/workbench/services/search/common/search';
+import { IRawFileMatch2, ITextSearchResult, resultIsMatch } from 'vs/workbench/services/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext, MainThreadMessageOptions, MainThreadMessageServiceShape, MainThreadWorkspaceShape } from './extHost.protocol';
+import { revive } from 'vs/base/common/marshalling';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
 	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
+	loadCertificates(): Promise<string[]>;
 }
 
 function isFolderEqual(folderA: URI, folderB: URI, extHostFileSystemInfo: IExtHostFileSystemInfo): boolean {
@@ -509,7 +511,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			}
 
 			const uri = URI.revive(p.resource);
-			p.results!.forEach(result => {
+			p.results!.forEach(rawResult => {
+				const result: ITextSearchResult<URI> = revive(rawResult);
 				if (resultIsMatch(result)) {
 					callback(<vscode.TextSearchMatch>{
 						uri,
@@ -574,6 +577,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxy.$resolveProxy(url);
+	}
+
+	loadCertificates(): Promise<string[]> {
+		return this._proxy.$loadCertificates();
 	}
 
 	// --- trust ---

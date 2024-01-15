@@ -685,6 +685,14 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this._onDidModelChange.fire({ kind: GroupModelChangeKind.GROUP_INDEX });
 	}
 
+	setLabel(label: string) {
+		// We do not really keep the `label` in our model because
+		// it has no special meaning to us here. But for consistency
+		// we emit a `onDidModelChange` event so that components can
+		// react.
+		this._onDidModelChange.fire({ kind: GroupModelChangeKind.GROUP_LABEL });
+	}
+
 	pin(candidate: EditorInput): EditorInput | undefined {
 		const res = this.findEditor(candidate);
 		if (!res) {

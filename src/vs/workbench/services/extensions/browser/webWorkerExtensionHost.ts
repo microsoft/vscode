@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { parentOriginHash } from 'vs/base/browser/iframe';
+import { mainWindow } from 'vs/base/browser/window';
 import { Barrier } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
@@ -40,6 +41,7 @@ export interface IWebWorkerExtensionHostDataProvider {
 
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
+	public readonly pid = null;
 	public readonly remoteAuthority = null;
 	public extensions: ExtensionHostExtensions | null = null;
 
@@ -96,7 +98,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 					stableOriginUUID = generateUuid();
 					this._storageService.store(key, stableOriginUUID, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
-				const hash = await parentOriginHash(window.origin, stableOriginUUID);
+				const hash = await parentOriginHash(mainWindow.origin, stableOriginUUID);
 				const baseUrl = (
 					webEndpointUrlTemplate
 						.replace('{{uuid}}', `v--${hash}`) // using `v--` as a marker to require `parentOrigin`/`salt` verification
@@ -105,7 +107,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				);
 
 				const res = new URL(`${baseUrl}/out/${iframeModulePath}${suffix}`);
-				res.searchParams.set('parentOrigin', window.origin);
+				res.searchParams.set('parentOrigin', mainWindow.origin);
 				res.searchParams.set('salt', stableOriginUUID);
 				return res.toString();
 			}
@@ -164,7 +166,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The Web Worker Extension Host did not start in 60s, that might be a problem.`);
 		}, 60000);
 
-		this._register(dom.addDisposableListener(window, 'message', (event) => {
+		this._register(dom.addDisposableListener(mainWindow, 'message', (event) => {
 			if (event.source !== iframe.contentWindow) {
 				return;
 			}
@@ -188,7 +190,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			resolveBarrier(data);
 		}));
 
-		this._layoutService.container.appendChild(iframe);
+		this._layoutService.mainContainer.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
 		// await MessagePort and use it to directly communicate
@@ -307,6 +309,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
+				sqmId: this._telemetryService.sqmId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},

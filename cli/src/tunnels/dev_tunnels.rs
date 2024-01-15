@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use super::protocol::{self, PortPrivacy};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
 use crate::state::{LauncherPaths, PersistedState};
@@ -32,10 +33,41 @@ use tunnels::management::{
 	NO_REQUEST_OPTIONS,
 };
 
-use super::protocol::{self, PortPrivacy};
-use super::wsl_detect::is_wsl_installed;
-
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+
+#[allow(dead_code)]
+mod tunnel_flags {
+	use crate::{log, tunnels::wsl_detect::is_wsl_installed};
+
+	pub const IS_WSL_INSTALLED: u32 = 1 << 0;
+	pub const IS_WINDOWS: u32 = 1 << 1;
+	pub const IS_LINUX: u32 = 1 << 2;
+	pub const IS_MACOS: u32 = 1 << 3;
+
+	/// Creates a flag string for the tunnel
+	pub fn create(log: &log::Logger) -> String {
+		let mut flags = 0;
+
+		#[cfg(windows)]
+		{
+			flags |= IS_WINDOWS;
+		}
+		#[cfg(target_os = "linux")]
+		{
+			flags |= IS_LINUX;
+		}
+		#[cfg(target_os = "macos")]
+		{
+			flags |= IS_MACOS;
+		}
+
+		if is_wsl_installed(log) {
+			flags |= IS_WSL_INSTALLED;
+		}
+
+		format!("_flag{}", flags)
+	}
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -600,17 +632,12 @@ impl DevTunnels {
 
 	/// Gets the expected tunnel tags
 	fn get_tags(&self, name: &str) -> Vec<String> {
-		let mut tags = vec![
+		vec![
 			name.to_string(),
 			PROTOCOL_VERSION_TAG.to_string(),
 			self.tag.to_string(),
-		];
-
-		if is_wsl_installed(&self.log) {
-			tags.push("_wsl".to_string())
-		}
-
-		tags
+			tunnel_flags::create(&self.log),
+		]
 	}
 
 	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
@@ -979,6 +1006,7 @@ impl ActiveTunnelManager {
 			.add_port_raw(&TunnelPort {
 				port_number,
 				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
 				..Default::default()
 			})
 			.await
@@ -1179,11 +1207,9 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 }
 
 fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
-	let mut acl = TunnelAccessControl { entries: vec![] };
-
-	if privacy == PortPrivacy::Public {
-		acl.entries
-			.push(tunnels::contracts::TunnelAccessControlEntry {
+	TunnelAccessControl {
+		entries: vec![match privacy {
+			PortPrivacy::Public => tunnels::contracts::TunnelAccessControlEntry {
 				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
 				provider: None,
 				is_inherited: false,
@@ -1193,10 +1219,22 @@ fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 				expiration: None,
 				subjects: vec![],
 				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
-			});
+			},
+			// Ensure private ports are actually private and do not inherit any
+			// default visibility that may be set on the tunnel:
+			PortPrivacy::Private => tunnels::contracts::TunnelAccessControlEntry {
+				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
+				provider: None,
+				is_inherited: false,
+				is_deny: true,
+				is_inverse: false,
+				organization: None,
+				expiration: None,
+				subjects: vec![],
+				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
+			},
+		}],
 	}
-
-	acl
 }
 
 #[cfg(test)]

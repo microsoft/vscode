@@ -116,7 +116,7 @@ export class NotebookStickyScroll extends Disposable {
 	) {
 		super();
 
-		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
+		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScroll) {
 			this.init();
 		}
 
@@ -135,7 +135,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,
@@ -143,7 +143,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private updateConfig() {
-		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().stickyScroll) {
+		if (this.notebookEditor.notebookOptions.getDisplayOptions().stickyScroll) {
 			this.init();
 		} else {
 			this._disposables.clear();
@@ -154,7 +154,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private setTop() {
-		if (this.notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+		if (this.notebookEditor.notebookOptions.getDisplayOptions().globalToolbar) {
 			this.domNode.style.top = '26px';
 		} else {
 			this.domNode.style.top = '0px';

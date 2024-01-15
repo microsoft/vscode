@@ -15,8 +15,8 @@ interface IDisposable {
 	dispose(): void;
 }
 
-interface GlobalThisAddition extends globalThis {
-	$hotReload_applyNewExports?(oldExports: Record<string, unknown>): AcceptNewExportsFn | undefined;
+interface GlobalThisAddition {
+	$hotReload_applyNewExports?(args: { oldExports: Record<string, unknown>; newSrc: string }): AcceptNewExportsFn | undefined;
 }
 
 type AcceptNewExportsFn = (newExports: Record<string, unknown>) => boolean;

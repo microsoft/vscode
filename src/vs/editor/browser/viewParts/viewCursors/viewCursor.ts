@@ -146,7 +146,7 @@ export class ViewCursor {
 				return null;
 			}
 
-			const window = dom.getWindow(this._domNode);
+			const window = dom.getWindow(this._domNode.domNode);
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
 				width = dom.computeScreenAwareSize(window, this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);
@@ -166,7 +166,7 @@ export class ViewCursor {
 				left -= paddingLeft;
 			}
 
-			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
+			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber);
 			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
 		}
 
@@ -196,7 +196,7 @@ export class ViewCursor {
 			textContentClassName = this._getTokenClassName(position);
 		}
 
-		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
+		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber);
 		let height = this._lineHeight;
 
 		// Underline might interfere with clicking

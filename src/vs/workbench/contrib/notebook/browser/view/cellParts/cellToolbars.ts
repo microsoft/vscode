@@ -46,7 +46,7 @@ export class BetweenCellToolbar extends CellOverlayPart {
 		const betweenCellToolbar = this._register(new ToolBar(this._bottomCellToolbarContainer, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					if (this._notebookEditor.notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
+					if (this._notebookEditor.notebookOptions.getDisplayOptions().insertToolbarAlignment === 'center') {
 						return this.instantiationService.createInstance(CodiconActionViewItem, action, undefined);
 					} else {
 						return this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined);
@@ -233,9 +233,9 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
-				this._register(disposableTimeout(() => {
+				disposableTimeout(() => {
 					deferredUpdate?.();
-				}));
+				}, 0, this._store);
 
 				deferredUpdate = undefined;
 			}

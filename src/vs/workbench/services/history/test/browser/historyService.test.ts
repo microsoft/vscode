@@ -696,7 +696,12 @@ suite('HistoryService', function () {
 		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
 		await part.activeGroup.openEditor(input1, { pinned: true });
 
-		assert.strictEqual(historyService.getLastActiveFile('foo')?.toString(), input1.resource.toString());
+		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
+		await part.activeGroup.openEditor(input2, { pinned: true });
+
+		assert.strictEqual(historyService.getLastActiveFile('foo')?.toString(), input2.resource.toString());
+		assert.strictEqual(historyService.getLastActiveFile('foo', 'bar2')?.toString(), input2.resource.toString());
+		assert.strictEqual(historyService.getLastActiveFile('foo', 'bar1')?.toString(), input1.resource.toString());
 	});
 
 	test('open next/previous recently used editor (single group)', async () => {

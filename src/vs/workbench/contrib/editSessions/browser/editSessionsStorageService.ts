@@ -448,7 +448,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.authenticationInfo?.sessionId && e.removed.find(session => session.id === this.authenticationInfo?.sessionId)) {
+		if (this.authenticationInfo?.sessionId && e.removed?.find(session => session.id === this.authenticationInfo?.sessionId)) {
 			this.clearAuthenticationPreference();
 		}
 	}
