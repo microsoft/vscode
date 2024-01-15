@@ -1832,8 +1832,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 		}
 
-		if (nodeWasInOverviewRuler !== nodeIsInOverviewRuler) {
-			// Delete + Insert due to an overview ruler status change
+		const movedInOverviewRuler = nodeWasInOverviewRuler !== nodeIsInOverviewRuler;
+		const changedWhetherInjectedText = isOptionsInjectedText(options) !== isNodeInjectedText(node);
+		if (movedInOverviewRuler || changedWhetherInjectedText) {
 			this._decorationsTree.delete(node);
 			node.setOptions(options);
 			this._decorationsTree.insert(node);
@@ -1999,6 +2000,10 @@ function indentOfLine(line: string): number {
 
 function isNodeInOverviewRuler(node: IntervalNode): boolean {
 	return (node.options.overviewRuler && node.options.overviewRuler.color ? true : false);
+}
+
+function isOptionsInjectedText(options: ModelDecorationOptions): boolean {
+	return !!options.after || !!options.before;
 }
 
 function isNodeInjectedText(node: IntervalNode): boolean {

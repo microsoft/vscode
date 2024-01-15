@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/window';
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, hasWindow, getWindow, getWindowById, getWindowId, getWindows } from 'vs/base/browser/dom';
-import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { Action, Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -73,7 +74,9 @@ import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sand
 import { mainWindow } from 'vs/base/browser/window';
 import { BaseWindow } from 'vs/workbench/browser/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarService, ShowTooltipCommand, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class NativeWindow extends BaseWindow {
 
@@ -339,7 +342,7 @@ export class NativeWindow extends BaseWindow {
 		this._register(onDidChangeZoomLevel(targetWindowId => this.handleOnDidChangeZoomLevel(targetWindowId)));
 
 		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables, part }) => {
-			this.createResetWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
+			this.createWindowZoomStatusEntry(instantiationService, part.windowId, disposables);
 		}));
 
 		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
@@ -657,7 +660,7 @@ export class NativeWindow extends BaseWindow {
 
 		// Zoom status
 		for (const { window, disposables } of getWindows()) {
-			this.createResetWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
+			this.createWindowZoomStatusEntry(this.instantiationService, window.vscodeWindowId, disposables);
 		}
 
 		// Smoke Test Driver
@@ -1027,7 +1030,7 @@ export class NativeWindow extends BaseWindow {
 
 	//#region Window Zoom
 
-	private readonly mapWindowIdToResetZoomStatusEntry = new Map<number, ResetZoomStatusEntry>();
+	private readonly mapWindowIdToZoomStatusEntry = new Map<number, ZoomStatusEntry>();
 
 	private configuredWindowZoomLevel = this.resolveConfiguredWindowZoomLevel();
 
@@ -1040,7 +1043,7 @@ export class NativeWindow extends BaseWindow {
 	private handleOnDidChangeZoomLevel(targetWindowId: number): void {
 
 		// Zoom status entry
-		this.updateResetWindowZoomStatusEntry(targetWindowId);
+		this.updateWindowZoomStatusEntry(targetWindowId);
 
 		// Notify main process about a custom zoom level
 		if (targetWindowId === mainWindow.vscodeWindowId) {
@@ -1055,27 +1058,27 @@ export class NativeWindow extends BaseWindow {
 		}
 	}
 
-	private createResetWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
-		this.mapWindowIdToResetZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ResetZoomStatusEntry)));
-		disposables.add(toDisposable(() => this.mapWindowIdToResetZoomStatusEntry.delete(targetWindowId)));
+	private createWindowZoomStatusEntry(instantiationService: IInstantiationService, targetWindowId: number, disposables: DisposableStore): void {
+		this.mapWindowIdToZoomStatusEntry.set(targetWindowId, disposables.add(instantiationService.createInstance(ZoomStatusEntry)));
+		disposables.add(toDisposable(() => this.mapWindowIdToZoomStatusEntry.delete(targetWindowId)));
 
-		this.updateResetWindowZoomStatusEntry(targetWindowId);
+		this.updateWindowZoomStatusEntry(targetWindowId);
 	}
 
-	private updateResetWindowZoomStatusEntry(targetWindowId: number): void {
+	private updateWindowZoomStatusEntry(targetWindowId: number): void {
 		const targetWindow = getWindowById(targetWindowId);
-		const entry = this.mapWindowIdToResetZoomStatusEntry.get(targetWindowId);
+		const entry = this.mapWindowIdToZoomStatusEntry.get(targetWindowId);
 		if (entry && targetWindow) {
 			const currentZoomLevel = getZoomLevel(targetWindow.window);
 
 			let text: string | undefined = undefined;
 			if (currentZoomLevel < this.configuredWindowZoomLevel) {
-				text = localize('resetZoomOut', "$(zoom-out)");
+				text = localize('zoomedOut', "$(zoom-out)");
 			} else if (currentZoomLevel > this.configuredWindowZoomLevel) {
-				text = localize('resetZoomIn', "$(zoom-in)");
+				text = localize('zoomedIn', "$(zoom-in)");
 			}
 
-			entry.updateResetZoomEntry(text ?? false);
+			entry.updateZoomEntry(text ?? false, targetWindowId);
 		}
 	}
 
@@ -1094,8 +1097,8 @@ export class NativeWindow extends BaseWindow {
 			applyZoom(this.configuredWindowZoomLevel, ApplyZoomTarget.ALL_WINDOWS);
 		}
 
-		for (const [windowId] of this.mapWindowIdToResetZoomStatusEntry) {
-			this.updateResetWindowZoomStatusEntry(windowId);
+		for (const [windowId] of this.mapWindowIdToZoomStatusEntry) {
+			this.updateWindowZoomStatusEntry(windowId);
 		}
 	}
 
@@ -1104,35 +1107,96 @@ export class NativeWindow extends BaseWindow {
 	override dispose(): void {
 		super.dispose();
 
-		for (const [, entry] of this.mapWindowIdToResetZoomStatusEntry) {
+		for (const [, entry] of this.mapWindowIdToZoomStatusEntry) {
 			entry.dispose();
 		}
 	}
 }
 
-class ResetZoomStatusEntry extends Disposable {
+class ZoomStatusEntry extends Disposable {
 
-	private readonly resetZoomStatusEntry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly disposable = this._register(new MutableDisposable<DisposableStore>());
 
-	constructor(@IStatusbarService private readonly statusbarService: IStatusbarService) {
+	private zoomLevelLabel: Action | undefined = undefined;
+
+	constructor(
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ICommandService private readonly commandService: ICommandService
+	) {
 		super();
 	}
 
-	updateResetZoomEntry(visibleOrText: false | string): void {
+	updateZoomEntry(visibleOrText: false | string, targetWindowId: number): void {
 		if (typeof visibleOrText === 'string') {
-			if (!this.resetZoomStatusEntry.value) {
-				const name = localize('status.resetWindowZoom', "Reset Window Zoom");
-				this.resetZoomStatusEntry.value = this.statusbarService.addEntry({
-					name,
-					text: visibleOrText,
-					tooltip: name,
-					ariaLabel: name,
-					command: 'workbench.action.zoomReset',
-					kind: 'prominent'
-				}, 'status.resetWindowZoom', StatusbarAlignment.RIGHT, 102);
+			if (!this.disposable.value) {
+				this.createZoomEntry(targetWindowId, visibleOrText);
 			}
+
+			this.updateZoomLevelLabel(targetWindowId);
 		} else {
-			this.resetZoomStatusEntry.clear();
+			this.disposable.clear();
+		}
+	}
+
+	private createZoomEntry(targetWindowId: number, visibleOrText: string) {
+		const disposables = new DisposableStore();
+		this.disposable.value = disposables;
+
+		const container = document.createElement('div');
+		container.classList.add('zoom-status');
+
+		const left = document.createElement('div');
+		left.classList.add('zoom-status-left');
+		container.appendChild(left);
+
+		const actionBarLeft = disposables.add(new ActionBar(left));
+
+		actionBarLeft.push(
+			disposables.add(new Action('zoomOut', localize('zoomOut', "Zoom Out"), ThemeIcon.asClassName(Codicon.remove), true, () => this.commandService.executeCommand('workbench.action.zoomOut'))),
+			{ icon: true, label: false }
+		);
+
+		this.zoomLevelLabel = disposables.add(new Action('zoomLabel', '', undefined, false));
+		disposables.add(toDisposable(() => this.zoomLevelLabel = undefined));
+		actionBarLeft.push(this.zoomLevelLabel, { icon: false, label: true });
+
+		actionBarLeft.push(
+			disposables.add(new Action('zoomIn', localize('zoomIn', "Zoom In"), ThemeIcon.asClassName(Codicon.plus), true, () => this.commandService.executeCommand('workbench.action.zoomIn'))),
+			{ icon: true, label: false }
+		);
+
+		const right = document.createElement('div');
+		right.classList.add('zoom-status-right');
+		container.appendChild(right);
+
+		const actionBarRight = disposables.add(new ActionBar(right));
+
+		actionBarRight.push(
+			disposables.add(new Action('zoomReset', localize('zoomReset', "Reset"), undefined, true, () => this.commandService.executeCommand('workbench.action.zoomReset'))),
+			{ icon: false, label: true }
+		);
+
+		actionBarRight.push(
+			disposables.add(new Action('zoomSettings', localize('zoomSettings', "Settings"), ThemeIcon.asClassName(Codicon.settingsGear), true, () => this.commandService.executeCommand('workbench.action.openSettings', 'window.zoom'))),
+			{ icon: true, label: false }
+		);
+
+		const name = localize('status.windowZoom', "Window Zoom");
+		disposables.add(this.statusbarService.addEntry({
+			name,
+			text: visibleOrText,
+			tooltip: container,
+			ariaLabel: name,
+			command: ShowTooltipCommand,
+			kind: 'prominent'
+		}, 'status.windowZoom', StatusbarAlignment.RIGHT, 102));
+	}
+
+	private updateZoomLevelLabel(targetWindowId: number): void {
+		if (this.zoomLevelLabel) {
+			const zoomLevel = getZoomLevel(getWindowById(targetWindowId)?.window ?? mainWindow);
+			this.zoomLevelLabel.label = `${zoomLevel}`;
+			this.zoomLevelLabel.tooltip = localize('zoomNumber', "Zoom Level: {0}", zoomLevel);
 		}
 	}
 }

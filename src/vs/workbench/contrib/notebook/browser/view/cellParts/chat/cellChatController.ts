@@ -155,6 +155,8 @@ export class NotebookCellChatController extends Disposable {
 			// might not be attached
 		}
 
+		// dismiss since we can't restore  the widget properly now
+		this.dismiss(false);
 		this._widget?.dispose();
 		this._inlineChatListener?.dispose();
 		this._toolbar?.dispose();
