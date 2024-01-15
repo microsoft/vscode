@@ -200,7 +200,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.layoutCompositeBar();
-			this.layoutEmptyMessage();
 		}));
 	}
 
