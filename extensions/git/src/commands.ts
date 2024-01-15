@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
-import { grep, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -2447,39 +2447,44 @@ export class CommandCenter {
 			picks.push(createBranch, createBranchFrom, checkoutDetached);
 		}
 
-		const quickpick = window.createQuickPick();
-		quickpick.busy = true;
-		quickpick.placeholder = opts?.detached
+		const disposables: Disposable[] = [];
+		const quickPick = window.createQuickPick();
+		quickPick.busy = true;
+		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
 
-		quickpick.show();
+		quickPick.show();
 
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickpick.items = picks;
-		quickpick.busy = false;
+		quickPick.items = picks;
+		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
-			quickpick.onDidAccept(() => c(quickpick.activeItems[0]));
-			quickpick.onDidTriggerItemButton((e) => {
-				quickpick.hide();
+			disposables.push(quickPick.onDidHide(() => c(undefined)));
+			disposables.push(quickPick.onDidAccept(() => c(quickPick.activeItems[0])));
+			disposables.push((quickPick.onDidTriggerItemButton((e) => {
 				const button = e.button as QuickInputButton & { actual: RemoteSourceAction };
 				const item = e.item as CheckoutItem;
 				if (button.actual && item.refName) {
 					button.actual.run(item.refRemote ? item.refName.substring(item.refRemote.length + 1) : item.refName);
 				}
-			});
+
+				c(undefined);
+			})));
 		});
-		quickpick.hide();
+
+		dispose(disposables);
+		quickPick.dispose();
 
 		if (!choice) {
 			return false;
 		}
 
 		if (choice === createBranch) {
-			await this._branch(repository, quickpick.value);
+			await this._branch(repository, quickPick.value);
 		} else if (choice === createBranchFrom) {
-			await this._branch(repository, quickpick.value, true);
+			await this._branch(repository, quickPick.value, true);
 		} else if (choice === checkoutDetached) {
 			return this._checkout(repository, { detached: true });
 		} else {
