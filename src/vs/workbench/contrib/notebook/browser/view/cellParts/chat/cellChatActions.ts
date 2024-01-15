@@ -5,19 +5,23 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
+import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
 registerAction2(class extends NotebookCellAction {
@@ -51,6 +55,159 @@ registerAction2(class extends NotebookCellAction {
 		}
 
 		ctrl.acceptInput();
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.chat.arrowOutUp',
+				title: localize('arrowUp', 'Cursor Up'),
+				keybinding: {
+					when: ContextKeyExpr.and(
+						CTX_NOTEBOOK_CELL_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_INNER_CURSOR_FIRST,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()
+					),
+					weight: KeybindingWeight.EditorCore + 7,
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+
+		const idx = editor.getCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		if (idx < 1 || editor.getLength() === 0) {
+			// we don't do loop
+			return;
+		}
+
+		const newCell = editor.cellAt(idx - 1);
+		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
+		const focusEditorLine = newCell.textBuffer.getLineCount();
+		await editor.focusNotebookCell(newCell, newFocusMode, { focusEditorLine: focusEditorLine });
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.chat.arrowOutDown',
+				title: localize('arrowDown', 'Cursor Down'),
+				keybinding: {
+					when: ContextKeyExpr.and(
+						CTX_NOTEBOOK_CELL_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_FOCUSED,
+						CTX_INLINE_CHAT_INNER_CURSOR_LAST,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()
+					),
+					weight: KeybindingWeight.EditorCore + 7,
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+		await editor.focusNotebookCell(activeCell, 'editor');
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.focusChatWidget',
+				title: localize('focusChatWidget', 'Focus Chat Widget'),
+				keybinding: {
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
+						ContextKeyExpr.and(
+							ContextKeyExpr.has(InputFocusedContextKey),
+							EditorContextKeys.editorTextFocus,
+							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
+						),
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
+					),
+					weight: KeybindingWeight.EditorCore + 7,
+					primary: KeyMod.CtrlCmd | KeyCode.UpArrow
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const activeCell = context.cell;
+		// Navigate to cell chat widget if it exists
+		const controller = NotebookCellChatController.get(activeCell);
+		if (controller && controller.isWidgetVisible()) {
+			controller.focusWidget();
+			return;
+		}
+
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.focusNextChatWidget',
+				title: localize('focusNextChatWidget', 'Focus Next Cell Chat Widget'),
+				keybinding: {
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(),
+						ContextKeyExpr.and(
+							ContextKeyExpr.has(InputFocusedContextKey),
+							EditorContextKeys.editorTextFocus,
+							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'),
+							NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none'),
+						),
+						EditorContextKeys.isEmbeddedDiffEditor.negate()
+					),
+					weight: KeybindingWeight.EditorCore + 7,
+					primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+				}
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+
+		const idx = editor.getCellIndex(activeCell);
+		if (typeof idx !== 'number') {
+			return;
+		}
+
+		if (idx >= editor.getLength() - 1) {
+			// last one
+			return;
+		}
+
+		const targetCell = editor.cellAt(idx + 1);
+
+		if (targetCell) {
+			// Navigate to cell chat widget if it exists
+			const controller = NotebookCellChatController.get(targetCell);
+			if (controller && controller.isWidgetVisible()) {
+				controller.focusWidget();
+				return;
+			}
+		}
 	}
 });
 
