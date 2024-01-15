@@ -4017,6 +4017,7 @@ export class BranchCoverage implements vscode.BranchCoverage {
 	constructor(
 		public executionCount: number,
 		public location: Position | Range,
+		public label?: string,
 	) { }
 }
 

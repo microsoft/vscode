@@ -32,7 +32,8 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSaving';
+import { IInlineChatSessionService, InlineChatSessionService, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditMode, IInlineChatService, InlineChatConfigKeys, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -106,6 +107,11 @@ suite('InteractiveChatController', function () {
 			[IInlineChatService, inlineChatService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
+			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
+				override markChanged(session: Session): void {
+					// noop
+				}
+			}],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
 					return {

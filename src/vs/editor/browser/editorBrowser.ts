@@ -600,6 +600,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onDidChangeCursorSelection: Event<ICursorSelectionChangedEvent>;
 	/**
+	 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+	 * @event
+	 */
+	readonly onWillChangeModel: Event<editorCommon.IModelChangedEvent>;
+	/**
 	 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 	 * @event
 	 */

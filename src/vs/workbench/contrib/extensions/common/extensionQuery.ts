@@ -8,7 +8,7 @@ import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 
 export class Query {
 
-	constructor(public value: string, public sortBy: string, public groupBy: string) {
+	constructor(public value: string, public sortBy: string) {
 		this.value = value.trim();
 	}
 
@@ -48,15 +48,7 @@ export class Query {
 
 			return '';
 		});
-
-		let groupBy = '';
-		value = value.replace(/@group:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
-			groupBy = by;
-
-			return '';
-		});
-
-		return new Query(value, sortBy, groupBy);
+		return new Query(value, sortBy);
 	}
 
 	toString(): string {
@@ -65,10 +57,6 @@ export class Query {
 		if (this.sortBy) {
 			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
 		}
-		if (this.groupBy) {
-			result = `${result}${result ? ' ' : ''}@group:${this.groupBy}`;
-		}
-
 		return result;
 	}
 

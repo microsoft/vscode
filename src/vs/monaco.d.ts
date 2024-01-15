@@ -1692,6 +1692,10 @@ declare namespace monaco.editor {
 		 */
 		hoverMessage?: IMarkdownString | IMarkdownString[] | null;
 		/**
+		 * Array of MarkdownString to render as the line number message.
+		 */
+		lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
+		/**
 		 * Should the decoration expand to encompass a whole line.
 		 */
 		isWholeLine?: boolean;
@@ -1730,6 +1734,10 @@ declare namespace monaco.editor {
 		 * Controls the tooltip text of the line decoration.
 		 */
 		linesDecorationsTooltip?: string | null;
+		/**
+		 * If set, the decoration will be rendered on the line number.
+		 */
+		lineNumberClassName?: string | null;
 		/**
 		 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 		 */
@@ -2930,6 +2938,7 @@ declare namespace monaco.editor {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
 		readonly affectsGlyphMargin: boolean;
+		readonly affectsLineNumber: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {
@@ -5635,6 +5644,11 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidChangeCursorSelection: IEvent<ICursorSelectionChangedEvent>;
+		/**
+		 * An event emitted when the model of this editor is about to change (e.g. from `editor.setModel()`).
+		 * @event
+		 */
+		readonly onWillChangeModel: IEvent<IModelChangedEvent>;
 		/**
 		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
 		 * @event

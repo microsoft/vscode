@@ -135,7 +135,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private readonly _sessionModels = this._register(new DisposableMap<string, ChatModel>());
 	private readonly _pendingRequests = this._register(new DisposableMap<string, CancellationTokenSource>());
-	private readonly _persistedSessions: ISerializableChatsData;
+	private _persistedSessions: ISerializableChatsData;
 	private readonly _hasProvider: IContextKey<boolean>;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
@@ -331,6 +331,12 @@ export class ChatService extends Disposable implements IChatService {
 
 	removeHistoryEntry(sessionId: string): void {
 		delete this._persistedSessions[sessionId];
+		this.saveState();
+	}
+
+	clearAllHistoryEntries(): void {
+		this._persistedSessions = {};
+		this.saveState();
 	}
 
 	startSession(providerId: string, token: CancellationToken): ChatModel {

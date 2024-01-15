@@ -14,7 +14,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation, Extensions as ViewExtensions } from 'vs/workbench/common/views';
 import { getHistoryAction, getOpenChatEditorAction } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { getClearAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
+import { getNewChatAction } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { getMoveToEditorAction, getMoveToNewWindowAction } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
 import { getQuickChatActionForProvider } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane, IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
@@ -135,7 +135,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 		// Actions in view title
 		const disposables = new DisposableStore();
 		disposables.add(registerAction2(getHistoryAction(viewId, providerDescriptor.id)));
-		disposables.add(registerAction2(getClearAction(viewId, providerDescriptor.id)));
+		disposables.add(registerAction2(getNewChatAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getMoveToEditorAction(viewId, providerDescriptor.id)));
 		disposables.add(registerAction2(getMoveToNewWindowAction(viewId, providerDescriptor.id)));
 

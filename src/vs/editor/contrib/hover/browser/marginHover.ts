@@ -22,6 +22,8 @@ export interface IHoverMessage {
 	value: IMarkdownString;
 }
 
+type LaneOrLineNumber = GlyphMarginLane | 'lineNo';
+
 export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
@@ -99,8 +101,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		}
 	}
 
-	public startShowingAt(lineNumber: number, lane: GlyphMarginLane): void {
-		if (this._computer.lineNumber === lineNumber && this._computer.lane === lane) {
+	public startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
+		if (this._computer.lineNumber === lineNumber && this._computer.lane === laneOrLine) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
 		}
@@ -110,7 +112,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		this.hide();
 
 		this._computer.lineNumber = lineNumber;
-		this._computer.lane = lane;
+		this._computer.lane = laneOrLine;
 		this._hoverOperation.start(HoverStartMode.Delayed);
 	}
 
@@ -169,8 +171,8 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const nodeHeight = this._hover.containerDomNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
-
-		this._hover.containerDomNode.style.left = `${editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth}px`;
+		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (this._computer.lane === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
+		this._hover.containerDomNode.style.left = `${left}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
 	}
 }
@@ -178,7 +180,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 
 	private _lineNumber: number = -1;
-	private _lane = GlyphMarginLane.Center;
+	private _laneOrLine: LaneOrLineNumber = GlyphMarginLane.Center;
 
 	public get lineNumber(): number {
 		return this._lineNumber;
@@ -188,12 +190,12 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 		this._lineNumber = value;
 	}
 
-	public get lane(): number {
-		return this._lane;
+	public get lane(): LaneOrLineNumber {
+		return this._laneOrLine;
 	}
 
-	public set lane(value: GlyphMarginLane) {
-		this._lane = value;
+	public set lane(value: LaneOrLineNumber) {
+		this._laneOrLine = value;
 	}
 
 	constructor(
@@ -212,21 +214,18 @@ class MarginHoverComputer implements IHoverComputer<IHoverMessage> {
 		const lineDecorations = this._editor.getLineDecorations(this._lineNumber);
 
 		const result: IHoverMessage[] = [];
+		const isLineHover = this._laneOrLine === 'lineNo';
 		if (!lineDecorations) {
 			return result;
 		}
 
 		for (const d of lineDecorations) {
-			if (!d.options.glyphMarginClassName) {
-				continue;
-			}
-
 			const lane = d.options.glyphMargin?.position ?? GlyphMarginLane.Center;
-			if (lane !== this._lane) {
+			if (!isLineHover && lane !== this._laneOrLine) {
 				continue;
 			}
 
-			const hoverMessage = d.options.glyphMarginHoverMessage;
+			const hoverMessage = isLineHover ? d.options.lineNumberHoverMessage : d.options.glyphMarginHoverMessage;
 			if (!hoverMessage || isEmptyMarkdownString(hoverMessage)) {
 				continue;
 			}

@@ -1995,7 +1995,7 @@ export namespace TestCoverage {
 				location: fromLocation(coverage.location),
 				type: DetailType.Statement,
 				branches: coverage.branches.length
-					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location) }))
+					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location), label: b.label }))
 					: undefined,
 			};
 		} else {
@@ -2171,7 +2171,7 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function from(followup: vscode.InteractiveSessionReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
+	export function from(followup: vscode.ChatAgentReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
@@ -2253,6 +2253,7 @@ export namespace ChatVariable {
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
+			kind: variable.kind,
 			value: isUriComponents(variable.value) ? URI.revive(variable.value) : variable.value,
 			description: variable.description
 		};
@@ -2261,6 +2262,7 @@ export namespace ChatVariable {
 	export function from(variable: vscode.ChatVariableValue): IChatRequestVariableValue {
 		return {
 			level: ChatVariableLevel.from(variable.level),
+			kind: variable.kind,
 			value: variable.value,
 			description: variable.description
 		};
@@ -2361,7 +2363,7 @@ export namespace ChatResponseProgress {
 		} else if ('treeData' in progress) {
 			return { treeData: progress.treeData, kind: 'treeData' };
 		} else if ('message' in progress) {
-			return { content: progress.message, kind: 'progressMessage' };
+			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
 			return undefined;
 		}
