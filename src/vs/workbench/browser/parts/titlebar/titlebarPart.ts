@@ -701,10 +701,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get editorActionsEnabled(): boolean {
-		return this.editorGroupsContainer.partOptions.editorActionsLocation === 'titleBar' ||
+		return this.editorGroupService.partOptions.editorActionsLocation === 'titleBar' ||
 			(
-				this.editorGroupsContainer.partOptions.editorActionsLocation === 'default' &&
-				this.editorGroupsContainer.partOptions.showTabs === 'none'
+				this.editorGroupService.partOptions.editorActionsLocation === 'default' &&
+				this.editorGroupService.partOptions.showTabs === 'none'
 			);
 	}
 
