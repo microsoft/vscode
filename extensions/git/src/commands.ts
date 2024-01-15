@@ -2607,7 +2607,7 @@ export class CommandCenter {
 		await repository.branch(branchName, true, target);
 	}
 
-	private async _unsortedQuickPick<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
+	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
 		const listeners: Disposable[] = [];
 		const quickPick = window.createQuickPick<T>();
 		quickPick.placeholder = placeHolder;
@@ -2639,7 +2639,7 @@ export class CommandCenter {
 			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
-			const choice = await this._unsortedQuickPick<BranchDeleteItem>(getBranchPicks(), placeHolder);
+			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
 
 			if (!choice || !choice.refName) {
 				return;
@@ -2704,7 +2704,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch or tag to merge from');
-		const choice = await this._unsortedQuickPick(getQuickPickItems(), placeHolder);
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof MergeItem) {
 			await choice.run(repository);
@@ -2726,7 +2726,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
-		const choice = await this._unsortedQuickPick(getQuickPickItems(), placeHolder);
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof RebaseItem) {
 			await choice.run(repository);
@@ -2763,7 +2763,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
-		const choice = await this._unsortedQuickPick<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
+		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
 
 
 		if (choice instanceof TagDeleteItem) {
@@ -2912,7 +2912,7 @@ export class CommandCenter {
 		};
 
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
-		const branchPick = await this._unsortedQuickPick(getBranchPicks(), branchPlaceHolder);
+		const branchPick = await this.pickRef(getBranchPicks(), branchPlaceHolder);
 
 		if (!branchPick || !branchPick.refName) {
 			return;
