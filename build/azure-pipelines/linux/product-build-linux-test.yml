@@ -168,7 +168,7 @@ steps:
             timeoutInMinutes: 20
             displayName: Run smoke tests (Playwright)
 
-          - task: PublishTestResults@2
+          - task: PublishPipelineArtifact@0
             displayName: Publish Playwright Tests Results
             inputs:
               targetPath: "test/playwright/test-results"
