@@ -14,7 +14,7 @@ export default defineConfig({
 	forbidOnly: CI, 				// Fail the build on CI if you accidentally left test.only in the source code.
 	retries: CI ? 2 : 0, 			// Retry on CI only
 	workers: CI ? 1 : undefined, 	// Opt out of parallel tests on CI.
-	reporter: 'html', 				// Reporter to use. See https://playwright.dev/docs/test-reporters
+	reporter: CI ? 'line' : 'html',	// Reporter to use. See https://playwright.dev/docs/test-reporters
 	webServer: {
 		command: join(__dirname, `..`, `..`, `scripts`, `code-server.${process.platform === 'win32' ? 'bat' : 'sh'} --without-connection-token`),
 		url: 'http://localhost:9888'
