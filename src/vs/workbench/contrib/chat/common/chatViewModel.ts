@@ -71,8 +71,26 @@ export interface IChatResponseMarkdownRenderData {
 	isFullyRendered: boolean;
 }
 
+export interface IChatProgressMessageRenderData {
+	progressMessage: IChatProgressMessage;
+
+	/**
+	 * Indicates whether this is part of a group of progress messages that are at the end of the response.
+	 * (Not whether this particular item is the very last one in the response).
+	 * Need to re-render and add to partsToRender when this changes.
+	 */
+	isAtEndOfResponse: boolean;
+
+	/**
+	 * Whether this progress message the very last item in the response.
+	 * Need to re-render to update spinner vs check when this changes.
+	 */
+	isLast: boolean;
+}
+
+export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData;
 export interface IChatResponseRenderData {
-	renderedParts: (IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData)[];
+	renderedParts: IChatRenderData[];
 }
 
 export interface IChatLiveUpdateData {

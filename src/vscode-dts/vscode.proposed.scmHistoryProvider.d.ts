@@ -25,6 +25,7 @@ declare module 'vscode' {
 		// onDidChangeHistoryItemGroups: Event<SourceControlHistoryChangeEvent>;
 
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
+		provideHistoryItemSummary?(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItem>;
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
 		resolveHistoryItemGroupBase(historyItemGroupId: string, token: CancellationToken): ProviderResult<SourceControlHistoryItemGroup | undefined>;

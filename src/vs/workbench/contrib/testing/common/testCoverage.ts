@@ -34,6 +34,8 @@ export class TestCoverage {
 		return this._tree ??= this.buildCoverageTree();
 	}
 
+	public readonly associatedData = new Map<unknown, unknown>();
+
 	constructor(
 		public readonly fromTaskId: string,
 		private readonly fileCoverage: ResourceMap<FileCoverage>,

@@ -148,11 +148,9 @@
 					{
 						// Files should (only) be removed from the list they adopt the leak detector
 						"exclude": [
-							"src/vs/base/parts/sandbox/test/electron-sandbox/globals.test.ts",
 							"src/vs/base/test/browser/browser.test.ts",
 							"src/vs/base/test/browser/comparers.test.ts",
 							"src/vs/base/test/browser/hash.test.ts",
-							"src/vs/base/test/browser/indexedDB.test.ts",
 							"src/vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
 							"src/vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
 							"src/vs/editor/contrib/codeAction/test/browser/codeActionKeybindingResolver.test.ts",

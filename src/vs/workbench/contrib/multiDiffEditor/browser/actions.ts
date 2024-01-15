@@ -48,6 +48,7 @@ export class CollapseAllAction extends Action2 {
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
 				id: MenuId.EditorTitle,
 				group: 'navigation',
+				order: 100
 			},
 			f1: true,
 		});
