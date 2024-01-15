@@ -27,7 +27,6 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
@@ -199,7 +198,7 @@ import product from 'vs/platform/product/common/product';
 			},
 			'window.zoomPerWindow': {
 				'type': 'boolean',
-				'default': product.quality !== 'stable', // TODO@bpasero flip the default eventually
+				'default': true,
 				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomPerWindow' }, "Controls if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See {0} for configuring a default zoom level for all windows.", '`#window.zoomLevel#`'),
 				tags: ['accessibility']
 			},

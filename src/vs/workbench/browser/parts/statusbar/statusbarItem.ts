@@ -117,13 +117,12 @@ export class StatusbarEntryItem extends Disposable {
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
 			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
-			const entryOpensTooltip = entry.command === ShowTooltipCommand;
 			if (this.hover) {
-				this.hover.update(hoverContents, { disableHideOnClick: entryOpensTooltip });
+				this.hover.update(hoverContents);
 			} else {
-				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents, { disableHideOnClick: entryOpensTooltip }));
+				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
-			if (!entryOpensTooltip) {
+			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
 				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {
 					EventHelper.stop(e);
 					this.hover?.show(false);
