@@ -1580,6 +1580,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.indexOf(element);
 	}
 
+	indexAt(position: number): number {
+		return this.view.indexAt(position);
+	}
+
 	get length(): number {
 		return this.view.length;
 	}
