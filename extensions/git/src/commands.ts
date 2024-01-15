@@ -2459,6 +2459,7 @@ export class CommandCenter {
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
 		quickPick.items = picks;
 		quickPick.busy = false;
+		quickPick.sortByLabel = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
@@ -2658,6 +2659,22 @@ export class CommandCenter {
 		await repository.branch(branchName, true, target);
 	}
 
+	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
+		const listeners: Disposable[] = [];
+		const quickPick = window.createQuickPick<T>();
+		quickPick.placeholder = placeHolder;
+		quickPick.sortByLabel = false;
+		quickPick.items = await items;
+		quickPick.show();
+		const choice = await new Promise<T | undefined>(resolve => {
+			listeners.push(quickPick.onDidHide(() => resolve(undefined)));
+			listeners.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
+		});
+		quickPick.dispose();
+		listeners.forEach(d => d.dispose());
+		return choice;
+	}
+
 	@command('git.deleteBranch', { repository: true })
 	async deleteBranch(repository: Repository, name: string, force?: boolean): Promise<void> {
 		let run: (force?: boolean) => Promise<void>;
@@ -2672,7 +2689,7 @@ export class CommandCenter {
 			};
 
 			const placeHolder = l10n.t('Select a branch to delete');
-			const choice = await window.showQuickPick<BranchDeleteItem>(getBranchPicks(), { placeHolder });
+			const choice = await this.pickRef<BranchDeleteItem>(getBranchPicks(), placeHolder);
 
 			if (!choice || !choice.refName) {
 				return;
@@ -2737,7 +2754,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch or tag to merge from');
-		const choice = await window.showQuickPick(getQuickPickItems(), { placeHolder });
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof MergeItem) {
 			await choice.run(repository);
@@ -2759,7 +2776,7 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a branch to rebase onto');
-		const choice = await window.showQuickPick(getQuickPickItems(), { placeHolder });
+		const choice = await this.pickRef(getQuickPickItems(), placeHolder);
 
 		if (choice instanceof RebaseItem) {
 			await choice.run(repository);
@@ -2796,7 +2813,8 @@ export class CommandCenter {
 		};
 
 		const placeHolder = l10n.t('Select a tag to delete');
-		const choice = await window.showQuickPick<TagDeleteItem | QuickPickItem>(tagPicks(), { placeHolder });
+		const choice = await this.pickRef<TagDeleteItem | QuickPickItem>(tagPicks(), placeHolder);
+
 
 		if (choice instanceof TagDeleteItem) {
 			await choice.run(repository);
@@ -2944,7 +2962,7 @@ export class CommandCenter {
 		};
 
 		const branchPlaceHolder = l10n.t('Pick a branch to pull from');
-		const branchPick = await window.showQuickPick(getBranchPicks(), { placeHolder: branchPlaceHolder });
+		const branchPick = await this.pickRef(getBranchPicks(), branchPlaceHolder);
 
 		if (!branchPick || !branchPick.refName) {
 			return;

@@ -27,6 +27,7 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribSourceControlInputBoxMenu",
+    "quickPickSortByLabel",
     "contribSourceControlHistoryItemMenu"
   ],
   "categories": [
