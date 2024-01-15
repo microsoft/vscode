@@ -35,19 +35,17 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { top } from 'vs/base/common/arrays';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ResourceMap } from 'vs/base/common/map';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { AnythingQuickAccessProviderRunOptions, DefaultQuickAccessFilterValue, Extensions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
-import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
+import { EditorViewState, IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
+import { ScrollType, IEditor } from 'vs/editor/common/editorCommon';
 import { Event } from 'vs/base/common/event';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -69,46 +67,6 @@ function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEd
 	const candidate = pick as IEditorSymbolAnythingQuickPickItem | undefined;
 
 	return !!candidate?.range && !!candidate.resource;
-}
-
-export class EditorViewState {
-	private _editorViewState: {
-		editor: EditorInput;
-		group: IEditorGroup;
-		state: ICodeEditorViewState | IDiffEditorViewState | undefined;
-	} | undefined = undefined;
-
-	constructor(private readonly editorService: IEditorService) { }
-
-	set(): void {
-		if (this._editorViewState) {
-			return; // return early if already done
-		}
-
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (activeEditorPane) {
-			this._editorViewState = {
-				group: activeEditorPane.group,
-				editor: activeEditorPane.input,
-				state: getIEditor(activeEditorPane.getControl())?.saveViewState() ?? undefined,
-			};
-		}
-	}
-
-	async restore(): Promise<void> {
-		if (this._editorViewState) {
-			const options: IEditorOptions = {
-				viewState: this._editorViewState.state,
-				preserveFocus: true /* import to not close the picker as a result */
-			};
-
-			await this._editorViewState.group.openEditor(this._editorViewState.editor, options);
-		}
-	}
-
-	reset() {
-		this._editorViewState = undefined;
-	}
 }
 
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {

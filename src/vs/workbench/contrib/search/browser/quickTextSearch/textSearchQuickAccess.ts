@@ -28,8 +28,8 @@ import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { EditorViewState } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { Event } from 'vs/base/common/event';
+import { EditorViewState } from 'vs/workbench/browser/quickaccess';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
