@@ -1569,7 +1569,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 		private readonly accessibilityProvider: IListAccessibilityProvider<T> | undefined,
 	) {
 
-		this._rootDomNode = $('.monaco-tree-sticky-container');
+		this._rootDomNode = $('.monaco-tree-sticky-container.empty');
 		container.appendChild(this._rootDomNode);
 
 		const shadow = $('.monaco-tree-sticky-container-shadow');
@@ -1725,7 +1725,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 	}
 
 	private setVisible(visible: boolean): void {
-		this._rootDomNode.style.display = visible ? 'block' : 'none';
+		this._rootDomNode.classList.toggle('empty', !visible);
 
 		if (!visible) {
 			this.stickyScrollFocus.updateElements([], undefined);
