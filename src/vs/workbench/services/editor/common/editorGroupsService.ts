@@ -411,16 +411,6 @@ export interface IEditorGroupsContainer {
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
-	 * Access the options of the editor part.
-	 */
-	readonly partOptions: IEditorPartOptions;
-
-	/**
-	 * An event that notifies when editor part options change.
-	 */
-	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
-
-	/**
 	 * Allows to register a drag and drop target for editors
 	 * on the provided `container`.
 	 */
@@ -525,6 +515,16 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Get the editor part that is rooted in the provided container.
 	 */
 	getPart(container: unknown /* HTMLElement */): IEditorPart;
+
+	/**
+	 * Access the options of the editor part.
+	 */
+	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * An event that notifies when editor part options change.
+	 */
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Opens a new window with a full editor part instantiated
