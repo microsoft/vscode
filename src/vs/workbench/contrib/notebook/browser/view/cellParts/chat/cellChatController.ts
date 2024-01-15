@@ -167,6 +167,10 @@ export class NotebookCellChatController extends Disposable {
 		super.dispose();
 	}
 
+	isWidgetVisible() {
+		return this._isVisible;
+	}
+
 	layout() {
 		if (this._isVisible && this._widget) {
 			const width = this._notebookEditor.getLayoutInfo().width - (/** margin */ 16 + 6) - (/** padding */ 6 * 2);
@@ -229,6 +233,10 @@ export class NotebookCellChatController extends Disposable {
 				this._widget.focus();
 			}
 		});
+	}
+
+	async focusWidget() {
+		this._widget?.focus();
 	}
 
 	private _getCellEditor() {

@@ -21,6 +21,7 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_INNER_CURSOR_LAST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
@@ -201,6 +202,13 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
+
+		// Navigate to cell chat widget if it exists
+		const controller = NotebookCellChatController.get(activeCell);
+		if (controller && controller.isWidgetVisible()) {
+			controller.focusWidget();
+			return;
+		}
 
 		const idx = editor.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
