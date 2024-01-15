@@ -466,7 +466,7 @@ export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSing
 
 // ---
 
-class Hunk {
+export class Hunk {
 	constructor(
 		readonly original: LineRange,
 		readonly modified: LineRange,
@@ -483,7 +483,7 @@ type HunkTrackedRange = {
 	discardChanges(): void;
 };
 
-const enum HunkState {
+export const enum HunkState {
 	Accepted = 1,
 	Rejected = 2,
 }

@@ -10,7 +10,8 @@ import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inli
 import { IInlineChatService, INLINE_CHAT_ID, INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
-import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { InlineChatSessionService } from './inlineChatSessionServiceImpl';
+import { IInlineChatSessionService } from './inlineChatSessionService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';

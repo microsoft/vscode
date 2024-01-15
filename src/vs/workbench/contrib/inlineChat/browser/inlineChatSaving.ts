@@ -13,7 +13,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
-import { IInlineChatSessionService, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from './inlineChatSessionService';
 import { InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
