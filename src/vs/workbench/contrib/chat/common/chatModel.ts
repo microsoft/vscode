@@ -17,6 +17,16 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatAgentMarkdownContentWithVulnerability, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+
+export interface IChatRequestVariableData {
+	/**
+	 * The user's message with variable references for extension API.
+	 */
+	message: string;
+
+	variables: Record<string, IChatRequestVariableValue[]>;
+}
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -24,7 +34,8 @@ export interface IChatRequestModel {
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest | IChatReplyFollowup;
-	readonly response: IChatResponseModel | undefined;
+	readonly variableData: IChatRequestVariableData;
+	readonly response?: IChatResponseModel;
 }
 
 export type IChatProgressResponseContent =
@@ -84,7 +95,8 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	constructor(
 		public readonly session: ChatModel,
-		public readonly message: IParsedChatRequest) {
+		public readonly message: IParsedChatRequest,
+		public readonly variableData: IChatRequestVariableData) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
 }
@@ -364,7 +376,8 @@ export interface ISerializableChatsData {
 export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 
 export interface ISerializableChatRequestData {
-	message: string | IParsedChatRequest;
+	message: string | IParsedChatRequest; // string => old format
+	variableData: IChatRequestVariableData; // make optional
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability> | undefined;
 	agent?: ISerializableChatAgentData;
 	slashCommand?: IChatAgentCommand;
@@ -549,7 +562,9 @@ export class ChatModel extends Disposable implements IChatModel {
 					typeof raw.message === 'string'
 						? this.getParsedRequestFromString(raw.message)
 						: reviveParsedChatRequest(raw.message);
-				const request = new ChatRequestModel(this, parsedRequest);
+				// Only old messages don't have variableData
+				const variableData: IChatRequestVariableData = raw.variableData ?? { message: parsedRequest.text, variables: {} };
+				const request = new ChatRequestModel(this, parsedRequest, variableData);
 				if (raw.response || raw.responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
@@ -627,12 +642,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest, chatAgent?: IChatAgentData): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, chatAgent?: IChatAgentData): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
 
-		const request = new ChatRequestModel(this, message);
+		const request = new ChatRequestModel(this, message, variableData);
 		request.response = new ChatResponseModel([], this, chatAgent, request.id);
 
 		this._requests.push(request);
@@ -737,6 +752,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
 					message: r.message,
+					variableData: r.variableData,
 					response: r.response ?
 						r.response.response.value.map(item => {
 							// Keeping the shape of the persisted data the same for back compat

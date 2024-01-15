@@ -1201,8 +1201,14 @@ export interface IChatAgentCompletionItem {
 	documentation?: string | IMarkdownString;
 }
 
+export type IChatAgentHistoryEntryDto = {
+	request: IChatAgentRequest;
+	response: ReadonlyArray<IChatProgressDto>;
+	result: IChatAgentResult;
+};
+
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;

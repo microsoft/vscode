@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -14,12 +15,11 @@ import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
@@ -51,7 +51,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		// Clear the previous result so that $acceptFeedback or $acceptAction during a request will be ignored.
 		// We may want to support sending those during a request.
 		this._previousResultMap.delete(sessionId);
@@ -79,13 +79,23 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const stopWatch = StopWatch.create(false);
 		let firstProgress: number | undefined;
 		try {
+			const convertedHistory = coalesce(await Promise.all(context.history
+				.map(async h => {
+					// Only include the slashComand instance if it's the same agent
+					const slashCommand = request.agentId === h.request.agentId && request.command
+						? await agent.validateSlashCommand(request.command)
+						: undefined;
+					const result = request.agentId === h.request.agentId && this._resultsBySessionAndRequestId.get(sessionId)?.get(h.request.requestId)
+						|| h.result;
+					return {
+						request: typeConvert.ChatAgentRequest.to(h.request, slashCommand),
+						response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.to(r))),
+						result
+					};
+				})));
 			const task = agent.invoke(
-				{
-					prompt: request.message,
-					variables: typeConvert.ChatVariable.objectTo(request.variables),
-					slashCommand
-				},
-				{ history: context.history.map(typeConvert.ChatMessage.to) },
+				typeConvert.ChatAgentRequest.to(request, slashCommand),
+				{ history: convertedHistory },
 				new Progress<vscode.ChatAgentExtendedProgress>(progress => {
 					throwIfDone();
 
@@ -248,7 +258,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 
 	constructor(
 		public readonly extension: IExtensionDescription,
-		private readonly _id: string,
+		public readonly id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
 		private readonly _callback: vscode.ChatAgentExtendedHandler,
@@ -352,7 +362,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		const that = this;
 		return {
 			get name() {
-				return that._id;
+				return that.id;
 			},
 			get description() {
 				return that._description ?? '';
