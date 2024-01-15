@@ -166,6 +166,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				},
 				renderOverviewRuler: false,
 				fixedOverflowWidgets: true,
+				overviewRulerBorder: false,
 			};
 		}
 
