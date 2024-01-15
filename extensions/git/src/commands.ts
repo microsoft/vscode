@@ -2450,6 +2450,7 @@ export class CommandCenter {
 		const disposables: Disposable[] = [];
 		const quickPick = window.createQuickPick();
 		quickPick.busy = true;
+		quickPick.sortByLabel = false;
 		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
@@ -2459,7 +2460,6 @@ export class CommandCenter {
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
 		quickPick.items = picks;
 		quickPick.busy = false;
-		quickPick.sortByLabel = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
@@ -2660,18 +2660,26 @@ export class CommandCenter {
 	}
 
 	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
-		const listeners: Disposable[] = [];
+		const disposables: Disposable[] = [];
 		const quickPick = window.createQuickPick<T>();
+
 		quickPick.placeholder = placeHolder;
 		quickPick.sortByLabel = false;
-		quickPick.items = await items;
+		quickPick.busy = true;
+
 		quickPick.show();
+
+		quickPick.items = await items;
+		quickPick.busy = false;
+
 		const choice = await new Promise<T | undefined>(resolve => {
-			listeners.push(quickPick.onDidHide(() => resolve(undefined)));
-			listeners.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
+			disposables.push(quickPick.onDidHide(() => resolve(undefined)));
+			disposables.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
 		});
+
+		dispose(disposables);
 		quickPick.dispose();
-		listeners.forEach(d => d.dispose());
+
 		return choice;
 	}
 
