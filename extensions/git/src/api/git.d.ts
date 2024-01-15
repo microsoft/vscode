@@ -164,6 +164,11 @@ export interface CommitOptions {
 	postCommitCommand?: string | null;
 }
 
+export interface MergeOptions {
+	noCommit?: boolean;
+	abort?: boolean;
+}
+
 export interface FetchOptions {
 	remote?: string;
 	ref?: string;
@@ -257,6 +262,7 @@ export interface Repository {
 	log(options?: LogOptions): Promise<Commit[]>;
 
 	commit(message: string, opts?: CommitOptions): Promise<void>;
+	merge(ref: string, opts?: MergeOptions): Promise<void>;
 }
 
 export interface RemoteSource {
