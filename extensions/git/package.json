@@ -670,7 +670,7 @@
       {
         "command": "git.stashPopEditor",
         "title": "%command.stashPopEditor%",
-        "icon": "git-stash-pop",
+        "icon": "$(git-stash-pop)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -689,7 +689,7 @@
       {
         "command": "git.stashApplyEditor",
         "title": "%command.stashApplyEditor%",
-        "icon": "git-stash-apply",
+        "icon": "$(git-stash-apply)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
