@@ -28,8 +28,6 @@ import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Separator } from 'vs/base/common/actions';
 import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 import { localize } from 'vs/nls';
@@ -79,8 +77,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILifecycleService lifecycleService: ILifecycleService,
 		@IMenuService menuService: IMenuService,
 	) {
 		super(
@@ -114,14 +110,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerActions();
-
-		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			telemetryService.publicLog2<{ location: string }, {
-				owner: 'sandy081';
-				location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Locaiton where the activity bar is shown' };
-				comment: 'This is used to know where activity bar is shown in the workbench.';
-			}>('activityBar:location', { location: configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) });
-		});
 	}
 
 	private onDidChangeActivityBarLocation(): void {
