@@ -5,7 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface ChatAgent2 {
+	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
 		supportIssueReporting?: boolean;
 	}
@@ -43,7 +43,7 @@ declare module 'vscode' {
 		| ChatAgentMarkdownContent
 		| ChatAgentDetectedAgent;
 
-	export interface ChatAgent2 {
+	export interface ChatAgent2<TResult extends ChatAgentResult2> {
 		/**
 		 * Provide a set of variables that can only be used with this agent.
 		 */
@@ -70,7 +70,7 @@ declare module 'vscode' {
 		/**
 		 * Create a chat agent with the extended progress type
 		 */
-		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
+		export function createChatAgent<TResult extends ChatAgentResult2>(name: string, handler: ChatAgentExtendedHandler): ChatAgent2<TResult>;
 	}
 
 	/*
@@ -111,13 +111,13 @@ declare module 'vscode' {
 	export interface ChatAgentCommandAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
-		command: ChatAgentCommandFollowup;
+		command: any; // ChatAgentCommandButton;
 	}
 
 	export interface ChatAgentSessionFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
-		followup: ChatAgentReplyFollowup;
+		followup: ChatAgentFollowup;
 	}
 
 	export interface ChatAgentBugReportAction {

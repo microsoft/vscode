@@ -111,24 +111,11 @@ declare module 'vscode' {
 		inputPlaceholder?: string;
 	}
 
-	export interface InteractiveResponseCommand {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
-	export interface InteractiveSessionReplyFollowup {
-		message: string;
-		tooltip?: string;
-		title?: string;
-	}
-
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | InteractiveSessionReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<InteractiveSessionReplyFollowup[]>;
+		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentReplyFollowup[]>;
 		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 
