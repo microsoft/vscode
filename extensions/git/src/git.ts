@@ -15,7 +15,7 @@ import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions, MergeOptions } from './api/git';
+import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery, InitOptions } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -1746,16 +1746,8 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async merge(ref: string, opts?: MergeOptions): Promise<void> {
-		const args = ['merge'];
-		if (opts?.abort) {
-			args.push('--abort');
-		} else {
-			if (opts?.noCommit) {
-				args.push('--no-commit');
-			}
-			args.push(ref);
-		}
+	async merge(ref: string): Promise<void> {
+		const args = ['merge', ref];
 
 		try {
 			await this.exec(args);
