@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -21,13 +21,12 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -37,23 +36,6 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
 	getTemplateId(): string {
 		return RepositoryRenderer.TEMPLATE_ID;
-	}
-}
-
-class RepositoryActionRunner extends ActionRunner {
-	constructor(private readonly getSelectedProviders: () => ISCMProvider[]) {
-		super();
-	}
-
-	protected override async runAction(action: IAction, context: ISCMProvider): Promise<void> {
-		if (!(action instanceof MenuItemAction)) {
-			return super.runAction(action, context);
-		}
-
-		const selection = this.getSelectedProviders();
-		const actionContext = selection.some(s => s === context) ? selection : [context];
-
-		await action.run(...actionContext);
 	}
 }
 
@@ -169,10 +151,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const actions = collectContextMenuActions(menu);
 
 		const actionRunner = this._register(new RepositoryActionRunner(() => {
-			const focusedProviders = this.list.getFocusedElements().map(e => e.provider);
-			const selectedProviders = this.list.getSelectedElements().map(e => e.provider);
+			const focusedRepositories = this.list.getFocusedElements();
+			const selectedRepositories = this.list.getSelectedElements();
 
-			return Array.from(new Set<ISCMProvider>([...focusedProviders, ...selectedProviders]));
+			return Array.from(new Set<ISCMRepository>([...focusedRepositories, ...selectedRepositories]));
 		}));
 		actionRunner.onWillRun(() => this.list.domFocus());
 
