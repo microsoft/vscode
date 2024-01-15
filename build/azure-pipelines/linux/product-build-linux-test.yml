@@ -168,6 +168,13 @@ steps:
             timeoutInMinutes: 20
             displayName: Run smoke tests (Playwright)
 
+          - task: PublishTestResults@2
+            displayName: Publish Playwright Tests Results
+            inputs:
+              targetPath: "test/playwright/test-results"
+              artifactName: logs-linux-$(VSCODE_ARCH)-pw-smoke-$(System.JobAttempt)
+            condition: failed()
+
           - script: cd test/playwright && npx playwright test --config=playwright.service.config.ts --workers=20
             timeoutInMinutes: 20
             displayName: Run smoke tests (Playwright Service)
