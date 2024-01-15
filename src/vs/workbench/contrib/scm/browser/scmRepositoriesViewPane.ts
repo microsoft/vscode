@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -26,7 +26,8 @@ import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workben
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -36,6 +37,23 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
 	getTemplateId(): string {
 		return RepositoryRenderer.TEMPLATE_ID;
+	}
+}
+
+class RepositoryActionRunner extends ActionRunner {
+	constructor(private readonly getSelectedProviders: () => ISCMProvider[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: ISCMProvider): Promise<void> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const selection = this.getSelectedProviders();
+		const actionContext = selection.some(s => s === context) ? selection : [context];
+
+		await action.run(...actionContext);
 	}
 }
 
@@ -150,7 +168,16 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		const menu = menus.repositoryContextMenu;
 		const actions = collectContextMenuActions(menu);
 
+		const actionRunner = this._register(new RepositoryActionRunner(() => {
+			const focusedProviders = this.list.getFocusedElements().map(e => e.provider);
+			const selectedProviders = this.list.getSelectedElements().map(e => e.provider);
+
+			return Array.from(new Set<ISCMProvider>([...focusedProviders, ...selectedProviders]));
+		}));
+		actionRunner.onWillRun(() => this.list.domFocus());
+
 		this.contextMenuService.showContextMenu({
+			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => provider
