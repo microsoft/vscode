@@ -41,8 +41,7 @@ interface IRenderedContainer {
 	index: number;
 }
 
-class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
-{
+class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData> {
 	private renderedElements: IRenderedContainer[] = [];
 
 	constructor(private trait: Trait<T>) { }
@@ -279,6 +278,10 @@ export function isMonacoTwistie(e: HTMLElement): boolean {
 
 export function isStickyScrollElement(e: HTMLElement): boolean {
 	return isListElementDescendantOfClass(e, 'monaco-tree-sticky-row');
+}
+
+export function isStickyScrollContainer(e: HTMLElement): boolean {
+	return e.classList.contains('monaco-tree-sticky-container');
 }
 
 export function isButton(e: HTMLElement): boolean {
@@ -716,7 +719,7 @@ export class MouseController<T> implements IDisposable {
 		return this.isSelectionSingleChangeEvent(event) || this.isSelectionRangeChangeEvent(event);
 	}
 
-	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
+	protected onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		if (isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -726,7 +729,7 @@ export class MouseController<T> implements IDisposable {
 		}
 	}
 
-	private onContextMenu(e: IListContextMenuEvent<T>): void {
+	protected onContextMenu(e: IListContextMenuEvent<T>): void {
 		if (isInputElement(e.browserEvent.target as HTMLElement) || isMonacoEditor(e.browserEvent.target as HTMLElement)) {
 			return;
 		}
@@ -1577,6 +1580,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.indexOf(element);
 	}
 
+	indexAt(position: number): number {
+		return this.view.indexAt(position);
+	}
+
 	get length(): number {
 		return this.view.length;
 	}
@@ -1759,9 +1766,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		}
 	}
 
-	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean): Promise<void> {
+	async focusPreviousPage(browserEvent?: UIEvent, filter?: (element: T) => boolean, getPaddingTop: () => number = () => 0): Promise<void> {
 		let firstPageIndex: number;
-		const scrollTop = this.view.getScrollTop();
+		const paddingTop = getPaddingTop();
+		const scrollTop = this.view.getScrollTop() + paddingTop;
 
 		if (scrollTop === 0) {
 			firstPageIndex = this.view.indexAt(scrollTop);
@@ -1781,14 +1789,14 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			}
 		} else {
 			const previousScrollTop = scrollTop;
-			this.view.setScrollTop(scrollTop - this.view.renderHeight);
+			this.view.setScrollTop(scrollTop - this.view.renderHeight - paddingTop);
 
-			if (this.view.getScrollTop() !== previousScrollTop) {
+			if (this.view.getScrollTop() + getPaddingTop() !== previousScrollTop) {
 				this.setFocus([]);
 
 				// Let the scroll event listener run
 				await timeout(0);
-				await this.focusPreviousPage(browserEvent, filter);
+				await this.focusPreviousPage(browserEvent, filter, getPaddingTop);
 			}
 		}
 	}

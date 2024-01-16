@@ -3,19 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableWindowInterval } from 'vs/base/browser/dom';
-import { IAction, toAction } from 'vs/base/common/actions';
+import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { coalesceInPlace, equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { AsyncIterableSource, IntervalTimer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon, themeColorFromId } from 'vs/base/common/themables';
+import { themeColorFromId } from 'vs/base/common/themables';
 import { ICodeEditor, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { LineSource, RenderOptions, renderLines } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -34,7 +31,6 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
@@ -59,6 +55,7 @@ export abstract class EditModeStrategy {
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
 
 	toggleDiff?: () => any;
+	pause?: () => any;
 
 	constructor(
 		protected readonly _session: Session,
@@ -70,15 +67,21 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.dispose();
 	}
 
-	abstract start(): Promise<void>;
-
 	abstract apply(): Promise<void>;
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+	async acceptHunk(): Promise<void> {
+		this._onDidAccept.fire();
+	}
 
-	abstract makeChanges(targetWindow: Window, edits: ISingleEditOperation[]): Promise<void>;
+	async discardHunk(): Promise<void> {
+		this._onDidDiscard.fire();
+	}
+
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+
+	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
@@ -120,10 +123,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		super.dispose();
 	}
 
-	async start() {
-		// nothing to do
-	}
-
 	async apply() {
 
 		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
@@ -150,7 +149,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async makeChanges(_targetWindow: Window, _edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(_edits: ISingleEditOperation[]): Promise<void> {
 		// nothing to do
 	}
 
@@ -199,8 +198,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		session: Session,
 		private readonly _editor: ICodeEditor,
 		zone: InlineChatZoneWidget,
-		@IStorageService storageService: IStorageService,
-		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
@@ -217,9 +214,6 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		this._previewZone.rawValue?.hide();
 		this._previewZone.rawValue?.dispose();
 		super.dispose();
-	}
-	async start() {
-		// nothing to do
 	}
 
 	async apply() {
@@ -243,7 +237,8 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
 		await undoModelUntil(modelN, targetAltVersion);
 	}
-	override async makeChanges(_targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
+
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -265,7 +260,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -284,7 +279,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(targetWindow, edit, speed, opts.token));
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token));
 		}
 
 		await renderTask;
@@ -436,28 +431,19 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 	}
 }
 
-export function asAsyncEdit(edit: IIdentifiedSingleEditOperation): AsyncTextEdit {
-	return {
-		range: edit.range,
-		newText: AsyncIterableObject.fromArray([edit.text ?? ''])
-	} satisfies AsyncTextEdit;
-}
-
-export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
+export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
 	wordsPerSec = Math.max(10, wordsPerSec);
 
 	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';
-	// const wordCount = countWords(newText);
 
-	const handle = disposableWindowInterval(targetWindow, () => {
-
+	interval.cancelAndSet(() => {
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
-			handle.dispose();
+			interval.cancel();
 			stream.resolve();
 			d.dispose();
 		}
@@ -466,7 +452,7 @@ export function asProgressiveEdit(targetWindow: Window, edit: IIdentifiedSingleE
 
 	// cancel ASAP
 	const d = token.onCancellationRequested(() => {
-		handle.dispose();
+		interval.cancel();
 		stream.resolve();
 		d.dispose();
 	});
@@ -488,7 +474,46 @@ class Hunk {
 	) { }
 }
 
+type HunkTrackedRange = {
+	/**
+	 * The first element [0] is the whole modified range and subsequent elements are word-level changes
+	 */
+	getRanges(): Range[];
+
+	discardChanges(): void;
+};
+
+const enum HunkState {
+	Accepted = 1,
+	Rejected = 2,
+}
+
+type HunkDisplayData = {
+	acceptedOrRejected: HunkState | undefined;
+	decorationIds: string[];
+
+	viewZoneId: string | undefined;
+	viewZone: IViewZone;
+
+	distance: number;
+	position: Position;
+	acceptHunk: () => void;
+	discardHunk: () => void;
+	toggleDiff?: () => any;
+};
+
+interface HunkDisplay {
+	renderHunks(): HunkDisplayData | undefined;
+	hideHunks(): void;
+	discardHunks(): void;
+}
+
 export class LiveStrategy extends EditModeStrategy {
+
+	private readonly _decoTrackedRange = ModelDecorationOptions.register({
+		description: 'inline-tracked-range',
+		className: 'inline-chat-tracked-range'
+	});
 
 	private readonly _decoInsertedText = ModelDecorationOptions.register({
 		description: 'inline-modified-line',
@@ -505,8 +530,8 @@ export class LiveStrategy extends EditModeStrategy {
 		className: 'inline-chat-inserted-range',
 	});
 
-	private readonly _store: DisposableStore = new DisposableStore();
-	private readonly _renderStore: DisposableStore = new DisposableStore();
+	private readonly _store = new DisposableStore();
+	private readonly _renderStore = new DisposableStore();
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 
 	private readonly _ctxCurrentChangeHasDiff: IContextKey<boolean>;
@@ -515,6 +540,9 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
 
 	private _editCount: number = 0;
+
+	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
+	override discardHunk: () => Promise<void> = () => super.discardHunk();
 
 	constructor(
 		session: Session,
@@ -548,9 +576,10 @@ export class LiveStrategy extends EditModeStrategy {
 		this._progressiveEditingDecorations.clear();
 	}
 
-	async start() {
-		this._resetDiff();
-	}
+	override pause = () => {
+		this._hunkDisplay?.hideHunks();
+		this._ctxCurrentChangeShowsDiff.reset();
+	};
 
 	async apply() {
 		this._resetDiff();
@@ -567,31 +596,25 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	async cancel() {
+		this._hunkDisplay?.discardHunks();
 		this._resetDiff();
-		const { textModelN: modelN, textModelNAltVersion, textModelNSnapshotAltVersion } = this._session;
-		if (modelN.isDisposed()) {
-			return;
-		}
-		const targetAltVersion = textModelNSnapshotAltVersion ?? textModelNAltVersion;
-		await undoModelUntil(modelN, targetAltVersion);
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
-		this._renderStore.clear();
 
 		const { textModelN } = this._session;
 		await undoModelUntil(textModelN, altVersionId);
 	}
 
-	override async makeChanges(targetWindow: Window, edits: ISingleEditOperation[]): Promise<void> {
-		return this._makeChanges(targetWindow, edits, undefined);
+	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
+		return this._makeChanges(edits, undefined);
 	}
 
-	override async makeProgressiveChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(targetWindow, edits, opts);
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+		return this._makeChanges(edits, opts);
 	}
 
-	private async _makeChanges(targetWindow: Window, edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
+	private async _makeChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -624,7 +647,7 @@ export class LiveStrategy extends EditModeStrategy {
 				const wordCount = countWords(edit.text ?? '');
 				const speed = wordCount / durationInSec;
 				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(targetWindow, edit, speed, opts.token), progress);
+				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress);
 			}
 
 		} else {
@@ -636,6 +659,8 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
+	private _hunkDisplay?: HunkDisplay;
+
 	override async renderChanges(response: ReplyResponse) {
 
 		if (response.untitledTextModel && !response.untitledTextModel.isDisposed()) {
@@ -646,222 +671,240 @@ export class LiveStrategy extends EditModeStrategy {
 
 		this._progressiveEditingDecorations.clear();
 
-		const hunks = await this._computeHunks();
+		if (!this._hunkDisplay) {
 
-		this._renderStore.clear();
+			this._renderStore.add(toDisposable(() => {
+				this._hunkDisplay?.hideHunks();
+				this._hunkDisplay = undefined;
+			}));
 
-		if (hunks.length === 0) {
-			return undefined;
-		}
+			const hunkTrackedRanges = new Map<Hunk, HunkTrackedRange>();
+			const hunkDisplayData = new Map<Hunk, HunkDisplayData>();
 
-		const enum HunkState {
-			Accepted = 1,
-			Rejected = 2,
-		}
+			// (INIT) compute hunks
+			const hunks = await this._computeHunks();
+			if (hunks.length === 0) {
+				this._hunkDisplay = { renderHunks() { return undefined; }, hideHunks() { }, discardHunks() { } };
+				return undefined;
+			}
 
-		type HunkDisplayData = {
-			acceptedOrRejected: HunkState | undefined;
-			decorationIds: string[];
-
-			viewZoneId: string | undefined;
-			viewZone: IViewZone;
-
-			distance: number;
-			position: Position;
-			actions: IAction[];
-			toggleDiff?: () => any;
-		};
-
-		let widgetData: HunkDisplayData | undefined;
-		const hunkDisplayData = new Map<Hunk, HunkDisplayData>();
-
-		const renderHunks = () => {
-
-			changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
-
-				widgetData = undefined;
-
+			// (INIT) add tracked ranges per hunk
+			const model = this._editor.getModel()!;
+			model.changeDecorations(accessor => {
 				for (const hunk of hunks) {
+					const decorationIds: string[] = [];
+					const modifiedRange = asRange(hunk.modified, this._session.textModelN);
+					decorationIds.push(accessor.addDecoration(modifiedRange, this._decoTrackedRange));
+					for (const change of hunk.changes) {
+						decorationIds.push(accessor.addDecoration(change.modifiedRange, this._decoTrackedRange));
+					}
+					const hunkLiveInfo: HunkTrackedRange = {
+						getRanges: () => {
+							const ranges = decorationIds.map(id => model.getDecorationRange(id));
+							coalesceInPlace(ranges);
+							return ranges;
+						},
+						discardChanges: () => {
+							const edits: ISingleEditOperation[] = [];
+							const ranges = hunkLiveInfo.getRanges();
+							for (let i = 1; i < ranges.length; i++) {
+								// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
+								// which was created above so that typing in the editor keeps discard working.
+								const modifiedRange = ranges[i];
+								const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
+								edits.push(EditOperation.replace(modifiedRange, originalValue));
+							}
+							this._session.textModelN.pushEditOperations(null, edits, () => null);
+						}
+					};
+					hunkTrackedRanges.set(hunk, hunkLiveInfo);
+					this._renderStore.add(toDisposable(() => {
+						model.deltaDecorations(decorationIds, []);
+					}));
+				}
+			});
 
-					const { modified } = hunk;
+			let widgetData: HunkDisplayData | undefined;
 
-					let data = hunkDisplayData.get(hunk);
-					if (!data) {
-						// first time -> create decoration
-						const decorationIds: string[] = [];
-						const modifiedRange = asRange(modified, this._session.textModelN);
-						decorationIds.push(decorationsAccessor.addDecoration(modifiedRange, this._decoInsertedText));
-						for (const change of hunk.changes) {
-							decorationIds.push(decorationsAccessor.addDecoration(change.modifiedRange, this._decoInsertedTextRange));
+			const renderHunks = () => {
+
+				changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
+
+					widgetData = undefined;
+
+					for (const hunk of hunks) {
+
+						const hunkRanges = hunkTrackedRanges.get(hunk)!.getRanges();
+						let data = hunkDisplayData.get(hunk);
+						if (!data) {
+							// first time -> create decoration
+							const decorationIds: string[] = [];
+							for (let i = 0; i < hunkRanges.length; i++) {
+								decorationIds.push(decorationsAccessor.addDecoration(hunkRanges[i], i === 0
+									? this._decoInsertedText
+									: this._decoInsertedTextRange)
+								);
+							}
+
+							const acceptHunk = () => {
+								// ACCEPT: stop rendering this as inserted
+								hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
+								renderHunks();
+							};
+
+							const discardHunk = () => {
+								const info = hunkTrackedRanges.get(hunk)!;
+								info.discardChanges();
+								hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
+								renderHunks();
+							};
+
+							// original view zone
+							const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
+							const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
+							const renderOptions = RenderOptions.fromEditor(this._editor);
+							const source = new LineSource(
+								hunk.original.mapToLineArray(l => this._session.textModel0.tokenization.getLineTokens(l)),
+								[],
+								mightContainNonBasicASCII,
+								mightContainRTL,
+							);
+							const domNode = document.createElement('div');
+							domNode.className = 'inline-chat-original-zone2';
+							const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(hunk.original.startLineNumber, 1, hunk.original.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
+							const viewZoneData: IViewZone = {
+								afterLineNumber: -1,
+								heightInLines: result.heightInLines,
+								domNode,
+							};
+
+							const toggleDiff = () => {
+								const scrollState = StableEditorScrollState.capture(this._editor);
+								if (!data!.viewZoneId) {
+
+									this._editor.changeViewZones(accessor => {
+										const [hunkRange] = hunkTrackedRanges.get(hunk)!.getRanges();
+										viewZoneData.afterLineNumber = hunkRange.startLineNumber - 1;
+										data!.viewZoneId = accessor.addZone(viewZoneData);
+									});
+									this._ctxCurrentChangeShowsDiff.set(true);
+								} else {
+									this._editor.changeViewZones(accessor => {
+										accessor.removeZone(data!.viewZoneId!);
+										data!.viewZoneId = undefined;
+									});
+									this._ctxCurrentChangeShowsDiff.set(false);
+								}
+								scrollState.restore(this._editor);
+							};
+
+							const zoneLineNumber = this._zone.position!.lineNumber;
+							const myDistance = zoneLineNumber <= hunkRanges[0].startLineNumber
+								? hunkRanges[0].startLineNumber - zoneLineNumber
+								: zoneLineNumber - hunkRanges[0].endLineNumber;
+
+							data = {
+								acceptedOrRejected: undefined,
+								decorationIds,
+								viewZoneId: '',
+								viewZone: viewZoneData,
+								distance: myDistance,
+								position: hunkRanges[0].getStartPosition().delta(-1),
+								acceptHunk,
+								discardHunk,
+								toggleDiff: !hunk.original.isEmpty ? toggleDiff : undefined,
+							};
+
+							hunkDisplayData.set(hunk, data);
+
+						} else if (data.acceptedOrRejected !== undefined) {
+							// accepted or rejected -> remove decoration
+							for (const decorationId of data.decorationIds) {
+								decorationsAccessor.removeDecoration(decorationId);
+							}
+							if (data.viewZoneId) {
+								viewZoneAccessor.removeZone(data.viewZoneId);
+							}
+
+							data.decorationIds = [];
+							data.viewZoneId = undefined;
+
+						} else {
+							// update distance and position based on modifiedRange-decoration
+							const zoneLineNumber = this._zone.position!.lineNumber;
+							const modifiedRangeNow = hunkRanges[0];
+							data.position = modifiedRangeNow.getStartPosition().delta(-1);
+							data.distance = zoneLineNumber <= modifiedRangeNow.startLineNumber
+								? modifiedRangeNow.startLineNumber - zoneLineNumber
+								: zoneLineNumber - modifiedRangeNow.endLineNumber;
 						}
 
-						const actions = [
-							toAction({
-								id: 'accept',
-								label: localize('accept', "Accept"),
-								class: ThemeIcon.asClassName(Codicon.check),
-								run: () => {
-									// ACCEPT: stop rendering this as inserted
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Accepted;
-									renderHunks();
-								}
-							}),
-							toAction({
-								id: 'discard',
-								label: localize('discard', "Discard"),
-								class: ThemeIcon.asClassName(Codicon.discard),
-								run: () => {
-									const edits: ISingleEditOperation[] = [];
-									for (let i = 1; i < decorationIds.length; i++) {
-										// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
-										// which was created above so that typing in the editor keeps discard working.
-										const modifiedRange = this._session.textModelN.getDecorationRange(decorationIds[i])!;
-										const originalValue = this._session.textModel0.getValueInRange(hunk.changes[i - 1].originalRange);
-										edits.push(EditOperation.replace(modifiedRange, originalValue));
-									}
-									this._session.textModelN.pushEditOperations(null, edits, () => null);
-									hunkDisplayData.get(hunk)!.acceptedOrRejected = HunkState.Rejected;
-									renderHunks();
-								}
-							}),
-						];
-
-						// original view zone
-						const mightContainNonBasicASCII = this._session.textModel0.mightContainNonBasicASCII() ?? false;
-						const mightContainRTL = this._session.textModel0.mightContainRTL() ?? false;
-						const renderOptions = RenderOptions.fromEditor(this._editor);
-						const source = new LineSource(
-							hunk.original.mapToLineArray(l => this._session.textModel0.tokenization.getLineTokens(l)),
-							[],
-							mightContainNonBasicASCII,
-							mightContainRTL,
-						);
-						const domNode = document.createElement('div');
-						domNode.className = 'inline-chat-original-zone2';
-						const result = renderLines(source, renderOptions, [new InlineDecoration(new Range(hunk.original.startLineNumber, 1, hunk.original.startLineNumber, 1), '', InlineDecorationType.Regular)], domNode);
-						const viewZoneData: IViewZone = {
-							afterLineNumber: -1,
-							heightInLines: result.heightInLines,
-							domNode,
-						};
-
-						const toggleDiff = () => {
-							const scrollState = StableEditorScrollState.capture(this._editor);
-							if (!data!.viewZoneId) {
-
-								this._editor.changeViewZones(accessor => {
-									viewZoneData.afterLineNumber = this._session.textModelN.getDecorationRange(decorationIds[0])!.startLineNumber - 1;
-									data!.viewZoneId = accessor.addZone(viewZoneData);
-								});
-								this._ctxCurrentChangeShowsDiff.set(true);
-							} else {
-								this._editor.changeViewZones(accessor => {
-									accessor.removeZone(data!.viewZoneId!);
-									data!.viewZoneId = undefined;
-								});
-								this._ctxCurrentChangeShowsDiff.set(false);
+						if (!data.acceptedOrRejected) {
+							if (!widgetData || data.distance < widgetData.distance) {
+								widgetData = data;
 							}
-							scrollState.restore(this._editor);
-						};
+						}
+					}
+				});
 
-						const zoneLineNumber = this._zone.position!.lineNumber;
-						const myDistance = zoneLineNumber <= modifiedRange.startLineNumber
-							? modifiedRange.startLineNumber - zoneLineNumber
-							: zoneLineNumber - modifiedRange.endLineNumber;
+				if (widgetData) {
+					this._zone.updatePositionAndHeight(widgetData.position);
+					this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
-						data = {
-							acceptedOrRejected: undefined,
-							decorationIds,
-							viewZoneId: '',
-							viewZone: viewZoneData,
-							distance: myDistance,
-							position: modifiedRange.getStartPosition().delta(-1),
-							toggleDiff: !hunk.original.isEmpty ? toggleDiff : undefined,
-							actions
-						};
+					const remainingHunks = Iterable.reduce(hunkDisplayData.values(), (p, c) => { return p + (c.acceptedOrRejected ? 0 : 1); }, 0);
+					this._updateSummaryMessage(remainingHunks);
 
-						hunkDisplayData.set(hunk, data);
+					this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
+					this.toggleDiff = widgetData.toggleDiff;
+					this.acceptHunk = async () => widgetData!.acceptHunk();
+					this.discardHunk = async () => widgetData!.discardHunk();
 
-					} else if (data.acceptedOrRejected !== undefined) {
-						// accepted or rejected -> remove decoration
+				} else if (hunkDisplayData.size > 0) {
+					// everything accepted or rejected
+					let oneAccepted = false;
+					for (const data of hunkDisplayData.values()) {
+						if (data.acceptedOrRejected === HunkState.Accepted) {
+							oneAccepted = true;
+							break;
+						}
+					}
+					if (oneAccepted) {
+						this._onDidAccept.fire();
+					} else {
+						this._onDidDiscard.fire();
+					}
+				}
+
+				return widgetData;
+			};
+
+			const hideHunks = () => {
+				changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
+					for (const data of hunkDisplayData.values()) {
+						// remove decorations
 						for (const decorationId of data.decorationIds) {
 							decorationsAccessor.removeDecoration(decorationId);
 						}
+						// remove view zone
 						if (data.viewZoneId) {
 							viewZoneAccessor.removeZone(data.viewZoneId);
 						}
-
-						data.decorationIds = [];
-						data.viewZoneId = undefined;
-
-					} else {
-						// update distance and position based on modifiedRange-decoration
-						const zoneLineNumber = this._zone.position!.lineNumber;
-						const modifiedRangeNow = this._session.textModelN.getDecorationRange(data.decorationIds[0])!;
-						data.position = modifiedRangeNow.getStartPosition().delta(-1);
-						data.distance = zoneLineNumber <= modifiedRangeNow.startLineNumber
-							? modifiedRangeNow.startLineNumber - zoneLineNumber
-							: zoneLineNumber - modifiedRangeNow.endLineNumber;
+						data.viewZone.domNode.remove();
 					}
+				});
+				hunkDisplayData.clear();
+			};
 
-					if (!data.acceptedOrRejected) {
-						if (!widgetData || data.distance < widgetData.distance) {
-							widgetData = data;
-						}
-					}
+			const discardHunks = () => {
+				for (const data of hunkTrackedRanges.values()) {
+					data.discardChanges();
 				}
-			});
+			};
 
-			if (widgetData) {
-				this._zone.widget.setExtraButtons(widgetData.actions);
-				this._zone.updatePositionAndHeight(widgetData.position);
-				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
+			this._hunkDisplay = { renderHunks, hideHunks, discardHunks };
+		}
 
-				const remainingHunks = Iterable.reduce(hunkDisplayData.values(), (p, c) => { return p + (c.acceptedOrRejected ? 0 : 1); }, 0);
-				this._updateSummaryMessage(remainingHunks);
-
-				this._ctxCurrentChangeHasDiff.set(Boolean(widgetData.toggleDiff));
-				this.toggleDiff = widgetData.toggleDiff;
-
-			} else if (hunkDisplayData.size > 0) {
-				// everything accepted or rejected
-				let oneAccepted = false;
-				for (const data of hunkDisplayData.values()) {
-					if (data.acceptedOrRejected === HunkState.Accepted) {
-						oneAccepted = true;
-						break;
-					}
-				}
-				if (oneAccepted) {
-					this._onDidAccept.fire();
-				} else {
-					this._onDidDiscard.fire();
-				}
-			}
-		};
-
-		renderHunks();
-
-		this._renderStore.add(toDisposable(() => {
-			this._zone.widget.setExtraButtons([]);
-
-			changeDecorationsAndViewZones(this._editor, (decorationsAccessor, viewZoneAccessor) => {
-				for (const data of hunkDisplayData.values()) {
-					// remove decorations
-					for (const decorationId of data.decorationIds) {
-						decorationsAccessor.removeDecoration(decorationId);
-					}
-					// remove view zone
-					if (data.viewZoneId) {
-						viewZoneAccessor.removeZone(data.viewZoneId);
-					}
-					data.viewZone.domNode.remove();
-				}
-			});
-		}));
-
-
-		return widgetData?.position;
+		return this._hunkDisplay?.renderHunks()?.position;
 	}
 
 	private static readonly HUNK_THRESHOLD = 8;

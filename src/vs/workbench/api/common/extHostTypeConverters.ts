@@ -11,11 +11,11 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { marked } from 'vs/base/common/marked/marked';
-import { parse, revive } from 'vs/base/common/marshalling';
+import { parse } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { isEmptyObject, isNumber, isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, isUriComponents } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -34,7 +34,10 @@ import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
 import { IViewBadge } from 'vs/workbench/common/views';
+import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatReplyFollowup, IChatResponseCommandFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -42,12 +45,9 @@ import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId
 import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestTag, TestMessageType, TestResultItem, denamespaceTestTag, namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
-import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export namespace Command {
 
@@ -1995,7 +1995,7 @@ export namespace TestCoverage {
 				location: fromLocation(coverage.location),
 				type: DetailType.Statement,
 				branches: coverage.branches.length
-					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location) }))
+					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location), label: b.label }))
 					: undefined,
 			};
 		} else {
@@ -2171,7 +2171,7 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function from(followup: vscode.InteractiveSessionReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
+	export function from(followup: vscode.ChatAgentReplyFollowup | vscode.InteractiveEditorReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
@@ -2254,7 +2254,7 @@ export namespace ChatVariable {
 		return {
 			level: ChatVariableLevel.to(variable.level),
 			kind: variable.kind,
-			value: revive(variable.value),
+			value: isUriComponents(variable.value) ? URI.revive(variable.value) : variable.value,
 			description: variable.description
 		};
 	}
@@ -2363,7 +2363,7 @@ export namespace ChatResponseProgress {
 		} else if ('treeData' in progress) {
 			return { treeData: progress.treeData, kind: 'treeData' };
 		} else if ('message' in progress) {
-			return { content: progress.message, kind: 'progressMessage' };
+			return { content: MarkdownString.from(progress.message), kind: 'progressMessage' };
 		} else {
 			return undefined;
 		}

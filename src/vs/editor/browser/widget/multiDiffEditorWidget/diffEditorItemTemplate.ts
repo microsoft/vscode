@@ -36,9 +36,9 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 	private readonly _collapsed = derived(this, reader => this._viewModel.read(reader)?.collapsed.read(reader));
 
-	private readonly _contentHeight = observableValue<number>(this, 500);
-	public readonly height = derived(this, reader => {
-		const h = this._collapsed.read(reader) ? 0 : this._contentHeight.read(reader);
+	private readonly _editorContentHeight = observableValue<number>(this, 500);
+	public readonly contentHeight = derived(this, reader => {
+		const h = this._collapsed.read(reader) ? 0 : this._editorContentHeight.read(reader);
 		return h + this._outerEditorHeight;
 	});
 
@@ -58,29 +58,14 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	});
 
 	private readonly _elements = h('div.multiDiffEntry', [
-		h('div.content', {
-			style: {
-				display: 'flex',
-				flexDirection: 'column',
-				flex: '1',
-				overflow: 'hidden',
-			}
-		}, [
-			h('div.header@header', [
-				h('div.collapse-button@collapseButton'),
-				h('div.title.show-file-icons@title', [] as any),
-				h('div.actions@actions'),
-			]),
+		h('div.header@header', [
+			h('div.collapse-button@collapseButton'),
+			h('div.title.show-file-icons@title', [] as any),
+			h('div.actions@actions'),
+		]),
 
-			h('div.editorParent', {
-				style: {
-					flex: '1',
-					display: 'flex',
-					flexDirection: 'column',
-				}
-			}, [
-				h('div.editorContainer@editor', { style: { flex: '1' } }),
-			])
+		h('div.editorParent', [
+			h('div.editorContainer@editor'),
 		])
 	]);
 
@@ -132,7 +117,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 
 		this._register(this.editor.onDidContentSizeChange(e => {
 			globalTransaction(tx => {
-				this._contentHeight.set(e.contentHeight, tx);
+				this._editorContentHeight.set(e.contentHeight, tx);
 				this._modifiedContentWidth.set(this.editor.getModifiedEditor().getContentWidth(), tx);
 				this._originalContentWidth.set(this.editor.getOriginalEditor().getContentWidth(), tx);
 			});
@@ -150,7 +135,8 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			actionRunner: this._register(new ActionRunnerWithContext(() => (this._viewModel.get()?.diffEditorViewModel?.model.modified.uri))),
 			menuOptions: {
 				shouldForwardArgs: true,
-			}
+			},
+			toolbarOptions: { primaryGroup: g => g.startsWith('navigation') },
 		}));
 	}
 
@@ -180,6 +166,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 				},
 				renderOverviewRuler: false,
 				fixedOverflowWidgets: true,
+				overviewRulerBorder: false,
 			};
 		}
 
@@ -199,7 +186,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		});
 	}
 
-	private readonly _headerHeight = this._elements.header.clientHeight;
+	private readonly _headerHeight = /*this._elements.header.clientHeight*/ 38;
 
 	public render(verticalRange: OffsetRange, width: number, editorScroll: number, viewPort: OffsetRange): void {
 		this._elements.root.style.visibility = 'visible';

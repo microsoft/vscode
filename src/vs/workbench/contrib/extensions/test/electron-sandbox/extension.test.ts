@@ -13,18 +13,17 @@ import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/ex
 import { generateUuid } from 'vs/base/common/uuid';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Extension Test', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'insiders' });
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
+		instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IProductService, { quality: 'insiders' });
 	});
 
 	test('extension is not outdated when there is no local and gallery', () => {
@@ -58,7 +57,7 @@ suite('Extension Test', () => {
 	});
 
 	test('extension is not outdated when local is built in and older than gallery but product quality is stable', () => {
-		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'stable' });
+		instantiationService.stub(IProductService, { quality: 'stable' });
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
 		assert.strictEqual(extension.outdated, false);
 	});

@@ -46,7 +46,8 @@ import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/ed
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
@@ -328,13 +329,12 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = viewService.getViewWithId<ExplorerView>(VIEW_ID);
+			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
 			if (explorerView) {
 				const oldAutoReveal = explorerView.autoReveal;
 				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
 				// Fixes #197268
 				explorerView.autoReveal = false;
-				await viewService.openView<ExplorerView>(VIEW_ID, false);
 				explorerView.setExpanded(true);
 				await explorerService.select(uri, 'force');
 				explorerView.focus();

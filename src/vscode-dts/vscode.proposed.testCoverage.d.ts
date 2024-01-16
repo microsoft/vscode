@@ -165,10 +165,16 @@ declare module 'vscode' {
 		location?: Position | Range;
 
 		/**
+		 * Label for the branch, used in the context of "the ${label} branch was
+		 * not taken," for example.
+		 */
+		label?: string;
+
+		/**
 		 * @param executionCount The number of times this branch was executed.
 		 * @param location The branch position.
 		 */
-		constructor(executionCount: number, location?: Position | Range);
+		constructor(executionCount: number, location?: Position | Range, label?: string);
 	}
 
 	/**

@@ -7,13 +7,13 @@ import * as vscode from 'vscode';
 import { MdLanguageClient } from './client/client';
 import { CommandManager } from './commandManager';
 import { registerMarkdownCommands } from './commands/index';
-import { registerLinkPasteSupport } from './languageFeatures/copyFiles/pasteUrlProvider';
+import { registerPasteUrlSupport } from './languageFeatures/copyFiles/pasteUrlProvider';
 import { registerResourceDropOrPasteSupport } from './languageFeatures/copyFiles/dropOrPasteResource';
 import { registerDiagnosticSupport } from './languageFeatures/diagnostics';
 import { registerFindFileReferenceSupport } from './languageFeatures/fileReferences';
 import { registerUpdateLinksOnRename } from './languageFeatures/linkUpdater';
 import { ILogger } from './logging';
-import { MarkdownItEngine } from './markdownEngine';
+import { IMdParser, MarkdownItEngine } from './markdownEngine';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { MdDocumentRenderer } from './preview/documentRenderer';
 import { MarkdownPreviewManager } from './preview/previewManager';
@@ -40,7 +40,7 @@ export function activateShared(
 	const previewManager = new MarkdownPreviewManager(contentProvider, logger, contributions, opener);
 	context.subscriptions.push(previewManager);
 
-	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager));
+	context.subscriptions.push(registerMarkdownLanguageFeatures(client, commandManager, engine));
 	context.subscriptions.push(registerMarkdownCommands(commandManager, previewManager, telemetryReporter, cspArbiter, engine));
 
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(() => {
@@ -51,6 +51,7 @@ export function activateShared(
 function registerMarkdownLanguageFeatures(
 	client: MdLanguageClient,
 	commandManager: CommandManager,
+	parser: IMdParser,
 ): vscode.Disposable {
 	const selector: vscode.DocumentSelector = { language: 'markdown', scheme: '*' };
 	return vscode.Disposable.from(
@@ -58,8 +59,7 @@ function registerMarkdownLanguageFeatures(
 		registerDiagnosticSupport(selector, commandManager),
 		registerFindFileReferenceSupport(commandManager, client),
 		registerResourceDropOrPasteSupport(selector),
-		registerLinkPasteSupport(selector),
+		registerPasteUrlSupport(selector, parser),
 		registerUpdateLinksOnRename(client),
 	);
 }
-

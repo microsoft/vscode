@@ -14,7 +14,6 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CodeWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
@@ -52,7 +51,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		e.preventDefault();
 		e.returnValue = true;
 
-		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
+		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeAuxiliaryWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
 			this.skipUnloadConfirmation = true;
 			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });

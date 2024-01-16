@@ -8,14 +8,9 @@
 declare module 'vscode' {
 	export interface TestRunProfile {
 		/**
-		 * Whether this profile is currently selected as a default by the user
+		 * Fired when a user has changed whether this is a default profile. The
+		 * event contains the new value of {@link isDefault}
 		 */
-		readonly isSelected: boolean;
-
-		/**
-		 * Fired when a user has changed whether this is a selected profile. The
-		 * event contains the new value of {@link isSelected}
-		 */
-		onDidChangeSelected: Event<boolean>;
+		onDidChangeDefault: Event<boolean>;
 	}
 }

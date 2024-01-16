@@ -151,6 +151,30 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribSourceControlInputBoxMenu'
 	},
 	{
+		key: 'scm/incomingChanges/allChanges/context',
+		id: MenuId.SCMIncomingChangesAllChangesContext,
+		description: localize('menus.incomingChangesAllChangesContext', "The Source Control all incoming changes context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/incomingChanges/historyItem/context',
+		id: MenuId.SCMIncomingChangesHistoryItemContext,
+		description: localize('menus.incomingChangesHistoryItemContext', "The Source Control incoming changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/allChanges/context',
+		id: MenuId.SCMOutgoingChangesAllChangesContext,
+		description: localize('menus.outgoingChangesAllChangesContext', "The Source Control all outgoing changes context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
+		key: 'scm/outgoingChanges/historyItem/context',
+		id: MenuId.SCMOutgoingChangesHistoryItemContext,
+		description: localize('menus.outgoingChangesHistoryItemContext', "The Source Control outgoing changes history item context menu"),
+		proposed: 'contribSourceControlHistoryItemMenu'
+	},
+	{
 		key: 'statusBar/remoteIndicator',
 		id: MenuId.StatusBarRemoteIndicatorMenu,
 		description: localize('menus.statusBarRemoteIndicator', "The remote indicator menu in the status bar"),
@@ -345,6 +369,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
 		proposed: 'contribMergeEditorMenus'
 	},
+	{
+		key: 'multiDiffEditor/resource/title',
+		id: MenuId.MultiDiffEditorFileToolbar,
+		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
+		proposed: 'contribMultiDiffEditorMenus'
+	}
 ];
 
 namespace schema {

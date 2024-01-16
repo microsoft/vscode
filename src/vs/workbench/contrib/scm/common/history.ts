@@ -10,7 +10,7 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 export interface ISCMHistoryProviderMenus {
-	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
+	getHistoryItemMenu(historyItem: SCMHistoryItemTreeElement): IMenu;
 }
 
 export interface ISCMHistoryProvider {
@@ -21,7 +21,8 @@ export interface ISCMHistoryProvider {
 	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
-	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
+	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
+	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 	resolveHistoryItemGroupDetails(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
@@ -29,7 +30,7 @@ export interface ISCMHistoryProvider {
 
 export interface ISCMHistoryProviderCacheEntry {
 	readonly historyItemGroupDetails?: ISCMHistoryItemGroupDetails;
-	readonly historyItems: Map<string, ISCMHistoryItem[]>;
+	readonly historyItems: Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>;
 	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
@@ -57,6 +58,7 @@ export interface ISCMHistoryItemGroupDetails {
 export interface ISCMHistoryItemGroupEntry {
 	readonly id: string;
 	readonly label: string;
+	readonly direction: 'incoming' | 'outgoing';
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly description?: string;
 	readonly ancestor?: string;
@@ -87,7 +89,7 @@ export interface ISCMHistoryItem {
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
 	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
-	readonly type: 'historyItem';
+	readonly type: 'allChanges' | 'historyItem';
 }
 
 export interface ISCMHistoryItemChange {

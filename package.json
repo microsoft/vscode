@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.86.0",
-  "distro": "9d1271fd1c2cf545a209fb8aaf409f75da726c4c",
+  "distro": "e74e6b268c5f26bfeb37b3468500c70b4dbd98da",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -73,7 +73,7 @@
     "@vscode/policy-watcher": "^1.1.4",
     "@vscode/proxy-agent": "^0.18.2",
     "@vscode/ripgrep": "^1.15.9",
-    "@vscode/spdlog": "^0.13.12",
+    "@vscode/spdlog": "^0.14.0",
     "@vscode/sqlite3": "5.1.6-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
@@ -150,7 +150,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "27.1.3",
+    "electron": "27.2.1",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
@@ -208,7 +208,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.4.0-dev.20231116",
+    "typescript": "^5.4.0-dev.20240108",
     "typescript-formatter": "7.1.0",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",

@@ -81,10 +81,10 @@
     proxy-from-env "^1.1.0"
     yauzl "^2.9.2"
 
-"@vscode/spdlog@^0.13.12":
-  version "0.13.12"
-  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.12.tgz#8b8e3308468fd7d613c350ecd7fcfaa27064960a"
-  integrity sha512-8Qw8VwBzFkH6AWVKh+ULeVDff0lwTh/PkEKUOwRpyuu7Mr7W2zQoc+oAaGmTWKb1NPmvVeXmo+qF9X+jXuBCOg==
+"@vscode/spdlog@^0.14.0":
+  version "0.14.0"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.14.0.tgz#3cdf589ca59b9ce792ef58b5f773e29a732a360f"
+  integrity sha512-mpblZa3v6AGEJC1qTwIkpgTc6NItdiiuTxufGxr6XD14srXCvVAUXFIYNqszxC6RY57qDQMX1d9Wd4/oZDxuUQ==
   dependencies:
     bindings "^1.5.0"
     mkdirp "^1.0.4"

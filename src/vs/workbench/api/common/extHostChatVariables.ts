@@ -29,7 +29,7 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 			return undefined;
 		}
 		try {
-			const value = await item.resolver.resolve(item.data.name, { message: messageText }, token);
+			const value = await item.resolver.resolve(item.data.name, { prompt: messageText }, token);
 			if (value) {
 				return value.map(ChatVariable.from);
 			}

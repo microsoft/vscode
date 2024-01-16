@@ -15,7 +15,7 @@ import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
-import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
+import { DiffEditorViewModel, RevealPreference, UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -63,8 +63,8 @@ export class HideUnchangedRegionsFeature extends Disposable {
 				const m = this._diffModel.get();
 				transaction(tx => {
 					for (const s of this._editors.original.getSelections() || []) {
-						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, tx);
-						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, tx);
+						m?.ensureOriginalLineIsVisible(s.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+						m?.ensureOriginalLineIsVisible(s.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
 					}
 				});
 			}
@@ -75,14 +75,20 @@ export class HideUnchangedRegionsFeature extends Disposable {
 				const m = this._diffModel.get();
 				transaction(tx => {
 					for (const s of this._editors.modified.getSelections() || []) {
-						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, tx);
-						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, tx);
+						m?.ensureModifiedLineIsVisible(s.getStartPosition().lineNumber, RevealPreference.FromCloserSide, tx);
+						m?.ensureModifiedLineIsVisible(s.getEndPosition().lineNumber, RevealPreference.FromCloserSide, tx);
 					}
 				});
 			}
 		}));
 
-		const unchangedRegions = this._diffModel.map((m, reader) => m?.diff.read(reader)?.mappings.length === 0 ? [] : m?.unchangedRegions.read(reader) ?? []);
+		const unchangedRegions = this._diffModel.map((m, reader) => {
+			const regions = m?.unchangedRegions.read(reader) ?? [];
+			if (regions.length === 1 && regions[0].modifiedLineNumber === 1 && regions[0].lineCount === this._editors.modifiedModel.read(reader)?.getLineCount()) {
+				return [];
+			}
+			return regions;
+		});
 
 		this.viewZones = derivedWithStore(this, (reader, store) => {
 			/** @description view Zones */
@@ -110,7 +116,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						r.originalUnchangedRange,
 						!sideBySide,
 						modifiedOutlineSource,
-						l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, undefined),
+						l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, RevealPreference.FromBottom, undefined),
 						this._options,
 					));
 				}
@@ -125,7 +131,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						r.modifiedUnchangedRange,
 						false,
 						modifiedOutlineSource,
-						l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, undefined),
+						l => this._diffModel.get()!.ensureModifiedLineIsVisible(l, RevealPreference.FromBottom, undefined),
 						this._options,
 					));
 				}
