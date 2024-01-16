@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration, IWindowSettings } from 'vs/platform/window/common/window';
+import { IWindowsConfiguration, IWindowSettings, TitlebarStyle } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -46,7 +46,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'security.restrictUNCAccess'
 	];
 
-	private readonly titleBarStyle = new ChangeObserver<'native' | 'custom'>('string');
+	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
+	private previousTitleBarStyle: TitlebarStyle | undefined = undefined;
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -85,7 +86,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		if (isNative) {
 
 			// Titlebar style
-			processChanged((config.window.titleBarStyle === 'native' || config.window.titleBarStyle === 'custom') && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
+			processChanged(
+				(config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM || config.window.titleBarStyle === TitlebarStyle.NATIVE_AND_CUSTOM) &&
+				this.titleBarStyle.handleChange(config.window.titleBarStyle) &&
+				(this.previousTitleBarStyle === TitlebarStyle.CUSTOM || config.window.titleBarStyle === TitlebarStyle.CUSTOM) // only if we come from custom or go to custom
+			);
+			this.previousTitleBarStyle = config.window.titleBarStyle;
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));

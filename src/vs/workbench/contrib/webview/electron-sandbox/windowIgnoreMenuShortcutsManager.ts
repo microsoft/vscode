@@ -21,7 +21,7 @@ export class WindowIgnoreMenuShortcutsManager {
 		mainProcessService: IMainProcessService,
 		private readonly _nativeHostService: INativeHostService
 	) {
-		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') !== 'custom';
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 	}

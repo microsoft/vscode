@@ -227,9 +227,9 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if `#window.titleBarStyle#` is set to `custom`.")
 			},
-			'window.titleBarStyle': {
+			'window.titleBarStyle': { // Todo
 				'type': 'string',
-				'enum': ['native', 'custom'],
+				'enum': ['native', 'custom', 'native-and-custom'],
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
