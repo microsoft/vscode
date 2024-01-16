@@ -125,7 +125,11 @@ export class TerminalSpeechToTextSession extends Disposable {
 				'Dot': '.',
 				'dot': '.',
 				'Period': '.',
-				'period': '.'
+				'period': '.',
+				'Quote': '\'',
+				'quote': '\'',
+				'double quote': '"',
+				'Double quote': '"',
 			};
 
 			for (const symbol in symbolMap) {
