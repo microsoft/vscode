@@ -267,7 +267,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
+	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI> {
 		assertType(this._session === undefined);
 		assertType(this._editor.hasModel());
 
@@ -308,7 +308,10 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 
 			if (createSessionCts.token.isCancellationRequested) {
-				return State.PAUSE;
+				if (session) {
+					this._inlineChatSessionService.releaseSession(session);
+				}
+				return State.CANCEL;
 			}
 		}
 
@@ -833,21 +836,22 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.CANCEL]() {
-		assertType(this._session);
-		assertType(this._strategy);
-		this._sessionStore.clear();
+		if (this._session) {
+			// assertType(this._session);
+			assertType(this._strategy);
+			this._sessionStore.clear();
 
-		try {
-			await this._strategy.cancel();
-		} catch (err) {
-			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
-			this._log('FAILED to discard changes');
-			this._log(err);
+			try {
+				await this._strategy.cancel();
+			} catch (err) {
+				this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+				this._log('FAILED to discard changes');
+				this._log(err);
+			}
+			this._inlineChatSessionService.releaseSession(this._session);
 		}
 
 		this._resetWidget();
-		this._inlineChatSessionService.releaseSession(this._session);
-
 
 		this._strategy?.dispose();
 		this._strategy = undefined;
