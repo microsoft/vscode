@@ -479,7 +479,7 @@ registerAction2(class extends NotebookAction {
 			return undefined;
 		}
 
-		const cell = firstArg.index === 0 ? undefined : notebookEditor.cellAt(firstArg.index);
+		const cell = firstArg.index <= 0 ? undefined : notebookEditor.cellAt(firstArg.index - 1);
 
 		return {
 			cell,
@@ -496,7 +496,7 @@ registerAction2(class extends NotebookAction {
 			const languageService = accessor.get(ILanguageService);
 			newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
 		} else {
-			newCell = insertNewCell(accessor, context, CellKind.Code, 'above', true);
+			newCell = insertNewCell(accessor, context, CellKind.Code, 'below', true);
 		}
 
 		if (!newCell) {
