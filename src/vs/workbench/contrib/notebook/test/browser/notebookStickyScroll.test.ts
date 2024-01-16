@@ -50,7 +50,7 @@ suite('NotebookEditorStickyScroll', () => {
 	}
 
 	function nbStickyTestHelper(domNode: HTMLElement, notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], disposables: Pick<DisposableStore, 'add'>) {
-		const output = computeContent(domNode, notebookEditor, notebookCellList, notebookOutlineEntries);
+		const output = computeContent(notebookEditor, notebookCellList, notebookOutlineEntries, 0, []);
 		for (const stickyLine of output.values()) {
 			disposables.add(stickyLine.line);
 		}
