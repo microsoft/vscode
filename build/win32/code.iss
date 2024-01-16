@@ -1553,7 +1553,7 @@ begin
   until Length(Text)=0;
 end;
 
-function NeedsAddToPath(VSCode: string): string;
+function NeedsAddToPath(VSCode: string): boolean;
 var
   OrigPath: string;
 begin
@@ -1565,7 +1565,7 @@ begin
   Result := Pos(';' + VSCode + ';', ';' + OrigPath + ';') = 0;
 end;
 
-function AddToPath(VSCode: string): boolean;
+function AddToPath(VSCode: string): string;
 var
   OrigPath: string;
 begin
