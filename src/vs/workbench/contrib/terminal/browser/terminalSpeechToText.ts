@@ -17,18 +17,18 @@ import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilit
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 
-export class TerminalVoiceSession extends Disposable {
+export class TerminalSpeechToTextSession extends Disposable {
 	private _input: string = '';
 	private _decoration: IDecoration | undefined;
 	private _marker: IXtermMarker | undefined;
-	private static _instance: TerminalVoiceSession | undefined = undefined;
+	private static _instance: TerminalSpeechToTextSession | undefined = undefined;
 	private _acceptTranscriptionScheduler: RunOnceScheduler | undefined;
-	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
-		if (!TerminalVoiceSession._instance) {
-			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
+	static getInstance(instantiationService: IInstantiationService): TerminalSpeechToTextSession {
+		if (!TerminalSpeechToTextSession._instance) {
+			TerminalSpeechToTextSession._instance = instantiationService.createInstance(TerminalSpeechToTextSession);
 		}
 
-		return TerminalVoiceSession._instance;
+		return TerminalSpeechToTextSession._instance;
 	}
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private _disposables = new DisposableStore();

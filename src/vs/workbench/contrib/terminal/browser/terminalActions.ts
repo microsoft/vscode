@@ -64,7 +64,7 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { TerminalVoiceSession } from 'vs/workbench/contrib/terminal/browser/voiceTerminalActions';
+import { TerminalSpeechToTextSession } from 'vs/workbench/contrib/terminal/browser/terminalSpeechToText';
 import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
@@ -1654,7 +1654,7 @@ export function registerTerminalActions() {
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
-			TerminalVoiceSession.getInstance(instantiationService).start();
+			TerminalSpeechToTextSession.getInstance(instantiationService).start();
 		}
 	});
 
@@ -1668,7 +1668,7 @@ export function registerTerminalActions() {
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
-			TerminalVoiceSession.getInstance(instantiationService).stop(true);
+			TerminalSpeechToTextSession.getInstance(instantiationService).stop(true);
 		}
 	});
 }
