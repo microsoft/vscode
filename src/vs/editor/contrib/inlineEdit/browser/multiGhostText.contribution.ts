@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { AcceptGhostText, JumpToGhostText, RejectGhostText } from 'vs/editor/contrib/multiGhostText/browser/commands';
-import { MultiGhostTextController } from 'vs/editor/contrib/multiGhostText/browser/multiGhostTextController';
+import { AcceptInlineEdit, JumpToInlineEdit, RejectInlineEdit } from 'vs/editor/contrib/inlineEdit/browser/commands';
+import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/multiGhostTextController';
 
-registerEditorAction(AcceptGhostText);
-registerEditorAction(RejectGhostText);
-registerEditorAction(JumpToGhostText);
-registerEditorContribution(MultiGhostTextController.ID, MultiGhostTextController, EditorContributionInstantiation.Eventually);
+registerEditorAction(AcceptInlineEdit);
+registerEditorAction(RejectInlineEdit);
+registerEditorAction(JumpToInlineEdit);
+registerEditorContribution(InlineEditController.ID, InlineEditController, EditorContributionInstantiation.Eventually);

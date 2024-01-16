@@ -7,91 +7,91 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { MultiGhostTextController } from 'vs/editor/contrib/multiGhostText/browser/multiGhostTextController';
+import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/multiGhostTextController';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class AcceptGhostText extends EditorAction {
+export class AcceptInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.multiGhostText.accept',
-			label: 'Accept Ghost Text',
-			alias: 'Accept Ghost Text',
+			id: 'editor.action.inlineEdit.accept',
+			label: 'Accept Inline Edit',
+			alias: 'Accept Inline Edit',
 			precondition: EditorContextKeys.writable,
 			kbOpts: [
 				{
 					weight: KeybindingWeight.EditorContrib + 1,
 					primary: KeyCode.Tab,
-					kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.multiGhostTextVisibleContext, MultiGhostTextController.cursorAtGhostTextContext)
+					kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext, InlineEditController.cursorAtInlineEditContext)
 				}]
 		});
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = MultiGhostTextController.get(editor);
+		const controller = InlineEditController.get(editor);
 		controller?.accept();
 	}
 }
 
-export class JumpToGhostText extends EditorAction {
+export class JumpToInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.multiGhostText.jumpTo',
-			label: 'Jump to Ghost Text',
-			alias: 'Jump to Ghost Text',
+			id: 'editor.action.inlineEdit.jumpTo',
+			label: 'Jump to Inline Edit',
+			alias: 'Jump to Inline Edit',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.multiGhostTextVisibleContext)
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext)
 			},
 		});
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = MultiGhostTextController.get(editor);
+		const controller = InlineEditController.get(editor);
 		controller?.jumpToCurrent();
 	}
 }
 
-export class NextGhostText extends EditorAction {
+export class NextInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.multiGhostText.next',
-			label: 'Next Ghost Text',
-			alias: 'Next Ghost Text',
+			id: 'editor.action.inlineEdit.next',
+			label: 'Next Inline Edit',
+			alias: 'Next Inline Edit',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.cursorAtGhostTextContext)
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.cursorAtInlineEditContext)
 			},
 		});
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = MultiGhostTextController.get(editor);
+		const controller = InlineEditController.get(editor);
 		controller?.showNext();
 	}
 }
 
-export class RejectGhostText extends EditorAction {
+export class RejectInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.multiGhostText.reject',
-			label: 'Reject Ghost Text',
-			alias: 'Reject Ghost Text',
+			id: 'editor.action.inlineEdit.reject',
+			label: 'Reject Inline Edit',
+			alias: 'Reject Inline Edit',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
 				primary: KeyCode.Escape,
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, MultiGhostTextController.multiGhostTextVisibleContext)
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.inlineEditVisibleContext)
 			},
 		});
 	}
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
-		const controller = MultiGhostTextController.get(editor);
+		const controller = InlineEditController.get(editor);
 		controller?.clear();
 	}
 }

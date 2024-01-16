@@ -11,8 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, MinimapPosition, OverviewRulerLane } from 'vs/editor/common/model';
-import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
-import { GhostTextWidget } from 'vs/editor/contrib/multiGhostText/browser/ghostTextWidget';
+import { GhostTextWidget } from 'vs/editor/contrib/inlineEdit/browser/ghostTextWidget';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
@@ -20,19 +19,20 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 
 
-export class MultiGhostTextController extends Disposable {
-	static ID = 'editor.contrib.multiGhostTextController';
+export class InlineEditController extends Disposable {
+	static ID = 'editor.contrib.inlineEditController';
 
-	public static readonly multiGhostTextVisibleContext = new RawContextKey<boolean>('multiGhostTextVisible', false);
-	private _isVisibleContext = MultiGhostTextController.multiGhostTextVisibleContext.bindTo(this.contextKeyService);
+	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>('inlineEditVisible', false);
+	private _isVisibleContext = InlineEditController.inlineEditVisibleContext.bindTo(this.contextKeyService);
 
-	public static readonly cursorAtGhostTextContext = new RawContextKey<boolean>('cursorAtGhostText', false);
-	private _isCursorAtGhostTextContext = MultiGhostTextController.cursorAtGhostTextContext.bindTo(this.contextKeyService);
+	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>('cursorAtInlineEdit', false);
+	private _isCursorAtInlineEditContext = InlineEditController.cursorAtInlineEditContext.bindTo(this.contextKeyService);
 
-	public static get(editor: ICodeEditor): MultiGhostTextController | null {
-		return editor.getContribution<MultiGhostTextController>(MultiGhostTextController.ID);
+	public static get(editor: ICodeEditor): InlineEditController | null {
+		return editor.getContribution<InlineEditController>(InlineEditController.ID);
 	}
 
 	private _currentWidget: [GhostTextWidget, IInlineEdit] | undefined;
@@ -69,28 +69,28 @@ export class MultiGhostTextController extends Disposable {
 		//Cancel the previous request if there is one
 		//Remove the previous ghoust thext
 		this._register(editor.onDidChangeModelContent(async () => {
-			this._isCursorAtGhostTextContext.set(false);
+			this._isCursorAtInlineEditContext.set(false);
 			this.clear();
 			const edit = await this.fetchInlineEdit(editor, true);
 			if (!edit) {
 				return;
 			}
-			this.showSingleGhostText(edit);
+			this.showSingleInlineEdit(edit);
 			this.showRulerDecoration(edit);
 		}));
 
 		//Check if the cursor is at the ghost text
 		this._register(editor.onDidChangeCursorPosition((e) => {
 			if (!this._currentWidget) {
-				this._isCursorAtGhostTextContext.set(false);
+				this._isCursorAtInlineEditContext.set(false);
 				return;
 			}
 			const gt = this._currentWidget[1];
 			const pos = e.position;
 			if (pos.lineNumber === gt.position.lineNumber && pos.column === gt.position.column) {
-				this._isCursorAtGhostTextContext.set(true);
+				this._isCursorAtInlineEditContext.set(true);
 			} else {
-				this._isCursorAtGhostTextContext.set(false);
+				this._isCursorAtInlineEditContext.set(false);
 			}
 		}));
 	}
@@ -117,7 +117,7 @@ export class MultiGhostTextController extends Disposable {
 		return edit;
 	}
 
-	private showSingleGhostText(gt: IInlineEdit) {
+	private showSingleInlineEdit(gt: IInlineEdit) {
 		if (this._currentWidget) {
 			this._currentWidget[0].dispose();
 			this._currentWidget = undefined;
@@ -160,7 +160,7 @@ export class MultiGhostTextController extends Disposable {
 		if (!edit) {
 			return;
 		}
-		this.showSingleGhostText(edit);
+		this.showSingleInlineEdit(edit);
 		this.showRulerDecoration(edit);
 		this.jumpToCurrent();
 	}

@@ -22,8 +22,8 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/multiGhostText/browser/ghostText';
-import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/multiGhostText/browser/utils';
+import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
+import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineEdit/browser/utils';
 
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;

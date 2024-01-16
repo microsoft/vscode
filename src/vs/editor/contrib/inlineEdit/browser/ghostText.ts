@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from 'vs/editor/common/core/range';
-import { ColumnRange, applyEdits } from 'vs/editor/contrib/multiGhostText/browser/utils';
+import { ColumnRange, applyEdits } from 'vs/editor/contrib/inlineEdit/browser/utils';
 
 export class GhostText {
 	constructor(
