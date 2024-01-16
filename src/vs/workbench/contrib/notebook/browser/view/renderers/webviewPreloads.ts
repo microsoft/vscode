@@ -9,7 +9,6 @@ import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 import type { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as rendererApi from 'vscode-notebook-renderer';
-import * as browser from 'vs/base/browser/browser';
 
 // !! IMPORTANT !! ----------------------------------------------------------------------------------
 // import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -92,6 +91,8 @@ declare function __import(path: string): Promise<any>;
 async function webviewPreloads(ctx: PreloadContext) {
 	// eslint-disable-next-line no-restricted-globals
 	const $window = window as typeof DOM.$window;
+	const userAgent = navigator.userAgent;
+	const isChrome = (userAgent.indexOf('Chrome') >= 0);
 	const textEncoder = new TextEncoder();
 	const textDecoder = new TextDecoder();
 
@@ -484,9 +485,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				deltaY: event.deltaY,
 				deltaZ: event.deltaZ,
 				// Refs https://github.com/microsoft/vscode/issues/146403#issuecomment-1854538928
-				wheelDelta: event.wheelDelta && browser.isChrome ? (event.wheelDelta / $window.devicePixelRatio) : event.wheelDelta,
-				wheelDeltaX: event.wheelDeltaX && browser.isChrome ? (event.wheelDeltaX / $window.devicePixelRatio) : event.wheelDeltaX,
-				wheelDeltaY: event.wheelDeltaY && browser.isChrome ? (event.wheelDeltaY / $window.devicePixelRatio) : event.wheelDeltaY,
+				wheelDelta: event.wheelDelta && isChrome ? (event.wheelDelta / $window.devicePixelRatio) : event.wheelDelta,
+				wheelDeltaX: event.wheelDeltaX && isChrome ? (event.wheelDeltaX / $window.devicePixelRatio) : event.wheelDeltaX,
+				wheelDeltaY: event.wheelDeltaY && isChrome ? (event.wheelDeltaY / $window.devicePixelRatio) : event.wheelDeltaY,
 				detail: event.detail,
 				shiftKey: event.shiftKey,
 				type: event.type
