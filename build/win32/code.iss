@@ -1553,7 +1553,7 @@ begin
   until Length(Text)=0;
 end;
 
-function NeedsAddToPath(VSCode: string): boolean;
+function NeedsAddToPath(VSCode: string): string;
 var
   OrigPath: string;
 begin
