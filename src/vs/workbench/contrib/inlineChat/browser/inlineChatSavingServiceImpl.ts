@@ -21,10 +21,12 @@ import { IFilesConfigurationService } from 'vs/workbench/services/filesConfigura
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInlineChatSavingService } from './inlineChatSavingService';
 import { Iterable } from 'vs/base/common/iterator';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 interface SessionData {
 	readonly dispose: () => void;
 	readonly session: Session;
+	readonly groupCandidate: IEditorGroup;
 }
 
 export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
@@ -60,11 +62,12 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 				this._installSaveParticpant();
 			}
 
-			const disposable = this._fileConfigService.disableAutoSave(session.textModelN.uri);
+			const saveConfig = this._fileConfigService.disableAutoSave(session.textModelN.uri);
 			this._sessionData.set(session, {
+				groupCandidate: this._editorGroupService.activeGroup,
 				session,
 				dispose: () => {
-					disposable.dispose();
+					saveConfig.dispose();
 					this._sessionData.delete(session);
 					if (this._sessionData.size === 0) {
 						this._saveParticipant.clear();
@@ -111,21 +114,21 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		});
 
 		// reveal all sessions in order and also show dangling sessions
-		const { groups, pending } = this._getGroupsAndLeftover(sessions.values());
+		const { groups, orphans } = this._getGroupsAndOrphans(sessions.values());
 		const editorsOpenedAndSessionsEnded = this._openAndWait(groups, token).then(() => {
 			if (token.isCancellationRequested) {
 				return;
 			}
-			return this._openAndWait(Iterable.map(pending, s => [this._editorGroupService.activeGroup, s]), token);
+			return this._openAndWait(Iterable.map(orphans, s => [this._editorGroupService.activeGroup, s]), token);
 		});
 
 		// fallback: resolve when all sessions for this model have been resolved. this is independent of the editor opening
-		const allSessionsEnded = this._waitForSessions(Iterable.concat(groups.values(), pending), token);
+		const allSessionsEnded = this._waitForSessions(Iterable.concat(groups.values(), orphans), token);
 
 		await Promise.race([allSessionsEnded, editorsOpenedAndSessionsEnded]);
 	}
 
-	private _getGroupsAndLeftover(sessions: Iterable<SessionData>) {
+	private _getGroupsAndOrphans(sessions: Iterable<SessionData>) {
 
 		const groupByEditor = new Map<ICodeEditor, IEditorGroup>();
 		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -136,7 +139,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		}
 
 		const groups = new Map<IEditorGroup, SessionData>();
-		const pending = new Set<SessionData>();
+		const orphans = new Set<SessionData>();
 
 		for (const data of sessions) {
 			const editor = this._inlineChatSessionService.getCodeEditor(data.session);
@@ -145,17 +148,21 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 				// there is only one session per group because all sessions have the same model
 				// because we save one file.
 				groups.set(group, data);
+			} else if (this._editorGroupService.groups.includes(data.groupCandidate)) {
+				// the group candidate is still there. use it
+				groups.set(data.groupCandidate, data);
 			} else {
-				pending.add(data);
+				orphans.add(data);
 			}
 		}
-		return { groups, pending };
+		return { groups, orphans };
 	}
 
 	private async _openAndWait(groups: Iterable<[IEditorGroup, SessionData]>, token: CancellationToken) {
 		const sessions = new Set<SessionData>();
 		for (const [group, data] of groups) {
-			const pane = await this._editorService.openEditor({ resource: data.session.textModelN.uri, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, group);
+			const input: IResourceEditorInput = { resource: data.session.textModelN.uri, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
+			const pane = await this._editorService.openEditor(input, group);
 			const ctrl = pane?.getControl();
 			if (!isCodeEditor(ctrl)) {
 				// PANIC
