@@ -1600,7 +1600,7 @@ export class SearchResult extends Disposable {
 	num = 0;
 
 	constructor(
-		public searchModel: SearchModel,
+		public readonly searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -1955,13 +1955,9 @@ export class SearchModel extends Disposable {
 	private readonly _onSearchResultChanged = this._register(new PauseableEmitter<IChangeEvent>({
 		merge: mergeSearchResultEvents
 	}));
-	private readonly _onSearchComplete: Emitter<{ completed?: ISearchComplete }> = this._register(new Emitter<{ completed?: ISearchComplete }>());
-	readonly onSearchComplete: Event<{ completed?: ISearchComplete }> = this._onSearchComplete.event;
-	readonly onSearchResultChanged: Event<IChangeEvent> = this._onSearchResultChanged.event;
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
-	private _searchResultChangedListener: IDisposable;
 	num = 0;
 
 	constructor(
@@ -1975,7 +1971,7 @@ export class SearchModel extends Disposable {
 		super();
 		this.num = globalNum++;
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
-		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
+		this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	isReplaceActive(): boolean {
@@ -2012,15 +2008,6 @@ export class SearchModel extends Disposable {
 
 	get searchResult(): SearchResult {
 		return this._searchResult;
-	}
-
-	set searchResult(searchResult: SearchResult) {
-		this._searchResult.dispose();
-		this._searchResultChangedListener.dispose();
-
-		this._searchResult = searchResult;
-		this._searchResult.searchModel = this;
-		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 
@@ -2182,7 +2169,6 @@ export class SearchModel extends Disposable {
 				"searchOnTypeEnabled" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this._onSearchComplete.fire({ completed });
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),
@@ -2203,8 +2189,6 @@ export class SearchModel extends Disposable {
 					: undefined,
 				duration, '');
 			this.searchCancelledForNewSearch = false;
-		} else {
-			this._onSearchComplete.fire({ completed: undefined });
 		}
 	}
 
@@ -2247,10 +2231,6 @@ export class SearchModel extends Disposable {
 		super.dispose();
 	}
 
-	transferSearchResult(other: SearchModel): void {
-		other.searchResult = this._searchResult;
-		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
-	}
 }
 
 export type FileMatchOrMatch = FileMatch | Match;
@@ -2271,6 +2251,11 @@ export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenc
 		}
 		return this._searchModel;
 	}
+
+	set searchModel(searchModel: SearchModel) {
+		this._searchModel?.dispose();
+		this._searchModel = searchModel;
+	}
 }
 
 export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModelWorkbenchService>('searchViewModelWorkbenchService');
@@ -2278,7 +2263,7 @@ export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModel
 export interface ISearchViewModelWorkbenchService {
 	readonly _serviceBrand: undefined;
 
-	readonly searchModel: SearchModel;
+	searchModel: SearchModel;
 }
 
 /**

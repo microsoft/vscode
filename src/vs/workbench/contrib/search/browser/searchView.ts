@@ -254,7 +254,7 @@ export class SearchView extends ViewPane {
 		this.toggleCollapseStateDelayer = this._register(new Delayer<void>(100));
 		this.triggerQueryDelayer = this._register(new Delayer<void>(0));
 
-		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this.viewModel);
+		this.treeAccessibilityProvider = this.instantiationService.createInstance(SearchAccessibilityProvider, this);
 		this.isTreeLayoutViewVisible = this.viewletState['view.treeLayout'] ?? (this.searchConfig.defaultViewMode === ViewMode.Tree);
 
 		this._refreshResultsScheduler = this._register(new RunOnceScheduler(this._updateResults.bind(this), 80));
@@ -315,6 +315,10 @@ export class SearchView extends ViewPane {
 		return this.viewModel && this.viewModel.searchResult;
 	}
 
+	get model(): SearchModel {
+		return this.viewModel;
+	}
+
 	private onDidChangeWorkbenchState(): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY && this.searchWithoutFolderMessageElement) {
 			dom.hide(this.searchWithoutFolderMessageElement);
@@ -333,18 +337,30 @@ export class SearchView extends ViewPane {
 		this.pauseSearching = false;
 	}
 
-	public async importSearchResult(searchModel: SearchModel): Promise<void> {
+	public async replaceSearchModel(searchModel: SearchModel, asyncResults: Promise<ISearchComplete>): Promise<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 0 }, _progress => {
 			return new Promise<void>(resolve => progressComplete = resolve);
 		});
-		// experimental: used by the quick access search to overwrite a search result
-		searchModel.transferSearchResult(this.viewModel);
+
+		const slowTimer = setTimeout(() => {
+			this.state = SearchUIState.SlowSearch;
+		}, 2000);
+
+		// dereference old model and use the new searchModel
+		searchModel.replaceActive = this.viewModel.isReplaceActive();
+		this.searchViewModelWorkbenchService.searchModel = searchModel;
+		this.viewModel = searchModel;
+
 		this.onSearchResultsChanged();
 		this.refreshInputs();
 
-		this.viewModel.onSearchComplete(() => {
-			this.onSearchComplete(progressComplete);
+		asyncResults.then((complete) => {
+			clearTimeout(slowTimer);
+			this.onSearchComplete(progressComplete, undefined, undefined, complete);
+		}, (e) => {
+			clearTimeout(slowTimer);
+			this.onSearchError(e, progressComplete, undefined, undefined);
 		});
 
 		const collapseResults = this.searchConfig.collapseResults;
@@ -467,8 +483,6 @@ export class SearchView extends ViewPane {
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
 			this.toggleQueryDetails(true, true, true);
 		}
-
-		this._register(this.viewModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
@@ -850,7 +864,7 @@ export class SearchView extends ViewPane {
 			[
 				this._register(this.instantiationService.createInstance(FolderMatchRenderer, this, this.treeLabels)),
 				this._register(this.instantiationService.createInstance(FileMatchRenderer, this, this.treeLabels)),
-				this._register(this.instantiationService.createInstance(MatchRenderer, this.viewModel, this)),
+				this._register(this.instantiationService.createInstance(MatchRenderer, this)),
 			],
 			{
 				identityProvider,
@@ -874,7 +888,6 @@ export class SearchView extends ViewPane {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 		const updateHasSomeCollapsible = () => this.toggleCollapseStateDelayer.trigger(() => this.hasSomeCollapsibleResultKey.set(this.hasSomeCollapsible()));
 		updateHasSomeCollapsible();
-		this._register(this.viewModel.onSearchResultChanged(() => updateHasSomeCollapsible()));
 		this._register(this.tree.onDidChangeCollapseState(() => updateHasSomeCollapsible()));
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, DEBOUNCE_DELAY, true)(options => {
