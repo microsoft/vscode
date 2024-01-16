@@ -32,7 +32,6 @@ import { QuickInputList, QuickInputListFocus } from './quickInputList';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -530,7 +529,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 	private valueSelectionUpdated = true;
 	private _ok: boolean | 'default' = 'default';
 	private _customButton = false;
-	private _customButtonLabel: string | IMarkdownString | undefined;
+	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
@@ -745,7 +744,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		return this._customButtonLabel;
 	}
 
-	set customLabel(label: string | IMarkdownString | undefined) {
+	set customLabel(label: string | undefined) {
 		this._customButtonLabel = label;
 		this.update();
 	}
