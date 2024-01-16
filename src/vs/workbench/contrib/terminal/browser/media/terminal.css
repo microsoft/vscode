@@ -565,3 +565,7 @@
 .monaco-workbench .xterm.terminal.hide {
 	visibility: hidden;
 }
+
+.terminal-speech-to-text {
+	padding-left: 5px;
+}

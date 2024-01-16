@@ -153,8 +153,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 		});
 		this._decoration?.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.mic));
-			e.classList.add('quick-fix');
-			e.style.paddingLeft = '5px';
+			e.classList.add('terminal-speech-to-text');
 		});
 	}
 }
