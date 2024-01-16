@@ -182,7 +182,6 @@ import 'vs/workbench/contrib/speech/common/speech.contribution';
 
 // Chat
 import 'vs/workbench/contrib/chat/browser/chat.contribution';
-import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
 
 // Interactive
 import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
