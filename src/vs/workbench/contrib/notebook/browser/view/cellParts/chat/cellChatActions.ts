@@ -413,6 +413,7 @@ registerAction2(class extends NotebookCellAction {
 
 interface IInsertCellWithChatArgs extends INotebookActionContext {
 	input?: string;
+	autoSend?: boolean;
 }
 
 registerAction2(class extends NotebookAction {
@@ -439,6 +440,9 @@ registerAction2(class extends NotebookAction {
 									},
 									'input': {
 										type: 'string'
+									},
+									'autoSend': {
+										type: 'boolean'
 									}
 								}
 							}
@@ -480,7 +484,8 @@ registerAction2(class extends NotebookAction {
 		return {
 			cell,
 			notebookEditor,
-			input: firstArg.input
+			input: firstArg.input,
+			autoSend: firstArg.autoSend
 		};
 	}
 
@@ -511,7 +516,7 @@ registerAction2(class extends NotebookAction {
 			}
 		});
 
-		ctrl.show(context.input);
+		ctrl.show(context.input, context.autoSend);
 	}
 });
 

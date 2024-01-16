@@ -193,7 +193,7 @@ export class NotebookCellChatController extends Disposable {
 		this._partContainer.style.height = `${heightWithPadding - surrounding}px`;
 	}
 
-	async show(input?: string) {
+	async show(input?: string, autoSend?: boolean) {
 		this._isVisible = true;
 		if (!this._widget) {
 			const editor = this._getCellEditor();
@@ -235,6 +235,10 @@ export class NotebookCellChatController extends Disposable {
 
 			if (this._widget && input) {
 				this._widget.value = input;
+
+				if (autoSend) {
+					this.acceptInput();
+				}
 			}
 		});
 	}
