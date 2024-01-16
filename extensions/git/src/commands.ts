@@ -262,6 +262,14 @@ class RepositoryItem implements QuickPickItem {
 	constructor(public readonly path: string) { }
 }
 
+class StashItem implements QuickPickItem {
+	get label(): string { return `#${this.stash.index}: ${this.stash.description}`; }
+
+	get description(): string | undefined { return this.stash.branchName; }
+
+	constructor(readonly stash: Stash) { }
+}
+
 interface ScmCommandOptions {
 	repository?: boolean;
 	diff?: boolean;
@@ -3690,17 +3698,15 @@ export class CommandCenter {
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
-		const stashes = await repository.getStashes();
+		const getStashQuickPickItems = async (): Promise<StashItem[] | QuickPickItem[]> => {
+			const stashes = await repository.getStashes();
+			return stashes.length > 0 ?
+				stashes.map(stash => new StashItem(stash)) :
+				[{ label: l10n.t('$(info) This repository has no stashes.') }];
+		};
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(l10n.t('There are no stashes in the repository.'));
-			return;
-		}
-
-		const picks = stashes.map(stash => ({ label: `#${stash.index}: ${stash.description}`, description: stash.branchName, stash }));
-		const result = await window.showQuickPick(picks, { placeHolder });
-
-		return result?.stash;
+		const result = await window.showQuickPick<StashItem | QuickPickItem>(getStashQuickPickItems(), { placeHolder });
+		return result instanceof StashItem ? result.stash : undefined;
 	}
 
 	private async getStashFromUri(uri: Uri | undefined): Promise<{ repository: Repository; stash: Stash } | undefined> {
