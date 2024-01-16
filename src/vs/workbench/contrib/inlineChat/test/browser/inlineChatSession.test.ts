@@ -151,8 +151,6 @@ class TestWorkerService extends mock<IEditorWorkerService>() {
 
 suite('InlineChatSession', function () {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
-
 	const store = new DisposableStore();
 	let editor: IActiveCodeEditor;
 	let model: ITextModel;
@@ -160,10 +158,6 @@ suite('InlineChatSession', function () {
 	let inlineChatService: InlineChatServiceImpl;
 
 	let inlineChatSessionService: IInlineChatSessionService;
-
-	teardown(function () {
-		store.clear();
-	});
 
 	setup(function () {
 		const contextKeyService = new MockContextKeyService();
@@ -231,6 +225,12 @@ suite('InlineChatSession', function () {
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});
 
+	teardown(function () {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Create, release', async function () {
 
 		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
@@ -254,7 +254,7 @@ suite('InlineChatSession', function () {
 		assertType(hunk);
 
 		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
-		assert.strictEqual(hunk.getState(), undefined);
+		assert.strictEqual(hunk.getState(), HunkState.Pending);
 		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 7 }));
 
 		editor.executeEdits('test', [EditOperation.insert(new Position(1, 3), 'foobar')]);
@@ -278,7 +278,7 @@ suite('InlineChatSession', function () {
 
 		for (const hunk of session.hunkData.getInfo()) {
 			assertType(hunk);
-			assert.strictEqual(hunk.getState(), undefined);
+			assert.strictEqual(hunk.getState(), HunkState.Pending);
 			hunk.acceptChanges();
 			assert.strictEqual(hunk.getState(), HunkState.Accepted);
 		}
@@ -300,7 +300,7 @@ suite('InlineChatSession', function () {
 
 		for (const hunk of session.hunkData.getInfo()) {
 			assertType(hunk);
-			assert.strictEqual(hunk.getState(), undefined);
+			assert.strictEqual(hunk.getState(), HunkState.Pending);
 			hunk.discardChanges();
 			assert.strictEqual(hunk.getState(), HunkState.Rejected);
 		}
