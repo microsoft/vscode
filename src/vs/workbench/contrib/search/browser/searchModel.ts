@@ -1936,6 +1936,11 @@ export class SearchResult extends Disposable {
 	}
 }
 
+export enum SearchModelLocation {
+	PANEL,
+	QUICK_ACCESS
+}
+
 export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
@@ -1957,7 +1962,7 @@ export class SearchModel extends Disposable {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
-	num = 0;
+	public location: SearchModelLocation = SearchModelLocation.PANEL;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
