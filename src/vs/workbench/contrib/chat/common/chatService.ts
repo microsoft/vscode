@@ -129,7 +129,7 @@ export interface IChatAsyncContent {
 }
 
 export interface IChatProgressMessage {
-	content: string;
+	content: IMarkdownString;
 	kind: 'progressMessage';
 }
 
@@ -314,6 +314,7 @@ export interface IChatService {
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
+	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;

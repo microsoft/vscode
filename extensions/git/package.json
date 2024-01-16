@@ -27,6 +27,7 @@
     "contribMergeEditorMenus",
     "contribMultiDiffEditorMenus",
     "contribSourceControlInputBoxMenu",
+    "quickPickSortByLabel",
     "contribSourceControlHistoryItemMenu"
   ],
   "categories": [
@@ -668,6 +669,13 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.stashPopEditor",
+        "title": "%command.stashPopEditor%",
+        "icon": "$(git-stash-pop)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.stashApply",
         "title": "%command.stashApply%",
         "category": "Git",
@@ -676,6 +684,13 @@
       {
         "command": "git.stashApplyLatest",
         "title": "%command.stashApplyLatest%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.stashApplyEditor",
+        "title": "%command.stashApplyEditor%",
+        "icon": "$(git-stash-apply)",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -692,8 +707,15 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.stashPreview",
-        "title": "%command.stashPreview%",
+        "command": "git.stashDropEditor",
+        "title": "%command.stashDropEditor%",
+        "icon": "$(trash)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.stashView",
+        "title": "%command.stashView%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1215,6 +1237,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stashPopEditor",
+          "when": "false"
+        },
+        {
           "command": "git.stashApply",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1223,12 +1249,20 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stashApplyEditor",
+          "when": "false"
+        },
+        {
           "command": "git.stashDrop",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.stashDropAll",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashDropEditor",
+          "when": "false"
         },
         {
           "command": "git.timeline.openDiff",
@@ -1283,7 +1317,7 @@
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
         },
         {
-          "command": "git.stashPreview",
+          "command": "git.stashView",
           "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
         },
         {
@@ -1836,6 +1870,17 @@
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.stashApplyEditor",
+          "alt": "git.stashPopEditor",
+          "group": "navigation@1",
+          "when": "config.git.enabled && !git.missing && resourceScheme == git-stash"
+        },
+        {
+          "command": "git.stashDropEditor",
+          "group": "navigation@2",
+          "when": "config.git.enabled && !git.missing && resourceScheme == git-stash"
         }
       ],
       "editor/context": [
@@ -2167,7 +2212,7 @@
           "group": "4_drop@2"
         },
         {
-          "command": "git.stashPreview",
+          "command": "git.stashView",
           "when": "config.multiDiffEditor.experimental.enabled",
           "group": "5_preview@1"
         }

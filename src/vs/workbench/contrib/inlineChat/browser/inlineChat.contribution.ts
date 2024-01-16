@@ -16,9 +16,11 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { InlineChatAccessibleViewContribution } from './inlineChatAccessibleView';
+import { IInlineChatSavingService, InlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSaving';
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);
+registerSingleton(IInlineChatSavingService, InlineChatSavingService, InstantiationType.Delayed);
 
 registerEditorContribution(INLINE_CHAT_ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, InlineChatActions.InlineAccessibilityHelpContribution, EditorContributionInstantiation.Eventually);
@@ -26,7 +28,7 @@ registerEditorContribution(INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID, InlineChatA
 registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.CloseAction);
 registerAction2(InlineChatActions.ConfigureInlineChatAction);
-registerAction2(InlineChatActions.UnstashSessionAction);
+// registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.MakeRequestAction);
 registerAction2(InlineChatActions.StopRequestAction);
 registerAction2(InlineChatActions.ReRunRequestAction);

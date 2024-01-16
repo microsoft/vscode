@@ -201,6 +201,7 @@ Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMi
 export const enum InlineChatConfigKeys {
 	Mode = 'inlineChat.mode',
 	FinishOnType = 'inlineChat.finishOnType',
+	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -222,5 +223,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: false,
 			type: 'boolean'
 		},
+		[InlineChatConfigKeys.AcceptedOrDiscardBeforeSave]: {
+			description: localize('acceptedOrDiscardBeforeSave', "Whether pending inline chat sessions prevent saving."),
+			default: true,
+			type: 'boolean'
+		}
 	}
 });

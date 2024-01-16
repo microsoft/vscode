@@ -327,6 +327,7 @@ export class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements I
 	}
 
 	override get preventZoom(): boolean {
+
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
 		// 2. No custom items are present in the main title bar

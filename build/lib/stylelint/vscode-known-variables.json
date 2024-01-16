@@ -681,6 +681,7 @@
 		"--vscode-terminalStickyScroll-background",
 		"--vscode-terminalStickyScrollHover-background",
 		"--vscode-testing-coveredBackground",
+		"--vscode-testing-coverage-lineHeight",
 		"--vscode-testing-coveredGutterBackground",
 		"--vscode-testing-iconErrored",
 		"--vscode-testing-iconFailed",
