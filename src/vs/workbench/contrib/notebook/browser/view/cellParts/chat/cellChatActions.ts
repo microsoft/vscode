@@ -16,9 +16,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
-import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
@@ -411,8 +411,12 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
+interface IInsertCellWithChatArgs extends INotebookActionContext {
+	input?: string;
+	autoSend?: boolean;
+}
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -422,6 +426,29 @@ registerAction2(class extends NotebookCellAction {
 					original: '$(sparkle) Generate',
 				},
 				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+				metadata: {
+					description: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+					args: [
+						{
+							name: 'args',
+							schema: {
+								type: 'object',
+								required: ['index'],
+								properties: {
+									'index': {
+										type: 'number'
+									},
+									'input': {
+										type: 'string'
+									},
+									'autoSend': {
+										type: 'boolean'
+									}
+								}
+							}
+						}
+					]
+				},
 				menu: [
 					{
 						id: MenuId.NotebookCellBetween,
@@ -437,12 +464,45 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const newCell = await insertNewCell(accessor, context, CellKind.Code, 'below', true);
+	override getEditorContextFromArgsOrActive(accessor: ServicesAccessor, ...args: any[]): IInsertCellWithChatArgs | undefined {
+		const [firstArg] = args;
+		if (!firstArg) {
+			return undefined;
+		}
+
+		if (typeof firstArg !== 'object' || typeof firstArg.index !== 'number') {
+			return undefined;
+		}
+
+		const notebookEditor = getEditorFromArgsOrActivePane(accessor);
+		if (!notebookEditor) {
+			return undefined;
+		}
+
+		const cell = firstArg.index === 0 ? undefined : notebookEditor.cellAt(firstArg.index);
+
+		return {
+			cell,
+			notebookEditor,
+			input: firstArg.input,
+			autoSend: firstArg.autoSend
+		};
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: IInsertCellWithChatArgs) {
+		let newCell: ICellViewModel | null = null;
+		if (!context.cell) {
+			// insert at the top
+			const languageService = accessor.get(ILanguageService);
+			newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
+		} else {
+			newCell = insertNewCell(accessor, context, CellKind.Code, 'above', true);
+		}
 
 		if (!newCell) {
 			return;
 		}
+
 		await context.notebookEditor.focusNotebookCell(newCell, 'container');
 		const ctrl = NotebookCellChatController.get(newCell);
 		if (!ctrl) {
@@ -456,7 +516,7 @@ registerAction2(class extends NotebookCellAction {
 			}
 		});
 
-		ctrl.show();
+		ctrl.show(context.input, context.autoSend);
 	}
 });
 
