@@ -1571,7 +1571,7 @@ var
 begin
   RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
 
-  if Length(OrigPath) > 0 and OrigPath[Length(OrigPath)] = ';' then
+  if (Length(OrigPath) > 0) and (OrigPath[Length(OrigPath)] = ';') then
     Result := OrigPath + VSCode
   else
     Result := OrigPath + ';' + VSCode
