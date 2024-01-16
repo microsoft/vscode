@@ -269,6 +269,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for standard keybindings
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			if (this._isInKeybindingHoldMode) {
+				return;
+			}
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
@@ -282,6 +285,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for single modifier chord keybindings (e.g. shift shift)
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
+			this._isInKeybindingHoldMode = false;
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
