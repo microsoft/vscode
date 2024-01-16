@@ -162,10 +162,17 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
-			this._log('session RESUMING', e);
+			this._log('session RESUMING after model change', e);
 			await this.run({ existingSession });
-			this._log('session done or paused');
 		}));
+
+		this._store.add(this._inlineChatSessionService.onDidMoveSession(async e => {
+			if (e.editor === this._editor) {
+				this._log('session RESUMING after move', e);
+				await this.run({ existingSession: e.session });
+			}
+		}));
+
 		this._log('NEW controller');
 
 		InlineChatController._promptHistory = JSON.parse(_storageService.get(InlineChatController._storageKey, StorageScope.PROFILE, '[]'));

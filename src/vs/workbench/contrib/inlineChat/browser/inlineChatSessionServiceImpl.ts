@@ -21,6 +21,7 @@ import { HunkData, Session, SessionWholeRange, TelemetryData, TelemetryDataClass
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 
 type SessionData = {
+	editor: ICodeEditor;
 	session: Session;
 	store: IDisposable;
 };
@@ -31,6 +32,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
 	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
+
+	private readonly _onDidMoveSession = new Emitter<{ session: Session; editor: ICodeEditor }>();
+	readonly onDidMoveSession: Event<{ session: Session; editor: ICodeEditor }> = this._onDidMoveSession.event;
 
 	private readonly _onDidEndSession = new Emitter<{ editor: ICodeEditor; session: Session }>();
 	readonly onDidEndSession: Event<{ editor: ICodeEditor; session: Session }> = this._onDidEndSession.event;
@@ -112,7 +116,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const hunkData = new HunkData(this._editorWorkerService, textModel0, textModel);
 		store.add(hunkData);
 
-		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr, hunkData);
+		const session = new Session(options.editMode, textModel0, textModel, provider, raw, wholeRangeMgr, hunkData);
 
 		// store: key -> session
 		const key = this._key(editor, textModel.uri);
@@ -120,22 +124,56 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			store.dispose();
 			throw new Error(`Session already stored for ${key}`);
 		}
-		this._sessions.set(key, { session, store });
+		this._sessions.set(key, { session, editor, store });
 		return session;
+	}
+
+	moveSession(session: Session, target: ICodeEditor): void {
+		const newKey = this._key(target, session.textModelN.uri);
+		const existing = this._sessions.get(newKey);
+		if (existing) {
+			if (existing.session !== session) {
+				throw new Error(`Cannot move session because the target editor already/still has one`);
+			} else {
+				// noop
+				return;
+			}
+		}
+
+		let found = false;
+		for (const [oldKey, data] of this._sessions) {
+			if (data.session === session) {
+				found = true;
+				this._sessions.delete(oldKey);
+				this._sessions.set(newKey, { ...data, editor: target });
+				this._logService.trace(`[IE] did MOVE session for ${data.editor.getId()} to NEW EDITOR ${target.getId()}, ${session.provider.debugName}`);
+				this._onDidMoveSession.fire({ session, editor: target });
+				break;
+			}
+		}
+		if (!found) {
+			throw new Error(`Cannot move session because it is not stored`);
+		}
 	}
 
 	releaseSession(session: Session): void {
 
-		const { editor } = session;
+		let data: SessionData | undefined;
 
 		// cleanup
 		for (const [key, value] of this._sessions) {
 			if (value.session === session) {
+				data = value;
 				value.store.dispose();
 				this._sessions.delete(key);
-				this._logService.trace(`[IE] did RELEASED session for ${editor.getId()}, ${session.provider.debugName}`);
+				this._logService.trace(`[IE] did RELEASED session for ${value.editor.getId()}, ${session.provider.debugName}`);
 				break;
 			}
+		}
+
+		if (!data) {
+			// double remove
+			return;
 		}
 
 		// keep recording
@@ -147,7 +185,16 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		// send telemetry
 		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
 
-		this._onDidEndSession.fire({ editor, session });
+		this._onDidEndSession.fire({ editor: data.editor, session });
+	}
+
+	getCodeEditor(session: Session): ICodeEditor {
+		for (const [, data] of this._sessions) {
+			if (data.session === session) {
+				return data.editor;
+			}
+		}
+		throw new Error('session not found');
 	}
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined {

@@ -30,9 +30,15 @@ export interface IInlineChatSessionService {
 
 	onWillStartSession: Event<IActiveCodeEditor>;
 
+	onDidMoveSession: Event<{ editor: ICodeEditor; session: Session }>;
+
 	onDidEndSession: Event<{ editor: ICodeEditor; session: Session }>;
 
 	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
+
+	moveSession(session: Session, newEditor: ICodeEditor): void;
+
+	getCodeEditor(session: Session): ICodeEditor;
 
 	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
 

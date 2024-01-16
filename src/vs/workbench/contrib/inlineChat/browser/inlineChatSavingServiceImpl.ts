@@ -5,8 +5,8 @@
 
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DisposableStore, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -20,11 +20,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInlineChatSavingService } from './inlineChatSavingService';
+import { Iterable } from 'vs/base/common/iterator';
 
 interface SessionData {
 	readonly dispose: () => void;
 	readonly session: Session;
-	readonly group: IEditorGroup;
 }
 
 export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
@@ -61,10 +61,8 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 			}
 
 			const disposable = this._fileConfigService.disableAutoSave(session.textModelN.uri);
-			const group = this._getEditorGroup(session);
 			this._sessionData.set(session, {
 				session,
-				group,
 				dispose: () => {
 					disposable.dispose();
 					this._sessionData.delete(session);
@@ -106,61 +104,100 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 			return;
 		}
 
-		const store = new DisposableStore();
-
-		const allDone = new Promise<void>(resolve => {
-			store.add(this._inlineChatSessionService.onDidEndSession(e => {
-
-				const data = sessions.get(e.session);
-				if (!data) {
-					return;
-				}
-
-				data.dispose();
-				sessions.delete(e.session);
-
-				if (sessions.size === 0) {
-					resolve(); // DONE, release save block!
-				}
-			}));
-		});
-
 		progress.report({
 			message: sessions.size === 1
 				? localize('inlineChat', "Waiting for Inline Chat changes to be Accepted or Discarded...")
 				: localize('inlineChat.N', "Waiting for Inline Chat changes in {0} editors to be Accepted or Discarded...", sessions.size)
 		});
 
-		// TODO@jrieken this needs to show session per group in order!
-		await this._revealInlineChatSessions(sessions.values());
-
-		try {
-			await raceCancellation(allDone, token);
-		} finally {
-			store.dispose();
-		}
-	}
-
-	private _getEditorGroup(session: Session): IEditorGroup {
-		const candidate = this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => {
-			return getCodeEditor(group.activeEditorPane?.getControl()) === session.editor;
+		// reveal all sessions in order and also show dangling sessions
+		const { groups, pending } = this._getGroupsAndLeftover(sessions.values());
+		const editorsOpenedAndSessionsEnded = this._openAndWait(groups, token).then(() => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			return this._openAndWait(Iterable.map(pending, s => [this._editorGroupService.activeGroup, s]), token);
 		});
-		return candidate ?? this._editorGroupService.activeGroup;
+
+		// fallback: resolve when all sessions for this model have been resolved. this is independent of the editor opening
+		const allSessionsEnded = this._waitForSessions(Iterable.concat(groups.values(), pending), token);
+
+		await Promise.race([allSessionsEnded, editorsOpenedAndSessionsEnded]);
 	}
 
-	private async _revealInlineChatSessions(sessions: Iterable<SessionData>): Promise<void> {
+	private _getGroupsAndLeftover(sessions: Iterable<SessionData>) {
+
+		const groupByEditor = new Map<ICodeEditor, IEditorGroup>();
+		for (const group of this._editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			const candidate = group.activeEditorPane?.getControl();
+			if (isCodeEditor(candidate)) {
+				groupByEditor.set(candidate, group);
+			}
+		}
+
+		const groups = new Map<IEditorGroup, SessionData>();
+		const pending = new Set<SessionData>();
 
 		for (const data of sessions) {
-
-			const inputs = data.group
-				.findEditors(data.session.textModelN.uri)
-				.filter(input => input.editorId === DEFAULT_EDITOR_ASSOCIATION.id);
-
-			if (inputs.length === 0) {
-				await this._editorService.openEditor({ resource: data.session.textModelN.uri }, data.group);
+			const editor = this._inlineChatSessionService.getCodeEditor(data.session);
+			const group = groupByEditor.get(editor);
+			if (group) {
+				// there is only one session per group because all sessions have the same model
+				// because we save one file.
+				groups.set(group, data);
 			} else {
-				await data.group.openEditor(inputs[0]);
+				pending.add(data);
 			}
+		}
+		return { groups, pending };
+	}
+
+	private async _openAndWait(groups: Iterable<[IEditorGroup, SessionData]>, token: CancellationToken) {
+		const sessions = new Set<SessionData>();
+		for (const [group, data] of groups) {
+			const pane = await this._editorService.openEditor({ resource: data.session.textModelN.uri, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }, group);
+			const ctrl = pane?.getControl();
+			if (!isCodeEditor(ctrl)) {
+				// PANIC
+				return;
+			}
+			this._inlineChatSessionService.moveSession(data.session, ctrl);
+			sessions.add(data);
+		}
+		await this._waitForSessions(sessions, token);
+	}
+
+	private async _waitForSessions(iterable: Iterable<SessionData>, token: CancellationToken) {
+
+		const sessions = new Map<Session, SessionData>();
+		for (const item of iterable) {
+			sessions.set(item.session, item);
+		}
+
+		if (sessions.size === 0) {
+			// nothing to do
+			return;
+		}
+
+		let listener: IDisposable | undefined;
+
+		const whenEnded = new Promise<void>(resolve => {
+			listener = this._inlineChatSessionService.onDidEndSession(e => {
+				const data = sessions.get(e.session);
+				if (data) {
+					data.dispose();
+					sessions.delete(e.session);
+					if (sessions.size === 0) {
+						resolve(); // DONE, release waiting
+					}
+				}
+			});
+		});
+
+		try {
+			await raceCancellation(whenEnded, token);
+		} finally {
+			listener?.dispose();
 		}
 	}
 }
