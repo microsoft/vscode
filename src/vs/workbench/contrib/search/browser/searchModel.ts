@@ -1955,6 +1955,7 @@ export class SearchModel extends Disposable {
 	private readonly _onSearchResultChanged = this._register(new PauseableEmitter<IChangeEvent>({
 		merge: mergeSearchResultEvents
 	}));
+	readonly onSearchResultChanged: Event<IChangeEvent> = this._onSearchResultChanged.event;
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;

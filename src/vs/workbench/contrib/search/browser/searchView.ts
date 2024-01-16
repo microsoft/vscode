@@ -15,7 +15,7 @@ import * as errors from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -160,6 +160,8 @@ export class SearchView extends ViewPane {
 	private _visibleMatches: number = 0;
 
 	private _refreshResultsScheduler: RunOnceScheduler;
+
+	private _onSearchResultChangedDisposable: IDisposable | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -347,8 +349,12 @@ export class SearchView extends ViewPane {
 			this.state = SearchUIState.SlowSearch;
 		}, 2000);
 
-		// dereference old model and use the new searchModel
+		// remove old model and use the new searchModel
 		searchModel.replaceActive = this.viewModel.isReplaceActive();
+		this._onSearchResultChangedDisposable?.dispose();
+		this._onSearchResultChangedDisposable = this._register(searchModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
+
+		// this call will also dispose of the old model
 		this.searchViewModelWorkbenchService.searchModel = searchModel;
 		this.viewModel = searchModel;
 
@@ -483,6 +489,8 @@ export class SearchView extends ViewPane {
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
 			this.toggleQueryDetails(true, true, true);
 		}
+
+		this._onSearchResultChangedDisposable = this._register(this.viewModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
 
 		this._register(this.onDidChangeBodyVisibility(visible => this.onVisibilityChanged(visible)));
 
