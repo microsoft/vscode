@@ -70,7 +70,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -2992,7 +2992,9 @@ export class SCMViewPane extends ViewPane {
 			}
 		}
 
-		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		const actionRunner = isSCMRepository(element) ?
+			new RepositoryActionRunner(() => this.getSelectedRepositories()) :
+			new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		actionRunner.onWillRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
@@ -3001,6 +3003,13 @@ export class SCMViewPane extends ViewPane {
 			getActionsContext: () => context,
 			actionRunner
 		});
+	}
+
+	private getSelectedRepositories(): ISCMRepository[] {
+		const focusedRepositories = this.tree.getFocus().filter(r => !!r && isSCMRepository(r))! as ISCMRepository[];
+		const selectedRepositories = this.tree.getSelection().filter(r => !!r && isSCMRepository(r))! as ISCMRepository[];
+
+		return Array.from(new Set<ISCMRepository>([...focusedRepositories, ...selectedRepositories]));
 	}
 
 	private getSelectedResources(): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {

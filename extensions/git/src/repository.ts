@@ -1475,33 +1475,35 @@ export class Repository implements Disposable {
 
 	async getBranchBase(ref: string): Promise<Branch | undefined> {
 		const branch = await this.getBranch(ref);
-		const branchMergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
+		const branchUpstream = await this.getUpstreamBranch(branch);
 
-		// Upstream
-		if (branch.upstream) {
-			return await this.getBranch(`refs/remotes/${branch.upstream.remote}/${branch.upstream.name}`);
+		if (branchUpstream) {
+			return branchUpstream;
 		}
 
 		// Git config
+		const mergeBaseConfigKey = `branch.${branch.name}.vscode-merge-base`;
+
 		try {
-			const mergeBase = await this.getConfig(branchMergeBaseConfigKey);
-			if (mergeBase !== '') {
-				const mergeBaseBranch = await this.getBranch(mergeBase);
-				return mergeBaseBranch;
+			const mergeBase = await this.getConfig(mergeBaseConfigKey);
+			const branchFromConfig = mergeBase !== '' ? await this.getBranch(mergeBase) : undefined;
+			if (branchFromConfig) {
+				return branchFromConfig;
 			}
 		} catch (err) { }
 
 		// Reflog
 		const branchFromReflog = await this.getBranchBaseFromReflog(ref);
-		if (branchFromReflog) {
-			await this.setConfig(branchMergeBaseConfigKey, branchFromReflog.name!);
-			return branchFromReflog;
+		const branchFromReflogUpstream = branchFromReflog ? await this.getUpstreamBranch(branchFromReflog) : undefined;
+		if (branchFromReflogUpstream) {
+			await this.setConfig(mergeBaseConfigKey, `${branchFromReflogUpstream.remote}/${branchFromReflogUpstream.name}`);
+			return branchFromReflogUpstream;
 		}
 
 		// Default branch
 		const defaultBranch = await this.getDefaultBranch();
 		if (defaultBranch) {
-			await this.setConfig(branchMergeBaseConfigKey, defaultBranch.name!);
+			await this.setConfig(mergeBaseConfigKey, `${defaultBranch.remote}/${defaultBranch.name}`);
 			return defaultBranch;
 		}
 
@@ -1550,6 +1552,21 @@ export class Repository implements Disposable {
 		catch (err) { }
 
 		return undefined;
+	}
+
+	private async getUpstreamBranch(branch: Branch): Promise<Branch | undefined> {
+		if (!branch.upstream) {
+			return undefined;
+		}
+
+		try {
+			const upstreamBranch = await this.getBranch(`refs/remotes/${branch.upstream.remote}/${branch.upstream.name}`);
+			return upstreamBranch;
+		}
+		catch (err) {
+			this.logger.warn(`Failed to get branch details for 'refs/remotes/${branch.upstream.remote}/${branch.upstream.name}': ${err.message}.`);
+			return undefined;
+		}
 	}
 
 	async getRefs(query: RefQuery = {}, cancellationToken?: CancellationToken): Promise<Ref[]> {

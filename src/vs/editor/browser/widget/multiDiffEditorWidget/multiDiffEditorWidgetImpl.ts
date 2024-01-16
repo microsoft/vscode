@@ -22,6 +22,9 @@ import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/comm
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { URI } from 'vs/base/common/uri';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor } from 'vs/editor/common/editorCommon';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
@@ -82,7 +85,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}
 	);
 
-	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader), 0));
+	private readonly _spaceBetweenPx = 10;
+
+	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader) + this._spaceBetweenPx, 0));
 	public readonly activeDiffItem = derived(this, reader => this._viewItems.read(reader).find(i => i.template.read(reader)?.isFocused.read(reader)));
 	public readonly lastActiveDiffItem = derivedObservableWithCache<VirtualizedViewItem | undefined>((reader, lastValue) => this.activeDiffItem.read(reader) ?? lastValue);
 	public readonly activeControl = derived(this, reader => this.lastActiveDiffItem.read(reader)?.template.read(reader)?.editor);
@@ -212,6 +217,22 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 	}
 
+	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
+		const item = this._viewItems.get().find(v =>
+			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
+			|| v.viewModel.diffEditorViewModel.model.original.uri.toString() === resource.toString()
+		);
+		const editor = item?.template.get()?.editor;
+		if (!editor) {
+			return undefined;
+		}
+		if (item.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()) {
+			return { diffEditor: editor, editor: editor.getModifiedEditor() };
+		} else {
+			return { diffEditor: editor, editor: editor.getOriginalEditor() };
+		}
+	}
+
 	private render(reader: IReader | undefined) {
 		const scrollTop = this.scrollTop.read(reader);
 		let contentScrollOffsetToScrollOffset = 0;
@@ -240,10 +261,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				v.render(itemRange, scroll, width, viewPort);
 			}
 
-			const spaceBetween = 10;
-
-			itemHeightSumBefore += itemHeight + spaceBetween;
-			itemContentHeightSumBefore += itemContentHeight + spaceBetween;
+			itemHeightSumBefore += itemHeight + this._spaceBetweenPx;
+			itemContentHeightSumBefore += itemContentHeight + this._spaceBetweenPx;
 		}
 
 		this._elements.content.style.transform = `translateY(${-(scrollTop + contentScrollOffsetToScrollOffset)}px)`;

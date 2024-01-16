@@ -804,14 +804,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		urlService.registerHandler(this);
 
 		this.whenInitialized = this.initialize();
-
-		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
-			telemetryService.publicLog2<{ mode: string }, {
-				owner: 'sandy081';
-				mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Auto Update Mode' };
-				comment: 'This is used to know if extensions are getting auto updated or not';
-			}>('extensions:autoupdate', { mode: `${this.getAutoUpdateValue()}` });
-		});
 	}
 
 	private async initialize(): Promise<void> {

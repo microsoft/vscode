@@ -5,7 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris } from './uri';
-import { dispose, grep, isDescendant, pathEquals, relativePath } from './util';
+import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -23,7 +23,7 @@ import { RemoteSourceAction } from './api/git-base';
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
 	get description(): string { return ''; }
-	get alwaysShow(): boolean { return true; }
+	get alwaysShow(): boolean { return false; }
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
@@ -260,6 +260,14 @@ class RepositoryItem implements QuickPickItem {
 	get description(): string { return this.path; }
 
 	constructor(public readonly path: string) { }
+}
+
+class StashItem implements QuickPickItem {
+	get label(): string { return `#${this.stash.index}: ${this.stash.description}`; }
+
+	get description(): string | undefined { return this.stash.branchName; }
+
+	constructor(readonly stash: Stash) { }
 }
 
 interface ScmCommandOptions {
@@ -1126,14 +1134,25 @@ export class CommandCenter {
 	}
 
 	@command('git.close', { repository: true })
-	async close(repository: Repository): Promise<void> {
-		this.model.close(repository);
+	async close(repository: Repository, ...args: SourceControl[]): Promise<void> {
+		const otherRepositories = args
+			.map(sourceControl => this.model.getRepository(sourceControl))
+			.filter(isDefined);
+
+		for (const r of [repository, ...otherRepositories]) {
+			this.model.close(r);
+		}
 	}
 
 	@command('git.closeOtherRepositories', { repository: true })
-	async closeOtherRepositories(repository: Repository): Promise<void> {
+	async closeOtherRepositories(repository: Repository, ...args: SourceControl[]): Promise<void> {
+		const otherRepositories = args
+			.map(sourceControl => this.model.getRepository(sourceControl))
+			.filter(isDefined);
+
+		const selectedRepositories = [repository, ...otherRepositories];
 		for (const r of this.model.repositories) {
-			if (r === repository) {
+			if (selectedRepositories.includes(r)) {
 				continue;
 			}
 			this.model.close(r);
@@ -2450,6 +2469,7 @@ export class CommandCenter {
 		const disposables: Disposable[] = [];
 		const quickPick = window.createQuickPick();
 		quickPick.busy = true;
+		quickPick.sortByLabel = false;
 		quickPick.placeholder = opts?.detached
 			? l10n.t('Select a branch to checkout in detached mode')
 			: l10n.t('Select a branch or tag to checkout');
@@ -2459,7 +2479,6 @@ export class CommandCenter {
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
 		quickPick.items = picks;
 		quickPick.busy = false;
-		quickPick.sortByLabel = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
 			disposables.push(quickPick.onDidHide(() => c(undefined)));
@@ -2660,18 +2679,26 @@ export class CommandCenter {
 	}
 
 	private async pickRef<T extends QuickPickItem>(items: Promise<T[]>, placeHolder: string): Promise<T | undefined> {
-		const listeners: Disposable[] = [];
+		const disposables: Disposable[] = [];
 		const quickPick = window.createQuickPick<T>();
+
 		quickPick.placeholder = placeHolder;
 		quickPick.sortByLabel = false;
-		quickPick.items = await items;
+		quickPick.busy = true;
+
 		quickPick.show();
+
+		quickPick.items = await items;
+		quickPick.busy = false;
+
 		const choice = await new Promise<T | undefined>(resolve => {
-			listeners.push(quickPick.onDidHide(() => resolve(undefined)));
-			listeners.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
+			disposables.push(quickPick.onDidHide(() => resolve(undefined)));
+			disposables.push(quickPick.onDidAccept(() => resolve(quickPick.activeItems[0])));
 		});
+
+		dispose(disposables);
 		quickPick.dispose();
-		listeners.forEach(d => d.dispose());
+
 		return choice;
 	}
 
@@ -3671,17 +3698,15 @@ export class CommandCenter {
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
-		const stashes = await repository.getStashes();
+		const getStashQuickPickItems = async (): Promise<StashItem[] | QuickPickItem[]> => {
+			const stashes = await repository.getStashes();
+			return stashes.length > 0 ?
+				stashes.map(stash => new StashItem(stash)) :
+				[{ label: l10n.t('$(info) This repository has no stashes.') }];
+		};
 
-		if (stashes.length === 0) {
-			window.showInformationMessage(l10n.t('There are no stashes in the repository.'));
-			return;
-		}
-
-		const picks = stashes.map(stash => ({ label: `#${stash.index}: ${stash.description}`, description: stash.branchName, stash }));
-		const result = await window.showQuickPick(picks, { placeHolder });
-
-		return result?.stash;
+		const result = await window.showQuickPick<StashItem | QuickPickItem>(getStashQuickPickItems(), { placeHolder });
+		return result instanceof StashItem ? result.stash : undefined;
 	}
 
 	private async getStashFromUri(uri: Uri | undefined): Promise<{ repository: Repository; stash: Stash } | undefined> {

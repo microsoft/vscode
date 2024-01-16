@@ -1087,7 +1087,6 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 
 	readonly affectedKeys = new Set<string>();
 	source!: ConfigurationTarget;
-	sourceConfig: any;
 
 	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
 		for (const key of change.keys) {
