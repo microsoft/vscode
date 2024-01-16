@@ -1644,30 +1644,29 @@ export function registerTerminalActions() {
 		}
 	});
 
-
-	registerTerminalAction({
+	registerActiveInstanceAction({
 		id: TerminalCommandId.StartSpeechToText,
 		title: {
 			value: localize('workbench.action.startTerminalSpeechToText', "Start Terminal Speech To Text"),
 			original: 'Start Terminal Speech To Text'
 		},
-		precondition: ContextKeyExpr.and(HasSpeechProvider, TerminalContextKeys.focus),
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
-		run: (c, accessor) => {
+		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
 			TerminalVoiceSession.getInstance(instantiationService).start();
 		}
 	});
 
-	registerTerminalAction({
+	registerActiveInstanceAction({
 		id: TerminalCommandId.StopSpeechToText,
 		title: {
 			value: localize('workbench.action.stopTerminalSpeechToText', "Stop Terminal Speech To Text"),
 			original: 'Stop Terminal Speech To Text'
 		},
-		precondition: ContextKeyExpr.and(HasSpeechProvider, TerminalContextKeys.focus),
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
-		run: (c, accessor) => {
+		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
 			TerminalVoiceSession.getInstance(instantiationService).stop(true);
 		}
