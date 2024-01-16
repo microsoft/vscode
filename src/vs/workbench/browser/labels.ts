@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -473,12 +474,12 @@ class ResourceLabelWidget extends IconLabel {
 			// for its position in the document.
 			const notebookDocument = this.notebookDocumentService.getNotebook(resource);
 			const cellIndex = notebookDocument?.getCellIndex(resource);
-			if (notebookDocument && cellIndex !== undefined) {
-				options.title = `${label.name} • Cell ${cellIndex + 1}`;
+			if (notebookDocument && cellIndex !== undefined && typeof label.name === 'string') {
+				options.title = localize('notebookCellLabel', "{0} • Cell {1}", label.name, `${cellIndex + 1}`);
 			}
 
-			if (typeof label.name === 'string' && notebookDocument && cellIndex !== undefined) {
-				label.name = `${label.name} • Cell ${cellIndex + 1}`;
+			if (typeof label.name === 'string' && notebookDocument && cellIndex !== undefined && typeof label.name === 'string') {
+				label.name = localize('notebookCellLabel', "{0} • Cell {1}", label.name, `${cellIndex + 1}`);
 			}
 		}
 
