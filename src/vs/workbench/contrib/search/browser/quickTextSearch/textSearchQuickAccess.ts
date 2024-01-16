@@ -104,7 +104,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		disposables.add(picker.onDidChangeActive(() => {
 			const [item] = picker.activeItems;
 
-			if (item && item.match) {
+			if (item?.match) {
 				// only store location once, or else it will store new state every time we change active pick
 				if (!this.storedOriginalLocation) {
 					// we must remember our curret view state to be able to restore
