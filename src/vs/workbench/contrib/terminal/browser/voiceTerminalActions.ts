@@ -6,65 +6,16 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
-import { Action2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { HasSpeechProvider, ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechService, ISpeechToTextEvent, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { isNumber } from 'vs/base/common/types';
 import type { IDecoration } from '@xterm/xterm';
 import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
-
-export class StartTerminalSpeechToTextAction extends Action2 {
-
-	static readonly ID = 'workbench.action.startTerminalSpeechToText';
-
-	constructor() {
-		super({
-			id: 'workbench.action.startTerminalSpeechToText',
-			title: {
-				value: localize('workbench.action.startTerminalSpeechToText', "Start Terminal Speech To Text"),
-				original: 'Start Terminal Speech To Text'
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, TerminalContextKeys.focus),
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		TerminalVoiceSession.getInstance(instantiationService).start();
-	}
-}
-
-
-export class StopTerminalSpeechToTextAction extends Action2 {
-
-	static readonly ID = 'workbench.action.stopTerminalSpeechToText';
-
-	constructor() {
-		super({
-			id: 'workbench.action.stopTerminalSpeechToText',
-			title: {
-				value: localize('workbench.action.stopTerminalSpeechToText', "Stop Terminal Speech To Text"),
-				original: 'Stop Terminal Speech To Text'
-			},
-			precondition: ContextKeyExpr.and(HasSpeechProvider, TerminalContextKeys.focus),
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const instantiationService = accessor.get(IInstantiationService);
-		TerminalVoiceSession.getInstance(instantiationService).stop(true);
-	}
-}
 
 export class TerminalVoiceSession extends Disposable {
 	private _input: string = '';
