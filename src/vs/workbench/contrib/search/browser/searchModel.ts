@@ -1580,6 +1580,7 @@ function createParentList(element: RenderableMatch): RenderableMatch[] {
 
 	return parentArray;
 }
+let globalNum = 0;
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new PauseableEmitter<IChangeEvent>({
@@ -1596,6 +1597,7 @@ export class SearchResult extends Disposable {
 	private _isDirty = false;
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
+	num = 0;
 
 	constructor(
 		public searchModel: SearchModel,
@@ -1607,7 +1609,7 @@ export class SearchResult extends Disposable {
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
-
+		this.num = globalNum++;
 		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
@@ -1960,6 +1962,7 @@ export class SearchModel extends Disposable {
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
 	private _searchResultChangedListener: IDisposable;
+	num = 0;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1970,6 +1973,7 @@ export class SearchModel extends Disposable {
 		@INotebookSearchService private readonly notebookSearchService: INotebookSearchService,
 	) {
 		super();
+		this.num = globalNum++;
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
 		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
