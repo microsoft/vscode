@@ -6,7 +6,7 @@
 import 'vs/css!./inlineChatQuickVoice';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyChord, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -32,10 +32,11 @@ export class StartAction extends EditorAction2 {
 			title: localize2('start', "Start Inline Voice Chat"),
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS.toNegated()),
-			keybinding: {
-				primary: KeyChord(KeyCode.F12, KeyCode.F12),
-				weight: KeybindingWeight.WorkbenchContrib
-			}
+			f1: true,
+			// keybinding: {
+			// 	primary: KeyChord(KeyCode.F12, KeyCode.F12),
+			// 	weight: KeybindingWeight.WorkbenchContrib
+			// }
 		});
 	}
 
@@ -52,8 +53,9 @@ export class StopAction extends EditorAction2 {
 			title: localize2('stop', "Stop Inline Voice Chat"),
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS),
+			f1: true,
 			keybinding: {
-				primary: KeyChord(KeyCode.F12, KeyCode.F12),
+				primary: KeyCode.Escape,
 				weight: KeybindingWeight.WorkbenchContrib
 			}
 		});
