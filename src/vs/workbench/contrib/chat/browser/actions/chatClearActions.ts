@@ -20,15 +20,15 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
-export const ACTION_ID_CLEAR_CHAT = `workbench.action.chat.clear`;
+export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 
-export function registerClearActions() {
+export function registerNewChatActions() {
 
-	registerAction2(class ClearEditorAction extends Action2 {
+	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chatEditor.clear',
-				title: localize2('chat.newSession.label', "New Session"),
+				id: 'workbench.action.chatEditor.newChat',
+				title: localize2('chat.newChat.label', "New Chat"),
 				icon: Codicon.plus,
 				f1: false,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -50,10 +50,10 @@ export function registerClearActions() {
 	registerAction2(class GlobalClearChatAction extends Action2 {
 		constructor() {
 			super({
-				id: ACTION_ID_CLEAR_CHAT,
-				title: localize2('chat.newSession.label', "New Session"),
+				id: ACTION_ID_NEW_CHAT,
+				title: localize2('chat.newChat.label', "New Chat"),
 				category: CHAT_CATEGORY,
-				icon: Codicon.clearAll,
+				icon: Codicon.plus,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
 				keybinding: {
@@ -86,10 +86,10 @@ export function registerClearActions() {
 	});
 }
 
-const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
+const getNewChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
-	id: `workbench.action.chat.${providerId}.clear`,
-	title: localize2('chat.newSession.label', "New Session"),
+	id: `workbench.action.chat.${providerId}.newChat`,
+	title: localize2('chat.newChat.label', "New Chat"),
 	menu: {
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
@@ -102,10 +102,10 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 	f1: false
 });
 
-export function getClearAction(viewId: string, providerId: string) {
-	return class ClearAction extends ViewAction<ChatViewPane> {
+export function getNewChatAction(viewId: string, providerId: string) {
+	return class NewChatAction extends ViewAction<ChatViewPane> {
 		constructor() {
-			super(getClearChatActionDescriptorForViewTitle(viewId, providerId));
+			super(getNewChatActionDescriptorForViewTitle(viewId, providerId));
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {

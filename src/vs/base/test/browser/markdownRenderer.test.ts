@@ -97,7 +97,7 @@ suite('MarkdownRenderer', () => {
 					codeBlockRenderer: simpleCodeBlockRenderer
 				});
 				result.dispose();
-				setTimeout(resolve, 50);
+				setTimeout(resolve, 10);
 			});
 		});
 
@@ -116,8 +116,8 @@ suite('MarkdownRenderer', () => {
 				setTimeout(() => {
 					result.dispose();
 					resolveCodeBlockRendering(document.createElement('code'));
-					setTimeout(resolve, 50);
-				}, 50);
+					setTimeout(resolve, 10);
+				}, 10);
 			});
 		});
 
@@ -675,6 +675,24 @@ suite('MarkdownRenderer', () => {
 				const newTokens = fillInIncompleteTokens(tokens);
 
 				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target 2', () => {
+				const incomplete = 'foo [text](http://microsoft.com';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + ')');
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
+			test('incomplete link target with arg', () => {
+				const incomplete = 'foo [text](http://microsoft.com "more text here ';
+				const tokens = marked.lexer(incomplete);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(incomplete + '")');
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 

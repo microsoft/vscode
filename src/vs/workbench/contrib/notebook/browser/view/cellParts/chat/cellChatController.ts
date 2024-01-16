@@ -155,6 +155,8 @@ export class NotebookCellChatController extends Disposable {
 			// might not be attached
 		}
 
+		// dismiss since we can't restore  the widget properly now
+		this.dismiss(false);
 		this._widget?.dispose();
 		this._inlineChatListener?.dispose();
 		this._toolbar?.dispose();
@@ -163,6 +165,10 @@ export class NotebookCellChatController extends Disposable {
 		this._ctxVisible.reset();
 		NotebookCellChatController._cellChatControllers.delete(this._cell);
 		super.dispose();
+	}
+
+	isWidgetVisible() {
+		return this._isVisible;
 	}
 
 	layout() {
@@ -187,7 +193,7 @@ export class NotebookCellChatController extends Disposable {
 		this._partContainer.style.height = `${heightWithPadding - surrounding}px`;
 	}
 
-	async show() {
+	async show(input?: string, autoSend?: boolean) {
 		this._isVisible = true;
 		if (!this._widget) {
 			const editor = this._getCellEditor();
@@ -226,7 +232,19 @@ export class NotebookCellChatController extends Disposable {
 				this._widget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 				this._widget.focus();
 			}
+
+			if (this._widget && input) {
+				this._widget.value = input;
+
+				if (autoSend) {
+					this.acceptInput();
+				}
+			}
 		});
+	}
+
+	async focusWidget() {
+		this._widget?.focus();
 	}
 
 	private _getCellEditor() {

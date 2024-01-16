@@ -70,7 +70,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { RepositoryActionRunner, RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -890,7 +890,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 		const menus = this.scmViewService.menus.getRepositoryMenus(historyItem.historyItemGroup.repository.provider);
 		if (menus.historyProviderMenu) {
-			const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem.historyItemGroup, historyItem);
+			const historyItemMenu = menus.historyProviderMenu.getHistoryItemMenu(historyItem);
 			templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(historyItemMenu, templateData.actionBar));
 		}
 
@@ -2992,7 +2992,9 @@ export class SCMViewPane extends ViewPane {
 			}
 		}
 
-		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		const actionRunner = isSCMRepository(element) ?
+			new RepositoryActionRunner(() => this.getSelectedRepositories()) :
+			new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		actionRunner.onWillRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
@@ -3001,6 +3003,13 @@ export class SCMViewPane extends ViewPane {
 			getActionsContext: () => context,
 			actionRunner
 		});
+	}
+
+	private getSelectedRepositories(): ISCMRepository[] {
+		const focusedRepositories = this.tree.getFocus().filter(r => !!r && isSCMRepository(r))! as ISCMRepository[];
+		const selectedRepositories = this.tree.getSelection().filter(r => !!r && isSCMRepository(r))! as ISCMRepository[];
+
+		return Array.from(new Set<ISCMRepository>([...focusedRepositories, ...selectedRepositories]));
 	}
 
 	private getSelectedResources(): (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[] {
@@ -3373,31 +3382,43 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemsMap = historyProviderCacheEntry.historyItems;
-		let historyItems = historyProviderCacheEntry.historyItems.get(element.id);
+		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
-		if (!historyItems) {
-			historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
+		if (!historyItemsElement) {
+			const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
 
 			// All Changes
 			const { showChangesSummary } = this.getConfiguration();
-			if (showChangesSummary && historyItems.length >= 2) {
-				const allChanges = await historyProvider.provideHistoryItemSummary(element.id, element.ancestor);
-				if (allChanges) {
-					historyItems.splice(0, 0, { ...allChanges, icon: allChanges.icon ?? Codicon.files, label: localize('allChanges', "All Changes") });
-				}
-			}
+			const allChanges = showChangesSummary && historyItems.length >= 2 ?
+				await historyProvider.provideHistoryItemSummary(historyItems[0].id, element.ancestor) : undefined;
+
+			historyItemsElement = [allChanges, historyItems];
 
 			this.historyProviderCache.set(repository, {
 				...historyProviderCacheEntry,
-				historyItems: historyItemsMap.set(element.id, historyItems)
+				historyItems: historyItemsMap.set(element.id, historyItemsElement)
 			});
 		}
 
-		return historyItems.map(historyItem => ({
-			...historyItem,
-			historyItemGroup: element,
-			type: 'historyItem'
-		}));
+		const children: SCMHistoryItemTreeElement[] = [];
+		if (historyItemsElement[0]) {
+			children.push({
+				...historyItemsElement[0],
+				icon: historyItemsElement[0].icon ?? Codicon.files,
+				label: localize('allChanges', "All Changes"),
+				historyItemGroup: element,
+				type: 'allChanges'
+			} satisfies SCMHistoryItemTreeElement);
+		}
+
+		children.push(...historyItemsElement[1]
+			.map(historyItem => ({
+				...historyItem,
+				historyItemGroup: element,
+				type: 'historyItem'
+			} satisfies SCMHistoryItemTreeElement)));
+
+		return children;
 	}
 
 	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
@@ -3520,7 +3541,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	private getHistoryProviderCacheEntry(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
 		return this.historyProviderCache.get(repository) ?? {
 			historyItemGroupDetails: undefined,
-			historyItems: new Map<string, ISCMHistoryItem[]>(),
+			historyItems: new Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>(),
 			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
 		};
 	}

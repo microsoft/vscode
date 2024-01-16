@@ -155,14 +155,11 @@ export function registerChatActions() {
 
 	registerAction2(ChatSubmitSecondaryAgentEditorAction);
 
-	registerAction2(class ClearChatHistoryAction extends Action2 {
+	registerAction2(class ClearChatInputHistoryAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chatEditor.clearHistory',
-				title: {
-					value: localize('interactiveSession.clearHistory.label', "Clear Input History"),
-					original: 'Clear Input History'
-				},
+				id: 'workbench.action.chat.clearInputHistory',
+				title: localize2('interactiveSession.clearHistory.label', "Clear Input History"),
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				category: CHAT_CATEGORY,
 				f1: true,
@@ -171,6 +168,22 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const historyService = accessor.get(IChatWidgetHistoryService);
 			historyService.clearHistory();
+		}
+	});
+
+	registerAction2(class ClearChatHistoryAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.clearHistory',
+				title: localize2('chat.clear.label', "Clear All Workspace Chats"),
+				precondition: CONTEXT_PROVIDER_EXISTS,
+				category: CHAT_CATEGORY,
+				f1: true,
+			});
+		}
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const chatService = accessor.get(IChatService);
+			chatService.clearAllHistoryEntries();
 		}
 	});
 
@@ -257,10 +270,7 @@ export function getOpenChatEditorAction(id: string, label: string, when?: string
 const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
 	id: `workbench.action.chat.${providerId}.history`,
-	title: {
-		value: localize('interactiveSession.history.label', "Show History"),
-		original: 'Show History'
-	},
+	title: localize2('chat.history.label', "Show Chats"),
 	menu: {
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
@@ -295,7 +305,7 @@ export function getHistoryAction(viewId: string, providerId: string) {
 			}));
 			const selection = await quickInputService.pick(picks,
 				{
-					placeHolder: localize('interactiveSession.history.pick', "Switch to chat session"),
+					placeHolder: localize('interactiveSession.history.pick', "Switch to chat"),
 					onDidTriggerItemButton: context => {
 						chatService.removeHistoryEntry(context.item.chat.sessionId);
 						context.removeItem();

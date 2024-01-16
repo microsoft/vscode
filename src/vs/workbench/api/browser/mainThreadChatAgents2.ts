@@ -146,11 +146,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			return responsePartHandle;
 		}
 
-		// No need to support standalone tree data that's not attached to a placeholder in API
-		if (progress.kind === 'treeData') {
-			return;
-		}
-
 		const revivedProgress = revive(progress);
 		this._pendingProgress.get(requestId)?.(revivedProgress as IChatProgress);
 	}
