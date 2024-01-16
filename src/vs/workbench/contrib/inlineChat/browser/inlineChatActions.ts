@@ -22,7 +22,7 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { fromNow } from 'vs/base/common/date';
-import { IInlineChatSessionService, Recording } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Disposable } from 'vs/base/common/lifecycle';

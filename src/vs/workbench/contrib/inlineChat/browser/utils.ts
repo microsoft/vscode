@@ -24,3 +24,9 @@ export function invertLineRange(range: LineRange, model: ITextModel): LineRange[
 export function lineRangeAsRange(r: LineRange): Range {
 	return new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1);
 }
+
+export function asRange(lineRange: LineRange, model: ITextModel): Range {
+	return lineRange.isEmpty
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+}
