@@ -257,7 +257,18 @@ export class ConfigurationManager implements IConfigurationManager {
 						disposables.add(input.onDidHide(() => resolve(undefined)));
 					});
 
-					const nestedPicks = await Promise.all(picks);
+					let nestedPicks: IDynamicPickItem[][];
+					try {
+						// This await invokes the extension providers, which might fail due to several reasons,
+						// therefore we gate this logic under a try/catch to prevent leaving the Debug Tab
+						// selector in a borked state.
+						nestedPicks = await Promise.all(picks);
+					} catch (err) {
+						console.log(err);
+						disposables.dispose();
+						return;
+					}
+					
 					const items = flatten(nestedPicks);
 
 					input.items = items;
