@@ -343,7 +343,7 @@ export class SearchView extends ViewPane {
 		this.onSearchResultsChanged();
 		this.refreshInputs();
 
-		searchModel.onSearchComplete(() => {
+		this.viewModel.onSearchComplete(() => {
 			this.onSearchComplete(progressComplete);
 		});
 

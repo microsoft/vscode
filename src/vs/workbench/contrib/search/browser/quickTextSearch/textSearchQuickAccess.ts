@@ -274,7 +274,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 			this.searchModel.searchResult.clear();
 			return [];
 		}
-		const allMatches = this.doSearch(contentPattern, token);
+		const allMatches = this.doSearch(contentPattern, CancellationToken.None);
 
 		if (!allMatches) {
 			return null;
