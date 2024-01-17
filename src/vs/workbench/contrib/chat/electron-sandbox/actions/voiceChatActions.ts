@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -30,7 +30,7 @@ import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatC
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -41,6 +41,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isNumber } from 'vs/base/common/types';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -747,3 +748,84 @@ registerThemingParticipant((theme, collector) => {
 		}
 	`);
 });
+
+export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
+
+	private activeSession: CancellationTokenSource | undefined = undefined;
+
+	constructor(
+		@ISpeechService private readonly speechService: ISpeechService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(Event.runAndSubscribe(this.speechService.onDidRegisterSpeechProvider, () => this.handleKeywordActivation()));
+
+		this._register(this.speechService.onDidStartSpeechToTextSession(() => this.handleKeywordActivation()));
+		this._register(this.speechService.onDidEndSpeechToTextSession(() => this.handleKeywordActivation()));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVoiceSettingId.KeywordActivation)) {
+				this.handleKeywordActivation();
+			}
+		}));
+	}
+
+	private handleKeywordActivation(): void {
+		if (!this.speechService.hasSpeechProvider) {
+			return; // we require a speech provider
+		}
+
+		const enabled =
+			this.configurationService.getValue(AccessibilityVoiceSettingId.KeywordActivation) === 'on' &&
+			!this.speechService.hasActiveSpeechToTextSession;
+		if (
+			(enabled && this.activeSession) ||
+			(!enabled && !this.activeSession)
+		) {
+			return; // already running or stopped
+		}
+
+		// Start keyword activation
+		if (enabled) {
+			this.enableKeywordActivation();
+		}
+
+		// Stop keyword activation
+		else {
+			this.disableKeywordActivation();
+		}
+	}
+
+	private async enableKeywordActivation(): Promise<void> {
+		const session = this.activeSession = new CancellationTokenSource();
+		const result = await this.speechService.recognizeKeyword(session.token);
+		if (session.token.isCancellationRequested) {
+			return; // cancelled
+		}
+
+		if (session === this.activeSession) {
+			this.disableKeywordActivation(); // done (TODO@bpasero cancel should not be needed with node-speech@1.1.1)
+		}
+
+		if (result === KeywordRecognitionStatus.Recognized) {
+			this.commandService.executeCommand(StartVoiceChatAction.ID);
+		}
+	}
+
+	private disableKeywordActivation(): void {
+		this.activeSession?.dispose(true);
+		this.activeSession = undefined;
+	}
+
+	override dispose(): void {
+		this.activeSession?.dispose();
+
+		super.dispose();
+	}
+}

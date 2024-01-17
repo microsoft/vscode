@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -70,18 +70,33 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
+	readonly onDidStartSpeechToTextSession: Event<void>;
+	readonly onDidEndSpeechToTextSession: Event<void>;
+
+	readonly hasActiveSpeechToTextSession: boolean;
+
+	/**
+	 * Starts to transcribe speech from the default microphone. The returned
+	 * session object provides an event to subscribe for transcribed text.
+	 */
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
-	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
+
+	/**
+	 * Starts to recognize a keyword from the default microphone. The returned
+	 * status indicates if the keyword was recognized or if the session was
+	 * stopped.
+	 */
+	recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus>;
 }
 
-export class SpeechService implements ISpeechService {
+export class SpeechService extends Disposable implements ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
-	private readonly _onDidRegisterSpeechProvider = new Emitter<ISpeechProvider>();
+	private readonly _onDidRegisterSpeechProvider = this._register(new Emitter<ISpeechProvider>());
 	readonly onDidRegisterSpeechProvider = this._onDidRegisterSpeechProvider.event;
 
-	private readonly _onDidUnregisterSpeechProvider = new Emitter<ISpeechProvider>();
+	private readonly _onDidUnregisterSpeechProvider = this._register(new Emitter<ISpeechProvider>());
 	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
 
 	get hasSpeechProvider(): boolean { return this.providers.size > 0; }
@@ -94,6 +109,7 @@ export class SpeechService implements ISpeechService {
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
+		super();
 	}
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable {
@@ -116,6 +132,15 @@ export class SpeechService implements ISpeechService {
 		});
 	}
 
+	private readonly _onDidStartSpeechToTextSession = this._register(new Emitter<void>());
+	readonly onDidStartSpeechToTextSession = this._onDidStartSpeechToTextSession.event;
+
+	private readonly _onDidEndSpeechToTextSession = this._register(new Emitter<void>());
+	readonly onDidEndSpeechToTextSession = this._onDidEndSpeechToTextSession.event;
+
+	private _activeSpeechToTextSession: ISpeechToTextSession | undefined = undefined;
+	get hasActiveSpeechToTextSession(): boolean { return !!this._activeSpeechToTextSession; }
+
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
@@ -124,10 +149,29 @@ export class SpeechService implements ISpeechService {
 			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
 
-		return provider.createSpeechToTextSession(token);
+		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token);
+
+		const disposable = session.onDidChange(e => {
+			if (session !== this._activeSpeechToTextSession) {
+				return; // not the latest anymore
+			}
+
+			switch (e.status) {
+				case SpeechToTextStatus.Started:
+					this._onDidStartSpeechToTextSession.fire();
+					break;
+				case SpeechToTextStatus.Stopped:
+					this._activeSpeechToTextSession = undefined;
+					this._onDidEndSpeechToTextSession.fire();
+					disposable.dispose();
+					break;
+			}
+		});
+
+		return session;
 	}
 
-	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession {
+	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
 			throw new Error(`No Speech provider is registered.`);
@@ -135,6 +179,7 @@ export class SpeechService implements ISpeechService {
 			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
 
-		return provider.createKeywordRecognitionSession(token);
+		const session = provider.createKeywordRecognitionSession(token);
+		return (await Event.toPromise(session.onDidChange)).status;
 	}
 }
