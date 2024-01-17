@@ -373,7 +373,7 @@ export class InlineCompletionsModel extends Disposable {
 		}, PartialAcceptTriggerKind.Line);
 	}
 
-	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind.Dropdown): Promise<void> {
+	private async _acceptNext(editor: ICodeEditor, getAcceptUntilIndex: (position: Position, text: string) => number, kind: PartialAcceptTriggerKind): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
