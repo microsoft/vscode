@@ -20,7 +20,6 @@ import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'v
 import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
@@ -30,6 +29,7 @@ import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/se
 import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 import { Event } from 'vs/base/common/event';
 import { EditorViewState } from 'vs/workbench/browser/quickaccess';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
