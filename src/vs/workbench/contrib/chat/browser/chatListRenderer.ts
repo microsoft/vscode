@@ -781,8 +781,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const ref = listDisposables.add(this._contentReferencesListPool.get());
 		const list = ref.object;
-		container.appendChild(list.getHTMLElement().parentElement!);
 
+		container.appendChild(list.getHTMLElement().parentElement!);
+		list.onDidChangeSelection(() => {
+			const selection = list.getSelection();
+			if (selection.length === 1) {
+				const selectionElement = selection[0];
+				if (selectionElement) {
+					list.setFocus([selectionElement]);
+				}
+			}
+		});
 		listDisposables.add(list.onDidOpen((e) => {
 			if (e.element) {
 				this.editorService.openEditor({
