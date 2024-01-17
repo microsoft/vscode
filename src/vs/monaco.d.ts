@@ -7089,6 +7089,16 @@ declare namespace monaco.languages {
 		toString?(): string;
 	}
 
+	export interface PartialAcceptMetadata {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	export enum PartialAcceptTriggerKind {
+		Word = 0,
+		Line = 1,
+		Suggest = 2,
+	}
+
 	export interface CodeAction {
 		title: string;
 		command?: Command;
