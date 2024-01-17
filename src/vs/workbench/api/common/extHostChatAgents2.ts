@@ -151,14 +151,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	private async prepareHistory<T extends vscode.ChatAgentResult2>(agent: ExtHostChatAgent<T>, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
 		return coalesce(await Promise.all(context.history
 			.map(async h => {
-				// Only include the slashComand instance if it's the same agent
-				const slashCommand = request.agentId === h.request.agentId && request.command
-					? await agent.validateSlashCommand(request.command)
-					: undefined;
 				const result = request.agentId === h.request.agentId && this._resultsBySessionAndRequestId.get(request.sessionId)?.get(h.request.requestId)
 					|| h.result;
 				return {
-					request: typeConvert.ChatAgentRequest.to(h.request, slashCommand),
+					request: typeConvert.ChatAgentRequest.to(h.request, undefined),
 					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r))),
 					result
 				} satisfies vscode.ChatAgentHistoryEntry;
