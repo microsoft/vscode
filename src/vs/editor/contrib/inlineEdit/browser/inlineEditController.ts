@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { constObservable } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -18,7 +18,7 @@ import { Color } from 'vs/base/common/color';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IInlineEdit, InlineEditTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineEdit/browser/ghostText';
 
 
@@ -103,15 +103,27 @@ export class InlineEditController extends Disposable {
 		if (!model) {
 			return;
 		}
+		const modelVersion = model.getVersionId();
 		const providers = this.languageFeaturesService.inlineEditProvider.all(model);
 		if (providers.length === 0) {
 			return;
 		}
 		const provider = providers[0];
 		this._currentRequestCts = new CancellationTokenSource();
+		const token = this._currentRequestCts.token;
 		const triggerKind = auto ? InlineEditTriggerKind.Automatic : InlineEditTriggerKind.Invoke;
-		const edit = await provider.provideInlineEdit(model, { triggerKind }, this._currentRequestCts.token);
+		const shouldDebounce = auto;
+		if (shouldDebounce) {
+			await wait(50, token);
+		}
+		if (token.isCancellationRequested || model.isDisposed() || model.getVersionId() !== modelVersion) {
+			return;
+		}
+		const edit = await provider.provideInlineEdit(model, { triggerKind }, token);
 		if (!edit) {
+			return;
+		}
+		if (token.isCancellationRequested || model.isDisposed() || model.getVersionId() !== modelVersion) {
 			return;
 		}
 		return edit;
@@ -205,4 +217,21 @@ export class InlineEditController extends Disposable {
 		this._isVisibleContext.set(false);
 		this.showRulerDecoration(undefined);
 	}
+}
+
+function wait(ms: number, cancellationToken?: CancellationToken): Promise<void> {
+	return new Promise(resolve => {
+		let d: IDisposable | undefined = undefined;
+		const handle = setTimeout(() => {
+			if (d) { d.dispose(); }
+			resolve();
+		}, ms);
+		if (cancellationToken) {
+			d = cancellationToken.onCancellationRequested(() => {
+				clearTimeout(handle);
+				if (d) { d.dispose(); }
+				resolve();
+			});
+		}
+	});
 }
