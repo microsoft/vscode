@@ -7,7 +7,7 @@ declare module 'vscode' {
 
 	export interface ChatAgentHistoryEntry {
 		request: ChatAgentRequest;
-		response: ChatAgentProgress[];
+		response: ChatAgentContentProgress[];
 		result: ChatAgentResult2;
 	}
 

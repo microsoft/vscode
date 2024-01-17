@@ -19,7 +19,7 @@ import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEnt
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatAgent, IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
@@ -159,9 +159,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					|| h.result;
 				return {
 					request: typeConvert.ChatAgentRequest.to(h.request, slashCommand),
-					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.to(r))),
+					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.toProgressContent(r))),
 					result
-				};
+				} satisfies vscode.ChatAgentHistoryEntry;
 			})));
 	}
 

@@ -2380,8 +2380,9 @@ export namespace ChatResponseProgress {
 	export function to(progress: extHostProtocol.IChatProgressDto): vscode.ChatAgentProgress | undefined {
 		switch (progress.kind) {
 			case 'markdownContent':
-				// For simplicity, don't sent back the 'extended' types, so downgrade markdown to just some text
-				return { content: progress.content.value };
+			case 'inlineReference':
+			case 'treeData':
+				return ChatResponseProgress.to(progress);
 			case 'content':
 				return { content: progress.content };
 			case 'usedContext':
@@ -2393,6 +2394,24 @@ export namespace ChatResponseProgress {
 							URI.revive(progress.reference) :
 							Location.to(progress.reference)
 				};
+			case 'agentDetection':
+				// For simplicity, don't sent back the 'extended' types
+				return undefined;
+			case 'progressMessage':
+				return { message: progress.content.value };
+			case 'vulnerability':
+				return { content: progress.content, vulnerabilities: progress.vulnerabilities };
+			default:
+				// Unknown type, eg something in history that was removed? Ignore
+				return undefined;
+		}
+	}
+
+	export function toProgressContent(progress: extHostProtocol.IChatContentProgressDto): vscode.ChatAgentContentProgress | undefined {
+		switch (progress.kind) {
+			case 'markdownContent':
+				// For simplicity, don't sent back the 'extended' types, so downgrade markdown to just some text
+				return { content: progress.content.value };
 			case 'inlineReference':
 				return {
 					inlineReference:
@@ -2401,15 +2420,8 @@ export namespace ChatResponseProgress {
 							Location.to(progress.inlineReference),
 					title: progress.name
 				};
-			case 'agentDetection':
-				// For simplicity, don't sent back the 'extended' types
-				return undefined;
 			case 'treeData':
 				return { treeData: revive(progress.treeData) };
-			case 'progressMessage':
-				return { message: progress.content.value };
-			case 'vulnerability':
-				return { content: progress.content, vulnerabilities: progress.vulnerabilities };
 			default:
 				// Unknown type, eg something in history that was removed? Ignore
 				return undefined;

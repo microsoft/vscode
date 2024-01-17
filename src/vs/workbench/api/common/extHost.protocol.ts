@@ -51,6 +51,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatAsyncContent, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -1201,9 +1202,13 @@ export interface IChatAgentCompletionItem {
 	documentation?: string | IMarkdownString;
 }
 
+export type IChatContentProgressDto =
+	| Dto<Exclude<IChatProgressResponseContent, IChatAsyncContent>>
+	| IChatAsyncContentDto;
+
 export type IChatAgentHistoryEntryDto = {
 	request: IChatAgentRequest;
-	response: ReadonlyArray<IChatProgressDto>;
+	response: ReadonlyArray<IChatContentProgressDto>;
 	result: IChatAgentResult;
 };
 
