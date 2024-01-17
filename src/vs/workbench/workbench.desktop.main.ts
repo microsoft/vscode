@@ -170,7 +170,7 @@ import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
 
 // Chat
-import 'vs/workbench/contrib/chat/electron-sandbox/voice.contribution';
+import 'vs/workbench/contrib/chat/electron-sandbox/chat.contribution';
 
 //#endregion
 
