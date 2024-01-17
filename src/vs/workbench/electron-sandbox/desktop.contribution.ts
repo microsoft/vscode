@@ -27,6 +27,7 @@ import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sandbox/window';
 
 // Actions
 (function registerActions(): void {
@@ -190,8 +191,8 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 			'window.zoomLevel': {
 				'type': 'number',
 				'default': 0,
-				'minimum': -8,
-				'maximum': 8,
+				'minimum': MIN_ZOOM_LEVEL,
+				'maximum': MAX_ZOOM_LEVEL,
 				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomLevel' }, "Adjust the default zoom level for all windows. Each increment above `0` (e.g. `1`) or below (e.g. `-1`) represents zooming `20%` larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity. See {0} for configuring if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window.", '`#window.zoomPerWindow#`'),
 				ignoreSync: true,
 				tags: ['accessibility']
