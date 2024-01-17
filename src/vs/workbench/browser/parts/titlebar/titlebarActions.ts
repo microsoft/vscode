@@ -30,7 +30,8 @@ class ToggleConfigAction extends Action2 {
 				{
 					id: MenuId.TitleBarContext,
 					when,
-					order
+					order,
+					group: '2_config'
 				},
 				{
 					id: MenuId.TitleBarTitleContext,
@@ -70,7 +71,7 @@ registerAction2(class ToggleCustomToolBar extends Action2 {
 			title: localize('toggle.toolBar', 'Custom Title Bar'),
 			toggled: ContextKeyExpr.true(),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native'), group: '1_toggle' },
+				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native'), group: '3_toggle' },
 			]
 		});
 	}
@@ -95,7 +96,7 @@ registerAction2(class ToggleEditorActions extends Action2 {
 			title: localize('toggle.editorActions', 'Editor Actions'),
 			toggled: ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'hidden').negate(),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 3, when: titleBarContextCondition },
+				{ id: MenuId.TitleBarContext, order: 3, when: titleBarContextCondition, group: '2_config' },
 				{ id: MenuId.TitleBarTitleContext, order: 3, when: titleBarContextCondition, group: '2_config' }
 			]
 		});
@@ -139,7 +140,7 @@ registerAction2(class ToggleActivityBarActions extends Action2 {
 			title: localize('toggle.activityBarActions', 'Activity Bar Actions'),
 			toggled: ContextKeyExpr.equals(`config.${ToggleActivityBarActions.settingsID}`, 'top'),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side') },
+				{ id: MenuId.TitleBarContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' },
 				{ id: MenuId.TitleBarTitleContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' }
 			]
 		});
