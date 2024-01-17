@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace, l10n } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
+import { itemTooltip } from './util';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -48,18 +49,8 @@ export class GitTimelineItem extends TimelineItem {
 		return this.shortenRef(this.previousRef);
 	}
 
-	setItemDetails(author: string, email: string | undefined, date: string, message: string): void {
-		this.tooltip = new MarkdownString('', true);
-
-		if (email) {
-			const emailTitle = l10n.t('Email');
-			this.tooltip.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
-		} else {
-			this.tooltip.appendMarkdown(`$(account) **${author}**\n\n`);
-		}
-
-		this.tooltip.appendMarkdown(`$(history) ${date}\n\n`);
-		this.tooltip.appendMarkdown(message);
+	setItemDetails(author: string, email: string | undefined, date: Date | undefined, message: string): void {
+		this.tooltip = itemTooltip(author, email, date, message);
 	}
 
 	private shortenRef(ref: string): string {
@@ -165,8 +156,6 @@ export class GitTimelineProvider implements TimelineProvider {
 			commits.splice(commits.length - 1, 1);
 		}
 
-		const dateFormatter = new Intl.DateTimeFormat(env.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-
 		const dateType = config.get<'committed' | 'authored'>('date');
 		const showAuthor = config.get<boolean>('showAuthor');
 		const showUncommitted = config.get<boolean>('showUncommitted');
@@ -184,7 +173,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				item.description = c.authorName;
 			}
 
-			item.setItemDetails(c.authorName!, c.authorEmail, dateFormatter.format(date), message);
+			item.setItemDetails(c.authorName!, c.authorEmail, date, message);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -209,7 +198,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.setItemDetails(you, undefined, date, Resource.getStatusText(index.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -231,7 +220,7 @@ export class GitTimelineProvider implements TimelineProvider {
 					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
-					item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
+					item.setItemDetails(you, undefined, date, Resource.getStatusText(working.type));
 
 					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 					if (cmd) {

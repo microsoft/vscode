@@ -6,7 +6,7 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable, filterEvent } from './util';
+import { IDisposable, filterEvent, itemTooltip } from './util';
 import { toGitUri } from './uri';
 import { Branch, RefType, Status } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
@@ -95,6 +95,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				parentIds: commit.parents,
 				label: emojify(subject),
 				description: commit.authorName,
+				tooltip: itemTooltip(commit.authorName, commit.authorEmail, commit.commitDate, emojify(commit.message)),
 				icon: new ThemeIcon('git-commit'),
 				timestamp: commit.authorDate?.getTime(),
 				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
