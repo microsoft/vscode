@@ -8,7 +8,7 @@ import { localize, localize2 } from 'vs/nls';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, showCustomTitlebar, showNativeTitlebar } from 'vs/platform/window/common/window';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -299,7 +299,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			oldPartOptions.editorActionsLocation !== newPartOptions.editorActionsLocation ||
 			oldPartOptions.showTabs !== newPartOptions.showTabs
 		) {
-			if (showCustomTitlebar(this.titleBarStyle) && this.actionToolBar) {
+			if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
 				this.createActionToolBar();
 				this.createActionToolBarMenus({ editorActions: true });
 				this._onDidChange.fire(undefined);
@@ -310,7 +310,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
 
 		// Custom menu bar (disabled if auxiliary)
-		if (!this.isAuxiliary && !showNativeTitlebar(this.titleBarStyle) && (!isMacintosh || isWeb)) {
+		if (!this.isAuxiliary && !hasNativeTitlebar(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
 			if (event.affectsConfiguration('window.menuBarVisibility')) {
 				if (this.currentMenubarVisibility === 'compact') {
 					this.uninstallMenubar();
@@ -321,7 +321,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Actions
-		if (showCustomTitlebar(this.titleBarStyle) && this.actionToolBar) {
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
 			const affectsLayoutControl = event.affectsConfiguration('workbench.layoutControl.enabled');
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 
@@ -388,7 +388,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.rightContent = append(this.rootContainer, $('.titlebar-right'));
 
 		// App Icon (Native Windows/Linux and Web)
-		if (!isMacintosh && !isWeb && !showNativeTitlebar(this.titleBarStyle)) {
+		if (!isMacintosh && !isWeb && !hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.appIcon = prepend(this.leftContent, $('a.window-appicon'));
 
 			// Web-only home indicator and menu (not for auxiliary windows)
@@ -412,7 +412,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Menubar: install a custom menu bar depending on configuration
 		if (
 			!this.isAuxiliary &&
-			!showNativeTitlebar(this.titleBarStyle) &&
+			!hasNativeTitlebar(this.configurationService, this.titleBarStyle) &&
 			(!isMacintosh || isWeb) &&
 			this.currentMenubarVisibility !== 'compact'
 		) {
@@ -424,7 +424,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.createTitle();
 
 		// Create Toolbar Actions
-		if (showCustomTitlebar(this.titleBarStyle)) {
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
@@ -442,7 +442,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			}
 		}
 
-		if (!showNativeTitlebar(this.titleBarStyle)) {
+		if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 			this.primaryWindowControls = append(primaryControlLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container.primary'));
 			append(primaryControlLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.secondary'));
 		}
@@ -695,7 +695,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return !this.isAuxiliary && this.configurationService.getValue<boolean>('workbench.layoutControl.enabled') !== false;
+		return !this.isAuxiliary && this.configurationService.getValue<boolean>('workbench.layoutControl.enabled') !== false && !hasNativeTitlebar(this.configurationService, this.titleBarStyle);
 	}
 
 	protected get isCommandCenterVisible() {
@@ -738,7 +738,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private updateLayout(dimension: Dimension): void {
 		this.lastLayoutDimensions = dimension;
 
-		if (showCustomTitlebar(this.titleBarStyle)) {
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const zoomFactor = getZoomFactor(getWindow(this.element));
 
 			this.element.style.setProperty('--zoom-factor', zoomFactor.toString());

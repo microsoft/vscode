@@ -168,27 +168,19 @@ export interface IDensitySettings {
 export const enum TitlebarStyle {
 	NATIVE = 'native',
 	CUSTOM = 'custom',
-	NATIVE_AND_CUSTOM = 'native-and-custom'
 }
 
-export function showCustomTitlebar(configurationServiceOrTitleStyle: IConfigurationService | TitlebarStyle): boolean {
-	let titleBarStyle: TitlebarStyle;
-	if (typeof configurationServiceOrTitleStyle === 'string') {
-		titleBarStyle = configurationServiceOrTitleStyle;
-	} else {
-		titleBarStyle = getTitleBarStyle(configurationServiceOrTitleStyle);
-	}
-	return titleBarStyle !== TitlebarStyle.NATIVE;
+export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	// Does not imply that the title bar is visible
+
+	return true;
 }
 
-export function showNativeTitlebar(configurationServiceOrTitleStyle: IConfigurationService | TitlebarStyle): boolean {
-	let titleBarStyle: TitlebarStyle;
-	if (typeof configurationServiceOrTitleStyle === 'string') {
-		titleBarStyle = configurationServiceOrTitleStyle;
-	} else {
-		titleBarStyle = getTitleBarStyle(configurationServiceOrTitleStyle);
+export function hasNativeTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	if (!titleBarStyle) {
+		titleBarStyle = getTitleBarStyle(configurationService);
 	}
-	return titleBarStyle !== TitlebarStyle.CUSTOM;
+	return titleBarStyle === TitlebarStyle.NATIVE;
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): TitlebarStyle {
@@ -209,7 +201,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 		}
 
 		const style = configuration.titleBarStyle;
-		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM || style === TitlebarStyle.NATIVE_AND_CUSTOM) {
+		if (style === TitlebarStyle.NATIVE || style === TitlebarStyle.CUSTOM) {
 			return style;
 		}
 	}
@@ -222,7 +214,7 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 		return false; // only supported on a desktop Windows instance
 	}
 
-	if (showNativeTitlebar(configurationService)) {
+	if (hasNativeTitlebar(configurationService)) {
 		return false; // only supported when title bar is custom
 	}
 

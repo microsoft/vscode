@@ -802,7 +802,7 @@ if (isWindows || isLinux || isWeb) {
 				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 			},
-			when: IsAuxiliaryWindowFocusedContext.toNegated(),
+			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(`config.window.titleBarStyle`, 'native')),
 			group: menuId === MenuId.TitleBarTitleContext ? '2_config' : undefined,
 			order: 0
 		});

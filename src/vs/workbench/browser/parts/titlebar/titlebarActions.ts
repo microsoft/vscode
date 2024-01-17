@@ -14,9 +14,14 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/ac
 import { IAction } from 'vs/base/common/actions';
 import { IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
 
+// --- Context Menu Actions --- //
+
 class ToggleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean) {
+	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean, showInCustomToolBar: boolean) {
+		let when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
+		when = showInCustomToolBar ? when : ContextKeyExpr.and(when, ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native').negate())!;
+
 		super({
 			id: `toggle.${section}`,
 			title,
@@ -24,12 +29,12 @@ class ToggleConfigAction extends Action2 {
 			menu: [
 				{
 					id: MenuId.TitleBarContext,
-					when: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
+					when,
 					order
 				},
 				{
 					id: MenuId.TitleBarTitleContext,
-					when: mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : undefined,
+					when,
 					order,
 					group: '2_config'
 				}
@@ -46,13 +51,33 @@ class ToggleConfigAction extends Action2 {
 
 registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
-		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false);
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1, false, true);
 	}
 });
 
 registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
-		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true);
+		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2, true, false);
+	}
+});
+
+registerAction2(class ToggleCustomToolBar extends Action2 {
+	static readonly settingsID = `window.showCustomToolBar`;
+
+	constructor() {
+		super({
+			id: `toggle.${ToggleCustomToolBar.settingsID}`,
+			title: localize('toggle.toolBar', 'Custom Title Bar'),
+			toggled: ContextKeyExpr.true(),
+			menu: [
+				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native'), group: '1_toggle' },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		configService.updateValue(ToggleCustomToolBar.settingsID, 'never');
 	}
 });
 
@@ -104,6 +129,30 @@ registerAction2(class ToggleEditorActions extends Action2 {
 		}
 	}
 });
+
+registerAction2(class ToggleActivityBarActions extends Action2 {
+	static readonly settingsID = `workbench.activityBar.location`;
+	constructor() {
+
+		super({
+			id: `toggle.${ToggleActivityBarActions.settingsID}`,
+			title: localize('toggle.activityBarActions', 'Activity Bar Actions'),
+			toggled: ContextKeyExpr.equals(`config.${ToggleActivityBarActions.settingsID}`, 'top'),
+			menu: [
+				{ id: MenuId.TitleBarContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side') },
+				{ id: MenuId.TitleBarTitleContext, order: 4, when: ContextKeyExpr.notEquals(`config.${ToggleActivityBarActions.settingsID}`, 'side'), group: '2_config' }
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		const oldLocation = configService.getValue<string>(ToggleActivityBarActions.settingsID);
+		configService.updateValue(ToggleActivityBarActions.settingsID, oldLocation === 'top' ? 'hidden' : 'top');
+	}
+});
+
+// --- Toolbar actions --- //
 
 export const ACCOUNTS_ACTIVITY_TILE_ACTION: IAction = {
 	id: ACCOUNTS_ACTIVITY_ID,

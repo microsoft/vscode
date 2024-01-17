@@ -47,7 +47,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	];
 
 	private readonly titleBarStyle = new ChangeObserver<TitlebarStyle>('string');
-	private previousTitleBarStyle: TitlebarStyle | undefined = undefined;
 	private readonly nativeTabs = new ChangeObserver('boolean');
 	private readonly nativeFullScreen = new ChangeObserver('boolean');
 	private readonly clickThroughInactive = new ChangeObserver('boolean');
@@ -86,12 +85,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		if (isNative) {
 
 			// Titlebar style
-			processChanged(
-				(config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM || config.window.titleBarStyle === TitlebarStyle.NATIVE_AND_CUSTOM) &&
-				this.titleBarStyle.handleChange(config.window.titleBarStyle) &&
-				(this.previousTitleBarStyle === TitlebarStyle.CUSTOM || config.window.titleBarStyle === TitlebarStyle.CUSTOM) // only if we come from custom or go to custom
-			);
-			this.previousTitleBarStyle = config.window.titleBarStyle;
+			processChanged((config.window.titleBarStyle === TitlebarStyle.NATIVE || config.window.titleBarStyle === TitlebarStyle.CUSTOM) && this.titleBarStyle.handleChange(config.window?.titleBarStyle));
 
 			// macOS: Native tabs
 			processChanged(isMacintosh && this.nativeTabs.handleChange(config.window?.nativeTabs));
