@@ -114,7 +114,7 @@ export class InlineCompletionsController extends Disposable {
 			});
 		}));
 
-		const updateFontFamily = (style: HTMLStyleElement) => {
+		const updateFontFamily = (styleElement: HTMLStyleElement) => {
 			const fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
 			if (fontFamily !== 'default') {
 				styleElement.textContent = `.monaco-editor .ghost-text-decoration {
