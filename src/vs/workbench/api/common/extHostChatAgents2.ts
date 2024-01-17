@@ -19,7 +19,7 @@ import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEnt
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
@@ -51,10 +51,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		// Clear the previous result so that $acceptFeedback or $acceptAction during a request will be ignored.
 		// We may want to support sending those during a request.
-		this._previousResultMap.delete(sessionId);
+		this._previousResultMap.delete(request.sessionId);
 
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -79,20 +79,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const stopWatch = StopWatch.create(false);
 		let firstProgress: number | undefined;
 		try {
-			const convertedHistory = coalesce(await Promise.all(context.history
-				.map(async h => {
-					// Only include the slashComand instance if it's the same agent
-					const slashCommand = request.agentId === h.request.agentId && request.command
-						? await agent.validateSlashCommand(request.command)
-						: undefined;
-					const result = request.agentId === h.request.agentId && this._resultsBySessionAndRequestId.get(sessionId)?.get(h.request.requestId)
-						|| h.result;
-					return {
-						request: typeConvert.ChatAgentRequest.to(h.request, slashCommand),
-						response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.to(r))),
-						result
-					};
-				})));
+			const convertedHistory = await this.prepareHistory(agent, request, context);
 			const task = agent.invoke(
 				typeConvert.ChatAgentRequest.to(request, slashCommand),
 				{ history: convertedHistory },
@@ -111,7 +98,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 
 					if ('placeholder' in progress && 'resolvedContent' in progress) {
-						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(requestId, convertedProgress), progress.resolvedContent]);
+						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(request.requestId, convertedProgress), progress.resolvedContent]);
 						raceCancellation(resolvedContent, token).then(res => {
 							if (!res) {
 								return; /* Cancelled */
@@ -123,10 +110,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 								return;
 							}
 
-							this._proxy.$handleProgressChunk(requestId, convertedContent, progressHandle ?? undefined);
+							this._proxy.$handleProgressChunk(request.requestId, convertedContent, progressHandle ?? undefined);
 						});
 					} else {
-						this._proxy.$handleProgressChunk(requestId, convertedProgress);
+						this._proxy.$handleProgressChunk(request.requestId, convertedProgress);
 					}
 				}),
 				token
@@ -134,18 +121,18 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 			return await raceCancellation(Promise.resolve(task).then((result) => {
 				if (result) {
-					this._previousResultMap.set(sessionId, result);
-					let sessionResults = this._resultsBySessionAndRequestId.get(sessionId);
+					this._previousResultMap.set(request.sessionId, result);
+					let sessionResults = this._resultsBySessionAndRequestId.get(request.sessionId);
 					if (!sessionResults) {
 						sessionResults = new Map();
-						this._resultsBySessionAndRequestId.set(sessionId, sessionResults);
+						this._resultsBySessionAndRequestId.set(request.sessionId, sessionResults);
 					}
-					sessionResults.set(requestId, result);
+					sessionResults.set(request.requestId, result);
 
 					const timings = { firstProgress: firstProgress, totalElapsed: stopWatch.elapsed() };
 					return { errorDetails: result.errorDetails, timings };
 				} else {
-					this._previousResultMap.delete(sessionId);
+					this._previousResultMap.delete(request.sessionId);
 				}
 
 				return undefined;
@@ -159,6 +146,23 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			done = true;
 			commandExecution.complete();
 		}
+	}
+
+	private async prepareHistory<T extends vscode.ChatAgentResult2>(agent: ExtHostChatAgent<T>, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }): Promise<vscode.ChatAgentHistoryEntry[]> {
+		return coalesce(await Promise.all(context.history
+			.map(async h => {
+				// Only include the slashComand instance if it's the same agent
+				const slashCommand = request.agentId === h.request.agentId && request.command
+					? await agent.validateSlashCommand(request.command)
+					: undefined;
+				const result = request.agentId === h.request.agentId && this._resultsBySessionAndRequestId.get(request.sessionId)?.get(h.request.requestId)
+					|| h.result;
+				return {
+					request: typeConvert.ChatAgentRequest.to(h.request, slashCommand),
+					response: coalesce(h.response.map(r => typeConvert.ChatResponseProgress.to(r))),
+					result
+				};
+			})));
 	}
 
 	$releaseSession(sessionId: string): void {
