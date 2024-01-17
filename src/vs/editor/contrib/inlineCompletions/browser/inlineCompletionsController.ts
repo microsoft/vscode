@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createStyleSheet } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -52,6 +53,7 @@ export class InlineCompletionsController extends Disposable {
 		}
 	));
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private _ghostTextWidget = this._register(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
 		ghostText: this.model.map((v, reader) => /** ghostText */ v?.ghostText.read(reader)),
@@ -111,6 +113,27 @@ export class InlineCompletionsController extends Disposable {
 				}
 			});
 		}));
+
+		/* Don't quite understand the observables so I will use the known pattern first */
+		const styleElement = createStyleSheet();
+		const _fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
+		const _defaultFontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+		const fontFamily = _fontFamily === 'default' ? _defaultFontFamily : _fontFamily;
+		// iisue with italic part?
+		styleElement.textContent = `.monaco-editor .ghost-text-decoration {
+			font-family: ${fontFamily};
+		}`;
+
+		this._register(editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.inlineSuggest)) {
+				const _fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
+				const fontFamily = _fontFamily === 'default' ? _defaultFontFamily : _fontFamily;
+				styleElement.textContent = `.monaco-editor .ghost-text-decoration {
+					font-family: ${fontFamily};
+				}`;
+			}
+		}));
+		/* */
 
 		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {
 			if (e.isUndoing) { return VersionIdChangeReason.Undo; }
