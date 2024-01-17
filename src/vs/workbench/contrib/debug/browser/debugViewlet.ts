@@ -133,7 +133,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 	}
 
-	override addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
+	override addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		super.addPanes(panes);
 
 		for (const { pane: pane } of panes) {
