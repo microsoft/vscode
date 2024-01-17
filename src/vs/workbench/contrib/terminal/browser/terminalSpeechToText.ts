@@ -146,7 +146,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 		if (!xterm) {
 			return;
 		}
-		this._marker = activeInstance.registerMarker();
+		this._marker = activeInstance.registerMarker(-1);
 		if (!this._marker) {
 			return;
 		}
@@ -157,7 +157,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 		});
 		this._decoration?.onRender((e: HTMLElement) => {
 			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.mic));
-			e.classList.add('terminal-speech-to-text');
+			e.style.transform = 'translate(-5px, -5px)';
 		});
 	}
 }

@@ -1440,8 +1440,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public registerMarker(): IMarker | undefined {
-		return this.xterm?.raw.registerMarker();
+	public registerMarker(offset?: number): IMarker | undefined {
+		return this.xterm?.raw.registerMarker(offset);
 	}
 
 	public addBufferMarker(properties: IMarkProperties): void {
