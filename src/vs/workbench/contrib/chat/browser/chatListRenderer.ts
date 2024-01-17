@@ -1235,7 +1235,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 			range: 'range' in element.reference ? element.reference.range : undefined
 		});
 		console.log(JSON.stringify(element));
-		templateData.label.element.ariaLabel = element.reference.toString();
+		templateData.label.element.ariaLabel = templateData.label.element.title;
 	}
 
 	disposeTemplate(templateData: IChatContentReferenceListTemplate): void {
