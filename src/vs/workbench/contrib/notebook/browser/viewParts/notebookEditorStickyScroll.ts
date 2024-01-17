@@ -91,6 +91,7 @@ export class NotebookStickyScroll extends Disposable {
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 
+	private readonly deboucer = new Delayer(200);
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -186,9 +187,7 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
-			const deboucer = new Delayer(200);
-
-			deboucer.trigger(() => {
+			this.deboucer.trigger(() => {
 				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
 				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 					this.updateContent(recompute);
@@ -319,6 +318,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	override dispose() {
 		this._disposables.dispose();
+		this.deboucer.dispose();
 		this.disposeCurrentStickyLines();
 		super.dispose();
 	}
