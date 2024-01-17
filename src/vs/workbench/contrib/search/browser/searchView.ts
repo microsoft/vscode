@@ -349,6 +349,8 @@ export class SearchView extends ViewPane {
 			this.state = SearchUIState.SlowSearch;
 		}, 2000);
 
+		this._refreshResultsScheduler.schedule();
+
 		// remove old model and use the new searchModel
 		searchModel.location = SearchModelLocation.PANEL;
 		searchModel.replaceActive = this.viewModel.isReplaceActive();
