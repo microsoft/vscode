@@ -19,8 +19,10 @@ import { Codicon } from 'vs/base/common/codicons';
 
 export class TerminalSpeechToTextSession extends Disposable {
 	private _input: string = '';
+	private _ghostText: IDecoration | undefined;
 	private _decoration: IDecoration | undefined;
 	private _marker: IXtermMarker | undefined;
+	private _ghostTextMarker: IXtermMarker | undefined;
 	private static _instance: TerminalSpeechToTextSession | undefined = undefined;
 	private _acceptTranscriptionScheduler: RunOnceScheduler | undefined;
 	static getInstance(instantiationService: IInstantiationService): TerminalSpeechToTextSession {
@@ -69,6 +71,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 					break;
 				case SpeechToTextStatus.Recognizing: {
 					this._updateInput(e);
+					this._renderGhostText(e);
 					if (voiceTimeout > 0) {
 						this._acceptTranscriptionScheduler!.cancel();
 					}
@@ -94,6 +97,9 @@ export class TerminalSpeechToTextSession extends Disposable {
 			this._terminalService.activeInstance?.sendText(this._input, false);
 		}
 		this._marker?.dispose();
+		this._ghostTextMarker?.dispose();
+		this._ghostText?.dispose();
+		this._ghostText = undefined;
 		this._decoration?.dispose();
 		this._decoration = undefined;
 		this._cancellationTokenSource?.cancel();
@@ -164,6 +170,33 @@ export class TerminalSpeechToTextSession extends Disposable {
 
 	private _setInactive(): void {
 		this._decoration?.element?.classList.remove('recording');
+	}
+
+	private _renderGhostText(e: ISpeechToTextEvent): void {
+		this._ghostText?.dispose();
+		const text = e.text;
+		if (!text) {
+			return;
+		}
+		const activeInstance = this._terminalService.activeInstance;
+		const xterm = activeInstance?.xterm?.raw;
+		if (!xterm) {
+			return;
+		}
+		this._ghostTextMarker = activeInstance.registerMarker();
+		if (!this._ghostTextMarker) {
+			return;
+		}
+		this._ghostText = xterm.registerDecoration({
+			marker: this._ghostTextMarker,
+			layer: 'top',
+			x: xterm.buffer.active.cursorX + 1 ?? 0,
+		});
+		this._ghostText?.onRender((e: HTMLElement) => {
+			e.classList.add('terminal-speech-progress-text');
+			e.textContent = text;
+			e.style.width = 'fit-content';
+		});
 	}
 }
 
