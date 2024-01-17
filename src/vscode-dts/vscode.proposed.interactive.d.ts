@@ -83,6 +83,15 @@ declare module 'vscode' {
 		title?: string;
 	}
 
+	export interface InteractiveEditorCommandFollowup {
+		commandId: string;
+		args?: any[];
+		title: string;
+		when?: string;
+	}
+
+	export type InteractiveEditorFollowup = InteractiveEditorReplyFollowup | InteractiveEditorCommandFollowup;
+
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
@@ -90,7 +99,7 @@ declare module 'vscode' {
 
 		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
-		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorReplyFollowup[]>;
+		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorFollowup[]>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
