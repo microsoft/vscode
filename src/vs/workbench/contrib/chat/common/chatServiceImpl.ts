@@ -526,13 +526,13 @@ export class ChatService extends Disposable implements IChatService {
 							agentId: request.response.agent?.id ?? '',
 							message: request.variableData.message,
 							variables: request.variableData.variables,
-							command: agentSlashCommandPart?.command.name ?? '',
+							command: request.response.slashCommand?.name
 						};
 						history.push({ request: historyRequest, response: request.response.response.value, result: { errorDetails: request.response.errorDetails } });
 					}
 
 					const variableData = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
-					request = model.addRequest(parsedRequest, variableData, agent);
+					request = model.addRequest(parsedRequest, variableData, agent, agentSlashCommandPart?.command);
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: request.id,

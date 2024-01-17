@@ -251,12 +251,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	private _followups?: IChatFollowup[];
 
-	private _agent: IChatAgentData | undefined;
 	public get agent(): IChatAgentData | undefined {
 		return this._agent;
 	}
 
-	private _slashCommand: IChatAgentCommand | undefined;
 	public get slashCommand(): IChatAgentCommand | undefined {
 		return this._slashCommand;
 	}
@@ -279,7 +277,8 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>,
 		public readonly session: ChatModel,
-		agent: IChatAgentData | undefined,
+		private _agent: IChatAgentData | undefined,
+		private _slashCommand: IChatAgentCommand | undefined,
 		public readonly requestId: string,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -288,7 +287,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
 		super();
-		this._agent = agent;
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
@@ -568,7 +566,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				if (raw.response || raw.responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, raw.slashCommand, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.applyReference(raw.usedContext);
 					}
@@ -642,13 +640,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, chatAgent?: IChatAgentData): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
 
 		const request = new ChatRequestModel(this, message, variableData);
-		request.response = new ChatResponseModel([], this, chatAgent, request.id);
+		request.response = new ChatResponseModel([], this, chatAgent, slashCommand, request.id);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -661,7 +659,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel([], this, undefined, request.id);
+			request.response = new ChatResponseModel([], this, undefined, undefined, request.id);
 		}
 
 		if (request.response.isComplete) {
@@ -708,7 +706,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel([], this, undefined, request.id);
+			request.response = new ChatResponseModel([], this, undefined, undefined, request.id);
 		}
 
 		request.response.setErrorDetails(rawResponse.errorDetails);
