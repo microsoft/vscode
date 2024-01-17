@@ -783,15 +783,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const list = ref.object;
 
 		container.appendChild(list.getHTMLElement().parentElement!);
-		list.onDidChangeSelection(() => {
-			const selection = list.getSelection();
-			if (selection.length === 1) {
-				const selectionElement = selection[0];
-				if (selectionElement) {
-					list.setFocus([selectionElement]);
-				}
-			}
-		});
 		listDisposables.add(list.onDidOpen((e) => {
 			if (e.element) {
 				this.editorService.openEditor({
@@ -1243,6 +1234,8 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 			fileDecorations: { badges: false, colors: false },
 			range: 'range' in element.reference ? element.reference.range : undefined
 		});
+		console.log(JSON.stringify(element));
+		templateData.label.element.ariaLabel = element.reference.toString();
 	}
 
 	disposeTemplate(templateData: IChatContentReferenceListTemplate): void {
