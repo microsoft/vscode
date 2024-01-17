@@ -3,15 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
+import { Queue, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
-import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from 'vs/workbench/common/editor';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from './inlineChatSessionService';
 import { InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -22,8 +21,16 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IInlineChatSavingService } from './inlineChatSavingService';
 import { Iterable } from 'vs/base/common/iterator';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { Schemas } from 'vs/base/common/network';
+import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { compare } from 'vs/base/common/strings';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { URI } from 'vs/base/common/uri';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface SessionData {
+	readonly resourceUri: URI;
 	readonly dispose: () => void;
 	readonly session: Session;
 	readonly groupCandidate: IEditorGroup;
@@ -44,6 +51,8 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._store.add(_inlineChatSessionService.onDidEndSession(e => {
 			this._sessionData.get(e.session)?.dispose();
@@ -58,16 +67,28 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 	markChanged(session: Session): void {
 		if (!this._sessionData.has(session)) {
 
+			let uri = session.textModelN.uri;
+
+			// notebooks: use the notebook-uri because saving happens on the notebook-level
+			if (uri.scheme === Schemas.vscodeNotebookCell) {
+				const data = CellUri.parse(uri);
+				if (!data) {
+					return;
+				}
+				uri = data?.notebook;
+			}
+
 			if (this._sessionData.size === 0) {
 				this._installSaveParticpant();
 			}
 
-			const saveConfig = this._fileConfigService.disableAutoSave(session.textModelN.uri);
+			const saveConfigOverride = this._fileConfigService.disableAutoSave(uri);
 			this._sessionData.set(session, {
+				resourceUri: uri,
 				groupCandidate: this._editorGroupService.activeGroup,
 				session,
 				dispose: () => {
-					saveConfig.dispose();
+					saveConfigOverride.dispose();
 					this._sessionData.delete(session);
 					if (this._sessionData.size === 0) {
 						this._saveParticipant.clear();
@@ -78,12 +99,23 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 	}
 
 	private _installSaveParticpant(): void {
-		this._saveParticipant.value = this._textFileService.files.addSaveParticipant({
-			participate: (model, context, progress, token) => this._participate(model.textEditorModel, context.reason, progress, token)
+
+		const queue = new Queue<void>();
+
+		const d1 = this._textFileService.files.addSaveParticipant({
+			participate: (model, context, progress, token) => {
+				return queue.queue(() => this._participate(model.textEditorModel?.uri, context.reason, progress, token));
+			}
 		});
+		const d2 = this._workingCopyFileService.addSaveParticipant({
+			participate: (workingCopy, env, progress, token) => {
+				return queue.queue(() => this._participate(workingCopy.resource, env.reason, progress, token));
+			}
+		});
+		this._saveParticipant.value = combinedDisposable(d1, d2, queue);
 	}
 
-	private async _participate(model: ITextModel | null, reason: SaveReason, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+	private async _participate(uri: URI | undefined, reason: SaveReason, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
 
 		if (reason !== SaveReason.EXPLICIT) {
 			// all saves that we are concerned about are explicit
@@ -98,7 +130,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 
 		const sessions = new Map<Session, SessionData>();
 		for (const [session, data] of this._sessionData) {
-			if (model === session.textModelN) {
+			if (uri?.toString() === data.resourceUri.toString()) {
 				sessions.set(session, data);
 			}
 		}
@@ -123,7 +155,7 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 		});
 
 		// fallback: resolve when all sessions for this model have been resolved. this is independent of the editor opening
-		const allSessionsEnded = this._waitForSessions(Iterable.concat(groups.values(), orphans), token);
+		const allSessionsEnded = this._whenSessionsEnded(Iterable.concat(groups.map(tuple => tuple[1]), orphans), token);
 
 		await Promise.race([allSessionsEnded, editorsOpenedAndSessionsEnded]);
 	}
@@ -138,19 +170,20 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 			}
 		}
 
-		const groups = new Map<IEditorGroup, SessionData>();
+		const groups: [IEditorGroup, SessionData][] = [];
 		const orphans = new Set<SessionData>();
 
 		for (const data of sessions) {
+
 			const editor = this._inlineChatSessionService.getCodeEditor(data.session);
 			const group = groupByEditor.get(editor);
 			if (group) {
 				// there is only one session per group because all sessions have the same model
 				// because we save one file.
-				groups.set(group, data);
+				groups.push([group, data]);
 			} else if (this._editorGroupService.groups.includes(data.groupCandidate)) {
 				// the group candidate is still there. use it
-				groups.set(data.groupCandidate, data);
+				groups.push([data.groupCandidate, data]);
 			} else {
 				orphans.add(data);
 			}
@@ -159,22 +192,61 @@ export class InlineChatSavingServiceImpl implements IInlineChatSavingService {
 	}
 
 	private async _openAndWait(groups: Iterable<[IEditorGroup, SessionData]>, token: CancellationToken) {
-		const sessions = new Set<SessionData>();
+
+		const dataByGroup = new Map<IEditorGroup, SessionData[]>();
 		for (const [group, data] of groups) {
-			const input: IResourceEditorInput = { resource: data.session.textModelN.uri, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
-			const pane = await this._editorService.openEditor(input, group);
-			const ctrl = pane?.getControl();
-			if (!isCodeEditor(ctrl)) {
-				// PANIC
-				return;
+			let array = dataByGroup.get(group);
+			if (!array) {
+				array = [];
+				dataByGroup.set(group, array);
 			}
-			this._inlineChatSessionService.moveSession(data.session, ctrl);
-			sessions.add(data);
+			array.push(data);
 		}
-		await this._waitForSessions(sessions, token);
+
+		for (const [group, array] of dataByGroup) {
+
+			if (token.isCancellationRequested) {
+				break;
+			}
+
+			array.sort((a, b) => compare(a.session.textModelN.uri.toString(), b.session.textModelN.uri.toString()));
+
+
+			for (const data of array) {
+
+				const input: IResourceEditorInput = { resource: data.resourceUri };
+				const pane = await this._editorService.openEditor(input, group);
+				let editor: ICodeEditor | undefined;
+				if (data.session.textModelN.uri.scheme === Schemas.vscodeNotebookCell) {
+					const notebookEditor = getNotebookEditorFromEditorPane(pane);
+					const uriData = CellUri.parse(data.session.textModelN.uri);
+					if (notebookEditor && notebookEditor.hasModel() && uriData) {
+						const cell = notebookEditor.getCellByHandle(uriData.handle);
+						if (cell) {
+							await notebookEditor.revealRangeInCenterIfOutsideViewportAsync(cell, data.session.wholeRange.value);
+						}
+						const tuple = notebookEditor.codeEditors.find(tuple => tuple[1].getModel()?.uri.toString() === data.session.textModelN.uri.toString());
+						editor = tuple?.[1];
+					}
+
+				} else {
+					if (isCodeEditor(pane?.getControl())) {
+						editor = <ICodeEditor>pane.getControl();
+					}
+				}
+
+				if (!editor) {
+					// PANIC
+					break;
+				}
+				this._inlineChatSessionService.moveSession(data.session, editor);
+				this._logService.info('WAIT for session to end', editor.getId(), data.session.textModelN.uri.toString());
+				await this._whenSessionsEnded(Iterable.single(data), token);
+			}
+		}
 	}
 
-	private async _waitForSessions(iterable: Iterable<SessionData>, token: CancellationToken) {
+	private async _whenSessionsEnded(iterable: Iterable<SessionData>, token: CancellationToken) {
 
 		const sessions = new Map<Session, SessionData>();
 		for (const item of iterable) {
