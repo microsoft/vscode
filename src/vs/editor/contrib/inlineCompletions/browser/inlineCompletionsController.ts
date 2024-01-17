@@ -9,7 +9,7 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -114,26 +114,26 @@ export class InlineCompletionsController extends Disposable {
 			});
 		}));
 
-		/* Don't quite understand the observables so I will use the known pattern first */
-		const styleElement = createStyleSheet();
-		const _fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
-		const _defaultFontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		const fontFamily = _fontFamily === 'default' ? _defaultFontFamily : _fontFamily;
-		// iisue with italic part?
-		styleElement.textContent = `.monaco-editor .ghost-text-decoration {
-			font-family: ${fontFamily};
-		}`;
+		const updateFontFamily = (style: HTMLStyleElement) => {
+			const fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
+			if (fontFamily !== 'default') {
+				styleElement.textContent = `.monaco-editor .ghost-text-decoration {
+						font-family: ${fontFamily};
+					}`;
+			} else {
+				styleElement.textContent = '';
+			}
+		};
+
+		const styleElement = createStyleSheet(undefined, ((styleElement: HTMLStyleElement) => {
+			updateFontFamily(styleElement);
+		}));
 
 		this._register(editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.inlineSuggest)) {
-				const _fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
-				const fontFamily = _fontFamily === 'default' ? _defaultFontFamily : _fontFamily;
-				styleElement.textContent = `.monaco-editor .ghost-text-decoration {
-					font-family: ${fontFamily};
-				}`;
+				updateFontFamily(styleElement);
 			}
 		}));
-		/* */
 
 		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {
 			if (e.isUndoing) { return VersionIdChangeReason.Undo; }

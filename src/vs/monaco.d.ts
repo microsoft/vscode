@@ -4505,7 +4505,7 @@ declare namespace monaco.editor {
 		/**
 		 * Font family for inline suggest suggestions.
 		 */
-		fontFamily?: string;
+		fontFamily?: string | 'default';
 	}
 
 	export interface IBracketPairColorizationOptions {

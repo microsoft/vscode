@@ -3997,7 +3997,7 @@ export interface IInlineSuggestOptions {
 	/**
 	 * Font family for inline suggest suggestions.
 	 */
-	fontFamily?: string;
+	fontFamily?: string | 'default';
 }
 
 /**
