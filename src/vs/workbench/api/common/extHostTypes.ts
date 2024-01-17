@@ -1800,9 +1800,10 @@ export interface PartialAcceptMetadata {
 }
 
 export enum PartialAcceptTriggerKind {
-	Word = 0,
-	Line = 1,
-	Suggest = 2,
+	Unknown = 0,
+	Word = 1,
+	Line = 2,
+	Suggest = 3,
 }
 
 export enum ViewColumn {

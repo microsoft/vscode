@@ -55,6 +55,17 @@ declare module 'vscode' {
 		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number, metadata?: PartialAcceptMetadata): void;
 	}
 
+	export interface PartialAcceptMetadata {
+		kind: PartialAcceptTriggerKind;
+	}
+
+	export enum PartialAcceptTriggerKind {
+		Unknown = 0,
+		Word = 1,
+		Line = 2,
+		Suggest = 3,
+	}
+
 	// When finalizing `commands`, make sure to add a corresponding constructor parameter.
 	export interface InlineCompletionList {
 		/**
