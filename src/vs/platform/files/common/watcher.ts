@@ -148,6 +148,7 @@ export abstract class AbstractWatcherClient extends Disposable {
 	private static readonly MAX_RESTARTS = 5;
 
 	private watcher: IWatcher | undefined;
+	// @ts-ignore
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
 	private requests: IWatchRequest[] | undefined = undefined;
@@ -155,8 +156,10 @@ export abstract class AbstractWatcherClient extends Disposable {
 	private restartCounter = 0;
 
 	constructor(
+		// @ts-ignore
 		private readonly onFileChanges: (changes: IFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
+		// @ts-ignore
 		private verboseLogging: boolean,
 		private options: {
 			type: string;

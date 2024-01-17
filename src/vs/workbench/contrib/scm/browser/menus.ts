@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/scm';
-import { Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId, IMenu, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { importCss } from 'vs/base/browser/importCss';
 import { IAction } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -21,7 +16,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ISCMHistoryProviderMenus, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMMenus, ISCMProvider, ISCMRepository, ISCMRepositoryMenus, ISCMResource, ISCMResourceGroup, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
-import { importCss } from 'vs/base/browser/importCss';
 
 importCss('./media/scm.css', import.meta.url)
 
