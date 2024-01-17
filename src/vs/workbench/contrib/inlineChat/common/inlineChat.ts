@@ -202,6 +202,7 @@ export const enum InlineChatConfigKeys {
 	Mode = 'inlineChat.mode',
 	FinishOnType = 'inlineChat.finishOnType',
 	AcceptedOrDiscardBeforeSave = 'inlineChat.acceptedOrDiscardBeforeSave',
+	HoldToSpeech = 'inlineChat.holdToSpeech',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -225,6 +226,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.AcceptedOrDiscardBeforeSave]: {
 			description: localize('acceptedOrDiscardBeforeSave', "Whether pending inline chat sessions prevent saving."),
+			default: true,
+			type: 'boolean'
+		},
+		[InlineChatConfigKeys.HoldToSpeech]: {
+			description: localize('holdToSpeech', "Whether holding the inline chat keybinding will automatically enable speech recognition."),
 			default: true,
 			type: 'boolean'
 		}
