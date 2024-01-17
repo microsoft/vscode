@@ -88,6 +88,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 		}));
 	}
 	stop(send?: boolean): void {
+		this._setInactive();
 		if (send) {
 			this._acceptTranscriptionScheduler!.cancel();
 			this._terminalService.activeInstance?.sendText(this._input, false);
@@ -156,9 +157,13 @@ export class TerminalSpeechToTextSession extends Disposable {
 			x: xterm.buffer.active.cursorX ?? 0,
 		});
 		this._decoration?.onRender((e: HTMLElement) => {
-			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.mic));
+			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-speech-to-text', 'recording');
 			e.style.transform = 'translate(-5px, -5px)';
 		});
+	}
+
+	private _setInactive(): void {
+		this._decoration?.element?.classList.remove('recording');
 	}
 }
 
