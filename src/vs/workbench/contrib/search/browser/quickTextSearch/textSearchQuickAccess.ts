@@ -94,7 +94,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		picker.customButton = true;
 		picker.customLabel = '$(link-external)';
 		picker.onDidCustom(() => {
-			this.moveToSearchViewlet(undefined);
+			if (this.searchModel.searchResult.count() > 0) {
+				this.moveToSearchViewlet(undefined);
+			} else {
+				this._viewsService.openView(VIEW_ID, true);
+			}
 			picker.hide();
 		});
 		disposables.add(super.provide(picker, token, runOptions));
@@ -279,9 +283,16 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Picks<IQuickPickItem> | Promise<Picks<IQuickPickItem> | FastAndSlowPicks<IQuickPickItem>> | FastAndSlowPicks<IQuickPickItem> | null {
 
-		const conditionalTokenCts = disposables.add(new CancellationTokenSource());
-
 		const searchModelAtTimeOfSearch = this.searchModel;
+		if (contentPattern === '') {
+
+			this.searchModel.searchResult.clear();
+			return [{
+				label: localize('enterSearchTerm', "Enter a term to search for across your files.")
+			}];
+		}
+
+		const conditionalTokenCts = disposables.add(new CancellationTokenSource());
 
 		disposables.add(token.onCancellationRequested(() => {
 			if (searchModelAtTimeOfSearch.location === SearchModelLocation.QUICK_ACCESS) {
@@ -289,11 +300,6 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 				conditionalTokenCts.cancel();
 			}
 		}));
-
-		if (contentPattern === '') {
-			this.searchModel.searchResult.clear();
-			return [];
-		}
 		const allMatches = this.doSearch(contentPattern, conditionalTokenCts.token);
 
 		if (!allMatches) {
