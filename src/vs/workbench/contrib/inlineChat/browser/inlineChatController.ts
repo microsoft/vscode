@@ -194,7 +194,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 		this._strategy?.dispose();
 		this._store.dispose();
-		this._log('controller disposed');
+		this._log('DISPOSED controller');
 	}
 
 	private _log(message: string | Error, ...more: any[]): void {
