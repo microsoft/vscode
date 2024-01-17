@@ -34,14 +34,29 @@ export interface ISpeechToTextEvent {
 	readonly text?: string;
 }
 
+export interface ISpeechToTextSession extends IDisposable {
+	readonly onDidChange: Event<ISpeechToTextEvent>;
+}
+
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2
+}
+
+export interface IKeywordRecognitionEvent {
+	readonly status: KeywordRecognitionStatus;
+	readonly text?: string;
+}
+
+export interface IKeywordRecognitionSession extends IDisposable {
+	readonly onDidChange: Event<IKeywordRecognitionEvent>;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
-}
-
-export interface ISpeechToTextSession extends IDisposable {
-	readonly onDidChange: Event<ISpeechToTextEvent>;
+	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
 export interface ISpeechService {
@@ -56,6 +71,7 @@ export interface ISpeechService {
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
+	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
 export class SpeechService implements ISpeechService {
@@ -109,5 +125,16 @@ export class SpeechService implements ISpeechService {
 		}
 
 		return provider.createSpeechToTextSession(token);
+	}
+
+	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession {
+		const provider = firstOrDefault(Array.from(this.providers.values()));
+		if (!provider) {
+			throw new Error(`No Speech provider is registered.`);
+		} else if (this.providers.size > 1) {
+			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
+		}
+
+		return provider.createKeywordRecognitionSession(token);
 	}
 }
