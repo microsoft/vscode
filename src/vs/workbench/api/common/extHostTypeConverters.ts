@@ -2403,7 +2403,7 @@ export namespace PartialAcceptMetadata {
 		}
 		return {
 			kind: PartialAcceptTriggerKind.to(metadata.kind)
-		}
+		};
 	}
 }
 
