@@ -255,8 +255,13 @@ declare module 'vscode' {
 		/**
 		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request. It is guaranteed that the passed slash
 		 * command is an instance that was previously returned from the {@link ChatAgentSlashCommandProvider.provideSlashCommands slash command provider}.
+		 * @deprecated this will be replaced by `subCommand`
 		 */
-		slashCommand?: ChatAgentSlashCommand; // Can this be a string?
+		slashCommand?: ChatAgentSlashCommand;
+
+		/**
+		 * The name of the {@link ChatAgentSlashCommand slash command} that was selected for this request.
+		 */
 		subCommand?: string;
 
 		variables: Record<string, ChatVariableValue[]>;
