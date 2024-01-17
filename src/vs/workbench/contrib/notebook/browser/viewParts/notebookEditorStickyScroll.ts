@@ -327,11 +327,22 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		return new Map();
 	}
 
-	const startIndex = visibleRange.start > 0 ? visibleRange.start - 1 : visibleRange.start;
+	// edge case for cell 0 in the notebook is a header ------------------------------------------------------------------------------------
+	if (visibleRange.start === 0) {
+		const firstCell = notebookEditor.cellAt(0);
+		const firstCellEntry = NotebookStickyScroll.getVisibleOutlineEntry(0, notebookOutlineEntries);
+		if (firstCell && firstCellEntry && firstCell.cellKind === CellKind.Markup && firstCellEntry.level !== 7) {
+			if (notebookEditor.scrollTop > 22) {
+				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(firstCellEntry, 100, notebookEditor);
+				return newMap;
+			}
+		}
+	}
 
 	// iterate over cells in viewport ------------------------------------------------------------------------------------------------------
 	let cell;
 	let cellEntry;
+	const startIndex = visibleRange.start - 1; // -1 to account for cells hidden "under" sticky lines.
 	for (let currentIndex = startIndex; currentIndex < visibleRange.end; currentIndex++) {
 		// store data for current cell, and next cell
 		cell = notebookEditor.cellAt(currentIndex);

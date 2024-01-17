@@ -1066,16 +1066,25 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _registerNotebookStickyScroll() {
 		this._notebookStickyScroll = this._register(this.instantiationService.createInstance(NotebookStickyScroll, this._notebookStickyScrollContainer, this, this._notebookOutline, this._list));
 
+		const localDisposableStore = this._register(new DisposableStore());
+
 		this._register(this._notebookStickyScroll.onDidChangeNotebookStickyScroll((sizeDelta) => {
-			if (this._dimension) { // TODO @Yoyokrazy: think this logic is unnecessary in this situation
-				if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
-					this.layout(this._dimension);
-					this.setScrollTop(this.scrollTop + sizeDelta);
-				} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
-					this.setScrollTop(this.scrollTop + sizeDelta);
-					this.layout(this._dimension);
+			const d = localDisposableStore.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.getDomNode()), () => {
+				if (this.isDisposed) {
+					return;
 				}
-			}
+
+				if (this._dimension) { // TODO @Yoyokrazy: think this logic is unnecessary in this situation
+					if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
+						this.layout(this._dimension);
+						this.setScrollTop(this.scrollTop + sizeDelta);
+					} else if (sizeDelta < 0) { // delta < 0 ==> sticky is shrinking, cell list growing
+						this.setScrollTop(this.scrollTop + sizeDelta);
+						this.layout(this._dimension);
+					}
+				}
+				localDisposableStore.delete(d);
+			}));
 		}));
 	}
 
