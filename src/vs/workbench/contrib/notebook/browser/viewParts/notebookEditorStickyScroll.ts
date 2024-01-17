@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -91,7 +90,6 @@ export class NotebookStickyScroll extends Disposable {
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 
-	private readonly deboucer = new Delayer(200);
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -187,12 +185,10 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
-			this.deboucer.trigger(() => {
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
-				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
-					this.updateContent(recompute);
-				}
-			});
+			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
+			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
+				this.updateContent(recompute);
+			}
 		}));
 	}
 
@@ -318,7 +314,6 @@ export class NotebookStickyScroll extends Disposable {
 
 	override dispose() {
 		this._disposables.dispose();
-		this.deboucer.dispose();
 		this.disposeCurrentStickyLines();
 		super.dispose();
 	}
