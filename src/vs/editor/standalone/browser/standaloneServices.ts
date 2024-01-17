@@ -594,6 +594,13 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): void {
 		// noop
 	}
+
+	/**
+	 * not yet supported
+	 */
+	public override enableKeybindingHoldMode(commandId: string): Promise<void> | undefined {
+		return undefined;
+	}
 }
 
 class DomNodeListeners extends Disposable {

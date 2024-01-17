@@ -1004,7 +1004,7 @@ export class ExtensionsListView extends ViewPane {
 		this.updateSize();
 	}
 
-	private updateSize() {
+	protected updateSize() {
 		if (this.options.flexibleHeight) {
 			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
 			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -1228,10 +1228,12 @@ export class OutdatedExtensionsView extends ExtensionsListView {
 		if (ExtensionsListView.isSearchExtensionUpdatesQuery(query)) {
 			query = query.replace('@updates', '@outdated');
 		}
+		return super.show(query.trim());
+	}
 
-		const model = await super.show(query.trim());
-		this.setExpanded(model.length > 0);
-		return model;
+	protected override updateSize() {
+		super.updateSize();
+		this.setExpanded(this.count() > 0);
 	}
 
 }

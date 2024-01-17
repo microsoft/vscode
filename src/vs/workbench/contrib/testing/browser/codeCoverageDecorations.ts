@@ -105,12 +105,13 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		}));
 
 		this._register(editor.onMouseMove(e => {
-			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
+			const model = editor.getModel();
+			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS && model) {
 				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
 			} else if (this.lineHoverWidget.hasValue && this.lineHoverWidget.value.getDomNode().contains(e.target.element)) {
 				// don't dismiss the hover
-			} else if (CodeCoverageDecorations.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT) {
-				this.hoverInlineDecoration(editor.getModel()!, e.target.position);
+			} else if (CodeCoverageDecorations.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT && model) {
+				this.hoverInlineDecoration(model, e.target.position);
 			} else {
 				this.hoveredStore.clear();
 			}
@@ -168,7 +169,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	}
 
 	private hoverLineNumber(model: ITextModel, lineNumber: number) {
-		if (lineNumber === this.hoveredSubject) {
+		if (lineNumber === this.hoveredSubject || !this.details) {
 			return;
 		}
 
@@ -208,7 +209,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			});
 		}
 
-		this.lineHoverWidget.value.startShowingAt(lineNumber, this.details!, wasPreviouslyHovering);
+		this.lineHoverWidget.value.startShowingAt(lineNumber, this.details, wasPreviouslyHovering);
 
 		this.hoveredStore.add(this.editor.onMouseLeave(() => {
 			this.hoveredStore.clear();

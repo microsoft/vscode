@@ -14,7 +14,7 @@ import * as strings from 'vs/base/common/strings';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -27,6 +27,62 @@ import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/co
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { CommentThreadState } from 'vs/editor/common/languages';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CONTEXT_KEY_HAS_COMMENTS, CONTEXT_KEY_SOME_COMMENTS_EXPANDED, CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
+import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { Codicon } from 'vs/base/common/codicons';
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.focusCommentsPanel',
+	handler: async (accessor) => {
+		const viewsService = accessor.get(IViewsService);
+		viewsService.openView(COMMENTS_VIEW_ID, true);
+	}
+});
+
+registerAction2(class Collapse extends ViewAction<CommentsPanel> {
+	constructor() {
+		super({
+			viewId: COMMENTS_VIEW_ID,
+			id: 'comments.collapse',
+			title: nls.localize('collapseAll', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS), CONTEXT_KEY_SOME_COMMENTS_EXPANDED),
+				order: 100
+			}
+		});
+	}
+	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
+		view.collapseAll();
+	}
+});
+
+registerAction2(class Expand extends ViewAction<CommentsPanel> {
+	constructor() {
+		super({
+			viewId: COMMENTS_VIEW_ID,
+			id: 'comments.expand',
+			title: nls.localize('expandAll', "Expand All"),
+			f1: false,
+			icon: Codicon.expandAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.and(ContextKeyExpr.and(ContextKeyExpr.equals('view', COMMENTS_VIEW_ID), CONTEXT_KEY_HAS_COMMENTS), ContextKeyExpr.not(CONTEXT_KEY_SOME_COMMENTS_EXPANDED.key)),
+				order: 100
+			}
+		});
+	}
+	runInView(_accessor: ServicesAccessor, view: CommentsPanel) {
+		view.expandAll();
+	}
+});
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',

@@ -39,11 +39,13 @@ import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/cont
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSaving';
-import { EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSavingService } from './inlineChatSavingService';
+import { EmptyResponse, ErrorResponse, ExpansionState, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -122,7 +124,7 @@ export class InlineChatController implements IEditorContribution {
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
 	private readonly _sessionStore: DisposableStore = this._store.add(new DisposableStore());
-	private readonly _pausedStrategies = new Map<Session, EditModeStrategy>();
+
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
 	private _ignoreModelContentChanged = false;
@@ -142,6 +144,7 @@ export class InlineChatController implements IEditorContribution {
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -161,16 +164,18 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
-			this._log('session RESUMING', e);
+			this._log('session RESUMING after model change', e);
 			await this.run({ existingSession });
-			this._log('session done or paused');
 		}));
-		this._log('NEW controller');
 
-		this._store.add(this._inlineChatSessionService.onDidEndSession(e => {
-			this._pausedStrategies.get(e.session)?.dispose();
-			this._pausedStrategies.delete(e.session);
+		this._store.add(this._inlineChatSessionService.onDidMoveSession(async e => {
+			if (e.editor === this._editor) {
+				this._log('session RESUMING after move', e);
+				await this.run({ existingSession: e.session });
+			}
 		}));
+
+		this._log('NEW controller');
 
 		InlineChatController._promptHistory = JSON.parse(_storageService.get(InlineChatController._storageKey, StorageScope.PROFILE, '[]'));
 		this._historyUpdate = (prompt: string) => {
@@ -191,7 +196,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 		this._strategy?.dispose();
 		this._store.dispose();
-		this._log('controller disposed');
+		this._log('DISPOSED controller');
 	}
 
 	private _log(message: string | Error, ...more: any[]): void {
@@ -264,7 +269,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI | State.PAUSE> {
+	private async [State.CREATE_SESSION](options: InlineChatRunOptions): Promise<State.CANCEL | State.INIT_UI> {
 		assertType(this._session === undefined);
 		assertType(this._editor.hasModel());
 
@@ -305,7 +310,10 @@ export class InlineChatController implements IEditorContribution {
 			msgListener.dispose();
 
 			if (createSessionCts.token.isCancellationRequested) {
-				return State.PAUSE;
+				if (session) {
+					this._inlineChatSessionService.releaseSession(session);
+				}
+				return State.CANCEL;
 			}
 		}
 
@@ -317,24 +325,18 @@ export class InlineChatController implements IEditorContribution {
 			return State.CANCEL;
 		}
 
-		if (this._pausedStrategies.has(session)) {
-			// maybe a strategy was previously paused, use it
-			this._strategy = this._pausedStrategies.get(session)!;
-			this._pausedStrategies.delete(session);
-		} else {
-			// create a new strategy
-			switch (session.editMode) {
-				case EditMode.Live:
-					this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
-					break;
-				case EditMode.Preview:
-					this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value);
-					break;
-				case EditMode.LivePreview:
-				default:
-					this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value);
-					break;
-			}
+		// create a new strategy
+		switch (session.editMode) {
+			case EditMode.Live:
+				this._strategy = this._instaService.createInstance(LiveStrategy, session, this._editor, this._zone.value);
+				break;
+			case EditMode.Preview:
+				this._strategy = this._instaService.createInstance(PreviewStrategy, session, this._zone.value);
+				break;
+			case EditMode.LivePreview:
+			default:
+				this._strategy = this._instaService.createInstance(LivePreviewStrategy, session, this._editor, this._zone.value);
+				break;
 		}
 
 		this._session = session;
@@ -690,7 +692,13 @@ export class InlineChatController implements IEditorContribution {
 		msgListener.dispose();
 		typeListener.dispose();
 
-		if (request.live && !(response instanceof ReplyResponse)) {
+		if (response instanceof ReplyResponse) {
+			// update hunks after a reply response
+			await this._session.hunkData.recompute();
+
+		} else if (request.live) {
+			// undo changes that might have been made when not
+			// having a reply response
 			this._strategy?.undoChanges(modelAltVersionIdNow);
 		}
 
@@ -782,8 +790,12 @@ export class InlineChatController implements IEditorContribution {
 					if (followupReply && this._session) {
 						this._log('followup request received', this._session.provider.debugName, this._session.session, followupReply);
 						this._zone.value.widget.updateFollowUps(followupReply, followup => {
-							this.updateInput(followup.message);
-							this.acceptInput();
+							if (followup.kind === 'reply') {
+								this.updateInput(followup.message);
+								this.acceptInput();
+							} else {
+								this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+							}
 						});
 					}
 				}).finally(() => {
@@ -803,7 +815,6 @@ export class InlineChatController implements IEditorContribution {
 
 		this._resetWidget();
 
-		this._pausedStrategies.set(this._session, this._strategy);
 		this._strategy.pause?.();
 		this._session = undefined;
 	}
@@ -831,21 +842,22 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private async[State.CANCEL]() {
-		assertType(this._session);
-		assertType(this._strategy);
-		this._sessionStore.clear();
+		if (this._session) {
+			// assertType(this._session);
+			assertType(this._strategy);
+			this._sessionStore.clear();
 
-		try {
-			await this._strategy.cancel();
-		} catch (err) {
-			this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
-			this._log('FAILED to discard changes');
-			this._log(err);
+			try {
+				await this._strategy.cancel();
+			} catch (err) {
+				this._dialogService.error(localize('err.discard', "Failed to discard changes.", toErrorMessage(err)));
+				this._log('FAILED to discard changes');
+				this._log(err);
+			}
+			this._inlineChatSessionService.releaseSession(this._session);
 		}
 
 		this._resetWidget();
-		this._inlineChatSessionService.releaseSession(this._session);
-
 
 		this._strategy?.dispose();
 		this._strategy = undefined;

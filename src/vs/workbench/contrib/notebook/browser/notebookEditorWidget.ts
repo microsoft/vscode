@@ -2251,6 +2251,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
+			if (this._list.getViewIndex(cell) === undefined) {
+				// Cell can be hidden
+				return;
+			}
+
 			if (this._list.elementHeight(cell) === height) {
 				return;
 			}
