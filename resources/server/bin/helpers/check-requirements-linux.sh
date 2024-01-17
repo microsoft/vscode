@@ -86,7 +86,7 @@ if [ -n "$(ldd --version | grep -v musl)" ]; then
             libc_version=$($libc_real_path --version | sed -n 's/.*stable release version \([0-9]\+\.[0-9]\+\).*/\1/p')
         else
             # .so is not executable on this host; try getting from strings
-            libc_version=$(strings "$libc_real_path" | sed -n 's/.*stable release version \([0-9]\+\.[0-9]\+\).*/\1/p')
+            libc_version=$(cat "$libc_real_path" | sed -n 's/.*stable release version \([0-9]\+\.[0-9]\+\).*/\1/p')
         fi
         if [ "$(printf '%s\n' "2.28" "$libc_version" | sort -V | head -n1)" = "2.28" ]; then
             found_required_glibc=1
