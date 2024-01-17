@@ -430,10 +430,19 @@
 
 .coverage-deco-gutter.coverage-deco-hit::before {
 	background: var(--vscode-testing-coveredGutterBackground);
+	border-color: var(--vscode-testing-coveredGutterBackground);
 }
 
 .coverage-deco-gutter.coverage-deco-miss::before {
 	background: var(--vscode-testing-uncoveredGutterBackground);
+	border-color: var(--vscode-testing-uncoveredGutterBackground);
+}
+
+.hc-light .coverage-deco-gutter::before,
+.hc-black .coverage-deco-gutter::before {
+	border-width: 3px 0 3px 5px;
+	border-style: solid;
+	background: none;
 }
 
 .coverage-deco-gutter.coverage-deco-miss.coverage-deco-hit::before {
@@ -456,10 +465,17 @@
 
 .coverage-deco-inline.coverage-deco-hit {
 	background: var(--vscode-testing-coveredBackground);
+	outline: 1px solid var(--vscode-testing-coveredBorder);
 }
 
 .coverage-deco-inline.coverage-deco-miss {
 	background: var(--vscode-testing-uncoveredBackground);
+	outline: 1px solid var(--vscode-testing-uncoveredBorder);
+}
+
+.hc-light .coverage-deco-inline.coverage-deco-hit,
+.hc-black .coverage-deco-inline.coverage-deco-hit {
+	outline-style: dashed;
 }
 
 .coverage-deco-branch-miss-indicator {
