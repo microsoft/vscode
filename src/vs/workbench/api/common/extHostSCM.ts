@@ -22,6 +22,7 @@ import { ExtensionIdentifierMap, IExtensionDescription } from 'vs/platform/exten
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -55,6 +56,17 @@ function getIconResource(decorations?: vscode.SourceControlResourceThemableDecor
 		return decorations.iconPath;
 	} else {
 		return undefined;
+	}
+}
+
+function getHistoryItemTooltipDto(historyItem: vscode.SourceControlHistoryItem): string | IMarkdownString | undefined {
+	if (!historyItem.tooltip) {
+		return undefined;
+	} else if (MarkdownStringType.isMarkdownString(historyItem.tooltip)) {
+		return MarkdownString.from(historyItem.tooltip);
+	}
+	else {
+		return historyItem.tooltip;
 	}
 }
 
@@ -974,7 +986,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 		const historyItems = await historyProvider?.provideHistoryItems(historyItemGroupId, options, token);
 
-		return historyItems?.map(item => ({ ...item, icon: getHistoryItemIconDto(item) })) ?? undefined;
+		return historyItems?.map(item => ({ ...item, tooltip: getHistoryItemTooltipDto(item), icon: getHistoryItemIconDto(item) })) ?? undefined;
 	}
 
 	async $provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
@@ -984,7 +996,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		const historyItem = await historyProvider.provideHistoryItemSummary(historyItemId, historyItemParentId, token);
-		return historyItem ? { ...historyItem, icon: getHistoryItemIconDto(historyItem) } : undefined;
+		return historyItem ? { ...historyItem, tooltip: getHistoryItemTooltipDto(historyItem), icon: getHistoryItemIconDto(historyItem) } : undefined;
 	}
 
 	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -82,6 +83,7 @@ export interface ISCMHistoryItem {
 	readonly parentIds: string[];
 	readonly label: string;
 	readonly description?: string;
+	readonly tooltip?: string | IMarkdownString;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;

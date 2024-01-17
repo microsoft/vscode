@@ -59,6 +59,11 @@ declare module 'vscode' {
 		readonly parentIds: string[];
 		readonly label: string;
 		readonly description?: string;
+
+		/**
+		 * The tooltip text when you hover over the history item.
+		 */
+		readonly tooltip?: string | MarkdownString;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;

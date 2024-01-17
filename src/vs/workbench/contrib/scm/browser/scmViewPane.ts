@@ -105,7 +105,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp } from 'vs/base/common/numbers';
 import { ITooltipMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
@@ -896,16 +895,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		if (historyItem.icon && ThemeIcon.isThemeIcon(historyItem.icon)) {
 			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
 		}
-		const markdownTip = (label: string, description: string | undefined): ITooltipMarkdownString => {
-			const markdown = new MarkdownString('', { supportThemeIcons: true });
-			markdown.appendMarkdown(label);
-			if (description) {
-				markdown.appendMarkdown(`\n\n*${description}*`);
-			}
-			return { markdown, markdownNotSupportedFallback: label };
-		};
 
-		const title = markdownTip(historyItem.label, historyItem.description);
+		const title: ITooltipMarkdownString = { markdown: historyItem.tooltip, markdownNotSupportedFallback: historyItem.description ? `${historyItem.label} (${historyItem.description})` : historyItem.label };
 		templateData.label.setLabel(historyItem.label, historyItem.description, { title });
 
 		templateData.actionBar.clear();
