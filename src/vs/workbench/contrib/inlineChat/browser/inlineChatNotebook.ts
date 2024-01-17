@@ -23,17 +23,42 @@ export class InlineChatNotebookContribution {
 	) {
 
 		this._store.add(sessionService.registerSessionKeyComputer(Schemas.vscodeNotebookCell, {
-			getComparisonKey: (_editor, uri) => {
+			getComparisonKey: (editor, uri) => {
 				const data = CellUri.parse(uri);
 				if (!data) {
-					throw illegalState('Expected notebook');
+					throw illegalState('Expected notebook cell uri');
 				}
-				for (const editor of notebookEditorService.listNotebookEditors()) {
-					if (isEqual(editor.textModel?.uri, data.notebook)) {
-						return `<notebook>${editor.getId()}#${uri}`;
+				let fallback: string | undefined;
+				for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
+					if (notebookEditor.hasModel() && isEqual(notebookEditor.textModel.uri, data.notebook)) {
+
+						const candidate = `<notebook>${notebookEditor.getId()}#${uri}`;
+
+						if (!fallback) {
+							fallback = candidate;
+						}
+
+						// find the code editor in the list of cell-code editors
+						if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
+							return candidate;
+						}
+
+						// 	// reveal cell and try to find code editor again
+						// 	const cell = notebookEditor.getCellByHandle(data.handle);
+						// 	if (cell) {
+						// 		notebookEditor.revealInViewAtTop(cell);
+						// 		if (notebookEditor.codeEditors.find((tuple) => tuple[1] === editor)) {
+						// 			return candidate;
+						// 		}
+						// 	}
 					}
 				}
-				throw illegalState('Expected notebook');
+
+				if (fallback) {
+					return fallback;
+				}
+
+				throw illegalState('Expected notebook editor');
 			}
 		}));
 

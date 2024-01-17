@@ -45,6 +45,7 @@ import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -143,6 +144,7 @@ export class InlineChatController implements IEditorContribution {
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -194,7 +196,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 		this._strategy?.dispose();
 		this._store.dispose();
-		this._log('controller disposed');
+		this._log('DISPOSED controller');
 	}
 
 	private _log(message: string | Error, ...more: any[]): void {
@@ -788,8 +790,12 @@ export class InlineChatController implements IEditorContribution {
 					if (followupReply && this._session) {
 						this._log('followup request received', this._session.provider.debugName, this._session.session, followupReply);
 						this._zone.value.widget.updateFollowUps(followupReply, followup => {
-							this.updateInput(followup.message);
-							this.acceptInput();
+							if (followup.kind === 'reply') {
+								this.updateInput(followup.message);
+								this.acceptInput();
+							} else {
+								this._commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
+							}
 						});
 					}
 				}).finally(() => {
