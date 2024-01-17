@@ -452,7 +452,7 @@ export class CoverageDetailsModel {
 // and trailing whitespace.
 function tidyLocation(location: Range | Position): Range {
 	if (location instanceof Position) {
-		return Range.fromPositions(location);
+		return Range.fromPositions(location, new Position(location.lineNumber, 0x7FFFFFFF));
 	}
 
 	return location;
