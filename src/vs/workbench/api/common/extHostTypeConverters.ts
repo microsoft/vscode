@@ -2397,8 +2397,7 @@ export namespace TerminalQuickFix {
 
 
 export namespace PartialAcceptMetadata {
-	export function to(metadata: undefined): undefined
-	export function to(metadata: languages.PartialAcceptMetadata): types.PartialAcceptMetadata {
+	export function to(metadata: languages.PartialAcceptMetadata | undefined): types.PartialAcceptMetadata | undefined {
 		if (!metadata) {
 			return undefined;
 		}
@@ -2410,7 +2409,7 @@ export namespace PartialAcceptMetadata {
 
 export namespace PartialAcceptTriggerKind {
 	export function to(kind: languages.PartialAcceptTriggerKind): types.PartialAcceptTriggerKind {
-		switch (type) {
+		switch (kind) {
 			case languages.PartialAcceptTriggerKind.Word:
 				return types.PartialAcceptTriggerKind.Word;
 			case languages.PartialAcceptTriggerKind.Line:
