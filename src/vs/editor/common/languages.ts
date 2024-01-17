@@ -547,7 +547,6 @@ export interface CompletionList {
 	duration?: number;
 }
 
-
 /**
  * Metadata provided on partial acceptance.
  */
