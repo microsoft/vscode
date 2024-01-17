@@ -147,8 +147,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return false;
 	}
 
-	public enableKeybindingHoldMode(commandId: string): boolean {
-		return false;
+	public enableKeybindingHoldMode(commandId: string): undefined {
+		return undefined;
 	}
 
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {

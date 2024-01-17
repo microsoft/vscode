@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as dom from 'vs/base/browser/dom';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
@@ -51,31 +50,26 @@ export class StartSessionAction extends EditorAction2 {
 
 		if (configService.getValue<boolean>(InlineChatConfigKeys.HoldToSpeech) // enabled
 			&& speechService.hasSpeechProvider  // possible
-			&& keybindingService.enableKeybindingHoldMode(this.desc.id) // holding keys
 		) {
 
+			const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
+			if (holdMode) { // holding keys
+				let listening = false;
+				const handle = disposableTimeout(() => {
+					// start VOICE input
+					commandService.executeCommand(StartVoiceChatAction.ID);
+					listening = true;
+				}, 100);
 
-			let listening = false;
-			const handle = disposableTimeout(() => {
-				// start VOICE input
-				commandService.executeCommand(StartVoiceChatAction.ID);
-				listening = true;
-			}, 100);
-
-			const listener = dom.addDisposableListener(
-				dom.getWindow(editor.getDomNode()),
-				dom.EventType.KEY_UP,
-				(_e: KeyboardEvent) => {
-					listener.dispose(); // Event.once
+				holdMode.finally(() => {
 					if (listening) {
 						commandService.executeCommand(StopListeningAction.ID).finally(() => {
 							InlineChatController.get(editor)?.acceptInput();
 						});
-					} else {
-						handle.dispose();
 					}
-				}
-			);
+					handle.dispose();
+				});
+			}
 		}
 
 		let options: InlineChatRunOptions | undefined;

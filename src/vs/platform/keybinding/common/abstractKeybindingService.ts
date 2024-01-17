@@ -53,8 +53,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _ignoreSingleModifiers: KeybindingModifierSet;
 	private _currentSingleModifier: SingleModifierChord | null;
 	private _currentSingleModifierClearTimeout: TimeoutTimer;
-	private _currentlyDispatchingCommandId: string | null;
-	protected _isInKeybindingHoldMode: boolean;
+	protected _currentlyDispatchingCommandId: string | null;
 
 	protected _logging: boolean;
 
@@ -78,7 +77,6 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentSingleModifier = null;
 		this._currentSingleModifierClearTimeout = new TimeoutTimer();
 		this._currentlyDispatchingCommandId = null;
-		this._isInKeybindingHoldMode = false;
 		this._logging = false;
 	}
 
@@ -387,14 +385,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 	}
 
-	enableKeybindingHoldMode(commandId: string): boolean {
-		if (this._currentlyDispatchingCommandId !== commandId) {
-			return false;
-		}
-		this._isInKeybindingHoldMode = true;
-		this._log(`+ Enabled hold-mode for ${commandId}.`);
-		return true;
-	}
+	abstract enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
 
 	mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey) {

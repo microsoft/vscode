@@ -69,9 +69,9 @@ export interface IKeybindingService {
 	 * Enable hold mode for this command. This is only possible if the command is current being dispatched, meaning
 	 * we are after its keydown and before is keyup event.
 	 *
-	 * @returns true is hold mode was enabled
+	 * @returns A promise that resolves when hold stops, returns undefined if hold mode could not be enabled.
 	 */
-	enableKeybindingHoldMode(commandId: string): boolean;
+	enableKeybindingHoldMode(commandId: string): Promise<void> | undefined;
 
 	dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void;
 
