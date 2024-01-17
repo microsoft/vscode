@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BugIndicatingError } from 'vs/base/common/errors';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, IObservable, BaseObservable, IObserver, _setDerivedOpts, IChangeContext, getFunctionName, DebugNameFn, getDebugName, Owner } from 'vs/base/common/observableInternal/base';
+import { assertFn } from 'vs/base/common/assert';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { BaseObservable, DebugNameFn, IChangeContext, IObservable, IObserver, IReader, Owner, _setDerivedOpts, getDebugName, getFunctionName } from 'vs/base/common/observableInternal/base';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
 export type EqualityComparer<T> = (a: T, b: T) => boolean;
@@ -300,9 +300,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 				r.endUpdate(this);
 			}
 		}
-		if (this.updateCount < 0) {
-			throw new BugIndicatingError();
-		}
+		assertFn(() => this.updateCount >= 0);
 	}
 
 	public handlePossibleChange<T>(observable: IObservable<T, unknown>): void {
