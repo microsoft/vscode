@@ -835,7 +835,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderProgressMessage(progress: IChatProgressMessage, showSpinner: boolean): IMarkdownRenderResult {
 		if (showSpinner) {
 			// this step is in progress, communicate it to SR users
-			console.log(progress.content.value);
 			alert(progress.content.value);
 		}
 		const codicon = showSpinner ? ThemeIcon.modify(Codicon.sync, 'spin').id : Codicon.check.id;
