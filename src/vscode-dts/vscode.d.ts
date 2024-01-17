@@ -9598,7 +9598,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewViewProvider {
 		/**
-		 * Revolves a webview view.
+		 * Resolves a webview view.
 		 *
 		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
 		 * first loaded or when the user hides and then shows a view again.
