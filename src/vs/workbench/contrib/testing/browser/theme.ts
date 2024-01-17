@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { chartsGreen, chartsRed, contrastBorder, diffInserted, diffRemoved, editorBackground, editorErrorForeground, editorForeground, editorInfoForeground, opaque, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TestMessageType, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
@@ -93,11 +93,18 @@ export const testingCoveredBackground = registerColor('testing.coveredBackground
 	hcLight: null
 }, localize('testing.coveredBackground', 'Background color of text that was covered.'));
 
+export const testingCoveredBorder = registerColor('testing.coveredBorder', {
+	dark: transparent(testingCoveredBackground, 0.75),
+	light: transparent(testingCoveredBackground, 0.75),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('testing.coveredBorder', 'Border color of text that was covered.'));
+
 export const testingCoveredGutterBackground = registerColor('testing.coveredGutterBackground', {
 	dark: transparent(diffInserted, 0.6),
 	light: transparent(diffInserted, 0.6),
-	hcDark: null,
-	hcLight: null
+	hcDark: chartsGreen,
+	hcLight: chartsGreen
 }, localize('testing.coveredGutterBackground', 'Gutter color of regions where code was covered.'));
 
 export const testingUncoveredBranchBackground = registerColor('testing.uncoveredBranchBackground', {
@@ -114,11 +121,18 @@ export const testingUncoveredBackground = registerColor('testing.uncoveredBackgr
 	hcLight: null
 }, localize('testing.uncoveredBackground', 'Background color of text that was not covered.'));
 
+export const testingUncoveredBorder = registerColor('testing.uncoveredBorder', {
+	dark: transparent(testingUncoveredBackground, 0.75),
+	light: transparent(testingUncoveredBackground, 0.75),
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('testing.uncoveredBorder', 'Border color of text that was not covered.'));
+
 export const testingUncoveredGutterBackground = registerColor('testing.uncoveredGutterBackground', {
 	dark: transparent(diffRemoved, 1.5),
 	light: transparent(diffRemoved, 1.5),
-	hcDark: null,
-	hcLight: null
+	hcDark: chartsRed,
+	hcLight: chartsRed
 }, localize('testing.uncoveredGutterBackground', 'Gutter color of regions where code not covered.'));
 
 export const testMessageSeverityColors: {
@@ -168,19 +182,13 @@ registerThemingParticipant((theme, collector) => {
 	const missBadgeBackground = editorBg && theme.getColor(testingUncoveredBackground)?.transparent(2).makeOpaque(editorBg);
 
 	collector.addRule(`
-	.coverage-deco-inline.coverage-deco-hit {
-		outline: 1px solid ${theme.getColor(testingCoveredBackground)?.transparent(0.75)};
-	}
 	.coverage-deco-inline.coverage-deco-hit.coverage-deco-hovered {
 		background: ${theme.getColor(testingCoveredBackground)?.transparent(1.3)};
-		outline: 1px solid ${theme.getColor(testingCoveredBackground)?.transparent(2)};
-	}
-	.coverage-deco-inline.coverage-deco-miss {
-		outline: 1px solid ${theme.getColor(testingUncoveredBackground)?.transparent(0.75)};
+		outline-color: ${theme.getColor(testingCoveredBorder)?.transparent(2)};
 	}
 	.coverage-deco-inline.coverage-deco-miss.coverage-deco-hovered {
 		background: ${theme.getColor(testingUncoveredBackground)?.transparent(1.3)};
-		outline: 1px solid ${theme.getColor(testingUncoveredBackground)?.transparent(2)};
+		outline-color: ${theme.getColor(testingUncoveredBorder)?.transparent(2)};
 	}
 	.coverage-deco-branch-miss-indicator::before {
 		border-color: ${missBadgeBackground?.transparent(1.3)};
