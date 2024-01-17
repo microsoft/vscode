@@ -5,7 +5,7 @@
 
 import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { AcceptInlineEdit, JumpToInlineEdit, RejectInlineEdit } from 'vs/editor/contrib/inlineEdit/browser/commands';
-import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/multiGhostTextController';
+import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
 
 registerEditorAction(AcceptInlineEdit);
 registerEditorAction(RejectInlineEdit);
