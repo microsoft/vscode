@@ -803,7 +803,7 @@ if (isWindows || isLinux || isWeb) {
 				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
 			},
 			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(`config.window.titleBarStyle`, 'native')),
-			group: menuId === MenuId.TitleBarTitleContext ? '2_config' : undefined,
+			group: '2_config',
 			order: 0
 		});
 	}
