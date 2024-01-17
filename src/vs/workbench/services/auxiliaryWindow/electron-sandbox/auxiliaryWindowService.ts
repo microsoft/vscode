@@ -11,10 +11,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
@@ -22,6 +21,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { getZoomLevel } from 'vs/base/browser/browser';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 type NativeCodeWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -51,7 +51,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		e.preventDefault();
 		e.returnValue = true;
 
-		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
+		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeAuxiliaryWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
 			this.skipUnloadConfirmation = true;
 			this.nativeHostService.closeWindow({ targetWindowId: this.window.vscodeWindowId });
@@ -89,7 +89,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		if (typeof options?.zoomLevel === 'number') {
 			windowZoomLevel = options.zoomLevel;
 		} else {
-			windowZoomLevel = getZoomLevel(mainWindow);
+			windowZoomLevel = getZoomLevel(getActiveWindow());
 		}
 
 		applyZoom(windowZoomLevel, auxiliaryWindow);

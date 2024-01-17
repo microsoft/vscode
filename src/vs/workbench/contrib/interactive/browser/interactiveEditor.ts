@@ -66,6 +66,7 @@ import { importCss } from 'vs/base/browser/importCss';
 importCss('./media/interactive.css', import.meta.url)
 importCss('./interactiveEditor.css', import.meta.url)
 
+import { mainWindow } from 'vs/base/browser/window';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -388,7 +389,7 @@ export class InteractiveEditor extends EditorPane {
 				MarkerController.ID
 			]),
 			options: this._notebookOptions
-		});
+		}, undefined, this._rootElement ? DOM.getWindow(this._rootElement) : mainWindow);
 
 		this._codeEditorWidget = this._instantiationService.createInstance(CodeEditorWidget, this._inputEditorContainer, this._editorOptions, {
 			...{

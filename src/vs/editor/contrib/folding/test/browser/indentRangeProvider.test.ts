@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
 import { computeRanges } from 'vs/editor/contrib/folding/browser/indentRangeProvider';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -31,6 +32,7 @@ function r(startLineNumber: number, endLineNumber: number, parentIndex: number, 
 }
 
 suite('Indentation Folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Fold one level', () => {
 		const range = [
 			'A',
@@ -151,6 +153,7 @@ const markers: FoldingMarkers = {
 };
 
 suite('Folding with regions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Inside region, indented', () => {
 		assertRanges([
 		/* 1*/	'class A {',

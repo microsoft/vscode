@@ -115,6 +115,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private currentHeight = 0;
 	private currentWidth = 0;
+	private readonly memento: Memento;
 	private readonly panelState: MementoObject;
 
 	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
@@ -141,7 +142,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 	) {
-		const panelState = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const memento = new Memento(Markers.MARKERS_VIEW_STORAGE_ID, storageService);
+		const panelState = memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		super({
 			...options,
 			filterOptions: {
@@ -152,6 +154,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				history: panelState['filterHistory'] || []
 			}
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		this.memento = memento;
 		this.panelState = panelState;
 
 		this.markersModel = this._register(instantiationService.createInstance(MarkersModel));
@@ -897,6 +900,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 		this.panelState['viewMode'] = this.markersViewModel.viewMode;
 
+		this.memento.saveMemento();
 		super.saveState();
 	}
 
@@ -1024,8 +1028,10 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 
 	update(resourceMarkers: ResourceMarkers[]): void {
 		for (const resourceMarker of resourceMarkers) {
-			this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
-			this.rerender(resourceMarker);
+			if (this.hasElement(resourceMarker)) {
+				this.setChildren(resourceMarker, createResourceMarkersIterator(resourceMarker));
+				this.rerender(resourceMarker);
+			}
 		}
 	}
 

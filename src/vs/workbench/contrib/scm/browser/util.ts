@@ -58,7 +58,8 @@ export function isSCMHistoryItemGroupTreeElement(element: any): element is SCMHi
 }
 
 export function isSCMHistoryItemTreeElement(element: any): element is SCMHistoryItemTreeElement {
-	return (element as SCMHistoryItemTreeElement).type === 'historyItem';
+	return (element as SCMHistoryItemTreeElement).type === 'allChanges' ||
+		(element as SCMHistoryItemTreeElement).type === 'historyItem';
 }
 
 export function isSCMHistoryItemChangeTreeElement(element: any): element is SCMHistoryItemChangeTreeElement {

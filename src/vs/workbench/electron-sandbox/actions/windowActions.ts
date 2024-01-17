@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize, localize2 } from 'vs/nls';
-import { ApplyZoomTarget, applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { ApplyZoomTarget, MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL, applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
@@ -71,9 +71,6 @@ abstract class BaseZoomAction extends Action2 {
 	private static readonly ZOOM_LEVEL_SETTING_KEY = 'window.zoomLevel';
 	private static readonly ZOOM_PER_WINDOW_SETTING_KEY = 'window.zoomPerWindow';
 
-	private static readonly MAX_ZOOM_LEVEL = 8;
-	private static readonly MIN_ZOOM_LEVEL = -8;
-
 	constructor(desc: Readonly<IAction2Options>) {
 		super(desc);
 	}
@@ -111,7 +108,7 @@ abstract class BaseZoomAction extends Action2 {
 
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
-		if (level > BaseZoomAction.MAX_ZOOM_LEVEL || level < BaseZoomAction.MIN_ZOOM_LEVEL) {
+		if (level > MAX_ZOOM_LEVEL || level < MIN_ZOOM_LEVEL) {
 			return; // https://github.com/microsoft/vscode/issues/48357
 		}
 

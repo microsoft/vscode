@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { combinedDisposable, DisposableStore, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -34,7 +34,8 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Component } from 'vs/workbench/common/component';
 import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_HEADER_FOREGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, SIDE_BAR_SECTION_HEADER_FOREGROUND } from 'vs/workbench/common/theme';
-import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
+import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
@@ -326,7 +327,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
 	protected readonly viewContainerModel: IViewContainerModel;
-	private viewDisposables: IDisposable[] = [];
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTitleAreaUpdate: Event<void> = this._onTitleAreaUpdate.event;
@@ -396,7 +396,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
-		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
 	}
 
@@ -659,11 +658,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return optimalWidth + additionalMargin;
 	}
 
-	addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
+	addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		const wasMerged = this.isViewMergedWithContainer();
 
-		for (const { pane: pane, size, index } of panes) {
-			this.addPane(pane, size, index);
+		for (const { pane: pane, size, index, disposable } of panes) {
+			this.addPane(pane, size, disposable, index);
 		}
 
 		this.updateViewHeaders();
@@ -775,7 +774,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
-		const panesToAdd: { pane: ViewPane; size: number; index: number }[] = [];
+		const panesToAdd: { pane: ViewPane; size: number; index: number; disposable: IDisposable }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {
 			const pane = this.createView(viewDescriptor,
@@ -797,8 +796,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
 			});
 
-			this.viewDisposables.splice(index, 0, combinedDisposable(contextMenuDisposable, collapseDisposable));
-			panesToAdd.push({ pane, size: size || pane.minimumSize, index });
+			panesToAdd.push({ pane, size: size || pane.minimumSize, index, disposable: combinedDisposable(contextMenuDisposable, collapseDisposable) });
 		}
 
 		this.addPanes(panesToAdd);
@@ -816,14 +814,18 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		removed = removed.sort((a, b) => b.index - a.index);
 		const panesToRemove: ViewPane[] = [];
 		for (const { index } of removed) {
-			const [disposable] = this.viewDisposables.splice(index, 1);
-			disposable.dispose();
-			panesToRemove.push(this.panes[index]);
+			const paneItem = this.paneItems[index];
+			if (paneItem) {
+				panesToRemove.push(this.paneItems[index].pane);
+			}
 		}
-		this.removePanes(panesToRemove);
 
-		for (const pane of panesToRemove) {
-			pane.setVisible(false);
+		if (panesToRemove.length) {
+			this.removePanes(panesToRemove);
+
+			for (const pane of panesToRemove) {
+				pane.setVisible(false);
+			}
 		}
 	}
 
@@ -835,7 +837,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
-	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
+	private addPane(pane: ViewPane, size: number, disposable: IDisposable, index = this.paneItems.length - 1): void {
 		const onDidFocus = pane.onDidFocus(() => {
 			this._onDidFocusView.fire(pane);
 			this.lastFocusedPane = pane;
@@ -864,6 +866,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 
 		const store = new DisposableStore();
+		store.add(disposable);
 		store.add(combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, onDidChange, onDidChangeVisibility));
 		const paneItem: IViewPaneItem = { pane, disposable: store };
 

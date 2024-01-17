@@ -25,7 +25,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -56,6 +56,7 @@ import { TestUriType, buildTestUri, parseTestUri } from 'vs/workbench/contrib/te
 
 const MAX_INLINE_MESSAGE_LENGTH = 128;
 const MAX_TESTS_IN_SUBMENU = 30;
+const GLYPH_MARGIN_LANE = GlyphMarginLane.Center;
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -586,6 +587,7 @@ const createRunTestDecoration = (tests: readonly IncrementalTestCollectionItem[]
 
 				return hoverMessage;
 			},
+			glyphMargin: { position: GLYPH_MARGIN_LANE },
 			glyphMarginClassName,
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			zIndex: 10000,
@@ -741,6 +743,7 @@ abstract class RunTestDecoration {
 	/** @inheritdoc */
 	public click(e: IEditorMouseEvent): boolean {
 		if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+			|| e.target.detail.glyphMarginLane !== GLYPH_MARGIN_LANE
 			// handled by editor gutter context menu
 			|| e.event.rightButton
 			|| isMacintosh && e.event.leftButton && e.event.ctrlKey
@@ -754,11 +757,14 @@ abstract class RunTestDecoration {
 				this.showContextMenu(e);
 				break;
 			case DefaultGutterClickAction.Debug:
-				(alternateAction ? this.defaultRun() : this.defaultDebug());
+				this.runWith(alternateAction ? TestRunProfileBitset.Run : TestRunProfileBitset.Debug);
+				break;
+			case DefaultGutterClickAction.Coverage:
+				this.runWith(alternateAction ? TestRunProfileBitset.Debug : TestRunProfileBitset.Coverage);
 				break;
 			case DefaultGutterClickAction.Run:
 			default:
-				(alternateAction ? this.defaultDebug() : this.defaultRun());
+				this.runWith(alternateAction ? TestRunProfileBitset.Debug : TestRunProfileBitset.Run);
 				break;
 		}
 
@@ -798,17 +804,10 @@ abstract class RunTestDecoration {
 	 */
 	abstract getContextMenuActions(): IReference<IAction[]>;
 
-	protected defaultRun() {
+	protected runWith(profile: TestRunProfileBitset) {
 		return this.testService.runTests({
 			tests: this.tests.map(({ test }) => test),
-			group: TestRunProfileBitset.Run,
-		});
-	}
-
-	protected defaultDebug() {
-		return this.testService.runTests({
-			tests: this.tests.map(({ test }) => test),
-			group: TestRunProfileBitset.Debug,
+			group: profile,
 		});
 	}
 
@@ -823,6 +822,8 @@ abstract class RunTestDecoration {
 				return localize('testing.gutterMsg.contextMenu', 'Click for test options');
 			case DefaultGutterClickAction.Debug:
 				return localize('testing.gutterMsg.debug', 'Click to debug tests, right click for more options');
+			case DefaultGutterClickAction.Coverage:
+				return localize('testing.gutterMsg.coverage', 'Click to run tests with coverage, right click for more options');
 			case DefaultGutterClickAction.Run:
 			default:
 				return localize('testing.gutterMsg.run', 'Click to run tests, right click for more options');
@@ -835,19 +836,17 @@ abstract class RunTestDecoration {
 	protected getTestContextMenuActions(test: InternalTestItem, resultItem?: TestResultItem): IReference<IAction[]> {
 		const testActions: IAction[] = [];
 		const capabilities = this.testProfileService.capabilitiesForTest(test);
-		if (capabilities & TestRunProfileBitset.Run) {
-			testActions.push(new Action('testing.gutter.run', localize('run test', 'Run Test'), undefined, undefined, () => this.testService.runTests({
-				group: TestRunProfileBitset.Run,
-				tests: [test],
-			})));
-		}
 
-		if (capabilities & TestRunProfileBitset.Debug) {
-			testActions.push(new Action('testing.gutter.debug', localize('debug test', 'Debug Test'), undefined, undefined, () => this.testService.runTests({
-				group: TestRunProfileBitset.Debug,
-				tests: [test],
-			})));
-		}
+		[
+			{ bitset: TestRunProfileBitset.Run, label: localize('run test', 'Run Test') },
+			{ bitset: TestRunProfileBitset.Debug, label: localize('debug test', 'Debug Test') },
+			{ bitset: TestRunProfileBitset.Coverage, label: localize('coverage test', 'Run with Coverage') },
+		].forEach(({ bitset, label }) => {
+			if (capabilities & bitset) {
+				testActions.push(new Action(`testing.gutter.${bitset}`, label, undefined, undefined,
+					() => this.testService.runTests({ group: bitset, tests: [test] })));
+			}
+		});
 
 		if (capabilities & TestRunProfileBitset.HasNonDefaultProfile) {
 			testActions.push(new Action('testing.runUsing', localize('testing.runUsing', 'Execute Using Profile...'), undefined, undefined, async () => {
@@ -924,17 +923,19 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		super(tests, visible, model, codeEditorService, testService, contextMenuService, commandService, configurationService, testProfileService, contextKeyService, menuService);
 	}
 
-	override getContextMenuActions() {
+	public override getContextMenuActions() {
 		const allActions: IAction[] = [];
-		const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Run);
-		if (canRun) {
-			allActions.push(new Action('testing.gutter.runAll', localize('run all test', 'Run All Tests'), undefined, undefined, () => this.defaultRun()));
-		}
 
-		const canDebug = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & TestRunProfileBitset.Debug);
-		if (canDebug) {
-			allActions.push(new Action('testing.gutter.debugAll', localize('debug all test', 'Debug All Tests'), undefined, undefined, () => this.defaultDebug()));
-		}
+		[
+			{ bitset: TestRunProfileBitset.Run, label: localize('run all test', 'Run All Tests') },
+			{ bitset: TestRunProfileBitset.Coverage, label: localize('run all test with coverage', 'Run All Tests with Coverage') },
+			{ bitset: TestRunProfileBitset.Debug, label: localize('debug all test', 'Debug All Tests') },
+		].forEach(({ bitset, label }, i) => {
+			const canRun = this.tests.some(({ test }) => this.testProfileService.capabilitiesForTest(test) & bitset);
+			if (canRun) {
+				allActions.push(new Action(`testing.gutter.run${i}`, label, undefined, undefined, () => this.runWith(bitset)));
+			}
+		});
 
 		const testItems = this.tests.map((testItem): IMultiRunTest => ({
 			currentLabel: testItem.test.item.label,

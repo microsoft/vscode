@@ -407,7 +407,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
-		this.layoutService.mainContainer.appendChild(this._overlayContainer);
+		if (creationOptions.codeWindow) {
+			this.layoutService.getContainer(creationOptions.codeWindow).appendChild(this._overlayContainer);
+		} else {
+			this.layoutService.mainContainer.appendChild(this._overlayContainer);
+		}
+
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._isVisible = true;
@@ -867,7 +872,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// chat
 		styleSheets.push(`
 		.monaco-workbench .notebookOverlay .cell-chat-part {
-			margin: 0 ${cellRightMargin}px 6px 6px;
+			margin: 0 ${cellRightMargin}px 6px 4px;
 		}
 		`);
 
@@ -2246,6 +2251,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 			if (!this.viewModel?.hasCell(cell)) {
 				// Cell removed in the meantime?
+				return;
+			}
+
+			if (this._list.getViewIndex(cell) === undefined) {
+				// Cell can be hidden
 				return;
 			}
 

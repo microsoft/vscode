@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptor, IEditableData, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -741,6 +742,7 @@ const TunnelViewMultiSelectionKeyName = 'tunnelViewMultiSelection';
 // host:port[]
 const TunnelViewMultiSelectionContextKey = new RawContextKey<string[] | undefined>(TunnelViewMultiSelectionKeyName, undefined, true);
 const PortChangableContextKey = new RawContextKey<boolean>('portChangable', false, true);
+const ProtocolChangeableContextKey = new RawContextKey<boolean>('protocolChangable', true, true);
 
 export class TunnelPanel extends ViewPane {
 
@@ -759,6 +761,7 @@ export class TunnelPanel extends ViewPane {
 	private tunnelViewSelectionContext: IContextKey<string | undefined>;
 	private tunnelViewMultiSelectionContext: IContextKey<string[] | undefined>;
 	private portChangableContextKey: IContextKey<boolean>;
+	private protocolChangableContextKey: IContextKey<boolean>;
 	private isEditing: boolean = false;
 	private titleActions: IAction[] = [];
 	private lastFocus: number[] = [];
@@ -789,6 +792,8 @@ export class TunnelPanel extends ViewPane {
 		this.tunnelPrivacyContext = TunnelPrivacyContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyEnabledContext = TunnelPrivacyEnabledContextKey.bindTo(contextKeyService);
 		this.tunnelPrivacyEnabledContext.set(tunnelService.canChangePrivacy);
+		this.protocolChangableContextKey = ProtocolChangeableContextKey.bindTo(contextKeyService);
+		this.protocolChangableContextKey.set(tunnelService.canChangeProtocol);
 		this.tunnelProtocolContext = TunnelProtocolContextKey.bindTo(contextKeyService);
 		this.tunnelViewFocusContext = TunnelViewFocusContextKey.bindTo(contextKeyService);
 		this.tunnelViewSelectionContext = TunnelViewSelectionContextKey.bindTo(contextKeyService);
@@ -812,8 +817,16 @@ export class TunnelPanel extends ViewPane {
 
 		this.registerPrivacyActions();
 		this._register(Event.once(this.tunnelService.onAddedTunnelProvider)(() => {
+			let updated = false;
 			if (this.tunnelPrivacyEnabledContext.get() === false) {
 				this.tunnelPrivacyEnabledContext.set(tunnelService.canChangePrivacy);
+				updated = true;
+			}
+			if (this.protocolChangableContextKey.get() === true) {
+				this.protocolChangableContextKey.set(tunnelService.canChangeProtocol);
+				updated = true;
+			}
+			if (updated) {
 				updateActions();
 				this.registerPrivacyActions();
 				this.createTable();
@@ -1707,7 +1720,7 @@ MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	order: 3,
 	submenu: MenuId.TunnelProtocol,
 	title: nls.localize('tunnelContext.protocolMenu', "Change Port Protocol"),
-	when: ContextKeyExpr.and(isForwardedExpr, isNotMultiSelectionExpr)
+	when: ContextKeyExpr.and(isForwardedExpr, isNotMultiSelectionExpr, ProtocolChangeableContextKey)
 }));
 MenuRegistry.appendMenuItem(MenuId.TunnelContext, ({
 	group: '3_forward',

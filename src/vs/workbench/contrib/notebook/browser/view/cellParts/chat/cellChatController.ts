@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindow, h } from 'vs/base/browser/dom';
+import { Dimension, WindowIntervalTimer } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -29,7 +29,8 @@ import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { EmptyResponse, ErrorResponse, IInlineChatSessionService, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -38,6 +39,7 @@ import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbe
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
+export const MENU_CELL_CHAT_INPUT = MenuId.for('cellChatInput');
 export const MENU_CELL_CHAT_WIDGET = MenuId.for('cellChatWidget');
 export const MENU_CELL_CHAT_WIDGET_STATUS = MenuId.for('cellChatWidget.status');
 export const MENU_CELL_CHAT_WIDGET_FEEDBACK = MenuId.for('cellChatWidget.feedback');
@@ -62,7 +64,6 @@ export class NotebookCellChatController extends Disposable {
 
 	private _inlineChatListener: IDisposable | undefined;
 	private _widget: InlineChatWidget | undefined;
-	private readonly _toolbarDOM = h('div.toolbar@editorToolbar');
 	private _toolbar: MenuWorkbenchToolBar | undefined;
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
@@ -110,7 +111,8 @@ export class NotebookCellChatController extends Disposable {
 
 	private _initialize(editor: IActiveCodeEditor) {
 		this._widget = this._instantiationService.createInstance(InlineChatWidget, editor, {
-			menuId: MENU_CELL_CHAT_WIDGET,
+			menuId: MENU_CELL_CHAT_INPUT,
+			widgetMenuId: MENU_CELL_CHAT_WIDGET,
 			statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 			feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
 		});
@@ -135,12 +137,6 @@ export class NotebookCellChatController extends Disposable {
 
 
 		this._partContainer.appendChild(this._widget.domNode);
-		this._partContainer.appendChild(this._toolbarDOM.editorToolbar);
-
-		this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarDOM.editorToolbar, MENU_CELL_CHAT_WIDGET_TOOLBAR, {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
-		}));
 	}
 
 	public override dispose(): void {
@@ -154,13 +150,14 @@ export class NotebookCellChatController extends Disposable {
 		try {
 			if (this._widget) {
 				this._partContainer.removeChild(this._widget.domNode);
-				this._partContainer.removeChild(this._toolbarDOM.editorToolbar);
 			}
 
 		} catch (_ex) {
 			// might not be attached
 		}
 
+		// dismiss since we can't restore  the widget properly now
+		this.dismiss(false);
 		this._widget?.dispose();
 		this._inlineChatListener?.dispose();
 		this._toolbar?.dispose();
@@ -171,29 +168,33 @@ export class NotebookCellChatController extends Disposable {
 		super.dispose();
 	}
 
+	isWidgetVisible() {
+		return this._isVisible;
+	}
+
 	layout() {
 		if (this._isVisible && this._widget) {
-			const innerEditorWidth = this._cell.layoutInfo.editorWidth;
+			const width = this._notebookEditor.getLayoutInfo().width - (/** margin */ 16 + 6) - (/** padding */ 6 * 2);
 			const height = this._widget.getHeight();
-			this._widget.layout(new Dimension(innerEditorWidth, height));
+			this._widget.layout(new Dimension(width, height));
 		}
 	}
 
 	private _updateHeight() {
-		const margin = 6;
-		const heightWithMargin = this._isVisible && this._widget
-			? (this._widget.getHeight() - 8 /** shadow */ - 18 /** padding */ + margin /** bottom margin for the cell part */)
+		const surrounding = 6 * 2 /** padding */ + 6 /** cell chat widget margin bottom */ + 2 /** border */;
+		const heightWithPadding = this._isVisible && this._widget
+			? (this._widget.getHeight() - 8 /** shadow */ - 18 /** padding */ - 6 /** widget's internal margin top */ + surrounding)
 			: 0;
 
-		if (this._cell.chatHeight === heightWithMargin) {
+		if (this._cell.chatHeight === heightWithPadding) {
 			return;
 		}
 
-		this._cell.chatHeight = heightWithMargin;
-		this._partContainer.style.height = `${heightWithMargin - margin}px`;
+		this._cell.chatHeight = heightWithPadding;
+		this._partContainer.style.height = `${heightWithPadding - surrounding}px`;
 	}
 
-	async show() {
+	async show(input?: string, autoSend?: boolean) {
 		this._isVisible = true;
 		if (!this._widget) {
 			const editor = this._getCellEditor();
@@ -232,7 +233,19 @@ export class NotebookCellChatController extends Disposable {
 				this._widget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 				this._widget.focus();
 			}
+
+			if (this._widget && input) {
+				this._widget.value = input;
+
+				if (autoSend) {
+					this.acceptInput();
+				}
+			}
 		});
+	}
+
+	async focusWidget() {
+		this._widget?.focus();
 	}
 
 	private _getCellEditor() {
@@ -288,7 +301,8 @@ export class NotebookCellChatController extends Disposable {
 			attempt: 0,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			live: true
+			live: true,
+			withIntentDetection: true, // TODO: don't hard code but allow in corresponding UI to run without intent detection?
 		};
 
 		const requestCts = new CancellationTokenSource();
@@ -468,7 +482,7 @@ class EditStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(getWindow(editor.getContainerDomNode()), edit, speed, opts.token));
+			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(new WindowIntervalTimer(), edit, speed, opts.token));
 		}
 	}
 

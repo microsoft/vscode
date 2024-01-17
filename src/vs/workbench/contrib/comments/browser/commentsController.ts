@@ -26,7 +26,7 @@ import { isMouseUpEventDragFromMouseDown, parseMouseDownInfoFromEvent, ReviewZon
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
@@ -519,6 +519,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 		this._editorDisposables.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this._editorDisposables.push(this.editor.onMouseLeave(() => this.onEditorMouseLeave()));
 		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
 		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor?.getPosition() ?? null)));
 		this._editorDisposables.push(this.editor.onDidChangeCursorSelection(e => this.onEditorChangeCursorSelection(e)));
@@ -528,6 +529,10 @@ export class CommentController implements IEditorContribution {
 	private clearEditorListeners() {
 		dispose(this._editorDisposables);
 		this._editorDisposables = [];
+	}
+
+	private onEditorMouseLeave() {
+		this._commentingRangeDecorator.updateHover();
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {

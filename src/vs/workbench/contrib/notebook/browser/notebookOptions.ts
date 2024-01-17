@@ -269,7 +269,6 @@ export class NotebookOptions extends Disposable {
 				source: ConfigurationTarget.DEFAULT,
 				affectedKeys: new Set([NotebookSetting.insertToolbarLocation]),
 				change: { keys: [NotebookSetting.insertToolbarLocation], overrides: [] },
-				sourceConfig: undefined
 			});
 		}
 	}
