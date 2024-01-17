@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -151,7 +151,18 @@ export class SpeechService extends Disposable implements ISpeechService {
 
 		const session = this._activeSpeechToTextSession = provider.createSpeechToTextSession(token);
 
-		const disposable = session.onDidChange(e => {
+		const disposables = new DisposableStore();
+
+		const onSessionStoppedOrCanceled = () => {
+			this._activeSpeechToTextSession = undefined;
+			this._onDidEndSpeechToTextSession.fire();
+
+			disposables.dispose();
+		};
+
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+
+		disposables.add(session.onDidChange(e => {
 			if (session !== this._activeSpeechToTextSession) {
 				return; // not the latest anymore
 			}
@@ -161,12 +172,10 @@ export class SpeechService extends Disposable implements ISpeechService {
 					this._onDidStartSpeechToTextSession.fire();
 					break;
 				case SpeechToTextStatus.Stopped:
-					this._activeSpeechToTextSession = undefined;
-					this._onDidEndSpeechToTextSession.fire();
-					disposable.dispose();
+					onSessionStoppedOrCanceled();
 					break;
 			}
-		});
+		}));
 
 		return session;
 	}
