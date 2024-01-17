@@ -2411,14 +2411,14 @@ export namespace PartialAcceptMetadata {
 export namespace PartialAcceptTriggerKind {
 	export function to(kind: languages.PartialAcceptTriggerKind): types.PartialAcceptTriggerKind {
 		switch (type) {
-			case languages.PartialAcceptTriggerKind.TOKEN:
-				return types.PartialAcceptTriggerKind.TOKEN;
-			case languages.PartialAcceptTriggerKind.LINE:
-				return types.PartialAcceptTriggerKind.LINE;
-			case languages.PartialAcceptTriggerKind.DROPDOWN:
-				return types.PartialAcceptTriggerKind.DROPDOWN;
+			case languages.PartialAcceptTriggerKind.Word:
+				return types.PartialAcceptTriggerKind.Word;
+			case languages.PartialAcceptTriggerKind.Line:
+				return types.PartialAcceptTriggerKind.Line;
+			case languages.PartialAcceptTriggerKind.Suggest:
+				return types.PartialAcceptTriggerKind.Suggest;
 			default:
-				return types.PartialAcceptTriggerKind.UNKNOWN;
+				return types.PartialAcceptTriggerKind.Unknown;
 		}
 	}
 }
