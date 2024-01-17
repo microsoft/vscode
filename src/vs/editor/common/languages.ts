@@ -547,6 +547,23 @@ export interface CompletionList {
 	duration?: number;
 }
 
+
+/**
+ * Metadata provided on partial acceptance.
+ */
+export interface PartialAcceptMetadata {
+	kind: PartialAcceptTriggerKind
+}
+
+/**
+ * How a partial acceptance was triggered.
+ */
+export const enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2,
+}
+
 /**
  * How a suggest provider was triggered.
  */

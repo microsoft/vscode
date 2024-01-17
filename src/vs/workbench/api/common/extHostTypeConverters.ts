@@ -2394,3 +2394,31 @@ export namespace TerminalQuickFix {
 		return converter.toInternal(quickFix, disposables);
 	}
 }
+
+
+export namespace PartialAcceptMetadata {
+	export function to(metadata: undefined): undefined
+	export function to(metadata: languages.PartialAcceptMetadata): types.PartialAcceptMetadata {
+		if (!metadata) {
+			return undefined;
+		}
+		return {
+			kind: PartialAcceptTriggerKind.to(metadata.kind)
+		}
+	}
+}
+
+export namespace PartialAcceptTriggerKind {
+	export function to(kind: languages.PartialAcceptTriggerKind): types.PartialAcceptTriggerKind {
+		switch (type) {
+			case languages.PartialAcceptTriggerKind.TOKEN:
+				return types.PartialAcceptTriggerKind.TOKEN;
+			case languages.PartialAcceptTriggerKind.LINE:
+				return types.PartialAcceptTriggerKind.LINE;
+			case languages.PartialAcceptTriggerKind.DROPDOWN:
+				return types.PartialAcceptTriggerKind.DROPDOWN;
+			default:
+				return types.PartialAcceptTriggerKind.UNKNOWN;
+		}
+	}
+}

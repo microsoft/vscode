@@ -52,7 +52,7 @@ declare module 'vscode' {
 		 * @param acceptedLength The length of the substring of the inline completion that was accepted already.
 		 */
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number): void;
+		handleDidPartiallyAcceptCompletionItem?(completionItem: InlineCompletionItem, acceptedLength: number, metadata?: PartialAcceptMetadata): void;
 	}
 
 	// When finalizing `commands`, make sure to add a corresponding constructor parameter.

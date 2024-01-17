@@ -593,9 +593,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
 				}
 			},
-			handlePartialAccept: async (completions, item, acceptedCharacters): Promise<void> => {
+			handlePartialAccept: async (completions, item, acceptedCharacters, metadata?): Promise<void> => {
 				if (supportsHandleEvents) {
-					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters);
+					await this._proxy.$handleInlineCompletionPartialAccept(handle, completions.pid, item.idx, acceptedCharacters, metadata);
 				}
 			},
 			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {

@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { equals, mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, SyntaxTokenType, PartialAcceptMetadata } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -1185,7 +1185,7 @@ class InlineCompletionAdapterBase {
 
 	handleDidShowCompletionItem(pid: number, idx: number, updatedInsertText: string): void { }
 
-	handlePartialAccept(pid: number, idx: number, acceptedCharacters: number): void { }
+	handlePartialAccept(pid: number, idx: number, acceptedCharacters: number, metadata?: languages.PartialAcceptMetadata): void { }
 }
 
 class InlineCompletionAdapter extends InlineCompletionAdapterBase {
@@ -1300,11 +1300,11 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		}
 	}
 
-	override handlePartialAccept(pid: number, idx: number, acceptedCharacters: number): void {
+	override handlePartialAccept(pid: number, idx: number, acceptedCharacters: number, metadata?: languages.PartialAcceptMetadata): void {
 		const completionItem = this._references.get(pid)?.items[idx];
 		if (completionItem) {
 			if (this._provider.handleDidPartiallyAcceptCompletionItem && this._isAdditionsProposedApiEnabled) {
-				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, acceptedCharacters);
+				this._provider.handleDidPartiallyAcceptCompletionItem(completionItem, acceptedCharacters, typeConvert.PartialAcceptMetadata.to(metadata));
 			}
 		}
 	}
@@ -2359,9 +2359,9 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		}, undefined, undefined);
 	}
 
-	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number): void {
+	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, metadata?: languages.PartialAcceptMetadata): void {
 		this._withAdapter(handle, InlineCompletionAdapterBase, async adapter => {
-			adapter.handlePartialAccept(pid, idx, acceptedCharacters);
+			adapter.handlePartialAccept(pid, idx, acceptedCharacters, metadata);
 		}, undefined, undefined);
 	}
 

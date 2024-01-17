@@ -1795,6 +1795,16 @@ export class InlineSuggestionList implements vscode.InlineCompletionList {
 	}
 }
 
+export interface PartialAcceptMetadata {
+	kind: PartialAcceptTriggerKind;
+}
+
+export enum PartialAcceptTriggerKind {
+	Word = 0,
+	Line = 1,
+	Suggest = 2,
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
