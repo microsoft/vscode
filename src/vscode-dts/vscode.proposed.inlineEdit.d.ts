@@ -61,6 +61,18 @@ declare module 'vscode' {
 		Automatic = 1,
 	}
 
+	export enum InlineEditRejectionReason {
+		/**
+		 * User rejected the inline edit with reject command.
+		 */
+		Explicit = 0,
+
+		/**
+		 * User rejected the inline edit by changing or closing the document.
+		 */
+		Implicit = 1,
+	}
+
 	export interface InlineEditProvider {
 		/**
 		 * Provide inline edit for the given document.
