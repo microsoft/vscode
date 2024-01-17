@@ -1180,6 +1180,10 @@ class ContentReferencesListPool extends Disposable {
 			[new ContentReferencesListRenderer(resourceLabels)],
 			{
 				alwaysConsumeMouseWheel: false,
+				accessibilityProvider: {
+					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
+					getWidgetAriaLabel: () => localize('usedReferences', "Used References")
+				},
 			});
 
 		return list;
