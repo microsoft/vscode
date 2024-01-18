@@ -5,7 +5,6 @@
 
 import { $, addDisposableListener, append, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { importCss } from 'vs/base/browser/importCss';
 import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
@@ -15,9 +14,8 @@ import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } fr
 import { clamp } from 'vs/base/common/numbers';
 import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import * as types from 'vs/base/common/types';
+import 'vs/css!./splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
-
-importCss('./splitview.css', import.meta.url)
 
 export interface ISplitViewStyles {
 	readonly separatorBorder: Color;
