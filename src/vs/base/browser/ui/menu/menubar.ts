@@ -20,10 +20,8 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import 'vs/css!./menubar';
 import * as nls from 'vs/nls';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./menubar.css', import.meta.url)
 import { mainWindow } from 'vs/base/browser/window';
 
 const $ = DOM.$;
