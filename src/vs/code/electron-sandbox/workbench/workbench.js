@@ -23,7 +23,7 @@ performance.mark('code/didStartRenderer');
 // 	function (desktopMain, configuration) {
 
 // 		// Mark start of workbench
-// 		performance.mark('code/didLoadWorkbenchMain');
+performance.mark('code/didLoadWorkbenchMain');
 
 // 		return desktopMain.main(configuration);
 // 	},
