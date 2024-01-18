@@ -15,11 +15,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import 'vs/css!./paneview';
 import { localize } from 'vs/nls';
 import { IView, Sizing, SplitView } from './splitview';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./paneview.css', import.meta.url)
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
