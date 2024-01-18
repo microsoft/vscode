@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./outlinePane';
 import * as dom from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -35,10 +36,6 @@ import { AbstractTreeViewState, IAbstractTreeViewState, TreeFindMode } from 'vs/
 import { URI } from 'vs/base/common/uri';
 import { ctxAllCollapsed, ctxFilterOnType, ctxFollowsCursor, ctxSortMode, IOutlinePane, OutlineSortOrder } from 'vs/workbench/contrib/outline/browser/outline';
 import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./outlinePane.css', import.meta.url)
-
 
 class OutlineTreeSorter<E> implements ITreeSorter<E> {
 
