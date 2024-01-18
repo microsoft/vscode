@@ -927,6 +927,10 @@ export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
+export function createStyleSheet2(): WrappedStyleElement {
+	return new WrappedStyleElement();
+}
+
 class WrappedStyleElement {
 
 	private _styleSheet: HTMLStyleElement | undefined = undefined;
@@ -945,10 +949,6 @@ class WrappedStyleElement {
 			this._styleSheet = undefined;
 		}
 	}
-}
-
-export function createStyleSheet2(): WrappedStyleElement {
-	return new WrappedStyleElement();
 }
 
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
