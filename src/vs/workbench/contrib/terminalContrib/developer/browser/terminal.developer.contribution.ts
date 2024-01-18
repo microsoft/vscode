@@ -25,10 +25,6 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import type { Terminal } from '@xterm/xterm';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { getWindow } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/developer.css', import.meta.url)
-
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
