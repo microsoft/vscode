@@ -240,8 +240,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 
-	private _slashCommandProvider: vscode.ChatAgentSlashCommandProvider | undefined;
-	private _lastSlashCommands: vscode.ChatAgentSlashCommand[] | undefined;
+	private _slashCommandProvider: vscode.ChatAgentSubCommandProvider | undefined;
+	private _lastSlashCommands: vscode.ChatAgentSubCommand[] | undefined;
 	private _followupProvider: vscode.FollowupProvider<TResult> | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
@@ -297,7 +297,7 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 		if (!this._slashCommandProvider) {
 			return [];
 		}
-		const result = await this._slashCommandProvider.provideSlashCommands(token);
+		const result = await this._slashCommandProvider.provideSubCommands(token);
 		if (!result) {
 			return [];
 		}
@@ -385,10 +385,10 @@ class ExtHostChatAgent<TResult extends vscode.ChatAgentResult2> {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
-			get slashCommandProvider() {
+			get subCommandProvider() {
 				return that._slashCommandProvider;
 			},
-			set slashCommandProvider(v) {
+			set subCommandProvider(v) {
 				that._slashCommandProvider = v;
 				updateMetadataSoon();
 			},
