@@ -2430,7 +2430,7 @@ export namespace ChatResponseProgress {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, slashCommand: vscode.ChatAgentSlashCommand | undefined): vscode.ChatAgentRequest {
+	export function to(request: IChatAgentRequest, slashCommand: vscode.ChatAgentSubCommand | undefined): vscode.ChatAgentRequest {
 		return {
 			prompt: request.message,
 			variables: ChatVariable.objectTo(request.variables),
