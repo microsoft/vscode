@@ -5,7 +5,7 @@
 
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { COI } from 'vs/base/common/network';
+import { COI, FileAccess } from 'vs/base/common/network';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 
@@ -40,6 +40,12 @@ function getWorker(label: string): Worker | Promise<Worker> {
 		const workerMain = require.toUrl('vs/base/worker/workerMain.js'); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
 		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label });
+	}
+	const isEsm = true
+	if (isEsm) {
+		const workerMain = FileAccess.asBrowserUri('vs/base/worker/workerMain.js').toString()
+		const workerUrl = getWorkerBootstrapUrl(workerMain, label);
+		return new Worker(ttPolicy ? ttPolicy.createScriptURL(workerUrl) as unknown as string : workerUrl, { name: label, type: 'module' });
 	}
 	// ESM-comment-end
 	throw new Error(`You must define a function MonacoEnvironment.getWorkerUrl or MonacoEnvironment.getWorker`);

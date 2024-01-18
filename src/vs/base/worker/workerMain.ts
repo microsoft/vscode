@@ -14,6 +14,7 @@
 	}
 	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
 	const monacoBaseUrl = monacoEnvironment && monacoEnvironment.baseUrl ? monacoEnvironment.baseUrl : '../../../';
+	const isEsm = true
 
 	function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
 		policyName: string,
@@ -111,20 +112,31 @@
 		});
 	}
 
-	function loadCode(moduleId: string) {
+	function handleModuleLoaded(module: any) {
+		const messageHandler = module.create((msg: any, transfer?: Transferable[]) => {
+			(<any>globalThis).postMessage(msg, transfer);
+		}, null);
+
+		globalThis.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
+		while (beforeReadyMessages.length > 0) {
+			const e = beforeReadyMessages.shift()!;
+			messageHandler.onmessage(e.data, e.ports);
+		}
+	}
+
+	async function loadCode(moduleId: string) {
+		if (isEsm) {
+			const modulePath = new URL('../../../' + moduleId + '.js', import.meta.url).toString()
+			console.log({ modulePath })
+			const module = await import(modulePath)
+			handleModuleLoaded((module))
+			return
+		}
 		loadAMDLoader().then(() => {
 			configureAMDLoader();
 			require([moduleId], function (ws) {
 				setTimeout(function () {
-					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
-						(<any>globalThis).postMessage(msg, transfer);
-					}, null);
-
-					globalThis.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
-					while (beforeReadyMessages.length > 0) {
-						const e = beforeReadyMessages.shift()!;
-						messageHandler.onmessage(e.data, e.ports);
-					}
+					handleModuleLoaded(ws)
 				}, 0);
 			});
 		});
@@ -133,7 +145,7 @@
 	// If the loader is already defined, configure it immediately
 	// This helps in the bundled case, where we must load nls files
 	// and they need a correct baseUrl to be loaded.
-	if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
+	if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd && !isEsm) {
 		configureAMDLoader();
 	}
 

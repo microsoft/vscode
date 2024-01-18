@@ -11,6 +11,7 @@ import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
+const isEsm = true
 
 export interface IWorker extends IDisposable {
 	getId(): number;
@@ -536,10 +537,10 @@ export class SimpleWorkerServer<H extends object> {
 			// Use the global require to be sure to get the global config
 
 			// ESM-comment-begin
-			const req = (globalThis.require || require);
+			// const req = (globalThis.require || require);
 			// ESM-comment-end
 			// ESM-uncomment-begin
-			// const req = globalThis.require;
+			const req = globalThis.require;
 			// ESM-uncomment-end
 
 			req([moduleId], (module: { create: IRequestHandlerFactory<H> }) => {
