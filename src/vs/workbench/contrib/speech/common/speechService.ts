@@ -99,7 +99,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	private readonly _onDidUnregisterSpeechProvider = this._register(new Emitter<ISpeechProvider>());
 	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
 
-	get hasSpeechProvider(): boolean { return this.providers.size > 0; }
+	get hasSpeechProvider() { return this.providers.size > 0; }
 
 	private readonly providers = new Map<string, ISpeechProvider>();
 
@@ -154,8 +154,10 @@ export class SpeechService extends Disposable implements ISpeechService {
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = () => {
-			this._activeSpeechToTextSession = undefined;
-			this._onDidEndSpeechToTextSession.fire();
+			if (session === this._activeSpeechToTextSession) {
+				this._activeSpeechToTextSession = undefined;
+				this._onDidEndSpeechToTextSession.fire();
+			}
 
 			disposables.dispose();
 		};
@@ -163,13 +165,11 @@ export class SpeechService extends Disposable implements ISpeechService {
 		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
 
 		disposables.add(session.onDidChange(e => {
-			if (session !== this._activeSpeechToTextSession) {
-				return; // not the latest anymore
-			}
-
 			switch (e.status) {
 				case SpeechToTextStatus.Started:
-					this._onDidStartSpeechToTextSession.fire();
+					if (session === this._activeSpeechToTextSession) {
+						this._onDidStartSpeechToTextSession.fire();
+					}
 					break;
 				case SpeechToTextStatus.Stopped:
 					onSessionStoppedOrCanceled();
