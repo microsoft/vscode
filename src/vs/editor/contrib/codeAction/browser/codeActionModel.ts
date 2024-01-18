@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, timeout, TimeoutTimer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -46,7 +46,11 @@ class CodeActionOracle extends Disposable {
 		this._register(this._editor.onDidChangeCursorPosition(() => this._tryAutoTrigger()));
 	}
 
-	public trigger(trigger: CodeActionTrigger): void {
+	public async trigger(trigger: CodeActionTrigger): Promise<void> {
+		// if (this._markerService.onMarkerChanged(e => this._onMarkerChanges(e)) && trigger.type === CodeActionTriggerType.Invoke) {
+		// 	console.log('got here to debounce');
+		// 	await timeout(300); // debounce
+		// }
 		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
@@ -127,6 +131,8 @@ export namespace CodeActionsState {
 		) {
 			this.actions = _cancellablePromise.catch((e): CodeActionSet => {
 				if (isCancellationError(e)) {
+					// console.log('trigger type: ' + trigger.type);
+					// console.log(trigger.context?.position);
 					return emptyCodeActionSet;
 				}
 				throw e;
@@ -163,6 +169,7 @@ export class CodeActionModel extends Disposable {
 	public readonly onDidChangeState = this._onDidChangeState.event;
 
 	private _disposed = false;
+
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -218,7 +225,7 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
+			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, async trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
 					return;
@@ -228,7 +235,14 @@ export class CodeActionModel extends Disposable {
 
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
+						const allMarkers1 = this._markerService.read({ resource: model.uri });
+						// console.log(allMarkers1.filter(marker => marker.message.includes('DisposableStore')).length > 0 ? 'includes markers' : 'does not include marker');
+
+
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+
+						// console.log(codeActionSet.validActions.filter(action => action.action.title.includes('import')).length > 0 ? 'includes code actions' : 'does not include code actions');
+
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
 							return emptyCodeActionSet;
@@ -317,6 +331,9 @@ export class CodeActionModel extends Disposable {
 					// temporarilly hiding here as this is enabled/disabled behind a setting.
 					return getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
 				});
+
+				// const temp = await actions;
+
 				if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 					this._progressService?.showWhile(actions, 250);
 				}

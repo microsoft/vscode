@@ -127,6 +127,8 @@ export async function getCodeActions(
 			}
 
 			if (cts.token.isCancellationRequested) {
+				console.log('trigger type: ' + trigger.type);
+				console.log(trigger.context?.position);
 				return emptyCodeActionsResponse;
 			}
 
