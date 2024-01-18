@@ -193,7 +193,7 @@ export class TerminalVoiceSession extends Disposable {
 			x: xterm.buffer.active.cursorX + 1 ?? 0,
 		});
 		this._ghostText?.onRender((e: HTMLElement) => {
-			e.classList.add('terminal-voice-progress-text');
+			e.classList.add('terminal-ghost-text');
 			e.textContent = text;
 			e.style.width = 'fit-content';
 		});

@@ -84,11 +84,10 @@ import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { importAMDNodeModule } from 'vs/amdX';
-import type { IMarker, Terminal as XTermTerminal, IDecoration } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 const enum Constants {
 	/**
@@ -187,7 +186,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get usedShellIntegrationInjection(): boolean { return this._usedShellIntegrationInjection; }
 	private _lineDataEventAddon: LineDataEventAddon | undefined;
 	private readonly _scopedContextKeyService: IContextKeyService;
-	private _chatHint: IDecoration | undefined;
 
 	readonly capabilities = new TerminalCapabilityStoreMultiplexer();
 	readonly statusList: ITerminalStatusList;
@@ -366,8 +364,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IChatService private readonly _chatService: IChatService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -573,7 +570,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			this._xtermReadyPromise.then(xterm => {
 				contribution.xtermReady?.(xterm);
-				this._register(Event.runAndSubscribe(Event.once(this._chatService.onDidRegisterProvider), (async () => await this._addChatHint())));
 			});
 			this.onDisposed(() => {
 				contribution.dispose();
@@ -587,26 +583,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		}
-	}
-
-	private async _addChatHint(): Promise<void> {
-		if (!this._chatService.getProviderInfos().length || this._chatHint) {
-			return;
-		}
-		await this._xtermReadyPromise;
-		const marker = this.xterm?.raw.registerMarker();
-		if (!marker) {
-			return;
-		}
-		this._register(marker);
-		this._chatHint = this.xterm?.raw.registerDecoration({
-			marker,
-			x: this.xterm.raw.buffer.active.cursorX
-		});
-		this._chatHint?.onRender((e) => {
-			e.textContent = 'Use CMD+I for help from GitHub Copilot Chat. Start typing to dismiss.';
-			e.classList.add('terminal-voice-progress-text');
-		});
 	}
 
 	public getContribution<T extends ITerminalContribution>(id: string): T | null {

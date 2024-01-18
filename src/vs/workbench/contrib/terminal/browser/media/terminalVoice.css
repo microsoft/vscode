@@ -38,10 +38,3 @@
 		color: var(--vscode-terminalCursor-background);
 	}
 }
-
-.terminal-voice-progress-text {
-	font-style: italic;
-	color: var(--vscode-editorGhostText-foreground) !important;
-	border: 1px solid var(--vscode-editorGhostText-border);
-	z-index: 1000;
-}
