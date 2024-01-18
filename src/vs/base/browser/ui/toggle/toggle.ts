@@ -11,10 +11,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import 'vs/css!./toggle';
 import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./toggle.css', import.meta.url)
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
