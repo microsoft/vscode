@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration, IWindowSettings, TitlebarStyle } from 'vs/platform/window/common/window';
+import { IWindowsConfiguration, IWindowSettings, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -34,7 +34,7 @@ interface IConfiguration extends IWindowsConfiguration {
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
 
 	private static SETTINGS = [
-		'window.titleBarStyle',
+		TitleBarSetting.TITLE_BAR_STYLE,
 		'window.nativeTabs',
 		'window.nativeFullScreen',
 		'window.clickThroughInactive',

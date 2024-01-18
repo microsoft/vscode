@@ -165,9 +165,20 @@ export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
 }
 
+export const enum TitleBarSetting {
+	TITLE_BAR_STYLE = 'window.titleBarStyle',
+	CUSTOM_TITLE_BAR_VISIBILITY = 'window.customTitleBarVisibility',
+}
+
 export const enum TitlebarStyle {
 	NATIVE = 'native',
 	CUSTOM = 'custom',
+}
+
+export const enum CustomTitleBarVisibility {
+	AUTO = 'auto',
+	WINDOWED = 'windowed',
+	NEVER = 'never',
 }
 
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {

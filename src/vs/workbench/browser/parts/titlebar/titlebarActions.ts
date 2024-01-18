@@ -63,7 +63,7 @@ registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 });
 
 registerAction2(class ToggleCustomToolBar extends Action2 {
-	static readonly settingsID = `window.showCustomToolBar`;
+	static readonly settingsID = `window.showCustomTitleBar`;
 
 	constructor() {
 		super({

@@ -6,7 +6,7 @@
 import 'vs/css!./media/menubarControl';
 import { localize, localize2 } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, hasNativeTitlebar } from 'vs/platform/window/common/window';
+import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, hasNativeTitlebar, TitleBarSetting } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
@@ -362,7 +362,7 @@ export abstract class MenubarControl extends Disposable {
 			{
 				label: localize('goToSetting', "Open Settings"),
 				run: () => {
-					return this.preferencesService.openUserSettings({ query: 'window.titleBarStyle' });
+					return this.preferencesService.openUserSettings({ query: TitleBarSetting.TITLE_BAR_STYLE });
 				}
 			}
 		]);
