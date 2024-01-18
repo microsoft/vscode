@@ -563,7 +563,6 @@ suite('Inline Completions', () => {
 		);
 	});
 
-
 	suite('multi cursor', () => {
 		test('test1', async function () {
 			const provider = new MockInlineCompletionsProvider();
@@ -588,9 +587,11 @@ suite('Inline Completions', () => {
 
 					assert.deepStrictEqual(
 						editor.getValue(),
-						`console.log("hello");
-console.log("hello");
-`
+						[
+							`console.log("hello");`,
+							`console.log("hello");`,
+							``
+						].join('\n')
 					);
 				}
 			);
@@ -619,9 +620,45 @@ console.log("hello");
 
 					assert.deepStrictEqual(
 						editor.getValue(),
-						`console.log("hello");
-console.log("hello");
-`
+						[
+							`console.log("hello");`,
+							`console.log("hello");`,
+							``
+						].join('\n')
+					);
+				}
+			);
+		});
+
+		// partial acceptance
+
+		test('partial multicursor acceptance', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('let\nlet\n');
+					editor.setSelections([
+						new Selection(1, 1000, 1, 1000),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: `let a = 'some word'; `,
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					model.acceptNextWord(editor);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						[
+							`let a`,
+							`let a`
+						].join('\n')
 					);
 				}
 			);
