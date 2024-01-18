@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 
+import 'vs/css!./media/dirtydiffDecorator';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { IDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -57,10 +58,6 @@ import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioC
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/dirtydiffDecorator.css', import.meta.url)
-
 
 class DiffActionRunner extends ActionRunner {
 
