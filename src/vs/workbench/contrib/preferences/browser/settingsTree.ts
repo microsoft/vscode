@@ -34,7 +34,7 @@ import { isIOS } from 'vs/base/common/platform';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -2371,7 +2371,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
 				findWidgetEnabled: false,
-				renderIndentGuides: RenderIndentGuides.None
+				renderIndentGuides: RenderIndentGuides.None,
+				transformOptimization: false // Disable transform optimization #177470
 			},
 			instantiationService,
 			contextKeyService,

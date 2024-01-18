@@ -53,7 +53,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		if (this.remoteExplorerService.portsFeaturesEnabled) {
 			this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 		} else {
-			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder(this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING))));
+			this._register(this.remoteExplorerService.onEnabledPortsFeatures(() => this._proxy.$registerCandidateFinder(this.processFindingEnabled())));
 		}
 		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {

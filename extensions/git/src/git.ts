@@ -37,6 +37,7 @@ export interface IFileStatus {
 export interface Stash {
 	index: number;
 	description: string;
+	branchName?: string;
 }
 
 interface MutableRemote extends Remote {
@@ -50,6 +51,8 @@ interface MutableRemote extends Remote {
  * Log file options.
  */
 export interface LogFileOptions {
+	/** Optional. Continue listing the history of a file beyond renames */
+	readonly follow?: boolean;
 	/** Optional. The maximum number of log entries to retrieve. */
 	readonly maxEntries?: number | string;
 	/** Optional. The Git sha (hash) to start retrieving log entries from. */
@@ -267,10 +270,9 @@ export interface IGitErrorData {
 	gitArgs?: string[];
 }
 
-export class GitError {
+export class GitError extends Error {
 
 	error?: Error;
-	message: string;
 	stdout?: string;
 	stderr?: string;
 	exitCode?: number;
@@ -279,15 +281,9 @@ export class GitError {
 	gitArgs?: string[];
 
 	constructor(data: IGitErrorData) {
-		if (data.error) {
-			this.error = data.error;
-			this.message = data.error.message;
-		} else {
-			this.error = undefined;
-			this.message = '';
-		}
+		super(data.error?.message || data.message || 'Git error');
 
-		this.message = this.message || data.message || 'Git error';
+		this.error = data.error;
 		this.stdout = data.stdout;
 		this.stderr = data.stderr;
 		this.exitCode = data.exitCode;
@@ -296,7 +292,7 @@ export class GitError {
 		this.gitArgs = data.gitArgs;
 	}
 
-	toString(): string {
+	override toString(): string {
 		let result = this.message + ' ' + JSON.stringify({
 			exitCode: this.exitCode,
 			gitErrorCode: this.gitErrorCode,
@@ -713,6 +709,12 @@ export class Git {
 	}
 }
 
+export interface CommitShortStat {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface Commit {
 	hash: string;
 	message: string;
@@ -722,6 +724,7 @@ export interface Commit {
 	authorEmail?: string;
 	commitDate?: Date;
 	refNames: string[];
+	shortStat?: CommitShortStat;
 }
 
 interface GitConfigSection {
@@ -873,7 +876,7 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 	return remotes;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	const commits: Commit[] = [];
@@ -886,6 +889,7 @@ export function parseGitCommits(data: string): Commit[] {
 	let parents;
 	let refNames;
 	let message;
+	let shortStat;
 	let match;
 
 	do {
@@ -894,7 +898,7 @@ export function parseGitCommits(data: string): Commit[] {
 			break;
 		}
 
-		[, ref, authorName, authorEmail, authorDate, commitDate, parents, refNames, message] = match;
+		[, ref, authorName, authorEmail, authorDate, commitDate, parents, refNames, message, shortStat] = match;
 
 		if (message[message.length - 1] === '\n') {
 			message = message.substr(0, message.length - 1);
@@ -909,11 +913,25 @@ export function parseGitCommits(data: string): Commit[] {
 			authorName: ` ${authorName}`.substr(1),
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
-			refNames: refNames.split(',').map(s => s.trim())
+			refNames: refNames.split(',').map(s => s.trim()),
+			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined
 		});
 	} while (true);
 
 	return commits;
+}
+
+const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
+
+function parseGitDiffShortStat(data: string): CommitShortStat {
+	const matches = data.trim().match(diffShortStatRegex);
+
+	if (!matches) {
+		return { files: 0, insertions: 0, deletions: 0 };
+	}
+
+	const [, files, insertions = undefined, deletions = undefined] = matches;
+	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 }
 
 interface LsTreeElement {
@@ -945,6 +963,38 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
+function parseGitStashes(raw: string): Stash[] {
+	const result: Stash[] = [];
+	const regex = /^stash@{(\d+)}:(.+)$/;
+	const descriptionRegex = /(WIP\s)*on([^:]+):(.*)$/i;
+
+	for (const stash of raw.split('\n').filter(s => !!s)) {
+		// Extract index and description
+		const match = regex.exec(stash);
+		if (!match) {
+			continue;
+		}
+
+		const [, index, description] = match;
+
+		// Extract branch name from description
+		const descriptionMatch = descriptionRegex.exec(description);
+		if (!descriptionMatch) {
+			result.push({ index: parseInt(index), description: description.trim() });
+			continue;
+		}
+
+		const [, wip, branchName, message] = descriptionMatch;
+		result.push({
+			index: parseInt(index),
+			description: wip ? `WIP (${message.trim()})` : message.trim(),
+			branchName: branchName.trim()
+		});
+	}
+
+	return result;
 }
 
 export interface PullOptions {
@@ -1000,8 +1050,14 @@ export class Repository {
 			args.push(value);
 		}
 
-		const result = await this.exec(args, options);
-		return result.stdout.trim();
+		try {
+			const result = await this.exec(args, options);
+			return result.stdout.trim();
+		}
+		catch (err) {
+			this.logger.warn(`git config failed: ${err.message}`);
+			return '';
+		}
 	}
 
 	async getConfigs(scope: string): Promise<{ key: string; value: string }[]> {
@@ -1024,6 +1080,14 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.shortStats) {
+			args.push('--shortstat');
+
+			if (this._git.compareGitVersionTo('2.31') !== -1) {
+				args.push('--diff-merges=first-parent');
+			}
+		}
 
 		if (options?.reverse) {
 			args.push('--reverse', '--ancestry-path');
@@ -1072,15 +1136,28 @@ export class Repository {
 			args.push('--author-date-order');
 		}
 
-		args.push('--', uri.fsPath);
-
-		const result = await this.exec(args);
-		if (result.exitCode) {
-			// No file history, e.g. a new file or untracked
-			return [];
+		if (options?.follow) {
+			args.push('--follow');
 		}
 
-		return parseGitCommits(result.stdout);
+		args.push('--', uri.fsPath);
+
+		try {
+			const result = await this.exec(args);
+			if (result.exitCode) {
+				// No file history, e.g. a new file or untracked
+				return [];
+			}
+
+			return parseGitCommits(result.stdout);
+		} catch (err) {
+			// Repository has no commits yet
+			if (/does not have any commits yet/.test(err.stderr)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async reflog(ref: string, pattern: string): Promise<string[]> {
@@ -1173,7 +1250,9 @@ export class Repository {
 		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
 
 		if (!element) {
-			throw new GitError({ message: 'Git relative path not found.' });
+			throw new GitError({
+				message: `Git relative path not found. Was looking for ${relativePathLowercase} among ${JSON.stringify(elements.map(({ file }) => file), null, 2)}`,
+			});
 		}
 
 		return element.file;
@@ -1321,15 +1400,15 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+	async diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
 		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
 
 		const result = await this.exec(args);
 		if (result.exitCode) {
-			return '';
+			return { files: 0, insertions: 0, deletions: 0 };
 		}
 
-		return result.stdout.trim();
+		return parseGitDiffShortStat(result.stdout.trim());
 	}
 
 	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
@@ -1413,11 +1492,16 @@ export class Repository {
 		return result;
 	}
 
-	async getMergeBase(ref1: string, ref2: string): Promise<string> {
-		const args = ['merge-base', ref1, ref2];
-		const result = await this.exec(args);
+	async getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
+		try {
+			const args = ['merge-base', ref1, ref2];
+			const result = await this.exec(args);
 
-		return result.stdout.trim();
+			return result.stdout.trim();
+		}
+		catch (err) {
+			return undefined;
+		}
 	}
 
 	async hashObject(data: string): Promise<string> {
@@ -1915,8 +1999,11 @@ export class Repository {
 	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
 		const args = ['push'];
 
-		if (forcePushMode === ForcePushMode.ForceWithLease) {
+		if (forcePushMode === ForcePushMode.ForceWithLease || forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
 			args.push('--force-with-lease');
+			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30') !== -1) {
+				args.push('--force-if-includes');
+			}
 		} else if (forcePushMode === ForcePushMode.Force) {
 			args.push('--force');
 		}
@@ -1945,7 +2032,13 @@ export class Repository {
 			await this.exec(args, { env: { 'GIT_HTTP_USER_AGENT': this.git.userAgent } });
 		} catch (err) {
 			if (/^error: failed to push some refs to\b/m.test(err.stderr || '')) {
-				err.gitErrorCode = GitErrorCodes.PushRejected;
+				if (forcePushMode === ForcePushMode.ForceWithLease && /! \[rejected\].*\(stale info\)/m.test(err.stderr || '')) {
+					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseRejected;
+				} else if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && /! \[rejected\].*\(remote ref updated since checkout\)/m.test(err.stderr || '')) {
+					err.gitErrorCode = GitErrorCodes.ForcePushWithLeaseIfIncludesRejected;
+				} else {
+					err.gitErrorCode = GitErrorCodes.PushRejected;
+				}
 			} else if (/Permission.*denied/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.PermissionDenied;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
@@ -2048,6 +2141,24 @@ export class Repository {
 		} catch (err) {
 			if (/No stash found/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.NoStashFound;
+			}
+
+			throw err;
+		}
+	}
+
+	async showStash(index: number): Promise<string[] | undefined> {
+		const args = ['stash', 'show', `stash@{${index}}`, '--name-only'];
+
+		try {
+			const result = await this.exec(args);
+
+			return result.stdout.trim()
+				.split('\n')
+				.filter(line => !!line);
+		} catch (err) {
+			if (/No stash found/.test(err.stderr || '')) {
+				return undefined;
 			}
 
 			throw err;
@@ -2158,6 +2269,13 @@ export class Repository {
 			if (HEAD.name) {
 				// Branch
 				HEAD = await this.getBranch(HEAD.name);
+
+				// Upstream commit
+				if (HEAD && HEAD.upstream) {
+					const ref = `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`;
+					const commit = await this.revParse(ref);
+					HEAD = { ...HEAD, upstream: { ...HEAD.upstream, commit } };
+				}
 			} else if (HEAD.commit) {
 				// Tag || Commit
 				const tags = await this.getRefs({ pattern: 'refs/tags' });
@@ -2318,14 +2436,7 @@ export class Repository {
 
 	async getStashes(): Promise<Stash[]> {
 		const result = await this.exec(['stash', 'list']);
-		const regex = /^stash@{(\d+)}:(.+)$/;
-		const rawStashes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
-
-		return rawStashes;
+		return parseGitStashes(result.stdout.trim());
 	}
 
 	async getRemotes(): Promise<Remote[]> {
@@ -2476,7 +2587,8 @@ export class Repository {
 			return branch;
 		}
 
-		return Promise.reject<Branch>(new Error('No such branch'));
+		this.logger.warn(`No such branch: ${name}.`);
+		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
 	async getDefaultBranch(): Promise<Branch> {
@@ -2548,14 +2660,32 @@ export class Repository {
 		return commits[0];
 	}
 
+	async getCommitFiles(ref: string): Promise<string[]> {
+		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
+		return result.stdout.split('\n').filter(l => !!l);
+	}
+
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
-		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
+		const args = ['rev-list', '--count', '--left-right', range];
+
+		if (isWindows) {
+			args.splice(0, 0, '-c', 'core.longpaths=true');
+		}
+
+		const result = await this.exec(args);
 		const [ahead, behind] = result.stdout.trim().split('\t');
 
 		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {
+		try {
+			const result = await fs.readFile(path.join(this.dotGit.path, ref), 'utf8');
+			return result.trim();
+		} catch (err) {
+			this.logger.warn(err.message);
+		}
+
 		try {
 			const result = await this.exec(['rev-parse', ref]);
 			if (result.stderr) {

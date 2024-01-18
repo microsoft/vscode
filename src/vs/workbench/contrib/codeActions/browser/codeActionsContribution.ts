@@ -19,7 +19,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 
 const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	return {
-		type: ['string', 'boolean'],
+		type: 'string',
 		enum: ['always', 'explicit', 'never', true, false],
 		enumDescriptions: [
 			nls.localize('alwaysSave', 'Triggers Code Actions on explicit saves and auto saves triggered by window or focus changes.'),
@@ -28,7 +28,7 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 			nls.localize('explicitSaveBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'),
 			nls.localize('neverSaveBoolean', 'Never triggers Code Actions on save. This value will be deprecated in favor of "never".')
 		],
-		default: true,
+		default: 'explicit',
 		description: description
 	};
 };
@@ -43,7 +43,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			type: 'object',
 			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
-				type: ['string', 'boolean']
+				type: 'string'
 			},
 		},
 		{
@@ -51,10 +51,10 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
-	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run CodeActions for the editor on save. CodeActions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
-	type: 'object',
+	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
+	type: ['object', 'array'],
 	additionalProperties: {
-		type: ['string', 'boolean'],
+		type: 'string',
 		enum: ['always', 'explicit', 'never', true, false],
 	},
 	default: {},
@@ -81,7 +81,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
-			this._contributedCodeActions = extensionPoints.map(x => x.value).flat();
+			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
 			this.updateConfigurationSchema(this._contributedCodeActions);
 			this._onDidChangeContributions.fire();
 		});
@@ -150,7 +150,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		};
 
 		const getActions = (ofKind: CodeActionKind): ContributedCodeAction[] => {
-			const allActions = this._contributedCodeActions.map(desc => desc.actions).flat();
+			const allActions = this._contributedCodeActions.flatMap(desc => desc.actions);
 
 			const out = new Map<string, ContributedCodeAction>();
 			for (const action of allActions) {

@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
@@ -21,20 +21,15 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate services for use by the functions being tested.
 	 */
 	setup(() => {
-		disposables = new DisposableStore();
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('render view tree', () => {

@@ -12,11 +12,21 @@ export function invertLineRange(range: LineRange, model: ITextModel): LineRange[
 		return [];
 	}
 	const result: LineRange[] = [];
-	result.push(new LineRange(1, range.startLineNumber));
-	result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
+	if (range.startLineNumber > 1) {
+		result.push(new LineRange(1, range.startLineNumber));
+	}
+	if (range.endLineNumberExclusive < model.getLineCount() + 1) {
+		result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
+	}
 	return result.filter(r => !r.isEmpty);
 }
 
 export function lineRangeAsRange(r: LineRange): Range {
 	return new Range(r.startLineNumber, 1, r.endLineNumberExclusive - 1, 1);
+}
+
+export function asRange(lineRange: LineRange, model: ITextModel): Range {
+	return lineRange.isEmpty
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
 }

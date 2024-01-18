@@ -7,7 +7,7 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorAction2, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -22,13 +22,14 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { PanelFocusContext } from 'vs/workbench/common/contextkeys';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { DisassemblyView } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_EXCEPTION_WIDGET_VISIBLE, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_IN_DEBUG_MODE, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugConfiguration, IDebugEditorContribution, IDebugService, REPL_VIEW_ID, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 class ToggleBreakpointAction extends Action2 {
 	constructor() {
@@ -150,6 +151,36 @@ class LogPointAction extends EditorAction {
 	}
 }
 
+class TriggerByBreakpointAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.debug.action.triggerByBreakpoint',
+			label: nls.localize('triggerByBreakpointEditorAction', "Debug: Add Triggered Breakpoint..."),
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
+			alias: 'Debug: Triggered Breakpoint...',
+			menuOpts: [
+				{
+					menuId: MenuId.MenubarNewBreakpointMenu,
+					title: nls.localize({ key: 'miTriggerByBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Triggered Breakpoint..."),
+					group: '1_breakpoints',
+					order: 4,
+					when: CONTEXT_DEBUGGERS_AVAILABLE,
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+
+		const position = editor.getPosition();
+		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
+			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)?.showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.TRIGGER_POINT);
+		}
+	}
+}
+
 class EditBreakpointAction extends EditorAction {
 	constructor() {
 		super({
@@ -195,9 +226,9 @@ class EditBreakpointAction extends EditorAction {
 	}
 }
 
-class OpenDisassemblyViewAction extends EditorAction2 {
+class OpenDisassemblyViewAction extends Action2 {
 
-	public static readonly ID = 'editor.debug.action.openDisassemblyView';
+	public static readonly ID = 'debug.action.openDisassemblyView';
 
 	constructor() {
 		super({
@@ -229,11 +260,9 @@ class OpenDisassemblyViewAction extends EditorAction2 {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
-		if (editor.hasModel()) {
-			const editorService = accessor.get(IEditorService);
-			editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
-		}
+	run(accessor: ServicesAccessor): void {
+		const editorService = accessor.get(IEditorService);
+		editorService.openEditor(DisassemblyViewInput.instance, { pinned: true, revealIfOpened: true });
 	}
 }
 
@@ -266,12 +295,12 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 export class RunToCursorAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.runToCursor';
-	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
+	public static readonly LABEL: ILocalizedString = nls.localize2('runToCursor', "Run to Cursor");
 
 	constructor() {
 		super({
 			id: RunToCursorAction.ID,
-			label: RunToCursorAction.LABEL,
+			label: RunToCursorAction.LABEL.value,
 			alias: 'Debug: Run to Cursor',
 			precondition: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, PanelFocusContext.toNegated(), ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS)),
 			contextMenuOpts: {
@@ -307,12 +336,12 @@ export class RunToCursorAction extends EditorAction {
 export class SelectionToReplAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.selectionToRepl';
-	public static readonly LABEL = nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console");
+	public static readonly LABEL: ILocalizedString = nls.localize2('evaluateInDebugConsole', "Evaluate in Debug Console");
 
 	constructor() {
 		super({
 			id: SelectionToReplAction.ID,
-			label: SelectionToReplAction.LABEL,
+			label: SelectionToReplAction.LABEL.value,
 			alias: 'Debug: Evaluate in Console',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
@@ -347,12 +376,12 @@ export class SelectionToReplAction extends EditorAction {
 export class SelectionToWatchExpressionsAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.selectionToWatch';
-	public static readonly LABEL = nls.localize('addToWatch', "Add to Watch");
+	public static readonly LABEL: ILocalizedString = nls.localize2('addToWatch', "Add to Watch");
 
 	constructor() {
 		super({
 			id: SelectionToWatchExpressionsAction.ID,
-			label: SelectionToWatchExpressionsAction.LABEL,
+			label: SelectionToWatchExpressionsAction.LABEL.value,
 			alias: 'Debug: Add to Watch',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
@@ -597,6 +626,7 @@ registerAction2(ToggleDisassemblyViewSourceCodeAction);
 registerAction2(ToggleBreakpointAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(LogPointAction);
+registerEditorAction(TriggerByBreakpointAction);
 registerEditorAction(EditBreakpointAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);

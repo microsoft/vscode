@@ -25,6 +25,8 @@ export namespace AccessibilityHelpNLS {
 	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior {0}.");
 	export const tabFocusModeOffMsgNoKb = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
+	export const listAudioCues = nls.localize("listAudioCuesCommand", "Run the command: List Audio Cues for an overview of all audio cues and their current status.");
+	export const listAlerts = nls.localize("listAlertsCommand", "Run the command: List Alerts for an overview of alerts and their current status.");
 }
 
 export namespace InspectTokensNLS {

@@ -681,6 +681,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	// --- document highlights
+
+	test('"vscode.executeDocumentHighlights" API has stopped returning DocumentHighlight[]#200056', async function () {
+
+
+		disposables.push(extHost.registerDocumentHighlightProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentHighlightProvider>{
+			provideDocumentHighlights() {
+				return [
+					new types.DocumentHighlight(new types.Range(0, 17, 0, 25), types.DocumentHighlightKind.Read)
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		return commands.executeCommand<vscode.DocumentHighlight[]>('vscode.executeDocumentHighlights', model.uri, new types.Position(0, 0)).then(values => {
+			assert.ok(Array.isArray(values));
+			assert.strictEqual(values.length, 1);
+			const [first] = values;
+			assert.strictEqual(first.range.start.line, 0);
+			assert.strictEqual(first.range.start.character, 17);
+			assert.strictEqual(first.range.end.line, 0);
+			assert.strictEqual(first.range.end.character, 25);
+		});
+
+	});
+
 	// --- outline
 
 	test('Outline, back and forth', function () {

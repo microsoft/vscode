@@ -13,6 +13,8 @@ import { UriComponents, UriDto } from 'vs/base/common/uri';
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
 
+	readonly sqmId: string;
+
 	readonly codeCachePath: string | undefined;
 
 	readonly args: NativeParsedArgs;

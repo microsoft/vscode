@@ -22,7 +22,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Handler, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -74,7 +74,7 @@ export namespace EditorScroll_ {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata = <ICommandMetadata>{
 		description: 'Scroll editor in the given direction',
 		args: [
 			{
@@ -252,7 +252,7 @@ export namespace RevealLine_ {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata = <ICommandMetadata>{
 		description: 'Reveal the given line at the given logical position',
 		args: [
 			{
@@ -589,7 +589,7 @@ export namespace CoreNavigationCommands {
 			super({
 				id: 'cursorMove',
 				precondition: undefined,
-				description: CursorMove_.description
+				metadata: CursorMove_.metadata
 			});
 		}
 
@@ -1110,7 +1110,7 @@ export namespace CoreNavigationCommands {
 			primary: KeyCode.End,
 			mac: { primary: KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyCode.RightArrow] }
 		},
-		description: {
+		metadata: {
 			description: `Go to End`,
 			args: [{
 				name: 'args',
@@ -1139,7 +1139,7 @@ export namespace CoreNavigationCommands {
 			primary: KeyMod.Shift | KeyCode.End,
 			mac: { primary: KeyMod.Shift | KeyCode.End, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow] }
 		},
-		description: {
+		metadata: {
 			description: `Select to End`,
 			args: [{
 				name: 'args',
@@ -1307,7 +1307,7 @@ export namespace CoreNavigationCommands {
 			super({
 				id: 'editorScroll',
 				precondition: undefined,
-				description: EditorScroll_.description
+				metadata: EditorScroll_.metadata
 			});
 		}
 
@@ -1828,7 +1828,7 @@ export namespace CoreNavigationCommands {
 			super({
 				id: 'revealLine',
 				precondition: undefined,
-				description: RevealLine_.description
+				metadata: RevealLine_.metadata
 			});
 		}
 
@@ -2125,11 +2125,11 @@ class EditorHandlerCommand extends Command {
 
 	private readonly _handlerId: string;
 
-	constructor(id: string, handlerId: string, description?: ICommandHandlerDescription) {
+	constructor(id: string, handlerId: string, metadata?: ICommandMetadata) {
 		super({
 			id: id,
 			precondition: undefined,
-			description: description
+			metadata
 		});
 		this._handlerId = handlerId;
 	}
@@ -2144,9 +2144,9 @@ class EditorHandlerCommand extends Command {
 	}
 }
 
-function registerOverwritableCommand(handlerId: string, description?: ICommandHandlerDescription): void {
+function registerOverwritableCommand(handlerId: string, metadata?: ICommandMetadata): void {
 	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
-	registerCommand(new EditorHandlerCommand(handlerId, handlerId, description));
+	registerCommand(new EditorHandlerCommand(handlerId, handlerId, metadata));
 }
 
 registerOverwritableCommand(Handler.Type, {

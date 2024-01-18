@@ -1,7 +1,9 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml
 
@@ -136,6 +138,19 @@ steps:
   - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
+
+  - script: mkdir $(agent.builddirectory)/vscode-alpine-$(VSCODE_ARCH)
+    displayName: Make folder for SBOM
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-alpine-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+
+  - publish: $(agent.builddirectory)/vscode-alpine-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM
+    artifact: $(ARTIFACT_PREFIX)sbom_vscode_alpine_$(VSCODE_ARCH)
 
   - publish: $(SERVER_PATH)
     artifact: $(ARTIFACT_PREFIX)vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned

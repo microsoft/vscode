@@ -92,6 +92,10 @@ export class LinesSliceCharSequence implements ISequence {
 			// don't break between \r and \n
 			return 0;
 		}
+		if (prevCategory === CharBoundaryCategory.LineBreakLF) {
+			// prefer the linebreak before the change
+			return 150;
+		}
 
 		let score = 0;
 		if (prevCategory !== nextCategory) {
@@ -175,6 +179,7 @@ const enum CharBoundaryCategory {
 	WordNumber,
 	End,
 	Other,
+	Separator,
 	Space,
 	LineBreakCR,
 	LineBreakLF,
@@ -186,6 +191,7 @@ const score: Record<CharBoundaryCategory, number> = {
 	[CharBoundaryCategory.WordNumber]: 0,
 	[CharBoundaryCategory.End]: 10,
 	[CharBoundaryCategory.Other]: 2,
+	[CharBoundaryCategory.Separator]: 30,
 	[CharBoundaryCategory.Space]: 3,
 	[CharBoundaryCategory.LineBreakCR]: 10,
 	[CharBoundaryCategory.LineBreakLF]: 10,
@@ -210,6 +216,8 @@ function getCategory(charCode: number): CharBoundaryCategory {
 		return CharBoundaryCategory.WordNumber;
 	} else if (charCode === -1) {
 		return CharBoundaryCategory.End;
+	} else if (charCode === CharCode.Comma || charCode === CharCode.Semicolon) {
+		return CharBoundaryCategory.Separator;
 	} else {
 		return CharBoundaryCategory.Other;
 	}

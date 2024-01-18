@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, getWindow } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
@@ -184,7 +184,7 @@ export class WorkbenchToolBar extends ToolBar {
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
 			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
-				const event = new StandardMouseEvent(e);
+				const event = new StandardMouseEvent(getWindow(this.getElement()), e);
 
 				const action = this.getItemAction(event.target);
 				if (!(action)) {
@@ -328,6 +328,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				{ primary, secondary },
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
+			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
 			super.setActions(primary, secondary);
 		};
 

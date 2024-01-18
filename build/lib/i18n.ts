@@ -9,7 +9,6 @@ import * as fs from 'fs';
 import { map, merge, through, ThroughStream } from 'event-stream';
 import * as jsonMerge from 'gulp-merge-json';
 import * as File from 'vinyl';
-import * as Is from 'is';
 import * as xml2js from 'xml2js';
 import * as gulp from 'gulp';
 import * as fancyLog from 'fancy-log';
@@ -69,7 +68,7 @@ interface LocalizeInfo {
 module LocalizeInfo {
 	export function is(value: any): value is LocalizeInfo {
 		const candidate = value as LocalizeInfo;
-		return Is.defined(candidate) && Is.string(candidate.key) && (Is.undef(candidate.comment) || (Is.array(candidate.comment) && candidate.comment.every(element => Is.string(element))));
+		return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
 	}
 }
 
@@ -81,14 +80,14 @@ interface BundledFormat {
 
 module BundledFormat {
 	export function is(value: any): value is BundledFormat {
-		if (Is.undef(value)) {
+		if (value === undefined) {
 			return false;
 		}
 
 		const candidate = value as BundledFormat;
 		const length = Object.keys(value).length;
 
-		return length === 3 && Is.defined(candidate.keys) && Is.defined(candidate.messages) && Is.defined(candidate.bundles);
+		return length === 3 && !!candidate.keys && !!candidate.messages && !!candidate.bundles;
 	}
 }
 
@@ -183,7 +182,7 @@ export class XLF {
 			const key = keys[i];
 			let realKey: string | undefined;
 			let comment: string | undefined;
-			if (Is.string(key)) {
+			if (typeof key === 'string') {
 				realKey = key;
 				comment = undefined;
 			} else if (LocalizeInfo.is(key)) {
@@ -474,7 +473,7 @@ function processCoreBundleFormat(fileHeader: string, languages: Language[], json
 	});
 	sortedLanguages.forEach(language => {
 		const stats = statistics[language.id];
-		if (Is.undef(stats)) {
+		if (!stats) {
 			log(`\tNo translations found for language ${language.id}. Using default language instead.`);
 		}
 	});

@@ -51,6 +51,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
+		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
@@ -359,7 +360,7 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 			service_installed,
 			tunnel: match tunnel {
 				Ok(s) => Some(s),
-				Err(CodeError::NoRunningTunnel) => None,
+				Err(CodeError::NoRunningTunnel | CodeError::AsyncPipeFailed(_)) => None,
 				Err(e) => return Err(e.into()),
 			},
 		})
@@ -532,7 +533,7 @@ async fn serve_with_csa(
 	{
 		vec.push(ShutdownRequest::ParentProcessKilled(p));
 	}
-	let shutdown = ShutdownRequest::create_rx(vec);
+	let mut shutdown = ShutdownRequest::create_rx(vec);
 
 	let server = loop {
 		if shutdown.is_open() {
@@ -575,12 +576,10 @@ async fn serve_with_csa(
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			dt.start_new_launcher_tunnel(
-				gateway_args.name.as_deref(),
-				gateway_args.random_name,
-				&[CONTROL_PORT],
-			)
-			.await
+			tokio::select! {
+				t = dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name, &[CONTROL_PORT]) => t,
+				_ = shutdown.wait() => return Ok(1),
+			}
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));
@@ -604,7 +603,7 @@ async fn serve_with_csa(
 				// reuse current args, but specify no-forward since tunnels will
 				// already be running in this process, and we cannot do a login
 				let args = std::env::args().skip(1).collect::<Vec<String>>();
-				let exit = std::process::Command::new(current_exe)
+				let exit = new_std_command(current_exe)
 					.args(args)
 					.spawn()
 					.map_err(|e| wrap(e, "error respawning after update"))?

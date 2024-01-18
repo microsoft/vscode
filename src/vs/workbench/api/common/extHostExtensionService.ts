@@ -909,7 +909,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 		const tunnelInformation: TunnelInformation = {
 			environmentTunnels: result.environmentTunnels,
-			features: result.tunnelFeatures
+			features: result.tunnelFeatures ? {
+				elevation: result.tunnelFeatures.elevation,
+				privacyOptions: result.tunnelFeatures.privacyOptions,
+				protocol: result.tunnelFeatures.protocol === undefined ? true : result.tunnelFeatures.protocol,
+			} : undefined
 		};
 
 		// Split merged API result into separate authority/options
@@ -1213,8 +1217,8 @@ class SyncedActivationEventsReader implements IActivationEventsReader {
 		this.addActivationEvents(activationEvents);
 	}
 
-	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] | undefined {
-		return this._map.get(extensionDescription.identifier);
+	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] {
+		return this._map.get(extensionDescription.identifier) ?? [];
 	}
 
 	public addActivationEvents(activationEvents: { [extensionId: string]: string[] }): void {

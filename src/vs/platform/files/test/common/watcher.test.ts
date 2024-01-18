@@ -8,10 +8,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { IDiskFileChange, coalesceEvents, toFileChanges, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, reviveFileChanges, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher extends Disposable {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
@@ -26,23 +26,23 @@ class TestFileWatcher extends Disposable {
 		return this._onDidFilesChange.event;
 	}
 
-	report(changes: IDiskFileChange[]): void {
+	report(changes: IFileChange[]): void {
 		this.onRawFileEvents(changes);
 	}
 
-	private onRawFileEvents(events: IDiskFileChange[]): void {
+	private onRawFileEvents(events: IFileChange[]): void {
 
 		// Coalesce
 		const coalescedEvents = coalesceEvents(events);
 
 		// Emit through event emitter
 		if (coalescedEvents.length > 0) {
-			this._onDidFilesChange.fire({ raw: toFileChanges(coalescedEvents), event: this.toFileChangesEvent(coalescedEvents) });
+			this._onDidFilesChange.fire({ raw: reviveFileChanges(coalescedEvents), event: this.toFileChangesEvent(coalescedEvents) });
 		}
 	}
 
-	private toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
-		return new FileChangesEvent(toFileChanges(changes), !isLinux);
+	private toFileChangesEvent(changes: IFileChange[]): FileChangesEvent {
+		return new FileChangesEvent(reviveFileChanges(changes), !isLinux);
 	}
 }
 
@@ -122,14 +122,14 @@ suite('Watcher Events Normalizer', () => {
 	test('simple add/update/delete', done => {
 		const watch = disposables.add(new TestFileWatcher());
 
-		const added = uri.file('/users/data/src/added.txt');
-		const updated = uri.file('/users/data/src/updated.txt');
-		const deleted = uri.file('/users/data/src/deleted.txt');
+		const added = URI.file('/users/data/src/added.txt');
+		const updated = URI.file('/users/data/src/updated.txt');
+		const deleted = URI.file('/users/data/src/deleted.txt');
 
-		const raw: IDiskFileChange[] = [
-			{ path: added.fsPath, type: FileChangeType.ADDED },
-			{ path: updated.fsPath, type: FileChangeType.UPDATED },
-			{ path: deleted.fsPath, type: FileChangeType.DELETED },
+		const raw: IFileChange[] = [
+			{ resource: added, type: FileChangeType.ADDED },
+			{ resource: updated, type: FileChangeType.UPDATED },
+			{ resource: deleted, type: FileChangeType.DELETED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -149,25 +149,25 @@ suite('Watcher Events Normalizer', () => {
 		test(`delete only reported for top level folder (${path})`, done => {
 			const watch = disposables.add(new TestFileWatcher());
 
-			const deletedFolderA = uri.file(path === Path.UNIX ? '/users/data/src/todelete1' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
-			const deletedFolderB = uri.file(path === Path.UNIX ? '/users/data/src/todelete2' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2' : '\\\\localhost\\users\\data\\src\\todelete2');
-			const deletedFolderBF1 = uri.file(path === Path.UNIX ? '/users/data/src/todelete2/file.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\file.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\file.txt');
-			const deletedFolderBF2 = uri.file(path === Path.UNIX ? '/users/data/src/todelete2/more/test.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\more\\test.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\more\\test.txt');
-			const deletedFolderBF3 = uri.file(path === Path.UNIX ? '/users/data/src/todelete2/super/bar/foo.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\super\\bar\\foo.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\super\\bar\\foo.txt');
-			const deletedFileA = uri.file(path === Path.UNIX ? '/users/data/src/deleteme.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\deleteme.txt' : '\\\\localhost\\users\\data\\src\\deleteme.txt');
+			const deletedFolderA = URI.file(path === Path.UNIX ? '/users/data/src/todelete1' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete1' : '\\\\localhost\\users\\data\\src\\todelete1');
+			const deletedFolderB = URI.file(path === Path.UNIX ? '/users/data/src/todelete2' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2' : '\\\\localhost\\users\\data\\src\\todelete2');
+			const deletedFolderBF1 = URI.file(path === Path.UNIX ? '/users/data/src/todelete2/file.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\file.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\file.txt');
+			const deletedFolderBF2 = URI.file(path === Path.UNIX ? '/users/data/src/todelete2/more/test.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\more\\test.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\more\\test.txt');
+			const deletedFolderBF3 = URI.file(path === Path.UNIX ? '/users/data/src/todelete2/super/bar/foo.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\todelete2\\super\\bar\\foo.txt' : '\\\\localhost\\users\\data\\src\\todelete2\\super\\bar\\foo.txt');
+			const deletedFileA = URI.file(path === Path.UNIX ? '/users/data/src/deleteme.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\deleteme.txt' : '\\\\localhost\\users\\data\\src\\deleteme.txt');
 
-			const addedFile = uri.file(path === Path.UNIX ? '/users/data/src/added.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\added.txt' : '\\\\localhost\\users\\data\\src\\added.txt');
-			const updatedFile = uri.file(path === Path.UNIX ? '/users/data/src/updated.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
+			const addedFile = URI.file(path === Path.UNIX ? '/users/data/src/added.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\added.txt' : '\\\\localhost\\users\\data\\src\\added.txt');
+			const updatedFile = URI.file(path === Path.UNIX ? '/users/data/src/updated.txt' : path === Path.WINDOWS ? 'C:\\users\\data\\src\\updated.txt' : '\\\\localhost\\users\\data\\src\\updated.txt');
 
-			const raw: IDiskFileChange[] = [
-				{ path: deletedFolderA.fsPath, type: FileChangeType.DELETED },
-				{ path: deletedFolderB.fsPath, type: FileChangeType.DELETED },
-				{ path: deletedFolderBF1.fsPath, type: FileChangeType.DELETED },
-				{ path: deletedFolderBF2.fsPath, type: FileChangeType.DELETED },
-				{ path: deletedFolderBF3.fsPath, type: FileChangeType.DELETED },
-				{ path: deletedFileA.fsPath, type: FileChangeType.DELETED },
-				{ path: addedFile.fsPath, type: FileChangeType.ADDED },
-				{ path: updatedFile.fsPath, type: FileChangeType.UPDATED }
+			const raw: IFileChange[] = [
+				{ resource: deletedFolderA, type: FileChangeType.DELETED },
+				{ resource: deletedFolderB, type: FileChangeType.DELETED },
+				{ resource: deletedFolderBF1, type: FileChangeType.DELETED },
+				{ resource: deletedFolderBF2, type: FileChangeType.DELETED },
+				{ resource: deletedFolderBF3, type: FileChangeType.DELETED },
+				{ resource: deletedFileA, type: FileChangeType.DELETED },
+				{ resource: addedFile, type: FileChangeType.ADDED },
+				{ resource: updatedFile, type: FileChangeType.UPDATED }
 			];
 
 			disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -190,14 +190,14 @@ suite('Watcher Events Normalizer', () => {
 	test('event coalescer: ignore CREATE followed by DELETE', done => {
 		const watch = disposables.add(new TestFileWatcher());
 
-		const created = uri.file('/users/data/src/related');
-		const deleted = uri.file('/users/data/src/related');
-		const unrelated = uri.file('/users/data/src/unrelated');
+		const created = URI.file('/users/data/src/related');
+		const deleted = URI.file('/users/data/src/related');
+		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
-			{ path: created.fsPath, type: FileChangeType.ADDED },
-			{ path: deleted.fsPath, type: FileChangeType.DELETED },
-			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
+		const raw: IFileChange[] = [
+			{ resource: created, type: FileChangeType.ADDED },
+			{ resource: deleted, type: FileChangeType.DELETED },
+			{ resource: unrelated, type: FileChangeType.UPDATED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -215,14 +215,14 @@ suite('Watcher Events Normalizer', () => {
 	test('event coalescer: flatten DELETE followed by CREATE into CHANGE', done => {
 		const watch = disposables.add(new TestFileWatcher());
 
-		const deleted = uri.file('/users/data/src/related');
-		const created = uri.file('/users/data/src/related');
-		const unrelated = uri.file('/users/data/src/unrelated');
+		const deleted = URI.file('/users/data/src/related');
+		const created = URI.file('/users/data/src/related');
+		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
-			{ path: deleted.fsPath, type: FileChangeType.DELETED },
-			{ path: created.fsPath, type: FileChangeType.ADDED },
-			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
+		const raw: IFileChange[] = [
+			{ resource: deleted, type: FileChangeType.DELETED },
+			{ resource: created, type: FileChangeType.ADDED },
+			{ resource: unrelated, type: FileChangeType.UPDATED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -241,14 +241,14 @@ suite('Watcher Events Normalizer', () => {
 	test('event coalescer: ignore UPDATE when CREATE received', done => {
 		const watch = disposables.add(new TestFileWatcher());
 
-		const created = uri.file('/users/data/src/related');
-		const updated = uri.file('/users/data/src/related');
-		const unrelated = uri.file('/users/data/src/unrelated');
+		const created = URI.file('/users/data/src/related');
+		const updated = URI.file('/users/data/src/related');
+		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
-			{ path: created.fsPath, type: FileChangeType.ADDED },
-			{ path: updated.fsPath, type: FileChangeType.UPDATED },
-			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
+		const raw: IFileChange[] = [
+			{ resource: created, type: FileChangeType.ADDED },
+			{ resource: updated, type: FileChangeType.UPDATED },
+			{ resource: unrelated, type: FileChangeType.UPDATED },
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -268,16 +268,16 @@ suite('Watcher Events Normalizer', () => {
 	test('event coalescer: apply DELETE', done => {
 		const watch = disposables.add(new TestFileWatcher());
 
-		const updated = uri.file('/users/data/src/related');
-		const updated2 = uri.file('/users/data/src/related');
-		const deleted = uri.file('/users/data/src/related');
-		const unrelated = uri.file('/users/data/src/unrelated');
+		const updated = URI.file('/users/data/src/related');
+		const updated2 = URI.file('/users/data/src/related');
+		const deleted = URI.file('/users/data/src/related');
+		const unrelated = URI.file('/users/data/src/unrelated');
 
-		const raw: IDiskFileChange[] = [
-			{ path: updated.fsPath, type: FileChangeType.UPDATED },
-			{ path: updated2.fsPath, type: FileChangeType.UPDATED },
-			{ path: unrelated.fsPath, type: FileChangeType.UPDATED },
-			{ path: updated.fsPath, type: FileChangeType.DELETED }
+		const raw: IFileChange[] = [
+			{ resource: updated, type: FileChangeType.UPDATED },
+			{ resource: updated2, type: FileChangeType.UPDATED },
+			{ resource: unrelated, type: FileChangeType.UPDATED },
+			{ resource: updated, type: FileChangeType.DELETED }
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {
@@ -297,12 +297,12 @@ suite('Watcher Events Normalizer', () => {
 	test('event coalescer: track case renames', done => {
 		const watch = disposables.add(new TestFileWatcher());
 
-		const oldPath = uri.file('/users/data/src/added');
-		const newPath = uri.file('/users/data/src/ADDED');
+		const oldPath = URI.file('/users/data/src/added');
+		const newPath = URI.file('/users/data/src/ADDED');
 
-		const raw: IDiskFileChange[] = [
-			{ path: newPath.fsPath, type: FileChangeType.ADDED },
-			{ path: oldPath.fsPath, type: FileChangeType.DELETED }
+		const raw: IFileChange[] = [
+			{ resource: newPath, type: FileChangeType.ADDED },
+			{ resource: oldPath, type: FileChangeType.DELETED }
 		];
 
 		disposables.add(watch.onDidFilesChange(({ event, raw }) => {

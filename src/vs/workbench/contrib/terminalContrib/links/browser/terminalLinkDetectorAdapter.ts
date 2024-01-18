@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { TerminalLink } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLink';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkManager';
-import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from 'xterm';
+import type { IBufferLine, ILink, ILinkProvider, IViewportRange } from '@xterm/xterm';
 
 export interface IActivateLinkEvent {
 	link: ITerminalSimpleLink;

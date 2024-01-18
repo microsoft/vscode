@@ -281,6 +281,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		if (usePosition) {
 			this.show(position, height);
 		}
+		this.editor.setPosition(position);
 		this.editor.focus();
 	}
 
@@ -407,6 +408,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 			readOnly: false,
 			renderIndicators: false,
 			diffAlgorithm: 'advanced',
+			ignoreTrimWhitespace: false,
 			stickyScroll: { enabled: false }
 		};
 
@@ -723,8 +725,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
-		this.stylesheet = dom.createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.remove()));
+		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
@@ -1046,7 +1047,7 @@ const overviewRulerDeletedForeground = registerColor('editorOverviewRuler.delete
 
 class DirtyDiffDecorator extends Disposable {
 
-	static createDecoration(className: string, options: { gutter: boolean; overview: { active: boolean; color: string }; minimap: { active: boolean; color: string }; isWholeLine: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, tooltip: string | null, options: { gutter: boolean; overview: { active: boolean; color: string }; minimap: { active: boolean; color: string }; isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
 			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
@@ -1054,6 +1055,7 @@ class DirtyDiffDecorator extends Disposable {
 
 		if (options.gutter) {
 			decorationOptions.linesDecorationsClassName = `dirty-diff-glyph ${className}`;
+			decorationOptions.linesDecorationsTooltip = tooltip;
 		}
 
 		if (options.overview.active) {
@@ -1095,31 +1097,33 @@ class DirtyDiffDecorator extends Disposable {
 		const overview = decorations === 'all' || decorations === 'overview';
 		const minimap = decorations === 'all' || decorations === 'minimap';
 
-		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', {
+		const diffAdded = nls.localize('diffAdded', 'Added lines');
+		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', diffAdded, {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
 		});
-		this.addedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added-pattern', {
+		this.addedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added-pattern', diffAdded, {
 			gutter,
 			overview: { active: overview, color: overviewRulerAddedForeground },
 			minimap: { active: minimap, color: minimapGutterAddedBackground },
 			isWholeLine: true
 		});
-		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', {
+		const diffModified = nls.localize('diffModified', 'Changed lines');
+		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', diffModified, {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		});
-		this.modifiedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified-pattern', {
+		this.modifiedPatternOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified-pattern', diffModified, {
 			gutter,
 			overview: { active: overview, color: overviewRulerModifiedForeground },
 			minimap: { active: minimap, color: minimapGutterModifiedBackground },
 			isWholeLine: true
 		});
-		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', {
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', nls.localize('diffDeleted', 'Removed lines'), {
 			gutter,
 			overview: { active: overview, color: overviewRulerDeletedForeground },
 			minimap: { active: minimap, color: minimapGutterDeletedBackground },
@@ -1557,8 +1561,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
-		this.stylesheet = dom.createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
+		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));
@@ -1674,8 +1677,14 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		for (const [uri, item] of this.items) {
 			for (const editorId of item.keys()) {
 				if (!this.editorService.visibleTextEditorControls.find(editor => isCodeEditor(editor) && editor.getModel()?.uri.toString() === uri.toString() && editor.getId() === editorId)) {
-					dispose(item.values());
-					this.items.delete(uri);
+					if (item.has(editorId)) {
+						const dirtyDiffItem = item.get(editorId);
+						dirtyDiffItem?.dispose();
+						item.delete(editorId);
+						if (item.size === 0) {
+							this.items.delete(uri);
+						}
+					}
 				}
 			}
 		}

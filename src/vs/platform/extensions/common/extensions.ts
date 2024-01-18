@@ -290,7 +290,6 @@ export const enum ExtensionType {
 
 export const enum TargetPlatform {
 	WIN32_X64 = 'win32-x64',
-	WIN32_IA32 = 'win32-ia32',
 	WIN32_ARM64 = 'win32-arm64',
 
 	LINUX_X64 = 'linux-x64',

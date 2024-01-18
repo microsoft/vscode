@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
+import { mainWindow } from 'vs/base/browser/window';
 import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -16,9 +17,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import product from 'vs/platform/product/common/product';
 import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
-import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
+import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { AuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { create } from 'vs/workbench/workbench.web.main';
 
@@ -56,18 +56,18 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 	async seal(data: string): Promise<string> {
 		// Get a new key and IV on every change, to avoid the risk of reusing the same key and IV pair with AES-GCM
 		// (see also: https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams#properties)
-		const iv = window.crypto.getRandomValues(new Uint8Array(AESConstants.IV_LENGTH));
+		const iv = mainWindow.crypto.getRandomValues(new Uint8Array(AESConstants.IV_LENGTH));
 		// crypto.getRandomValues isn't a good-enough PRNG to generate crypto keys, so we need to use crypto.subtle.generateKey and export the key instead
-		const clientKeyObj = await window.crypto.subtle.generateKey(
+		const clientKeyObj = await mainWindow.crypto.subtle.generateKey(
 			{ name: AESConstants.ALGORITHM as const, length: AESConstants.KEY_LENGTH as const },
 			true,
 			['encrypt', 'decrypt']
 		);
 
-		const clientKey = new Uint8Array(await window.crypto.subtle.exportKey('raw', clientKeyObj));
+		const clientKey = new Uint8Array(await mainWindow.crypto.subtle.exportKey('raw', clientKeyObj));
 		const key = await this.getKey(clientKey);
 		const dataUint8Array = new TextEncoder().encode(data);
-		const cipherText: ArrayBuffer = await window.crypto.subtle.encrypt(
+		const cipherText: ArrayBuffer = await mainWindow.crypto.subtle.encrypt(
 			{ name: AESConstants.ALGORITHM as const, iv },
 			key,
 			dataUint8Array
@@ -95,7 +95,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 
 		// Do the decryption and parse the result as JSON
 		const key = await this.getKey(clientKey.buffer);
-		const decrypted = await window.crypto.subtle.decrypt(
+		const decrypted = await mainWindow.crypto.subtle.decrypt(
 			{ name: AESConstants.ALGORITHM as const, iv: iv.buffer },
 			key,
 			cipherText.buffer
@@ -120,7 +120,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 			keyData[i] = clientKey[i]! ^ serverKey[i]!;
 		}
 
-		return window.crypto.subtle.importKey(
+		return mainWindow.crypto.subtle.importKey(
 			'raw',
 			keyData,
 			{
@@ -179,7 +179,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 	private async load(): Promise<Record<string, string>> {
 		const record = this.loadAuthSessionFromElement();
 		// Get the secrets from localStorage
-		const encrypted = window.localStorage.getItem(this._storageKey);
+		const encrypted = localStorage.getItem(this._storageKey);
 		if (encrypted) {
 			try {
 				const decrypted = JSON.parse(await this.crypto.unseal(encrypted));
@@ -187,7 +187,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 			} catch (err) {
 				// TODO: send telemetry
 				console.error('Failed to decrypt secrets from localStorage', err);
-				window.localStorage.removeItem(this._storageKey);
+				localStorage.removeItem(this._storageKey);
 			}
 		}
 
@@ -196,7 +196,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
-		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
+		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
 			try {
@@ -249,7 +249,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 	private async save(): Promise<void> {
 		try {
 			const encrypted = await this.crypto.seal(JSON.stringify(await this._secretsPromise));
-			window.localStorage.setItem(this._storageKey, encrypted);
+			localStorage.setItem(this._storageKey, encrypted);
 		} catch (err) {
 			console.error(err);
 		}
@@ -298,13 +298,13 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 		// https://github.com/microsoft/vscode/blob/159479eb5ae451a66b5dac3c12d564f32f454796/extensions/github-authentication/src/githubServer.ts#L50-L50
 		if (!(options.authority === 'vscode.github-authentication' && options.path === '/dummy')) {
 			const key = `vscode-web.url-callbacks[${id}]`;
-			window.localStorage.removeItem(key);
+			localStorage.removeItem(key);
 
 			this.pendingCallbacks.add(id);
 			this.startListening();
 		}
 
-		return URI.parse(window.location.href).with({ path: this._callbackRoute, query: queryParams.join('&') });
+		return URI.parse(mainWindow.location.href).with({ path: this._callbackRoute, query: queryParams.join('&') });
 	}
 
 	private startListening(): void {
@@ -313,8 +313,8 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 		}
 
 		const fn = () => this.onDidChangeLocalStorage();
-		window.addEventListener('storage', fn);
-		this.onDidChangeLocalStorageDisposable = { dispose: () => window.removeEventListener('storage', fn) };
+		mainWindow.addEventListener('storage', fn);
+		this.onDidChangeLocalStorageDisposable = { dispose: () => mainWindow.removeEventListener('storage', fn) };
 	}
 
 	private stopListening(): void {
@@ -342,7 +342,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 		for (const id of this.pendingCallbacks) {
 			const key = `vscode-web.url-callbacks[${id}]`;
-			const result = window.localStorage.getItem(key);
+			const result = localStorage.getItem(key);
 
 			if (result !== null) {
 				try {
@@ -353,7 +353,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 				pendingCallbacks = pendingCallbacks ?? new Set(this.pendingCallbacks);
 				pendingCallbacks.delete(id);
-				window.localStorage.removeItem(key);
+				localStorage.removeItem(key);
 			}
 		}
 
@@ -459,14 +459,14 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		const targetHref = this.createTargetUrl(workspace, options);
 		if (targetHref) {
 			if (options?.reuse) {
-				window.location.href = targetHref;
+				mainWindow.location.href = targetHref;
 				return true;
 			} else {
 				let result;
 				if (isStandalone()) {
-					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
+					result = mainWindow.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
-					result = window.open(targetHref);
+					result = mainWindow.open(targetHref);
 				}
 
 				return !!result;
@@ -564,7 +564,7 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// Find config by checking for DOM
-	const configElement = document.getElementById('vscode-workbench-web-configuration');
+	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
@@ -575,7 +575,7 @@ function readCookie(name: string): string | undefined {
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(document.body, {
+	create(mainWindow.document.body, {
 		...config,
 		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
+import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle } from 'vs/platform/window/common/window';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -23,12 +23,18 @@ export interface IHostService {
 	//#region Focus
 
 	/**
-	 * Emitted when the window focus changes.
+	 * Emitted when the focus of the window changes.
+	 *
+	 * Note: this considers the main window as well as auxiliary windows
+	 * when they are in focus. As long as the main window or any of its
+	 * auxiliary windows have focus, this event fires with `true`. It will
+	 * fire with `false` when neither the main window nor any of its
+	 * auxiliary windows have focus.
 	 */
 	readonly onDidChangeFocus: Event<boolean>;
 
 	/**
-	 * Find out if the window has focus or not.
+	 * Find out if the window or any of its auxiliary windows have focus.
 	 */
 	readonly hasFocus: boolean;
 
@@ -46,12 +52,24 @@ export interface IHostService {
 	 * focused application which may not be VSCode. It may not be supported
 	 * in all environments.
 	 */
-	focus(options?: { force: boolean }): Promise<void>;
+	focus(targetWindow: Window, options?: { force: boolean }): Promise<void>;
 
 	//#endregion
 
 
 	//#region Window
+
+	/**
+	 * Emitted when the active window changes between main window
+	 * and auxiliary windows.
+	 */
+	readonly onDidChangeActiveWindow: Event<number>;
+
+	/**
+	 * Emitted when the window with the given identifier changes
+	 * its fullscreen state.
+	 */
+	readonly onDidChangeFullScreen: Event<{ windowId: number; fullscreen: boolean }>;
 
 	/**
 	 * Opens an empty window. The optional parameter allows to define if
@@ -67,7 +85,17 @@ export interface IHostService {
 	/**
 	 * Switch between fullscreen and normal window.
 	 */
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(targetWindow: Window): Promise<void>;
+
+	/**
+	 * Bring a window to the front and restore it if needed.
+	 */
+	moveTop(targetWindow: Window): Promise<void>;
+
+	/**
+	 * Get the location of the mouse cursor and its display bounds or `undefined` if unavailable.
+	 */
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
 
 	//#endregion
 
@@ -79,12 +107,12 @@ export interface IHostService {
 	restart(): Promise<void>;
 
 	/**
-	 * Reload the currently active window.
+	 * Reload the currently active main window.
 	 */
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 
 	/**
-	 * Attempt to close the active window.
+	 * Attempt to close the active main window.
 	 */
 	close(): Promise<void>;
 

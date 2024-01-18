@@ -14,8 +14,11 @@ import { IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Notebook Clipboard', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const createEditorService = (editor: IActiveNotebookEditor) => {
 		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override getId(): string {

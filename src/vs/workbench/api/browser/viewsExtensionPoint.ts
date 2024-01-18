@@ -30,7 +30,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
@@ -307,15 +307,19 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				if (!treeItem.tooltip) {
 					return;
 				}
-				const element = treeViewsService.getRenderedTreeElement(treeItem);
+				const element = treeViewsService.getRenderedTreeElement(('handle' in treeItem) ? treeItem.handle : treeItem);
 				if (!element) {
 					return;
 				}
 				hoverService.showHover({
 					content: treeItem.tooltip,
 					target: element,
-					hoverPosition: HoverPosition.BELOW,
-					hideOnHover: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					persistence: {
+						hideOnHover: false
+					}
 				}, true);
 			},
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -535,7 +539,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
-						name: item.name,
+						name: { value: item.name, original: item.name },
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),

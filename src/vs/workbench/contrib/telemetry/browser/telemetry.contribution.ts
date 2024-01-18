@@ -15,7 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { language } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
-import { configurationTelemetry, TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService, ITextFileSaveEvent, ITextFileResolveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
@@ -26,6 +26,7 @@ import { hash } from 'vs/base/common/hash';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { mainWindow } from 'vs/base/browser/window';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -108,7 +109,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		};
 
 		telemetryService.publicLog2<WorkspaceLoadEvent, WorkspaceLoadClassification>('workspaceLoad', {
-			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
+			windowSize: { innerHeight: mainWindow.innerHeight, innerWidth: mainWindow.innerWidth, outerHeight: mainWindow.outerHeight, outerWidth: mainWindow.outerWidth },
 			emptyWorkbench: contextService.getWorkbenchState() === WorkbenchState.EMPTY,
 			'workbench.filesToOpenOrCreate': filesToOpenOrCreate && filesToOpenOrCreate.length || 0,
 			'workbench.filesToDiff': filesToDiff && filesToDiff.length || 0,
@@ -124,9 +125,6 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 
 		// Error Telemetry
 		this._register(new ErrorTelemetry(telemetryService));
-
-		// Configuration Telemetry
-		this._register(configurationTelemetry(telemetryService, configurationService));
 
 		//  Files Telemetry
 		this._register(textFileService.files.onDidResolve(e => this.onTextFileModelResolved(e)));

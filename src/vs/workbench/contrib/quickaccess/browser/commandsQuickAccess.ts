@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from 'vs/platform/actions/common/actions';
@@ -37,6 +37,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
 import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { isLocalizedString } from 'vs/platform/action/common/action';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -235,10 +236,16 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
 				aliasLabel;
 
+			const metadataDescription = action.item.metadata?.description;
+			const commandDescription = metadataDescription === undefined || isLocalizedString(metadataDescription)
+				? metadataDescription
+				// TODO: this type will eventually not be a string and when that happens, this should simplified.
+				: { value: metadataDescription, original: metadataDescription };
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
-				label: stripIcons(label)
+				label: stripIcons(label),
+				commandDescription,
 			});
 		}
 
@@ -258,7 +265,7 @@ export class ShowAllCommandsAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowAllCommandsAction.ID,
-			title: { value: localize('showTriggerActions', "Show All Commands"), original: 'Show All Commands' },
+			title: localize2('showTriggerActions', 'Show All Commands'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: undefined,
@@ -279,7 +286,7 @@ export class ClearCommandHistoryAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.clearCommandHistory',
-			title: { value: localize('clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+			title: localize2('clearCommandHistory', 'Clear Command History'),
 			f1: true
 		});
 	}

@@ -11,8 +11,7 @@ import * as path from 'vs/base/common/path';
 import { assertIsDefined } from 'vs/base/common/types';
 import { Promises } from 'vs/base/node/pfs';
 import * as nls from 'vs/nls';
-import { Entry, open as _openZip, ZipFile } from 'yauzl';
-import * as yazl from 'yazl';
+import type { Entry, ZipFile } from 'yauzl';
 
 export const CorruptZipMessage: string = 'end of central directory record signature not found';
 const CORRUPT_ZIP_PATTERN = new RegExp(CorruptZipMessage);
@@ -161,9 +160,11 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 	}).finally(() => listener.dispose());
 }
 
-function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
+async function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile> {
+	const { open } = await import('yauzl');
+
 	return new Promise<ZipFile>((resolve, reject) => {
-		_openZip(zipFile, lazy ? { lazyEntries: true } : undefined!, (error?: Error, zipfile?: ZipFile) => {
+		open(zipFile, lazy ? { lazyEntries: true } : undefined!, (error?: Error, zipfile?: ZipFile) => {
 			if (error) {
 				reject(toExtractError(error));
 			} else {
@@ -191,9 +192,11 @@ export interface IFile {
 	localPath?: string;
 }
 
-export function zip(zipPath: string, files: IFile[]): Promise<string> {
+export async function zip(zipPath: string, files: IFile[]): Promise<string> {
+	const { ZipFile } = await import('yazl');
+
 	return new Promise<string>((c, e) => {
-		const zip = new yazl.ZipFile();
+		const zip = new ZipFile();
 		files.forEach(f => {
 			if (f.contents) {
 				zip.addBuffer(typeof f.contents === 'string' ? Buffer.from(f.contents, 'utf8') : f.contents, f.path);

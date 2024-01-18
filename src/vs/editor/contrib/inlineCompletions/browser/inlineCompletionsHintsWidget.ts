@@ -78,7 +78,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				this.position,
 				model.selectedInlineCompletionIndex,
 				model.inlineCompletionsCount,
-				model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+				model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
 			));
 			editor.addContentWidget(contentWidget);
 			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
@@ -287,6 +287,10 @@ class ActionViewItemWithClassName extends ActionViewItem {
 			container.classList.add(this._className);
 		}
 	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
+	}
 }
 
 class StatusBarViewItem extends MenuEntryActionViewItem {
@@ -304,6 +308,10 @@ class StatusBarViewItem extends MenuEntryActionViewItem {
 			this.label.appendChild(div);
 			this.label.classList.add('inlineSuggestionStatusBarItemLabel');
 		}
+	}
+
+	protected override updateTooltip(): void {
+		// NOOP, disable tooltip
 	}
 }
 

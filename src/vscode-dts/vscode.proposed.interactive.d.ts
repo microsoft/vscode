@@ -20,6 +20,7 @@ declare module 'vscode' {
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		input?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
 		message?: string;
@@ -32,11 +33,13 @@ declare module 'vscode' {
 		wholeRange: Range;
 		attempt: number;
 		live: boolean;
+		withIntentDetection: boolean;
 	}
 
 	// todo@API make classes
 	export interface InteractiveEditorResponse {
 		edits: TextEdit[] | WorkspaceEdit;
+		contents?: MarkdownString;
 		placeholder?: string;
 		wholeRange?: Range;
 	}
@@ -48,11 +51,20 @@ declare module 'vscode' {
 		wholeRange?: Range;
 	}
 
+	export interface InteractiveEditorProgressItem {
+		message?: string;
+		edits?: TextEdit[];
+		editsShouldBeInstant?: boolean;
+		slashCommand?: InteractiveEditorSlashCommand;
+		content?: string | MarkdownString;
+	}
+
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
 		Undone = 2,
-		Accepted = 3
+		Accepted = 3,
+		Bug = 4
 	}
 
 	export interface TextDocumentContext {
@@ -61,22 +73,37 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorSessionProviderMetadata {
-		label: string;
+		label?: string;
+		supportReportIssue?: boolean;
 	}
+
+	export interface InteractiveEditorReplyFollowup {
+		message: string;
+		tooltip?: string;
+		title?: string;
+	}
+
+	export interface InteractiveEditorCommandFollowup {
+		commandId: string;
+		args?: any[];
+		title: string;
+		when?: string;
+	}
+
+	export type InteractiveEditorFollowup = InteractiveEditorReplyFollowup | InteractiveEditorCommandFollowup;
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
+
+		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorFollowup[]>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
-
-
-	export interface InteractiveSessionState { }
 
 	export interface InteractiveSessionParticipantInformation {
 		name: string;
@@ -91,111 +118,14 @@ declare module 'vscode' {
 		requester: InteractiveSessionParticipantInformation;
 		responder: InteractiveSessionParticipantInformation;
 		inputPlaceholder?: string;
-
-		saveState?(): InteractiveSessionState;
 	}
 
-	export interface InteractiveSessionRequestArgs {
-		command: string;
-		args: any;
-	}
-
-	export interface InteractiveRequest {
-		session: InteractiveSession;
-		message: string | InteractiveSessionReplyFollowup;
-	}
-
-	export interface InteractiveResponseErrorDetails {
-		message: string;
-		responseIsIncomplete?: boolean;
-		responseIsFiltered?: boolean;
-	}
-
-	export interface InteractiveResponseForProgress {
-		errorDetails?: InteractiveResponseErrorDetails;
-	}
-
-	export interface InteractiveProgressContent {
-		content: string | MarkdownString;
-	}
-
-	export interface InteractiveProgressId {
-		responseId: string;
-	}
-
-	export interface InteractiveProgressTask {
-		placeholder: string;
-		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
-	}
-
-	export interface FileTreeData {
-		label: string;
-		uri: Uri;
-		children?: FileTreeData[];
-	}
-
-	export interface InteractiveProgressFileTree {
-		treeData: FileTreeData;
-	}
-
-	export interface DocumentContext {
-		uri: Uri;
-		version: number;
-		ranges: Range[];
-	}
-
-	export interface InteractiveProgressUsedContext {
-		documents: DocumentContext[];
-	}
-
-	export type InteractiveProgress =
-		| InteractiveProgressContent
-		| InteractiveProgressId
-		| InteractiveProgressTask
-		| InteractiveProgressFileTree
-		| InteractiveProgressUsedContext;
-
-	export interface InteractiveResponseCommand {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
-	export interface InteractiveSessionSlashCommand {
-		command: string;
-		kind: CompletionItemKind;
-		detail?: string;
-		shouldRepopulate?: boolean;
-		followupPlaceholder?: string;
-		executeImmediately?: boolean;
-		yieldTo?: ReadonlyArray<{ readonly command: string }>;
-	}
-
-	export interface InteractiveSessionReplyFollowup {
-		message: string;
-		tooltip?: string;
-		title?: string;
-
-		// Extensions can put any serializable data here, such as an ID/version
-		metadata?: any;
-	}
-
-	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;
-
-	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideFollowups?(session: S, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
-		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
-
-		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
-		resolveRequest(session: S, context: InteractiveSessionRequestArgs | string, token: CancellationToken): ProviderResult<InteractiveRequest>;
-		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
-
-		// eslint-disable-next-line local/vscode-dts-provider-naming
-		removeRequest(session: S, requestId: string): void;
+		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentReplyFollowup[]>;
+		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 
 	export interface InteractiveSessionDynamicRequest {
@@ -203,12 +133,6 @@ declare module 'vscode' {
 		 * The message that will be displayed in the UI
 		 */
 		message: string;
-
-		/**
-		 * Any extra metadata/context that will go to the provider.
-		 * NOTE not actually used yet.
-		 */
-		metadata?: any;
 	}
 
 	export namespace interactive {
@@ -216,7 +140,6 @@ declare module 'vscode' {
 		export const _version: 1 | number;
 
 		export function registerInteractiveSessionProvider(id: string, provider: InteractiveSessionProvider): Disposable;
-		export function addInteractiveRequest(context: InteractiveSessionRequestArgs): void;
 
 		export function sendInteractiveRequestToProvider(providerId: string, message: InteractiveSessionDynamicRequest): void;
 

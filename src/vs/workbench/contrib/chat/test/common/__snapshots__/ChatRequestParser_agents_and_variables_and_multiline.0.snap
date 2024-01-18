@@ -13,53 +13,54 @@
       },
       agent: {
         id: "agent",
-        metadata: {
-          description: "",
-          subCommands: [ { name: "subCommand" } ]
-        }
+        metadata: { description: "" },
+        provideSlashCommands: [Function provideSlashCommands]
       },
       kind: "agent"
     },
     {
       range: {
         start: 6,
-        endExclusive: 18
+        endExclusive: 7
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 7,
-        endLineNumber: 2,
-        endColumn: 4
+        endLineNumber: 1,
+        endColumn: 8
       },
-      text: " Please \ndo ",
+      text: " ",
       kind: "text"
     },
     {
       range: {
-        start: 18,
-        endExclusive: 29
+        start: 7,
+        endExclusive: 18
       },
       editorRange: {
-        startLineNumber: 2,
-        startColumn: 4,
-        endLineNumber: 2,
-        endColumn: 15
+        startLineNumber: 1,
+        startColumn: 8,
+        endLineNumber: 1,
+        endColumn: 19
       },
-      command: { name: "subCommand" },
+      command: {
+        name: "subCommand",
+        description: ""
+      },
       kind: "subcommand"
     },
     {
       range: {
-        start: 29,
+        start: 18,
         endExclusive: 35
       },
       editorRange: {
-        startLineNumber: 2,
-        startColumn: 15,
+        startLineNumber: 1,
+        startColumn: 19,
         endLineNumber: 2,
-        endColumn: 21
+        endColumn: 16
       },
-      text: " with ",
+      text: " \nPlease do with ",
       kind: "text"
     },
     {
@@ -69,9 +70,9 @@
       },
       editorRange: {
         startLineNumber: 2,
-        startColumn: 21,
+        startColumn: 16,
         endLineNumber: 2,
-        endColumn: 31
+        endColumn: 26
       },
       variableName: "selection",
       variableArg: "",
@@ -84,7 +85,7 @@
       },
       editorRange: {
         startLineNumber: 2,
-        startColumn: 31,
+        startColumn: 26,
         endLineNumber: 3,
         endColumn: 5
       },
@@ -107,5 +108,5 @@
       kind: "var"
     }
   ],
-  text: "@agent Please \ndo /subCommand with #selection\nand #debugConsole"
+  text: "@agent /subCommand \nPlease do with #selection\nand #debugConsole"
 }

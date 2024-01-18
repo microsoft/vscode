@@ -46,3 +46,4 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& typeof obj.label === 'string'
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
+

@@ -37,7 +37,7 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 		this._loadState();
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
 		this._register(this._storageService.onDidChangeValue(StorageScope.WORKSPACE, NotebookKernelHistoryService.STORAGE_KEY, this._register(new DisposableStore()))(() => {
-			this._restoreState();
+			this._loadState();
 		}));
 	}
 
@@ -85,24 +85,6 @@ export class NotebookKernelHistoryService extends Disposable implements INoteboo
 			this._storageService.store(NotebookKernelHistoryService.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.USER);
 		} else {
 			this._storageService.remove(NotebookKernelHistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
-		}
-	}
-
-	private _restoreState(): void {
-		const serialized = this._storageService.get(NotebookKernelHistoryService.STORAGE_KEY, StorageScope.WORKSPACE);
-		if (serialized) {
-			try {
-				for (const [viewType, kernels] of JSON.parse(serialized)) {
-					const linkedMap = this._mostRecentKernelsMap[viewType] ?? new LinkedMap<string, string>();
-					for (const entry of kernels.entries) {
-						linkedMap.set(entry, entry, Touch.AsOld);
-					}
-
-					this._mostRecentKernelsMap[viewType] = linkedMap;
-				}
-			} catch (e) {
-				console.error('Deserialize notebook kernel history failed', e);
-			}
 		}
 	}
 

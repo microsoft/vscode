@@ -230,6 +230,10 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._requestService.resolveProxy(url);
 	}
 
+	$loadCertificates(): Promise<string[]> {
+		return this._requestService.loadCertificates();
+	}
+
 	// --- trust ---
 
 	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {

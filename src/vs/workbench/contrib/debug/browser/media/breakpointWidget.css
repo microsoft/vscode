@@ -16,7 +16,7 @@
 	flex-shrink: 0;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .monaco-select-box {
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .monaco-select-box {
 	min-width: 100px;
 	min-height: 18px;
 	padding: 2px 20px 2px 8px;
@@ -28,4 +28,31 @@
 
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputContainer {
 	flex: 1;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-grow: 1;
+	width: 0;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .monaco-button {
+	padding-left: 8px;
+	padding-right: 8px;
+	line-height: 14px;
+	flex-grow: 0;
+	width: initial;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container .select-box-container {
+	display: flex;
+	justify-content: center;
+	flex-direction: column;
+	width: 300px;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .select-breakpoint-container:after {
+	right: 14px;
 }

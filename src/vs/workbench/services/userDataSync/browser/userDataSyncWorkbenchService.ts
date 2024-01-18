@@ -23,7 +23,8 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { URI } from 'vs/base/common/uri';
-import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -322,7 +323,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.environmentService.options.settingsSyncOptions.enablementHandler(true, this.currentAuthenticationProviderId);
 		}
 
-		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE));
+		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE.value));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
@@ -362,7 +363,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				title: SYNC_TITLE,
+				title: SYNC_TITLE.value,
 				command: SHOW_SYNC_LOG_COMMAND_ID,
 				delay: 500,
 			}, async progress => {
@@ -585,7 +586,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}));
 		});
 
-		quickPick.title = SYNC_TITLE;
+		quickPick.title = SYNC_TITLE.value;
 		quickPick.ok = false;
 		quickPick.ignoreFocusOut = true;
 		quickPick.placeholder = localize('choose account placeholder', "Select an account to sign in");
@@ -672,12 +673,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			} else {
 				sessionId = (await this.authenticationService.createSession(accountOrAuthProvider.id, accountOrAuthProvider.scopes)).id;
 			}
+			this.currentAuthenticationProviderId = accountOrAuthProvider.id;
 		} else {
 			if (this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.id === accountOrAuthProvider.authenticationProviderId) {
 				sessionId = await this.environmentService.options?.settingsSyncOptions?.authenticationProvider?.signIn();
 			} else {
 				sessionId = accountOrAuthProvider.sessionId;
 			}
+			this.currentAuthenticationProviderId = accountOrAuthProvider.authenticationProviderId;
 		}
 		this.currentSessionId = sessionId;
 		await this.update();
@@ -690,7 +693,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
-		if (this.currentSessionId && e.removed.find(session => session.id === this.currentSessionId)) {
+		if (this.currentSessionId && e.removed?.find(session => session.id === this.currentSessionId)) {
 			this.currentSessionId = undefined;
 		}
 		this.update('change in sessions');

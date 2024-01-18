@@ -17,11 +17,12 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./menubar';
 import * as nls from 'vs/nls';
+import { mainWindow } from 'vs/base/browser/window';
 
 const $ = DOM.$;
 
@@ -87,6 +88,8 @@ export class MenuBar extends Disposable {
 	private numMenusShown: number = 0;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
+	private readonly menuDisposables = this._register(new DisposableStore());
+
 	constructor(private container: HTMLElement, private options: IMenuBarOptions, private menuStyle: IMenuStyles) {
 		super();
 
@@ -145,6 +148,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
+		const window = DOM.getWindow(this.container);
 		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
 			// This mouse event is outside the menubar so it counts as a focus out
 			if (this.isFocused) {
@@ -257,7 +261,7 @@ export class MenuBar extends Disposable {
 
 				this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 					// Ignore non-left-click
-					const mouseEvent = new StandardMouseEvent(e);
+					const mouseEvent = new StandardMouseEvent(DOM.getWindow(buttonElement), e);
 					if (!mouseEvent.leftButton) {
 						e.preventDefault();
 						return;
@@ -366,7 +370,7 @@ export class MenuBar extends Disposable {
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			// Ignore non-left-click
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(buttonElement), e);
 			if (!mouseEvent.leftButton) {
 				e.preventDefault();
 				return;
@@ -626,7 +630,7 @@ export class MenuBar extends Disposable {
 		});
 
 		if (!this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
+			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.container), () => {
 				this.updateOverflowAction();
 				this.overflowLayoutScheduled = undefined;
 			});
@@ -750,6 +754,7 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					this.cleanupCustomMenu();
 					this.showCustomMenu(this.focusedMenu.index, this.openedViaKeyboard);
 				}
 				break;
@@ -782,7 +787,7 @@ export class MenuBar extends Disposable {
 	private setUnfocusedState(): void {
 		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
 			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'classic' && browser.isFullscreen()) {
+		} else if (this.options.visibility === 'classic' && browser.isFullscreen(mainWindow)) {
 			this.focusState = MenubarState.HIDDEN;
 		} else {
 			this.focusState = MenubarState.VISIBLE;
@@ -984,6 +989,7 @@ export class MenuBar extends Disposable {
 
 			this.focusedMenu = { index: this.focusedMenu.index };
 		}
+		this.menuDisposables.clear();
 	}
 
 	private showCustomMenu(menuIndex: number, selectFirst = true): void {
@@ -1024,9 +1030,8 @@ export class MenuBar extends Disposable {
 			useEventAsContext: true
 		};
 
-		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
-
-		this._register(menuWidget.onDidCancel(() => {
+		const menuWidget = this.menuDisposables.add(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
+		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
 		}));
 

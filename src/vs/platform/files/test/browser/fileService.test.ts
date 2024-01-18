@@ -7,12 +7,13 @@ import * as assert from 'assert';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { bufferToReadable, bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { consumeStream, newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions } from 'vs/platform/files/common/files';
+import { IFileOpenOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileType, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IStat, IFileAtomicReadOptions, IFileAtomicWriteOptions, IFileAtomicDeleteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileSystemProviderWithFileAtomicWriteCapability, IFileAtomicOptions, IFileChange, isFileSystemWatcher, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -140,6 +141,58 @@ suite('File Service', () => {
 		assert.strictEqual(disposeCounter, 3);
 
 		service.dispose();
+	});
+
+	test('watch - with corelation', async () => {
+		const service = disposables.add(new FileService(new NullLogService()));
+
+		const provider = new class extends NullFileSystemProvider {
+			private readonly _testOnDidChangeFile = new Emitter<readonly IFileChange[]>();
+			override readonly onDidChangeFile: Event<readonly IFileChange[]> = this._testOnDidChangeFile.event;
+
+			fireFileChange(changes: readonly IFileChange[]) {
+				this._testOnDidChangeFile.fire(changes);
+			}
+		};
+
+		disposables.add(service.registerProvider('test', provider));
+		await service.activateProvider('test');
+
+		const globalEvents: FileChangesEvent[] = [];
+		disposables.add(service.onDidFilesChange(e => {
+			globalEvents.push(e);
+		}));
+
+		const watcher0 = disposables.add(service.watch(URI.parse('test://watch/folder1'), { recursive: true, excludes: [], includes: [] }));
+		assert.strictEqual(isFileSystemWatcher(watcher0), false);
+		const watcher1 = disposables.add(service.watch(URI.parse('test://watch/folder2'), { recursive: true, excludes: [], includes: [], correlationId: 100 }));
+		assert.strictEqual(isFileSystemWatcher(watcher1), true);
+		const watcher2 = disposables.add(service.watch(URI.parse('test://watch/folder3'), { recursive: true, excludes: [], includes: [], correlationId: 200 }));
+		assert.strictEqual(isFileSystemWatcher(watcher2), true);
+
+		const watcher1Events: FileChangesEvent[] = [];
+		disposables.add(watcher1.onDidChange(e => {
+			watcher1Events.push(e);
+		}));
+
+		const watcher2Events: FileChangesEvent[] = [];
+		disposables.add(watcher2.onDidChange(e => {
+			watcher2Events.push(e);
+		}));
+
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder1'), type: FileChangeType.ADDED }]);
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder2'), type: FileChangeType.ADDED, cId: 100 }]);
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder2'), type: FileChangeType.ADDED, cId: 100 }]);
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder3/file'), type: FileChangeType.UPDATED, cId: 200 }]);
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder3'), type: FileChangeType.UPDATED, cId: 200 }]);
+
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder4'), type: FileChangeType.ADDED, cId: 50 }]);
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder4'), type: FileChangeType.ADDED, cId: 60 }]);
+		provider.fireFileChange([{ resource: URI.parse('test://watch/folder4'), type: FileChangeType.ADDED, cId: 70 }]);
+
+		assert.strictEqual(globalEvents.length, 1);
+		assert.strictEqual(watcher1Events.length, 2);
+		assert.strictEqual(watcher2Events.length, 2);
 	});
 
 	test('error from readFile bubbles through (https://github.com/microsoft/vscode/issues/118060) - async', async () => {
