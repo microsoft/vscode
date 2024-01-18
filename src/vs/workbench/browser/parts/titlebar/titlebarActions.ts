@@ -69,8 +69,8 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}`,
 			title: localize('toggle.hideCustomTitleBar', 'Hide Custom Title Bar'),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(`config.window.titleBarStyle`, TitlebarStyle.NATIVE), group: '3_toggle' },
-				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(`config.window.titleBarStyle`, TitlebarStyle.NATIVE), group: '3_toggle' },
+				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE), ContextKeyExpr.equals(`config.window.nativeTabs`, ContextKeyExpr.true())), group: '3_toggle' },
+				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE), ContextKeyExpr.equals(`config.window.nativeTabs`, ContextKeyExpr.true())), group: '3_toggle' },
 			]
 		});
 	}
