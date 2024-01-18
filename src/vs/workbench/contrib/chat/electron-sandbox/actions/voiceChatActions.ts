@@ -21,8 +21,6 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, MENU_INLINE_CHAT_INPUT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
@@ -46,6 +44,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -84,7 +83,7 @@ class VoiceChatSessionControllerFactory {
 		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
 		const chatContributionService = accessor.get(IChatContributionService);
-		const editorService = accessor.get(IEditorService);
+		const codeEditorService = accessor.get(ICodeEditorService);
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
@@ -114,7 +113,7 @@ class VoiceChatSessionControllerFactory {
 			}
 
 			// Try with the inline chat
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+			const activeCodeEditor = codeEditorService.getFocusedCodeEditor();
 			if (activeCodeEditor) {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat?.hasFocus()) {
@@ -136,7 +135,7 @@ class VoiceChatSessionControllerFactory {
 
 		// Inline Chat
 		if (context === 'inline') {
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+			const activeCodeEditor = codeEditorService.getFocusedCodeEditor();
 			if (activeCodeEditor) {
 				const inlineChat = InlineChatController.get(activeCodeEditor);
 				if (inlineChat) {
@@ -772,7 +771,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -879,7 +879,9 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			case KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT:
 				return QuickVoiceChatAction.ID;
 			case KeywordActivationContribution.SETTINGS_VALUE.CHAT_IN_CONTEXT:
-				return StartVoiceChatAction.ID;
+				if (this.codeEditorService.getFocusedCodeEditor()) {
+					return InlineVoiceChatAction.ID;
+				}
 			default:
 				return VoiceChatInChatViewAction.ID;
 		}
