@@ -250,6 +250,7 @@ class AdditionalLinesWidget extends Disposable {
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
+				domNode.className = 'ghost-text-decoration';
 				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec);
 
 				this._viewZoneId = changeAccessor.addZone({
@@ -319,7 +320,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	}
 	sb.appendString('</div>');
 
-	applyFontInfo(domNode, fontInfo);
+	applyFontInfo(domNode, fontInfo, { excludeFontFamily: true });
 	const html = sb.build();
 	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
 	domNode.innerHTML = trustedhtml as string;

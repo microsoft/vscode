@@ -927,6 +927,10 @@ export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
+/**
+ * Optimized variant of createStyleSheet function which minimizes dom repaint
+ * @returns
+ */
 export function createStyleSheet2(): WrappedStyleElement {
 	return new WrappedStyleElement();
 }

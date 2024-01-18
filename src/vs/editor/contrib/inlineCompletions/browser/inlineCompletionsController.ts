@@ -118,8 +118,9 @@ export class InlineCompletionsController extends Disposable {
 		this._register(autorun(reader => {
 			const _fontFamily = this._fontFamily.read(reader);
 			const fontFamily = _fontFamily === '' || _fontFamily === 'default' ? 'unset' : _fontFamily;
-			styleElement.setStyle(`.monaco-editor .ghost-text-decoration {
+			styleElement.setStyle(`.monaco-editor .ghost-text-decoration, .monaco-editor .ghost-text-decoration-preview {
 				font-family: ${fontFamily};
+				font-style: italic;
 			}`);
 		}));
 
