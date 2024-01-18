@@ -1229,8 +1229,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
+		const nativeTitleBarVisible = hasNativeTitlebar(this.configurationService);
 		const showCustomTitleBar = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && this.state.runtime.mainWindowFullscreen) {
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarVisible || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && this.state.runtime.mainWindowFullscreen) {
 			return false;
 		}
 
@@ -1252,7 +1253,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Hide custom title bar when native title bar and custom title bar is empty
-		if (hasNativeTitlebar(this.configurationService)) {
+		if (nativeTitleBarVisible) {
 			return false;
 		}
 
