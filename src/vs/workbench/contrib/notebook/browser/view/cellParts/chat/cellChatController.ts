@@ -29,7 +29,8 @@ import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { EmptyResponse, ErrorResponse, IInlineChatSessionService, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -167,6 +168,10 @@ export class NotebookCellChatController extends Disposable {
 		super.dispose();
 	}
 
+	isWidgetVisible() {
+		return this._isVisible;
+	}
+
 	layout() {
 		if (this._isVisible && this._widget) {
 			const width = this._notebookEditor.getLayoutInfo().width - (/** margin */ 16 + 6) - (/** padding */ 6 * 2);
@@ -189,7 +194,7 @@ export class NotebookCellChatController extends Disposable {
 		this._partContainer.style.height = `${heightWithPadding - surrounding}px`;
 	}
 
-	async show() {
+	async show(input?: string, autoSend?: boolean) {
 		this._isVisible = true;
 		if (!this._widget) {
 			const editor = this._getCellEditor();
@@ -228,7 +233,19 @@ export class NotebookCellChatController extends Disposable {
 				this._widget.updateInfo(this._activeSession?.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 				this._widget.focus();
 			}
+
+			if (this._widget && input) {
+				this._widget.value = input;
+
+				if (autoSend) {
+					this.acceptInput();
+				}
+			}
 		});
+	}
+
+	async focusWidget() {
+		this._widget?.focus();
 	}
 
 	private _getCellEditor() {

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMatch } from 'vs/base/common/filters';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
@@ -22,12 +22,12 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { searchDetailsIcon, searchOpenInFileIcon, searchActivityBarIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { FileMatch, Match, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, Match, RenderableMatch, SearchModel, SearchModelLocation, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -45,6 +45,10 @@ const MAX_RESULTS_PER_FILE = 10;
 export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 	private queryBuilder: QueryBuilder;
 	private searchModel: SearchModel;
+	private currentAsyncSearch: Promise<ISearchComplete> = Promise.resolve({
+		results: [],
+		messages: []
+	});
 
 	private _getTextQueryBuilderOptions(charsPerLine: number): ITextQueryBuilderOptions {
 		return {
@@ -74,6 +78,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		this.queryBuilder = this._instantiationService.createInstance(QueryBuilder);
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
+		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 	}
 
 	override dispose(): void {
@@ -89,7 +94,11 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		picker.customButton = true;
 		picker.customLabel = '$(link-external)';
 		picker.onDidCustom(() => {
-			this.moveToSearchViewlet(this.searchModel, undefined);
+			if (this.searchModel.searchResult.count() > 0) {
+				this.moveToSearchViewlet(undefined);
+			} else {
+				this._viewsService.openView(VIEW_ID, true);
+			}
 			picker.hide();
 		});
 		disposables.add(super.provide(picker, token, runOptions));
@@ -137,6 +146,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		const result = this.searchModel.search(query, undefined, token);
 
 		const getAsyncResults = async () => {
+			this.currentAsyncSearch = result.asyncResults;
 			await result.asyncResults;
 			const syncResultURIs = new ResourceSet(result.syncResults.map(e => e.resource));
 			return this.searchModel.searchResult.matches().filter(e => !syncResultURIs.has(e.resource));
@@ -147,12 +157,15 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		};
 	}
 
-	private moveToSearchViewlet(model: SearchModel, currentElem: RenderableMatch | undefined) {
-		// this function takes this._searchModel.searchResult and moves it to the search viewlet's search model.
-		// then, this._searchModel will construct a new (empty) SearchResult, and the search viewlet's search result will be disposed.
+	private moveToSearchViewlet(currentElem: RenderableMatch | undefined) {
+		// this function takes this._searchModel and moves it to the search viewlet's search model.
+		// then, this._searchModel will construct a new (empty) SearchModel.
 		this._viewsService.openView(VIEW_ID, false);
 		const viewlet: SearchView | undefined = this._viewsService.getActiveViewWithId(VIEW_ID) as SearchView;
-		viewlet.importSearchResult(model);
+		viewlet.replaceSearchModel(this.searchModel, this.currentAsyncSearch);
+
+		this.searchModel = this._instantiationService.createInstance(SearchModel);
+		this.searchModel.location = SearchModelLocation.QUICK_ACCESS;
 
 		const viewer: WorkbenchCompressibleObjectTree<RenderableMatch> | undefined = viewlet?.getControl();
 		if (currentElem) {
@@ -181,7 +194,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 					label: localize('QuickSearchSeeMoreFiles', "See More Files"),
 					iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 					accept: async () => {
-						this.moveToSearchViewlet(this.searchModel, matches[limit]);
+						this.moveToSearchViewlet(matches[limit]);
 					}
 				});
 				break;
@@ -212,7 +225,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 						label: localize('QuickSearchMore', "More"),
 						iconClass: ThemeIcon.asClassName(searchDetailsIcon),
 						accept: async () => {
-							this.moveToSearchViewlet(this.searchModel, element);
+							this.moveToSearchViewlet(element);
 						}
 					});
 					break;
@@ -243,7 +256,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 						});
 					},
 					trigger: (): TriggerAction => {
-						this.moveToSearchViewlet(this.searchModel, element);
+						this.moveToSearchViewlet(element);
 						return TriggerAction.CLOSE_PICKER;
 					}
 				});
@@ -270,11 +283,24 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 	protected _getPicks(contentPattern: string, disposables: DisposableStore, token: CancellationToken): Picks<IQuickPickItem> | Promise<Picks<IQuickPickItem> | FastAndSlowPicks<IQuickPickItem>> | FastAndSlowPicks<IQuickPickItem> | null {
 
+		const searchModelAtTimeOfSearch = this.searchModel;
 		if (contentPattern === '') {
+
 			this.searchModel.searchResult.clear();
-			return [];
+			return [{
+				label: localize('enterSearchTerm', "Enter a term to search for across your files.")
+			}];
 		}
-		const allMatches = this.doSearch(contentPattern, token);
+
+		const conditionalTokenCts = disposables.add(new CancellationTokenSource());
+
+		disposables.add(token.onCancellationRequested(() => {
+			if (searchModelAtTimeOfSearch.location === SearchModelLocation.QUICK_ACCESS) {
+				// if the search model has not been imported to the panel, you can cancel
+				conditionalTokenCts.cancel();
+			}
+		}));
+		const allMatches = this.doSearch(contentPattern, conditionalTokenCts.token);
 
 		if (!allMatches) {
 			return null;

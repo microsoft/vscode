@@ -5,11 +5,13 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { URI } from 'vs/base/common/uri';
+import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize2 } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -30,10 +32,26 @@ export class GoToFileAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const uri = args[0] as URI;
 		const editorService = accessor.get(IEditorService);
-		editorService.openEditor({ resource: uri });
+		const activeEditorPane = editorService.activeEditorPane;
+		let selections: Selection[] | undefined = undefined;
+		if (activeEditorPane instanceof MultiDiffEditor) {
+			const editor = activeEditorPane.tryGetCodeEditor(uri);
+			if (editor) {
+				selections = editor.editor.getSelections() ?? undefined;
+			}
+		}
+
+		const editor = await editorService.openEditor({ resource: uri });
+		if (selections && (editor instanceof TextFileEditor)) {
+			const c = editor.getControl();
+			if (c) {
+				c.setSelections(selections);
+				c.revealLineInCenter(selections[0].selectionStartLineNumber);
+			}
+		}
 	}
 }
 

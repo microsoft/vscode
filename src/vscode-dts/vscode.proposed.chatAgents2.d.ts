@@ -5,11 +5,17 @@
 
 declare module 'vscode' {
 
+	export interface ChatAgentHistoryEntry {
+		request: ChatAgentRequest;
+		response: ChatAgentContentProgress[];
+		result: ChatAgentResult2;
+	}
+
 	export interface ChatAgentContext {
 		/**
 		 * All of the chat messages so far in the current chat session.
 		 */
-		history: ChatMessage[];
+		history: ChatAgentHistoryEntry[];
 	}
 
 	/**
@@ -242,10 +248,21 @@ declare module 'vscode' {
 		prompt: string;
 
 		/**
+		 * The ID of the chat agent to which this request was directed.
+		 */
+		agentId: string;
+
+		/**
 		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request. It is guaranteed that the passed slash
 		 * command is an instance that was previously returned from the {@link ChatAgentSlashCommandProvider.provideSlashCommands slash command provider}.
+		 * @deprecated this will be replaced by `subCommand`
 		 */
 		slashCommand?: ChatAgentSlashCommand;
+
+		/**
+		 * The name of the {@link ChatAgentSlashCommand slash command} that was selected for this request.
+		 */
+		subCommand?: string;
 
 		variables: Record<string, ChatVariableValue[]>;
 	}
