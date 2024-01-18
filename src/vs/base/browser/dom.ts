@@ -927,6 +927,30 @@ export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
+class WrappedStyleElement {
+
+	private _styleSheet: HTMLStyleElement | undefined = undefined;
+
+	public setStyle(style: string): void {
+		if (!this._styleSheet) {
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = style);
+		} else {
+			this._styleSheet.innerText = style;
+		}
+	}
+
+	public dispose(): void {
+		if (this._styleSheet) {
+			clearNode(this._styleSheet);
+			this._styleSheet = undefined;
+		}
+	}
+}
+
+export function createStyleSheet2(): WrappedStyleElement {
+	return new WrappedStyleElement();
+}
+
 export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';

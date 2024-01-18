@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet } from 'vs/base/browser/dom';
+import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction } from 'vs/base/common/observable';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
@@ -114,25 +114,9 @@ export class InlineCompletionsController extends Disposable {
 			});
 		}));
 
-		const updateFontFamily = (styleElement: HTMLStyleElement) => {
-			const fontFamily = editor.getOption(EditorOption.inlineSuggest).fontFamily;
-			if (fontFamily !== 'default') {
-				styleElement.textContent = `.monaco-editor .ghost-text-decoration {
-						font-family: ${fontFamily};
-					}`;
-			} else {
-				styleElement.textContent = '';
-			}
-		};
-
-		const styleElement = createStyleSheet(undefined, ((styleElement: HTMLStyleElement) => {
-			updateFontFamily(styleElement);
-		}));
-
-		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.inlineSuggest)) {
-				updateFontFamily(styleElement);
-			}
+		const styleElement = this._register(createStyleSheet2());
+		this._register(autorun(reader => {
+			styleElement.setStyle(`.foo { font-family: "${this._fontFamily.read(reader)}"; }`);
 		}));
 
 		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {
