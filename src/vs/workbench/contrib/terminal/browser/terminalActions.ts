@@ -64,7 +64,7 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
-import { TerminalSpeechToTextSession } from 'vs/workbench/contrib/terminal/browser/terminalSpeechToText';
+import { TerminalVoiceSession } from 'vs/workbench/contrib/terminal/browser/terminalVoice';
 import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
@@ -1645,30 +1645,30 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
-		id: TerminalCommandId.StartSpeechToText,
+		id: TerminalCommandId.StartVoice,
 		title: {
-			value: localize('workbench.action.startTerminalSpeechToText', "Start Terminal Speech To Text"),
-			original: 'Start Terminal Speech To Text'
+			value: localize('workbench.action.startTerminalVoice', "Start Terminal Voice"),
+			original: 'Start Terminal Voice'
 		},
 		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
-			TerminalSpeechToTextSession.getInstance(instantiationService).start();
+			TerminalVoiceSession.getInstance(instantiationService).start();
 		}
 	});
 
 	registerActiveInstanceAction({
-		id: TerminalCommandId.StopSpeechToText,
+		id: TerminalCommandId.StopVoice,
 		title: {
-			value: localize('workbench.action.stopTerminalSpeechToText', "Stop Terminal Speech To Text"),
-			original: 'Stop Terminal Speech To Text'
+			value: localize('workbench.action.stopTerminalVoice', "Stop Terminal Voice"),
+			original: 'Stop Terminal Voice'
 		},
 		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
 		f1: true,
 		run: (activeInstance, c, accessor) => {
 			const instantiationService = accessor.get(IInstantiationService);
-			TerminalSpeechToTextSession.getInstance(instantiationService).stop(true);
+			TerminalVoiceSession.getInstance(instantiationService).stop(true);
 		}
 	});
 }
