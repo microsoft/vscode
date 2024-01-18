@@ -85,7 +85,6 @@ export class NotebookStickyLine extends Disposable {
 export class NotebookStickyScroll extends Disposable {
 	private readonly _disposables = new DisposableStore();
 	private currentStickyLines = new Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>();
-	private renderedStickyLines: NotebookStickyLine[] = [];
 	private filteredOutlineEntries: OutlineEntry[] = [];
 
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
@@ -174,7 +173,7 @@ export class NotebookStickyScroll extends Disposable {
 
 		this._disposables.add(this.notebookOutline.onDidChange(() => {
 			this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
+			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight());
 			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 				this.updateContent(recompute);
 			}
@@ -182,14 +181,14 @@ export class NotebookStickyScroll extends Disposable {
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
 			this.notebookOutline.init();
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines));
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
 			const d = new Delayer(100);
 			d.trigger(() => {
 				d.dispose();
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
+				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight());
 				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 					this.updateContent(recompute);
 				}
@@ -232,9 +231,6 @@ export class NotebookStickyScroll extends Disposable {
 
 		const oldStickyHeight = this.getCurrentStickyHeight();
 		this.setCurrentStickyLines(newMap);
-		this.renderedStickyLines = Array.from(newMap.values())
-			.filter(value => value.rendered)
-			.map(value => value.line);
 
 		// (+) = sticky height increased
 		// (-) = sticky height decreased
@@ -324,7 +320,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 }
 
-export function computeContent(notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], renderedStickyHeight: number, renderedLines: NotebookStickyLine[]): Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> {
+export function computeContent(notebookEditor: INotebookEditor, notebookCellList: INotebookCellList, notebookOutlineEntries: OutlineEntry[], renderedStickyHeight: number): Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }> {
 	// get data about the cell list within viewport ----------------------------------------------------------------------------------------
 	const editorScrollTop = notebookEditor.scrollTop - renderedStickyHeight;
 	const visibleRange = notebookEditor.visibleRanges[0];
