@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/customEditor';
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -28,10 +29,6 @@ import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from 'v
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/customEditor.css', import.meta.url)
-
 
 export class CustomEditorService extends Disposable implements ICustomEditorService {
 	_serviceBrand: any;
