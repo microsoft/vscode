@@ -124,9 +124,13 @@ class UpdatableHoverWidget implements IDisposable {
 			const hoverOptions: IHoverDelegateOptions = {
 				content,
 				target: this.target,
-				showPointer: this.hoverDelegate.placement === 'element',
-				hoverPosition: HoverPosition.BELOW,
-				skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
+				appearance: {
+					showPointer: this.hoverDelegate.placement === 'element',
+					skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
+				},
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+				},
 				...options
 			};
 
@@ -187,18 +191,25 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		}, delay);
 	};
 
+	let isMouseDown = false;
+	const mouseDownEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_DOWN, () => {
+		isMouseDown = true;
+		hideHover(true, true);
+	}, true);
+	const mouseUpEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_UP, () => {
+		isMouseDown = false;
+	}, true);
+	const mouseLeaveEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_LEAVE, (e: MouseEvent) => {
+		isMouseDown = false;
+		hideHover(false, (<any>e).fromElement === htmlElement);
+	}, true);
+
 	const onMouseOver = () => {
 		if (hoverPreparation) {
 			return;
 		}
 
 		const toDispose: DisposableStore = new DisposableStore();
-
-		const onMouseLeave = (e: MouseEvent) => hideHover(false, (<any>e).fromElement === htmlElement);
-		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_LEAVE, onMouseLeave, true));
-
-		const onMouseDown = () => hideHover(true, true);
-		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_DOWN, onMouseDown, true));
 
 		const target: IHoverDelegateTarget = {
 			targetElements: [htmlElement],
@@ -219,6 +230,22 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hoverPreparation = toDispose;
 	};
 	const mouseOverDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_OVER, onMouseOver, true);
+
+	const onFocus = () => {
+		if (isMouseDown || hoverPreparation) {
+			return;
+		}
+		const target: IHoverDelegateTarget = {
+			targetElements: [htmlElement],
+			dispose: () => { }
+		};
+		const toDispose: DisposableStore = new DisposableStore();
+		const onBlur = () => hideHover(true, true);
+		toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.BLUR, onBlur, true));
+		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
+		hoverPreparation = toDispose;
+	};
+	const focusDomEmitter = dom.addDisposableListener(htmlElement, dom.EventType.FOCUS, onFocus, true);
 	const hover: ICustomHover = {
 		show: focus => {
 			hideHover(false, true); // terminate a ongoing mouse over preparation
@@ -233,6 +260,10 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		},
 		dispose: () => {
 			mouseOverDomEmitter.dispose();
+			mouseLeaveEmitter.dispose();
+			mouseDownEmitter.dispose();
+			mouseUpEmitter.dispose();
+			focusDomEmitter.dispose();
 			hideHover(true, true);
 		}
 	};

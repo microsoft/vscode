@@ -156,7 +156,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 	}
 
 	private onDidEditorPaste(e: IPasteEvent, codeEditor: ICodeEditor): void {
-		if (this.input instanceof UntitledTextEditorInput && this.input.model.hasLanguageSetExplicitly) {
+		if (this.input instanceof UntitledTextEditorInput && this.input.hasLanguageSetExplicitly) {
 			return; // do not override language if it was set explicitly
 		}
 
@@ -205,7 +205,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		if (candidateLanguage && candidateLanguage.id !== PLAINTEXT_LANGUAGE_ID) {
 			if (this.input instanceof UntitledTextEditorInput && candidateLanguage.source === 'event') {
 				// High confidence, set language id at TextEditorModel level to block future auto-detection
-				this.input.model.setLanguageId(candidateLanguage.id);
+				this.input.setLanguageId(candidateLanguage.id);
 			} else {
 				textModel.setLanguage(this.languageService.createById(candidateLanguage.id));
 			}

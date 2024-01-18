@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -85,7 +85,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this.show();
 			return true;
 		}, TerminalContextKeys.focus));
-		this._register(_instance.onDidRunText(() => {
+		this._register(_instance.onDidExecuteText(() => {
 			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
@@ -320,5 +320,41 @@ registerTerminalAction({
 			return;
 		}
 		await TerminalAccessibleViewContribution.get(instance)?.navigateToCommand(NavigationType.Previous);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.ScrollToBottomAccessibleView,
+	title: localize2('workbench.action.terminal.scrollToBottomAccessibleView', 'Scroll to Accessible View Bottom'),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.End,
+		linux: { primary: KeyMod.Shift | KeyCode.End },
+		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		const lastPosition = accessibleViewService.getLastPosition();
+		if (!lastPosition) {
+			return;
+		}
+		accessibleViewService.setPosition(lastPosition, true);
+	}
+});
+
+registerTerminalAction({
+	id: TerminalCommandId.ScrollToTopAccessibleView,
+	title: localize2('workbench.action.terminal.scrollToTopAccessibleView', 'Scroll to Accessible View Top'),
+	precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal))),
+	keybinding: {
+		primary: KeyMod.CtrlCmd | KeyCode.Home,
+		linux: { primary: KeyMod.Shift | KeyCode.Home },
+		when: accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal),
+		weight: KeybindingWeight.WorkbenchContrib
+	},
+	run: (c, accessor) => {
+		const accessibleViewService = accessor.get(IAccessibleViewService);
+		accessibleViewService.setPosition({ lineNumber: 1, column: 1 } as Position, true);
 	}
 });

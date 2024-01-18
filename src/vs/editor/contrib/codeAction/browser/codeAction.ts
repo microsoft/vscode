@@ -81,6 +81,14 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	public get hasAutoFix() {
 		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
 	}
+
+	public get hasAIFix() {
+		return this.validActions.some(({ action: fix }) => !!fix.isAI);
+	}
+
+	public get allAIFixes() {
+		return this.validActions.every(({ action: fix }) => !!fix.isAI);
+	}
 }
 
 const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };

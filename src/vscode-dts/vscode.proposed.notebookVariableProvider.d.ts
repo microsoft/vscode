@@ -16,7 +16,7 @@ declare module 'vscode' {
 
 	interface VariablesResult {
 		variable: Variable;
-		namedChildrenCount: number;
+		hasNamedChildren: boolean;
 		indexedChildrenCount: number;
 	}
 

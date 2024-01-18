@@ -261,7 +261,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 			this._updateCSS();
 		}));
 
-		addMatchMediaChangeListener('(forced-colors: active)', () => {
+		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
 			this._onOSSchemeChanged();
 		});
 	}

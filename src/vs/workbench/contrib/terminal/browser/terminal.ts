@@ -7,7 +7,7 @@ import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
 import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -22,10 +22,12 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfiguration, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
-import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -296,7 +298,8 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
-	moveToEditor(source: ITerminalInstance): void;
+	moveToEditor(source: ITerminalInstance, group?: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): void;
+	moveIntoNewEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
 
@@ -418,7 +421,7 @@ export interface ICreateTerminalOptions {
 }
 
 export interface TerminalEditorLocation {
-	viewColumn: EditorGroupColumn;
+	viewColumn: GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 	preserveFocus?: boolean;
 }
 
@@ -576,6 +579,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly injectedArgs: string[] | undefined;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
+	/**
+	 * The underlying disposable store, allowing objects who share the same lifecycle as the
+	 * terminal instance but are created externally to be managed by the instance.
+	 */
+	readonly store: DisposableStore;
+
 	readonly statusList: ITerminalStatusList;
 
 	/**
@@ -653,8 +662,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
-	onDidRunText: Event<void>;
+	onDidExecuteText: Event<void>;
 	onDidChangeTarget: Event<TerminalLocation | undefined>;
+	onDidSendText: Event<string>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.
@@ -779,8 +789,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	/**
 	 * Registers and returns a marker
+	 * @param the y offset from the cursor
 	 */
-	registerMarker(): IMarker | undefined;
+	registerMarker(offset?: number): IMarker | undefined;
 
 	/**
 	 * Adds a marker to the buffer, mapping it to an ID if provided.
@@ -840,6 +851,12 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Focuses and pastes the contents of the selection clipboard into the terminal instance.
 	 */
 	pasteSelection(): Promise<void>;
+
+	/**
+	 * Override the copy on selection feature with a custom value.
+	 * @param value Whether to enable copySelection.
+	 */
+	overrideCopyOnSelection(value: boolean): IDisposable;
 
 	/**
 	 * Send text to the terminal instance. The text is written to the stdin of the underlying pty
@@ -972,7 +989,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
-	changeColor(color?: string): Promise<string | undefined>;
+	changeColor(color?: string, skipQuickPick?: boolean): Promise<string | undefined>;
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
@@ -987,34 +1004,9 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	freePortKillProcess(port: string, commandToRun: string): Promise<void>;
 
 	/**
-	 * Selects the previous suggestion if the suggest widget is visible.
+	 * Update the parent context key service to use for this terminal instance.
 	 */
-	selectPreviousSuggestion(): void;
-
-	/**
-	 * Selects the previous page suggestion if the suggest widget is visible.
-	 */
-	selectPreviousPageSuggestion(): void;
-
-	/**
-	 * Selects the next suggestion if the suggest widget is visible.
-	 */
-	selectNextSuggestion(): void;
-
-	/**
-	 * Selects the next page suggestion if the suggest widget is visible.
-	 */
-	selectNextPageSuggestion(): void;
-
-	/**
-	 * Accepts the current suggestion if the suggest widget is visible.
-	 */
-	acceptSelectedSuggestion(): Promise<void>;
-
-	/**
-	 * Hides the suggest widget.
-	 */
-	hideSuggestWidget(): void;
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
 }
 
 export const enum XtermTerminalConstants {

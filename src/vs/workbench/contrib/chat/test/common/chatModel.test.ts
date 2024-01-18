@@ -112,7 +112,7 @@ suite('ChatModel', () => {
 		model.startInitialize();
 		model.initialize({} as any, undefined);
 		const text = 'hello';
-		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] });
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { message: text, variables: {} });
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1);
 
@@ -122,6 +122,8 @@ suite('ChatModel', () => {
 });
 
 suite('Response', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('content, markdown', async () => {
 		const response = new Response([]);
 		response.updateContent({ content: 'text', kind: 'content' });

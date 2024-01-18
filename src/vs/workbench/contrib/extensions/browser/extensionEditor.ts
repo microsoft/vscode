@@ -8,6 +8,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { CheckboxActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Cache, CacheResult } from 'vs/base/common/cache';
@@ -46,7 +47,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { defaultCheckboxStyles, defaultKeybindingLabelStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { buttonForeground, buttonHoverBackground, editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -71,9 +72,8 @@ import {
 	SetFileIconThemeAction,
 	SetLanguageAction,
 	SetProductIconThemeAction,
-	SkipUpdateAction,
+	ToggleAutoUpdateForExtensionAction,
 	SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction,
-	ToggleSyncExtensionAction,
 	UninstallAction,
 	UpdateAction,
 	WebInstallAction
@@ -344,7 +344,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ReloadAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
 			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
-				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(SkipUpdateAction)]]),
+				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
 			this.instantiationService.createInstance(SetProductIconThemeAction),
@@ -367,7 +367,7 @@ export class ExtensionEditor extends EditorPane {
 			]),
 			this.instantiationService.createInstance(SwitchToPreReleaseVersionAction, false),
 			this.instantiationService.createInstance(SwitchToReleasedVersionAction, false),
-			this.instantiationService.createInstance(ToggleSyncExtensionAction),
+			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, [false, 'onlySelectedExtensions']),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
 
@@ -380,6 +380,9 @@ export class ExtensionEditor extends EditorPane {
 				}
 				if (action instanceof ActionWithDropDownAction) {
 					return new ExtensionActionWithDropdownActionViewItem(action, { icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				}
+				if (action instanceof ToggleAutoUpdateForExtensionAction) {
+					return new CheckboxActionViewItem(undefined, action, { icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
 				}
 				return undefined;
 			},
@@ -601,9 +604,7 @@ export class ExtensionEditor extends EditorPane {
 			this.currentIdentifier = extension.identifier.id;
 		}
 
-		if (extension.hasReadme()) {
-			template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
-		}
+		template.navbar.push(ExtensionEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		if (manifest && manifest.contributes) {
 			template.navbar.push(ExtensionEditorTab.Contributions, localize('contributions', "Feature Contributions"), localize('contributionstooltip', "Lists contributions to VS Code by this extension"));
 		}
@@ -938,6 +939,11 @@ export class ExtensionEditor extends EditorPane {
 		const resources: [string, URI][] = [];
 		if (extension.url) {
 			resources.push([localize('Marketplace', "Marketplace"), URI.parse(extension.url)]);
+		}
+		if (extension.url && extension.supportUrl) {
+			try {
+				resources.push([localize('issues', "Issues"), URI.parse(extension.supportUrl)]);
+			} catch (error) {/* Ignore */ }
 		}
 		if (extension.repository) {
 			try {

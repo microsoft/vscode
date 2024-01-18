@@ -11,7 +11,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class DirtyFilesIndicator extends Disposable implements IWorkbenchContribution {
 	private readonly badgeHandle = this._register(new MutableDisposable());
@@ -42,7 +42,7 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 
 	private onWorkingCopyDidChangeDirty(workingCopy: IWorkingCopy): void {
 		const gotDirty = workingCopy.isDirty();
-		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+		if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 			return; // do not indicate dirty of working copies that are auto saved after short delay
 		}
 

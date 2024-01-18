@@ -10,10 +10,11 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestRunTaskResults } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
 export const ITestCoverageService = createDecorator<ITestCoverageService>('testCoverageService');
@@ -47,11 +48,26 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITestResultService resultService: ITestResultService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._isOpenKey = TestingContextKeys.isTestCoverageOpen.bindTo(contextKeyService);
+
+		this._register(resultService.onResultsChanged(evt => {
+			if ('completed' in evt) {
+				const coverage = evt.completed.tasks.find(t => t.coverage.get());
+				if (coverage) {
+					this.openCoverage(coverage, false);
+				}
+			} else if ('removed' in evt && this.selected.get()) {
+				const taskId = this.selected.get()?.fromTaskId;
+				if (evt.removed.some(e => e.tasks.some(t => t.id === taskId))) {
+					this.closeCoverage();
+				}
+			}
+		}));
 	}
 
 	/** @inheritdoc */
@@ -69,7 +85,7 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 			this._isOpenKey.set(true);
 		} catch (e) {
 			if (!cts.token.isCancellationRequested) {
-				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {}', String(e)));
+				this.notificationService.error(localize('testCoverageError', 'Failed to load test coverage: {0}', String(e)));
 			}
 			return;
 		}

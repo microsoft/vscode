@@ -294,7 +294,6 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	readonly templateId = MatchRenderer.TEMPLATE_ID;
 
 	constructor(
-		private searchModel: SearchModel,
 		private searchView: SearchView,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -352,8 +351,8 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	renderElement(node: ITreeNode<Match, any>, index: number, templateData: IMatchTemplate): void {
 		const match = node.element;
 		const preview = match.preview();
-		const replace = this.searchModel.isReplaceActive() &&
-			!!this.searchModel.replaceString &&
+		const replace = this.searchView.model.isReplaceActive() &&
+			!!this.searchView.model.replaceString &&
 			!(match instanceof MatchInNotebook && match.isReadonly());
 
 		templateData.before.textContent = preview.before;
@@ -361,7 +360,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
-		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		templateData.parent.title = (preview.fullBefore + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
 
 		IsEditableItemKey.bindTo(templateData.contextKeyService).set(!(match instanceof MatchInNotebook && match.isReadonly()));
 
@@ -402,7 +401,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
 
 	constructor(
-		private searchModel: SearchModel,
+		private searchView: SearchView,
 		@ILabelService private readonly labelService: ILabelService
 	) {
 	}
@@ -427,7 +426,7 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 
 		if (element instanceof Match) {
 			const match = <Match>element;
-			const searchModel: SearchModel = this.searchModel;
+			const searchModel: SearchModel = this.searchView.model;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();

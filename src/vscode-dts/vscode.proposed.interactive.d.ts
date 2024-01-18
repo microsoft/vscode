@@ -33,6 +33,7 @@ declare module 'vscode' {
 		wholeRange: Range;
 		attempt: number;
 		live: boolean;
+		withIntentDetection: boolean;
 	}
 
 	// todo@API make classes
@@ -82,6 +83,15 @@ declare module 'vscode' {
 		title?: string;
 	}
 
+	export interface InteractiveEditorCommandFollowup {
+		commandId: string;
+		args?: any[];
+		title: string;
+		when?: string;
+	}
+
+	export type InteractiveEditorFollowup = InteractiveEditorReplyFollowup | InteractiveEditorCommandFollowup;
+
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
 
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
@@ -89,7 +99,7 @@ declare module 'vscode' {
 
 		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
-		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorReplyFollowup[]>;
+		provideFollowups?(session: S, response: R, token: CancellationToken): ProviderResult<InteractiveEditorFollowup[]>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
@@ -110,24 +120,11 @@ declare module 'vscode' {
 		inputPlaceholder?: string;
 	}
 
-	export interface InteractiveResponseCommand {
-		commandId: string;
-		args?: any[];
-		title: string; // supports codicon strings
-		when?: string;
-	}
-
-	export interface InteractiveSessionReplyFollowup {
-		message: string;
-		tooltip?: string;
-		title?: string;
-	}
-
-	export type InteractiveWelcomeMessageContent = string | MarkdownString | InteractiveSessionReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | ChatAgentReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		provideSampleQuestions?(token: CancellationToken): ProviderResult<InteractiveSessionReplyFollowup[]>;
+		provideSampleQuestions?(token: CancellationToken): ProviderResult<ChatAgentReplyFollowup[]>;
 		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 

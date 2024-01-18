@@ -6,15 +6,22 @@ import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
 import { InMemoryDocument } from '../client/inMemoryDocument';
-import { appendToLinkSnippet, createEditAddingLinksForUriList, findValidUriInText, shouldSmartPaste } from '../languageFeatures/copyFiles/shared';
+import { PasteUrlAsMarkdownLink, findValidUriInText, shouldInsertMarkdownLinkByDefault } from '../languageFeatures/copyFiles/pasteUrlProvider';
+import { createInsertUriListEdit } from '../languageFeatures/copyFiles/shared';
+import { createNewMarkdownEngine } from './engine';
+import { noopToken } from '../util/cancellation';
+
+function makeTestDoc(contents: string) {
+	return new InMemoryDocument(vscode.Uri.file('test.md'), contents);
+}
 
 suite('createEditAddingLinksForUriList', () => {
 
 	test('Markdown Link Pasting should occur for a valid link (end to end)', async () => {
 		// createEditAddingLinksForUriList -> checkSmartPaste -> tryGetUriListSnippet -> createUriListSnippet -> createLinkSnippet
 
-		const result = createEditAddingLinksForUriList(
-			new InMemoryDocument(vscode.Uri.file('test.md'), 'hello world!'), [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/', true, true);
+		const result = createInsertUriListEdit(
+			new InMemoryDocument(vscode.Uri.file('test.md'), 'hello world!'), [new vscode.Range(0, 0, 0, 12)], 'https://www.microsoft.com/');
 		// need to check the actual result -> snippet value
 		assert.strictEqual(result?.label, 'Insert Markdown Link');
 	});
@@ -100,127 +107,166 @@ suite('createEditAddingLinksForUriList', () => {
 		});
 	});
 
-	suite('appendToLinkSnippet', () => {
+	suite('createInsertUriListEdit', () => {
 
 		test('Should create snippet with < > when pasted link has an mismatched parentheses', () => {
-			const uriString = 'https://www.mic(rosoft.com';
-			const snippet = new vscode.SnippetString('');
-			appendToLinkSnippet(snippet, 'abc', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:abc}](<https://www.mic(rosoft.com>)');
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], 'https://www.mic(rosoft.com');
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](<https://www.mic(rosoft.com>)');
 		});
 
 		test('Should create Markdown link snippet when pasteAsMarkdownLink is true', () => {
-			const uriString = 'https://www.microsoft.com';
-			const snippet = new vscode.SnippetString('');
-			appendToLinkSnippet(snippet, '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], 'https://www.microsoft.com');
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](https://www.microsoft.com)');
 		});
 
 		test('Should use an unencoded URI string in Markdown link when passing in an external browser link', () => {
-			const uriString = 'https://www.microsoft.com';
-			const snippet = new vscode.SnippetString('');
-			appendToLinkSnippet(snippet, '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com)');
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], 'https://www.microsoft.com');
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](https://www.microsoft.com)');
 		});
 
 		test('Should not decode an encoded URI string when passing in an external browser link', () => {
-			const uriString = 'https://www.microsoft.com/%20';
-			const snippet = new vscode.SnippetString('');
-			appendToLinkSnippet(snippet, '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.microsoft.com/%20)');
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], 'https://www.microsoft.com/%20');
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](https://www.microsoft.com/%20)');
 		});
 
 		test('Should not encode an unencoded URI string when passing in an external browser link', () => {
-			const uriString = 'https://www.example.com/path?query=value&another=value#fragment';
-			const snippet = new vscode.SnippetString('');
-			appendToLinkSnippet(snippet, '', uriString, 0, true);
-			assert.strictEqual(snippet?.value, '[${0:Title}](https://www.example.com/path?query=value&another=value#fragment)');
+			const edit = createInsertUriListEdit(makeTestDoc(''), [new vscode.Range(0, 0, 0, 0)], 'https://www.example.com/path?query=value&another=value#fragment');
+			assert.strictEqual(edit?.edits?.[0].snippet.value, '[${1:text}](https://www.example.com/path?query=value&another=value#fragment)');
 		});
 	});
 
 
-	suite('checkSmartPaste', () => {
+	suite('shouldInsertMarkdownLinkByDefault', () => {
 
-		test('Should evaluate pasteAsMarkdownLink as true for selected plain text', () => {
+		test('Smart should be enabled for selected plain text', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('hello world'), new vscode.Range(0, 0, 0, 12)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('hello world'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 12)], noopToken),
 				true);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link', () => {
+		test('Smart should be enabled in headers', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('https://www.microsoft.com'), new vscode.Range(0, 0, 0, 25)),
-				false);
-		});
-
-		test('Should evaluate pasteAsMarkdownLink as false for a valid selected link with trailing whitespace', () => {
-			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('   https://www.microsoft.com  '), new vscode.Range(0, 0, 0, 30)),
-				false);
-		});
-
-		test('Should evaluate pasteAsMarkdownLink as true for a link pasted in square brackets', () => {
-			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('[abc]'), new vscode.Range(0, 1, 0, 4)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('# title'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 2, 0, 2)], noopToken),
 				true);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for no selection', () => {
+		test('Smart should be enabled in lists', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('xyz'), new vscode.Range(0, 0, 0, 0)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('1. text'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 3, 0, 3)], noopToken),
+				true);
+		});
+
+		test('Smart should be enabled in blockquotes', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('> text'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 3, 0, 3)], noopToken),
+				true);
+		});
+
+		test('Smart should be disabled in indented code blocks', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('    code'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 4, 0, 4)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for selected whitespace and new lines', () => {
+		test('Smart should be disabled in fenced code blocks', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('   \r\n\r\n'), new vscode.Range(0, 0, 0, 7)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('```\r\n\r\n```'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 5, 0, 5)], noopToken),
+				false);
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('~~~\r\n\r\n~~~'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 5, 0, 5)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within a backtick code block', () => {
+		test('Smart should be disabled in math blocks', async () => {
+			const katex = (await import('@vscode/markdown-it-katex')).default;
+			const engine = createNewMarkdownEngine();
+			(await engine.getEngine(undefined)).use(katex);
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('```\r\n\r\n```'), new vscode.Range(0, 5, 0, 5)),
+				await shouldInsertMarkdownLinkByDefault(engine, makeTestDoc('$$\r\n\r\n$$'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 5, 0, 5)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within a tilde code block', () => {
+		test('Smart should be disabled in link definitions', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('~~~\r\n\r\n~~~'), new vscode.Range(0, 5, 0, 5)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[ref]: http://example.com'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 4, 0, 6)], noopToken),
+				false);
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[ref]: '), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 7, 0, 7)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within a math block', () => {
+		test('Smart should be disabled in html blocks', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('$$$\r\n\r\n$$$'), new vscode.Range(0, 5, 0, 5)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('<p>\na\n</p>'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(1, 0, 1, 0)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown link', () => {
+		test('Smart should be disabled in Markdown links', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('[a](bcdef)'), new vscode.Range(0, 4, 0, 6)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[a](bcdef)'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 4, 0, 6)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within a Markdown image link', () => {
+		test('Smart should be disabled in Markdown images', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('![a](bcdef)'), new vscode.Range(0, 5, 0, 10)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('![a](bcdef)'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 5, 0, 10)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline code', () => {
+		test('Smart should be disabled in inline code', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('``'), new vscode.Range(0, 1, 0, 1)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('``'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 1, 0, 1)], noopToken),
+				false);
+
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('``'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)], noopToken),
 				false);
 		});
 
-		test('Should evaluate pasteAsMarkdownLink as false for pasting within inline math', () => {
+		test('Smart should be disabled in inline math', async () => {
 			assert.strictEqual(
-				shouldSmartPaste(makeTestDoc('$$'), new vscode.Range(0, 1, 0, 1)),
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('$$'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 1, 0, 1)], noopToken),
 				false);
 		});
+
+		test('Smart should be enabled for empty selection', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('xyz'), PasteUrlAsMarkdownLink.Smart, [new vscode.Range(0, 0, 0, 0)], noopToken),
+				true);
+		});
+
+		test('SmartWithSelection should disable for empty selection', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('xyz'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 0)], noopToken),
+				false);
+		});
+
+		test('Smart should disable for selected link', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('https://www.microsoft.com'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 25)], noopToken),
+				false);
+		});
+
+		test('Smart should disable for selected link with trailing whitespace', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('   https://www.microsoft.com  '), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 30)], noopToken),
+				false);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as true for a link pasted in square brackets', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('[abc]'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 1, 0, 4)], noopToken),
+				true);
+		});
+
+		test('Should evaluate pasteAsMarkdownLink as false for selected whitespace and new lines', async () => {
+			assert.strictEqual(
+				await shouldInsertMarkdownLinkByDefault(createNewMarkdownEngine(), makeTestDoc('   \r\n\r\n'), PasteUrlAsMarkdownLink.SmartWithSelection, [new vscode.Range(0, 0, 0, 7)], noopToken),
+				false);
+		});
+
+
 	});
 });
-
-function makeTestDoc(contents: string) {
-	return new InMemoryDocument(vscode.Uri.file('test.md'), contents);
-}

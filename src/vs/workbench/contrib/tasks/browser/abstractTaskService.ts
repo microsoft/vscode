@@ -74,7 +74,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { EditorResourceAccessor, SaveReason } from 'vs/workbench/common/editor';
-import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { configureTaskIcon, isWorkspaceFolder, ITaskQuickPickEntry, QUICKOPEN_DETAIL_CONFIG, QUICKOPEN_SKIP_CONFIG, TaskQuickPick } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, ShutdownReason, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -1027,11 +1028,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 		for (const entry of storedTasks.entries()) {
-			const key = entry[0];
-			const task = JSON.parse(entry[1]);
-			const folderInfo = this._getFolderFromTaskKey(key);
-			this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
-			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			try {
+				const key = entry[0];
+				const task = JSON.parse(entry[1]);
+				const folderInfo = this._getFolderFromTaskKey(key);
+				this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
+				addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
+			} catch (error) {
+				this._log(nls.localize('taskService.getSavedTasks.error', 'Fetching a task from task storage failed: {0}.', error), true);
+			}
 		}
 
 		const readTasksMap: Map<string, (Task | ConfiguringTask)> = new Map();

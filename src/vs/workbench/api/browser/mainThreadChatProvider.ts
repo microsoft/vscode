@@ -55,6 +55,10 @@ export class MainThreadChatProvider implements MainThreadChatProviderShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
+	async $prepareChatAccess(providerId: string): Promise<IChatResponseProviderMetadata | undefined> {
+		return this._chatProviderService.lookupChatResponseProvider(providerId);
+	}
+
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 

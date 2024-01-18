@@ -168,7 +168,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 								label: localize('cancel', "Skip Changes"),
 								run: () => Choice.Cancel
 							},
-							checkbox: { label: localize('again', "Don't ask again") }
+							checkbox: { label: localize('again', "Do not ask me again") }
 						});
 						if (result === Choice.Cancel) {
 							// no changes wanted, don't persist cancel option

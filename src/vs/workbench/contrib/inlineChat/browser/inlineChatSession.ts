@@ -7,24 +7,14 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService, InlineChatResponseType, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { ILogService } from 'vs/platform/log/common/log';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Iterable } from 'vs/base/common/iterator';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { raceCancellation } from 'vs/base/common/async';
-import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -32,14 +22,15 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { Recording } from './inlineChatSessionService';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { coalesceInPlace } from 'vs/base/common/arrays';
+import { Iterable } from 'vs/base/common/iterator';
 
-export type Recording = {
-	when: Date;
-	session: IInlineChatSession;
-	exchanges: { prompt: string; res: IInlineChatResponse }[];
-};
 
-type TelemetryData = {
+export type TelemetryData = {
 	extension: string;
 	rounds: string;
 	undos: string;
@@ -50,7 +41,7 @@ type TelemetryData = {
 	editMode: string;
 };
 
-type TelemetryDataClassification = {
+export type TelemetryDataClassification = {
 	owner: 'jrieken';
 	comment: 'Data about an interaction editor session';
 	extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension providing the data' };
@@ -69,14 +60,14 @@ export enum ExpansionState {
 	NOT_CROPPED = 'not_cropped'
 }
 
-class SessionWholeRange {
+export class SessionWholeRange {
 
-	private static readonly _options = { description: 'inlineChat/session/wholeRange' };
+	private static readonly _options: IModelDecorationOptions = ModelDecorationOptions.register({ description: 'inlineChat/session/wholeRange' });
 
 	private readonly _onDidChange = new Emitter<this>();
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
-	private readonly _decorationIds: string[] = [];
+	private _decorationIds: string[] = [];
 
 	constructor(private readonly _textModel: ITextModel, wholeRange: IRange) {
 		this._decorationIds = _textModel.deltaDecorations([], [{ range: wholeRange, options: SessionWholeRange._options }]);
@@ -96,6 +87,27 @@ class SessionWholeRange {
 		}
 		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
 		this._onDidChange.fire(this);
+	}
+
+	fixup(changes: readonly DetailedLineRangeMapping[]): void {
+
+		const newDeco: IModelDeltaDecoration[] = [];
+		for (const { modified } of changes) {
+			const modifiedRange = modified.isEmpty
+				? new Range(modified.startLineNumber, 1, modified.startLineNumber, this._textModel.getLineLength(modified.startLineNumber))
+				: new Range(modified.startLineNumber, 1, modified.endLineNumberExclusive - 1, this._textModel.getLineLength(modified.endLineNumberExclusive - 1));
+
+			newDeco.push({ range: modifiedRange, options: SessionWholeRange._options });
+		}
+		const [first, ...rest] = this._decorationIds; // first is the original whole range
+		const newIds = this._textModel.deltaDecorations(rest, newDeco);
+		this._decorationIds = [first].concat(newIds);
+		this._onDidChange.fire(this);
+	}
+
+	get trackedInitialRange(): Range {
+		const [first] = this._decorationIds;
+		return this._textModel.getDecorationRange(first) ?? new Range(1, 1, 1, 1);
 	}
 
 	get value(): Range {
@@ -128,18 +140,19 @@ export class Session {
 
 	constructor(
 		readonly editMode: EditMode,
-		readonly editor: ICodeEditor,
 		readonly textModel0: ITextModel,
 		readonly textModelN: ITextModel,
 		readonly provider: IInlineChatSessionProvider,
 		readonly session: IInlineChatSession,
-		readonly wholeRange: SessionWholeRange
+		readonly wholeRange: SessionWholeRange,
+		readonly hunkData: HunkData,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
 			extension: provider.debugName,
 			startTime: this._startTime.toISOString(),
 			edits: false,
+			finishedByEdit: false,
 			rounds: '',
 			undos: '',
 			editMode
@@ -290,10 +303,10 @@ export class ReplyResponse {
 	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
 	readonly workspaceEdit: WorkspaceEdit | undefined;
 
-	readonly responseType: InlineChateResponseTypes;
+	readonly responseType: InlineChatResponseTypes;
 
 	constructor(
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse | IInlineChatMessageResponse,
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
 		readonly mdContent: IMarkdownString,
 		localUri: URI,
 		readonly modelAltVersionId: number,
@@ -310,7 +323,6 @@ export class ReplyResponse {
 		if (raw.type === InlineChatResponseType.EditorEdit) {
 			//
 			editsMap.get(localUri)!.push(raw.edits);
-
 
 		} else if (raw.type === InlineChatResponseType.BulkEdit) {
 			//
@@ -336,21 +348,20 @@ export class ReplyResponse {
 			}
 		}
 
-		if (editsMap.size === 0) {
-			this.responseType = InlineChateResponseTypes.OnlyMessages;
-		} else if (editsMap.size === 1 && editsMap.has(localUri)) {
-			this.responseType = InlineChateResponseTypes.OnlyEdits;
-		} else {
-			this.responseType = InlineChateResponseTypes.Mixed;
-		}
-
 		let needsWorkspaceEdit = false;
 
 		for (const [uri, edits] of editsMap) {
 
-			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isEqual(uri, localUri));
+			const flatEdits = edits.flat();
+			if (flatEdits.length === 0) {
+				editsMap.delete(uri);
+				continue;
+			}
 
-			if (uri.scheme === Schemas.untitled && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
+			const isLocalUri = isEqual(uri, localUri);
+			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isLocalUri);
+
+			if (uri.scheme === Schemas.untitled && !isLocalUri && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
 				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
 				const untitledTextModel = this._textFileService.untitled.create({
 					associatedResource: uri,
@@ -360,7 +371,7 @@ export class ReplyResponse {
 
 				untitledTextModel.resolve().then(async () => {
 					const model = untitledTextModel.textEditorModel!;
-					model.applyEdits(edits.flat().map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+					model.applyEdits(flatEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 				});
 			}
 		}
@@ -376,187 +387,217 @@ export class ReplyResponse {
 			}
 			this.workspaceEdit = { edits: workspaceEdits };
 		}
+
+
+		const hasEdits = editsMap.size > 0;
+		const hasMessage = mdContent.value.length > 0;
+		if (hasEdits && hasMessage) {
+			this.responseType = InlineChatResponseTypes.Mixed;
+		} else if (hasEdits) {
+			this.responseType = InlineChatResponseTypes.OnlyEdits;
+		} else if (hasMessage) {
+			this.responseType = InlineChatResponseTypes.OnlyMessages;
+		} else {
+			this.responseType = InlineChatResponseTypes.Empty;
+		}
 	}
 }
 
-export interface ISessionKeyComputer {
-	getComparisonKey(editor: ICodeEditor, uri: URI): string;
-}
+// ---
 
-export const IInlineChatSessionService = createDecorator<IInlineChatSessionService>('IInlineChatSessionService');
+export class HunkData {
 
-export interface IInlineChatSessionService {
-	_serviceBrand: undefined;
+	private static readonly _HUNK_TRACKED_RANGE = ModelDecorationOptions.register({
+		description: 'inline-chat-hunk-tracked-range',
+	});
 
-	onWillStartSession: Event<IActiveCodeEditor>;
+	private static readonly _HUNK_THRESHOLD = 8;
 
-	onDidEndSession: Event<ICodeEditor>;
-
-	createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: IRange }, token: CancellationToken): Promise<Session | undefined>;
-
-	getSession(editor: ICodeEditor, uri: URI): Session | undefined;
-
-	releaseSession(session: Session): void;
-
-	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable;
-
-	//
-
-	recordings(): readonly Recording[];
-
-	dispose(): void;
-}
-
-type SessionData = {
-	session: Session;
-	store: IDisposable;
-};
-
-export class InlineChatSessionService implements IInlineChatSessionService {
-
-	declare _serviceBrand: undefined;
-
-	private readonly _onWillStartSession = new Emitter<IActiveCodeEditor>();
-	readonly onWillStartSession: Event<IActiveCodeEditor> = this._onWillStartSession.event;
-
-	private readonly _onDidEndSession = new Emitter<ICodeEditor>();
-	readonly onDidEndSession: Event<ICodeEditor> = this._onDidEndSession.event;
-
-	private readonly _sessions = new Map<string, SessionData>();
-	private readonly _keyComputers = new Map<string, ISessionKeyComputer>();
-	private _recordings: Recording[] = [];
+	private readonly _data = new Map<RawHunk, { textModelNDecorations: string[]; textModel0Decorations: string[]; state: HunkState }>();
 
 	constructor(
-		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IModelService private readonly _modelService: IModelService,
-		@ITextModelService private readonly _textModelService: ITextModelService,
-		@ILogService private readonly _logService: ILogService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		private readonly _textModel0: ITextModel,
+		private readonly _textModelN: ITextModel,
 	) { }
 
-	dispose() {
-		this._onWillStartSession.dispose();
-		this._onDidEndSession.dispose();
-		this._sessions.forEach(x => x.store.dispose());
-		this._sessions.clear();
+	dispose(): void {
+		if (!this._textModelN.isDisposed()) {
+			this._textModelN.changeDecorations(accessor => {
+				for (const { textModelNDecorations } of this._data.values()) {
+					textModelNDecorations.forEach(accessor.removeDecoration, accessor);
+				}
+			});
+		}
+		if (!this._textModel0.isDisposed()) {
+			this._textModel0.changeDecorations(accessor => {
+				for (const { textModel0Decorations } of this._data.values()) {
+					textModel0Decorations.forEach(accessor.removeDecoration, accessor);
+				}
+			});
+		}
 	}
 
-	async createSession(editor: IActiveCodeEditor, options: { editMode: EditMode; wholeRange?: Range }, token: CancellationToken): Promise<Session | undefined> {
+	async recompute() {
 
-		const provider = Iterable.first(this._inlineChatService.getAllProvider());
-		if (!provider) {
-			this._logService.trace('[IE] NO provider found');
-			return undefined;
+		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+
+		if (!diff || diff.changes.length === 0) {
+			// return new HunkData([], session);
+			return;
 		}
 
-		this._onWillStartSession.fire(editor);
-
-		const textModel = editor.getModel();
-		const selection = editor.getSelection();
-		let raw: IInlineChatSession | undefined | null;
-		try {
-			raw = await raceCancellation(
-				Promise.resolve(provider.prepareInlineChatSession(textModel, selection, token)),
-				token
-			);
-		} catch (error) {
-			this._logService.error('[IE] FAILED to prepare session', provider.debugName);
-			this._logService.error(error);
-			return undefined;
-		}
-		if (!raw) {
-			this._logService.trace('[IE] NO session', provider.debugName);
-			return undefined;
-		}
-		this._logService.trace('[IE] NEW session', provider.debugName);
-
-		this._logService.trace(`[IE] creating NEW session for ${editor.getId()},  ${provider.debugName}`);
-		const store = new DisposableStore();
-
-		// create: keep a reference to prevent disposal of the "actual" model
-		const refTextModelN = await this._textModelService.createModelReference(textModel.uri);
-		store.add(refTextModelN);
-
-		// create: keep a snapshot of the "actual" model
-		const textModel0 = this._modelService.createModel(
-			createTextBufferFactoryFromSnapshot(textModel.createSnapshot()),
-			{ languageId: textModel.getLanguageId(), onDidChange: Event.None },
-			undefined, true
-		);
-		store.add(textModel0);
-
-		let wholeRange = options.wholeRange;
-		if (!wholeRange) {
-			wholeRange = raw.wholeRange ? Range.lift(raw.wholeRange) : editor.getSelection();
-		}
-
-		// expand to whole lines
-		wholeRange = new Range(wholeRange.startLineNumber, 1, wholeRange.endLineNumber, textModel.getLineMaxColumn(wholeRange.endLineNumber));
-
-		// install managed-marker for the decoration range
-		const wholeRangeMgr = new SessionWholeRange(textModel, wholeRange);
-		store.add(wholeRangeMgr);
-
-		const session = new Session(options.editMode, editor, textModel0, textModel, provider, raw, wholeRangeMgr);
-
-		// store: key -> session
-		const key = this._key(editor, textModel.uri);
-		if (this._sessions.has(key)) {
-			store.dispose();
-			throw new Error(`Session already stored for ${key}`);
-		}
-		this._sessions.set(key, { session, store });
-		return session;
-	}
-
-	releaseSession(session: Session): void {
-
-		const { editor } = session;
-
-		// cleanup
-		for (const [key, value] of this._sessions) {
-			if (value.session === session) {
-				value.store.dispose();
-				this._sessions.delete(key);
-				this._logService.trace(`[IE] did RELEASED session for ${editor.getId()}, ${session.provider.debugName}`);
-				break;
+		// merge changes neighboring changes
+		const mergedChanges = [diff.changes[0]];
+		for (let i = 1; i < diff.changes.length; i++) {
+			const lastChange = mergedChanges[mergedChanges.length - 1];
+			const thisChange = diff.changes[i];
+			if (thisChange.modified.startLineNumber - lastChange.modified.endLineNumberExclusive <= HunkData._HUNK_THRESHOLD) {
+				mergedChanges[mergedChanges.length - 1] = new DetailedLineRangeMapping(
+					lastChange.original.join(thisChange.original),
+					lastChange.modified.join(thisChange.modified),
+					(lastChange.innerChanges ?? []).concat(thisChange.innerChanges ?? [])
+				);
+			} else {
+				mergedChanges.push(thisChange);
 			}
 		}
 
-		// keep recording
-		const newLen = this._recordings.unshift(session.asRecording());
-		if (newLen > 5) {
-			this._recordings.pop();
+		const hunks = mergedChanges.map(change => new RawHunk(change.original, change.modified, change.innerChanges ?? []));
+
+		this._textModelN.changeDecorations(accessorN => {
+
+			this._textModel0.changeDecorations(accessor0 => {
+
+				// clean up old decorations
+				for (const { textModelNDecorations, textModel0Decorations } of this._data.values()) {
+					textModelNDecorations.forEach(accessorN.removeDecoration, accessorN);
+					textModel0Decorations.forEach(accessor0.removeDecoration, accessor0);
+				}
+
+				this._data.clear();
+
+				// add new decorations
+				for (const hunk of hunks) {
+
+					const textModelNDecorations: string[] = [];
+					const textModel0Decorations: string[] = [];
+
+					textModelNDecorations.push(accessorN.addDecoration(asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
+					textModel0Decorations.push(accessor0.addDecoration(asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
+
+					for (const change of hunk.changes) {
+						textModelNDecorations.push(accessorN.addDecoration(change.modifiedRange, HunkData._HUNK_TRACKED_RANGE));
+						textModel0Decorations.push(accessor0.addDecoration(change.originalRange, HunkData._HUNK_TRACKED_RANGE));
+					}
+
+					this._data.set(hunk, {
+						textModelNDecorations,
+						textModel0Decorations,
+						state: HunkState.Pending
+					});
+				}
+			});
+		});
+	}
+
+	get size(): number {
+		return this._data.size;
+	}
+
+	get pending(): number {
+		return Iterable.reduce(this._data.values(), (r, { state }) => r + (state === HunkState.Pending ? 1 : 0), 0);
+	}
+
+	getInfo(): HunkInformation[] {
+
+		const result: HunkInformation[] = [];
+
+		for (const [hunk, data] of this._data.entries()) {
+			const item: HunkInformation = {
+				getState: () => {
+					return data.state;
+				},
+				isInsertion: () => {
+					return hunk.original.isEmpty;
+				},
+				getRangesN: () => {
+					const ranges = data.textModelNDecorations.map(id => this._textModelN.getDecorationRange(id));
+					coalesceInPlace(ranges);
+					return ranges;
+				},
+				getRanges0: () => {
+					const ranges = data.textModel0Decorations.map(id => this._textModel0.getDecorationRange(id));
+					coalesceInPlace(ranges);
+					return ranges;
+				},
+				discardChanges: () => {
+					// DISCARD: replace modified range with original value. The modified range is retrieved from a decoration
+					// which was created above so that typing in the editor keeps discard working.
+					if (data.state === HunkState.Pending) {
+						const edits: ISingleEditOperation[] = [];
+						const rangesN = item.getRangesN();
+						const ranges0 = item.getRanges0();
+						for (let i = 1; i < rangesN.length; i++) {
+							const modifiedRange = rangesN[i];
+							const originalValue = this._textModel0.getValueInRange(ranges0[i]);
+							edits.push(EditOperation.replace(modifiedRange, originalValue));
+						}
+						this._textModelN.pushEditOperations(null, edits, () => null);
+						data.state = HunkState.Rejected;
+					}
+				},
+				acceptChanges: () => {
+					// ACCEPT: replace original range with modified value. The modified value is retrieved from the model via
+					// its decoration and the original range is retrieved from the hunk.
+					if (data.state === HunkState.Pending) {
+						const edits: ISingleEditOperation[] = [];
+						const rangesN = item.getRangesN();
+						const ranges0 = item.getRanges0();
+						for (let i = 1; i < ranges0.length; i++) {
+							const originalRange = ranges0[i];
+							const modifiedValue = this._textModelN.getValueInRange(rangesN[i]);
+							edits.push(EditOperation.replace(originalRange, modifiedValue));
+						}
+						this._textModel0.pushEditOperations(null, edits, () => null);
+						data.state = HunkState.Accepted;
+					}
+				}
+			};
+			result.push(item);
 		}
 
-		// send telemetry
-		this._telemetryService.publicLog2<TelemetryData, TelemetryDataClassification>('interactiveEditor/session', session.asTelemetryData());
-
-		this._onDidEndSession.fire(editor);
+		return result;
 	}
+}
 
-	getSession(editor: ICodeEditor, uri: URI): Session | undefined {
-		const key = this._key(editor, uri);
-		return this._sessions.get(key)?.session;
-	}
+class RawHunk {
+	constructor(
+		readonly original: LineRange,
+		readonly modified: LineRange,
+		readonly changes: RangeMapping[]
+	) { }
+}
 
-	private _key(editor: ICodeEditor, uri: URI): string {
-		const item = this._keyComputers.get(uri.scheme);
-		return item
-			? item.getComparisonKey(editor, uri)
-			: `${editor.getId()}@${uri.toString()}`;
+export const enum HunkState {
+	Pending = 0,
+	Accepted = 1,
+	Rejected = 2
+}
 
-	}
+export interface HunkInformation {
+	/**
+	 * The first element [0] is the whole modified range and subsequent elements are word-level changes
+	 */
+	getRangesN(): Range[];
 
-	registerSessionKeyComputer(scheme: string, value: ISessionKeyComputer): IDisposable {
-		this._keyComputers.set(scheme, value);
-		return toDisposable(() => this._keyComputers.delete(scheme));
-	}
+	getRanges0(): Range[];
 
-	// --- debug
+	isInsertion(): boolean;
 
-	recordings(): readonly Recording[] {
-		return this._recordings;
-	}
+	discardChanges(): void;
 
+	acceptChanges(): void;
+
+	getState(): HunkState;
 }

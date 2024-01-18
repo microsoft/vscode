@@ -374,7 +374,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		// If TS returns an explicit replacement range, we should use it for both types of completion
 		return {
-			inserting: replaceRange,
+			inserting: new vscode.Range(replaceRange.start, this.position),
 			replacing: replaceRange,
 		};
 	}
@@ -760,6 +760,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			isIncomplete = !!response.body.isIncomplete || (response as any).metadata && (response as any).metadata.isIncomplete;
 			entries = response.body.entries;
 			metadata = response.metadata;
+
+			if (response.body.optionalReplacementSpan) {
+				for (const entry of entries) {
+					entry.replacementSpan ??= response.body.optionalReplacementSpan;
+				}
+			}
 		} else {
 			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {

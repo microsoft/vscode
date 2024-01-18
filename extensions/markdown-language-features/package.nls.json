@@ -43,10 +43,11 @@
 	"configuration.markdown.editor.filePaste.copyIntoWorkspace": "Controls if files outside of the workspace that are pasted into a Markdown editor should be copied into the workspace.\n\nUse `#markdown.copyFiles.destination#` to configure where copied files should be created.",
 	"configuration.copyIntoWorkspace.mediaFiles": "Try to copy external image and video files into the workspace.",
 	"configuration.copyIntoWorkspace.never": "Do not copy external files into the workspace.",
-	"configuration.markdown.editor.pasteUrlAsFormattedLink.enabled": "Controls how a Markdown link is created when a URL is pasted into the Markdown editor. Requires enabling `#editor.pasteAs.enabled#`.",
-	"configuration.pasteUrlAsFormattedLink.always": "Always creates a Markdown link when a URL is pasted into the Markdown editor.",
-	"configuration.pasteUrlAsFormattedLink.smart": "Smartly avoids creating a Markdown link in specific cases, such as within code brackets or inside an existing Markdown link.",
-	"configuration.pasteUrlAsFormattedLink.never": "Never creates a Markdown link when a URL is pasted into the Markdown editor.",
+	"configuration.markdown.editor.pasteUrlAsFormattedLink.enabled": "Controls if Markdown links are created when URLs are pasted into a Markdown editor. Requires enabling `#editor.pasteAs.enabled#`.",
+	"configuration.pasteUrlAsFormattedLink.always": "Always insert Markdown links.",
+	"configuration.pasteUrlAsFormattedLink.smart": "Smartly create Markdown links by default when not pasting into a code block or other special element. Use the paste widget to switch between pasting as plain text or as Markdown links.",
+	"configuration.pasteUrlAsFormattedLink.smartWithSelection": "Smartly create Markdown links by default when you have selected text and are not pasting into a code block or other special element. Use the paste widget to switch between pasting as plain text or as Markdown links.",
+	"configuration.pasteUrlAsFormattedLink.never": "Never create Markdown links.",
 	"configuration.markdown.validate.enabled.description": "Enable all error reporting in Markdown files.",
 	"configuration.markdown.validate.referenceLinks.enabled.description": "Validate reference links in Markdown files, for example: `[link][ref]`. Requires enabling `#markdown.validate.enabled#`.",
 	"configuration.markdown.validate.fragmentLinks.enabled.description": "Validate fragment links to headers in the current Markdown file, for example: `[link](#header)`. Requires enabling `#markdown.validate.enabled#`.",
@@ -71,5 +72,7 @@
 	"configuration.markdown.preferredMdPathExtensionStyle.auto": "For existing paths, try to maintain the file extension style. For new paths, add file extensions.",
 	"configuration.markdown.preferredMdPathExtensionStyle.includeExtension": "Prefer including the file extension. For example, path completions to a file named `file.md` will insert `file.md`.",
 	"configuration.markdown.preferredMdPathExtensionStyle.removeExtension": "Prefer removing the file extension. For example, path completions to a file named `file.md` will insert `file` without the `.md`.",
+	"configuration.markdown.editor.filePaste.videoSnippet": "Snippet used when adding videos to Markdown. This snippet can use the following variables:\n- `${src}` — The resolved path of the video file.\n- `${title}` — The title used for the video. A snippet placeholder will automatically be created for this variable.",
+	"configuration.markdown.editor.filePaste.audioSnippet": "Snippet used when adding audio to Markdown. This snippet can use the following variables:\n- `${src}` — The resolved path of the audio  file.\n- `${title}` — The title used for the audio. A snippet placeholder will automatically be created for this variable.",
 	"workspaceTrust": "Required for loading styles configured in the workspace."
 }

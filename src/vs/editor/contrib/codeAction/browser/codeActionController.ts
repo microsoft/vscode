@@ -273,15 +273,15 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				currentDecorations.clear();
 			},
 			onHover: async (action: CodeActionItem, token: CancellationToken) => {
-				await action.resolve(token);
 				if (token.isCancellationRequested) {
 					return;
 				}
 				return { canPreview: !!action.action.edit?.edits.length };
 			},
 			onFocus: (action: CodeActionItem | undefined) => {
-				if (action && action.highlightRange && action.action.diagnostics) {
-					const decorations: IModelDeltaDecoration[] = [{ range: action.action.diagnostics[0], options: CodeActionController.DECORATION }];
+				if (action && action.action.diagnostics) {
+					currentDecorations.clear();
+					const decorations: IModelDeltaDecoration[] = action.action.diagnostics.map(diagnostic => ({ range: diagnostic, options: CodeActionController.DECORATION }));
 					currentDecorations.set(decorations);
 					const diagnostic = action.action.diagnostics[0];
 					const selectionText = this._editor.getModel()?.getWordAtPosition({ lineNumber: diagnostic.startLineNumber, column: diagnostic.startColumn })?.word;

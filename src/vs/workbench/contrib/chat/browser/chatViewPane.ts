@@ -22,7 +22,7 @@ import { Memento } from 'vs/workbench/common/memento';
 import { SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IChatViewPane } from 'vs/workbench/contrib/chat/browser/chat';
-import { IViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -30,7 +30,7 @@ export interface IChatViewOptions {
 	readonly providerId: string;
 }
 
-interface IViewPaneState extends IViewState {
+interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
 }
 
@@ -43,7 +43,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 	private modelDisposables = this._register(new DisposableStore());
 	private memento: Memento;
-	private viewState: IViewPaneState;
+	private readonly viewState: IViewPaneState;
 	private didProviderRegistrationFail = false;
 
 	constructor(
@@ -199,6 +199,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 			const widgetViewState = this._widget.getViewState();
 			this.viewState.inputValue = widgetViewState.inputValue;
+			this.viewState.inputState = widgetViewState.inputState;
 			this.memento.saveMemento();
 		}
 

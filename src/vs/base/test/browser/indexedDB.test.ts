@@ -5,6 +5,7 @@
 import * as assert from 'assert';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { flakySuite } from 'vs/base/test/common/testUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 flakySuite('IndexedDB', () => {
 
@@ -60,4 +61,5 @@ flakySuite('IndexedDB', () => {
 		} catch (error) { }
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -42,6 +42,7 @@ import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfil
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { CancellationError } from 'vs/base/common/errors';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -77,13 +78,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Events
 
 	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+
 	readonly onDidTriggerWindowSystemContextMenu = Event.any(
 		Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId)),
 		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
 	);
 
-	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId) || !!this.auxiliaryWindowsMainService.getWindowById(windowId));
-	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId) || !!this.auxiliaryWindowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeWindow = Event.any(
+		Event.filter(Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id), windowId => !!this.windowsMainService.getWindowById(windowId)),
+		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id), windowId => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+	);
+	readonly onDidUnmaximizeWindow = Event.any(
+		Event.filter(Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id), windowId => !!this.windowsMainService.getWindowById(windowId)),
+		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id), windowId => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+	);
+
+	readonly onDidChangeWindowFullScreen = Event.any(
+		Event.map(this.windowsMainService.onDidChangeFullScreen, window => window.id),
+		Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, window => window.id)
+	);
 
 	readonly onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 	readonly onDidFocusMainWindow = Event.any(
@@ -328,13 +341,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				]
 			});
 
-			if (response === 0 /* OK */) {
-				try {
-					const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
-					await promisify(exec)(command);
-				} catch (error) {
-					throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
-				}
+			if (response === 1 /* Cancel */) {
+				throw new CancellationError();
+			}
+
+			try {
+				const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
+				await promisify(exec)(command);
+			} catch (error) {
+				throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
 			}
 		}
 	}
@@ -356,13 +371,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 						]
 					});
 
-					if (response === 0 /* OK */) {
-						try {
-							const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
-							await promisify(exec)(command);
-						} catch (error) {
-							throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", source));
-						}
+					if (response === 1 /* Cancel */) {
+						throw new CancellationError();
+					}
+
+					try {
+						const command = `osascript -e "do shell script \\"rm \'${source}\'\\" with administrator privileges"`;
+						await promisify(exec)(command);
+					} catch (error) {
+						throw new Error(localize('cantUninstall', "Unable to uninstall the shell command '{0}'.", source));
 					}
 					break;
 				}

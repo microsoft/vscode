@@ -15,6 +15,9 @@ export interface IAuxiliaryWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onDidMaximizeWindow: Event<IAuxiliaryWindow>;
+	readonly onDidUnmaximizeWindow: Event<IAuxiliaryWindow>;
+	readonly onDidChangeFullScreen: Event<IAuxiliaryWindow>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: IAuxiliaryWindow; readonly x: number; readonly y: number }>;
 
 	createWindow(): BrowserWindowConstructorOptions;

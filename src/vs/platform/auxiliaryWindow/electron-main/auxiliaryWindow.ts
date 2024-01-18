@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, WebContents } from 'electron';
-import { Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IBaseWindow } from 'vs/platform/window/electron-main/window';
@@ -17,9 +17,6 @@ export interface IAuxiliaryWindow extends IBaseWindow {
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
-
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
 
 	readonly id = this.contents.id;
 	parentId = -1;
@@ -32,29 +29,17 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		return super.win;
 	}
 
-	private _lastFocusTime = Date.now(); // window is shown on creation so take current time
-	get lastFocusTime(): number { return this._lastFocusTime; }
-
 	constructor(
 		private readonly contents: WebContents,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStateService stateService: IStateService
+		@IStateService stateService: IStateService,
+		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService
 	) {
-		super(configurationService, stateService);
+		super(configurationService, stateService, environmentMainService);
 
-		this.create();
-	}
-
-	private create(): void {
-
-		// Handle devtools argument
-		if (this.environmentMainService.args['open-devtools'] === true) {
-			this.contents.openDevTools({ mode: 'bottom' });
-		}
-
-		// Try to claim now
+		// Try to claim window
 		this.tryClaimWindow();
 	}
 
@@ -77,31 +62,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Disable Menu
 			window.setMenu(null);
 
-			// Listeners
-			this.registerWindowListeners(window);
+			// Lifecycle
+			this.lifecycleMainService.registerAuxWindow(this);
 		}
-	}
-
-	private registerWindowListeners(window: BrowserWindow): void {
-
-		// Window Close
-		window.on('closed', () => {
-			this.logService.trace('[aux window] Closed window');
-
-			this._onDidClose.fire();
-
-			this.dispose();
-		});
-
-		// Window Focus
-		window.on('focus', () => {
-			this._lastFocusTime = Date.now();
-		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }

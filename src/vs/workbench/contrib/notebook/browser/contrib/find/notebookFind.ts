@@ -13,7 +13,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { FindStartFocusAction, getSelectionSearchString, IFindStartOptions, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -32,7 +32,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.hideFind',
-			title: { value: localize('notebookActions.hideFind', "Hide Find in Notebook"), original: 'Hide Find in Notebook' },
+			title: localize2('notebookActions.hideFind', 'Hide Find in Notebook'),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
 				primary: KeyCode.Escape,
@@ -59,7 +59,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.find',
-			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
+			title: localize2('notebookActions.findInNotebook', 'Find in Notebook'),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.or(NOTEBOOK_IS_ACTIVE_EDITOR, INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR), EditorContextKeys.focus.toNegated()),
 				primary: KeyCode.KeyF | KeyMod.CtrlCmd,

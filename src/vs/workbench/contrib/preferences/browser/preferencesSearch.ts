@@ -114,9 +114,10 @@ export class LocalSearchProvider implements ISearchProvider {
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, this.getGroupFilter(this._filter), settingMatcher);
-		if (filterMatches[0] && filterMatches[0].score === LocalSearchProvider.EXACT_MATCH_SCORE) {
+		const exactMatch = filterMatches.find(m => m.score === LocalSearchProvider.EXACT_MATCH_SCORE);
+		if (exactMatch) {
 			return Promise.resolve({
-				filterMatches: filterMatches.slice(0, 1),
+				filterMatches: [exactMatch],
 				exactMatch: true
 			});
 		} else {

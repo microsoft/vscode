@@ -90,13 +90,12 @@ export class Match {
 	}
 
 	@memoize
-	preview(): { before: string; inside: string; after: string } {
-		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
-			inside = this.getMatchString(),
-			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
+	preview(): { before: string; fullBefore: string; inside: string; after: string } {
+		const fullBefore = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
+			before = lcut(fullBefore, 26, '…');
 
-		before = lcut(before, 26);
-		before = before.trimStart();
+		let inside = this.getMatchString(),
+			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
 		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
 		inside = inside.substr(0, charsRemaining);
@@ -105,6 +104,7 @@ export class Match {
 
 		return {
 			before,
+			fullBefore,
 			inside,
 			after,
 		};
@@ -1580,6 +1580,7 @@ function createParentList(element: RenderableMatch): RenderableMatch[] {
 
 	return parentArray;
 }
+
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new PauseableEmitter<IChangeEvent>({
@@ -1598,7 +1599,7 @@ export class SearchResult extends Disposable {
 	private _onDidChangeModelListener: IDisposable | undefined;
 
 	constructor(
-		public searchModel: SearchModel,
+		public readonly searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -1607,7 +1608,7 @@ export class SearchResult extends Disposable {
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
-
+		this.modelService.getModels().forEach(model => this.onModelAdded(model));
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
 		this._register(this.notebookEditorService.onDidAddNotebookEditor(widget => {
@@ -1935,6 +1936,11 @@ export class SearchResult extends Disposable {
 	}
 }
 
+export enum SearchModelLocation {
+	PANEL,
+	QUICK_ACCESS
+}
+
 export class SearchModel extends Disposable {
 
 	private _searchResult: SearchResult;
@@ -1956,7 +1962,7 @@ export class SearchModel extends Disposable {
 
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
-	private _searchResultChangedListener: IDisposable;
+	public location: SearchModelLocation = SearchModelLocation.PANEL;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1968,7 +1974,7 @@ export class SearchModel extends Disposable {
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
-		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
+		this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	isReplaceActive(): boolean {
@@ -2005,15 +2011,6 @@ export class SearchModel extends Disposable {
 
 	get searchResult(): SearchResult {
 		return this._searchResult;
-	}
-
-	set searchResult(searchResult: SearchResult) {
-		this._searchResult.dispose();
-		this._searchResultChangedListener.dispose();
-
-		this._searchResult = searchResult;
-		this._searchResult.searchModel = this;
-		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 
@@ -2144,7 +2141,7 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private onSearchCompleted(completed: ISearchComplete | null, duration: number, searchInstanceID: string): ISearchComplete | null {
+	private onSearchCompleted(completed: ISearchComplete | undefined, duration: number, searchInstanceID: string): ISearchComplete | undefined {
 		if (!this._searchQuery) {
 			throw new Error('onSearchCompleted must be called after a search is started');
 		}
@@ -2192,7 +2189,7 @@ export class SearchModel extends Disposable {
 			this.onSearchCompleted(
 				this.searchCancelledForNewSearch
 					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
-					: null,
+					: undefined,
 				duration, '');
 			this.searchCancelledForNewSearch = false;
 		}
@@ -2237,10 +2234,6 @@ export class SearchModel extends Disposable {
 		super.dispose();
 	}
 
-	transferSearchResult(other: SearchModel): void {
-		other.searchResult = this._searchResult;
-		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
-	}
 }
 
 export type FileMatchOrMatch = FileMatch | Match;
@@ -2261,6 +2254,11 @@ export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenc
 		}
 		return this._searchModel;
 	}
+
+	set searchModel(searchModel: SearchModel) {
+		this._searchModel?.dispose();
+		this._searchModel = searchModel;
+	}
 }
 
 export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModelWorkbenchService>('searchViewModelWorkbenchService');
@@ -2268,7 +2266,7 @@ export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModel
 export interface ISearchViewModelWorkbenchService {
 	readonly _serviceBrand: undefined;
 
-	readonly searchModel: SearchModel;
+	searchModel: SearchModel;
 }
 
 /**

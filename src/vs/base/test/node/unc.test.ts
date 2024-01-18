@@ -5,6 +5,7 @@
 
 import { strictEqual } from 'assert';
 import { getUNCHost } from 'vs/base/node/unc';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('UNC', () => {
 
@@ -43,4 +44,6 @@ suite('UNC', () => {
 		strictEqual(getUNCHost('\\\\.\\UNC\\localhost\\a'), 'localhost');
 		strictEqual(getUNCHost('\\\\?\\UNC\\localhost\\a'), 'localhost');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

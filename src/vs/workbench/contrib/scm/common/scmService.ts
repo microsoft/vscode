@@ -5,7 +5,7 @@
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation, ISCMActionButtonDescriptor, ISCMInputValueProvider } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation, ISCMActionButtonDescriptor } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -143,7 +143,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.saveValue();
+			this.historyNavigator.add(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}
@@ -365,17 +365,11 @@ export class SCMService implements ISCMService {
 	private inputHistory: SCMInputHistory;
 	private providerCount: IContextKey<number>;
 
-	private readonly _inputValueProviders = new Set<ISCMInputValueProvider>();
-	get inputValueProviders(): Iterable<ISCMInputValueProvider> { return this._inputValueProviders; }
-
 	private readonly _onDidAddProvider = new Emitter<ISCMRepository>();
 	readonly onDidAddRepository: Event<ISCMRepository> = this._onDidAddProvider.event;
 
 	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
-
-	private readonly _onDidChangeInputValueProviders = new Emitter<void>();
-	readonly onDidChangeInputValueProviders: Event<void> = this._onDidChangeInputValueProviders.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -410,16 +404,6 @@ export class SCMService implements ISCMService {
 
 	getRepository(id: string): ISCMRepository | undefined {
 		return this._repositories.get(id);
-	}
-
-	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable {
-		this._inputValueProviders.add(provider);
-		this._onDidChangeInputValueProviders.fire();
-
-		return toDisposable(() => {
-			this._inputValueProviders.delete(provider);
-			this._onDidChangeInputValueProviders.fire();
-		});
 	}
 
 }

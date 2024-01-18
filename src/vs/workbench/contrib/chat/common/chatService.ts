@@ -10,9 +10,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Location, ProviderResult } from 'vs/editor/common/languages';
+import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -51,6 +52,7 @@ export interface IChatResponse {
 export interface IChatResponseProgressFileTreeData {
 	label: string;
 	uri: URI;
+	type?: FileType;
 	children?: IChatResponseProgressFileTreeData[];
 }
 
@@ -127,7 +129,7 @@ export interface IChatAsyncContent {
 }
 
 export interface IChatProgressMessage {
-	content: string;
+	content: IMarkdownString;
 	kind: 'progressMessage';
 }
 
@@ -171,35 +173,6 @@ export interface IChatProvider {
 	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
 }
 
-export interface ISlashCommand {
-	command: string;
-	sortText?: string;
-	detail?: string;
-
-	/**
-	 * Whether the command should execute as soon
-	 * as it is entered. Defaults to `false`.
-	 */
-	executeImmediately?: boolean;
-	/**
-	 * Whether executing the command puts the
-	 * chat into a persistent mode, where the
-	 * slash command is prepended to the chat input.
-	 */
-	shouldRepopulate?: boolean;
-	/**
-	 * Placeholder text to render in the chat input
-	 * when the slash command has been repopulated.
-	 * Has no effect if `shouldRepopulate` is `false`.
-	 */
-	followupPlaceholder?: string;
-	/**
-	 * The slash command(s) that this command wants to be
-	 * deprioritized in favor of.
-	 */
-	yieldsTo?: ReadonlyArray<{ readonly command: string }>;
-}
-
 export interface IChatReplyFollowup {
 	kind: 'reply';
 	message: string;
@@ -229,7 +202,7 @@ export interface IChatVoteAction {
 	reportIssue?: boolean;
 }
 
-export enum InteractiveSessionCopyKind {
+export enum ChatAgentCopyKind {
 	// Keyboard shortcut or context menu
 	Action = 1,
 	Toolbar = 2
@@ -238,7 +211,7 @@ export enum InteractiveSessionCopyKind {
 export interface IChatCopyAction {
 	kind: 'copy';
 	codeBlockIndex: number;
-	copyType: InteractiveSessionCopyKind;
+	copyKind: ChatAgentCopyKind;
 	copiedCharacters: number;
 	totalCharacters: number;
 	copiedText: string;
@@ -338,9 +311,10 @@ export interface IChatService {
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
-	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, response: IChatCompleteResponse): void;
+	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;
 	getHistory(): IChatDetail[];
+	clearAllHistoryEntries(): void;
 	removeHistoryEntry(sessionId: string): void;
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;

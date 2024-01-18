@@ -33,7 +33,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	get onDidEndSession(): Event<IDebugSession> {
+	get onDidEndSession(): Event<{ session: IDebugSession; restart: boolean }> {
 		throw new Error('not implemented');
 	}
 
@@ -58,6 +58,10 @@ export class MockDebugService implements IDebugService {
 	}
 
 	sendAllBreakpoints(session?: IDebugSession): Promise<any> {
+		throw new Error('not implemented');
+	}
+
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean | undefined, session?: IDebugSession | undefined): Promise<any> {
 		throw new Error('not implemented');
 	}
 
@@ -112,6 +116,11 @@ export class MockDebugService implements IDebugService {
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void> {
+		throw new Error('not implemented');
+	}
+
 	removeDataBreakpoints(id?: string | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}

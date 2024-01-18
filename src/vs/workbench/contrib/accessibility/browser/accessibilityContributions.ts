@@ -15,14 +15,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import * as strings from 'vs/base/common/strings';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getNotificationFromContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
 import { IAccessibleViewService, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IAction } from 'vs/base/common/actions';
@@ -32,7 +32,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
 	const kb = keybindingService.lookupKeybinding(commandId);
@@ -51,7 +51,7 @@ export class HoverAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const editor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
-			const editorHoverContent = editor ? ModesHoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
+			const editorHoverContent = editor ? HoverController.get(editor)?.getWidgetContent() ?? undefined : undefined;
 			if (!editor || !editorHoverContent) {
 				return false;
 			}
@@ -61,7 +61,7 @@ export class HoverAccessibleViewContribution extends Disposable {
 				verbositySettingKey: AccessibilityVerbositySettingId.Hover,
 				provideContent() { return editorHoverContent; },
 				onClose() {
-					ModesHoverController.get(editor)?.focus();
+					HoverController.get(editor)?.focus();
 				},
 				options: this._options
 			});
@@ -104,7 +104,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const listService = accessor.get(IListService);
 			const commandService = accessor.get(ICommandService);
-			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
+			const audioCueService = accessor.get(IAudioCueService);
 
 			function renderAccessibleView(): boolean {
 				const notification = getNotificationFromContext(listService);
@@ -165,7 +165,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: { type: AccessibleViewType.View },
-					actions: getActionsFromNotification(notification, accessibleNotificationService)
+					actions: getActionsFromNotification(notification, audioCueService)
 				});
 				return true;
 			}
@@ -174,7 +174,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 	}
 }
 
-function getActionsFromNotification(notification: INotificationViewItem, accessibleNotificationService: IAccessibleNotificationService): IAction[] | undefined {
+function getActionsFromNotification(notification: INotificationViewItem, audioCueService: IAudioCueService): IAction[] | undefined {
 	let actions = undefined;
 	if (notification.actions) {
 		actions = [];
@@ -203,7 +203,7 @@ function getActionsFromNotification(notification: INotificationViewItem, accessi
 		actions.push({
 			id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => {
 				notification.close();
-				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+				audioCueService.playAudioCue(AudioCue.clear);
 			}, enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll)
 		});
 	}
@@ -272,3 +272,4 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 		}));
 	}
 }
+

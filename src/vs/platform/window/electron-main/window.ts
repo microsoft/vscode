@@ -15,7 +15,11 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export interface IBaseWindow extends IDisposable {
 
+	readonly onDidMaximize: Event<void>;
+	readonly onDidUnmaximize: Event<void>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly x: number; readonly y: number }>;
+	readonly onDidEnterFullScreen: Event<void>;
+	readonly onDidLeaveFullScreen: Event<void>;
 	readonly onDidClose: Event<void>;
 
 	readonly id: number;
@@ -77,6 +81,8 @@ export interface ICodeWindow extends IBaseWindow {
 
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
+	notifyZoomLevel(zoomLevel: number | undefined): void;
+
 	serializeWindowState(): IWindowState;
 }
 
@@ -127,6 +133,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
+	zoomLevel?: number;
 	readonly display?: number;
 }
 

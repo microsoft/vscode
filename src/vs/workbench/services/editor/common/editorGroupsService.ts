@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -222,6 +222,42 @@ export interface IEditorGroupsContainer {
 	readonly onDidChangeGroupMaximized: Event<boolean>;
 
 	/**
+	 * A property that indicates when groups have been created
+	 * and are ready to be used in the editor part.
+	 */
+	readonly isReady: boolean;
+
+	/**
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used in the editor part.
+	 *
+	 * Await this promise to safely work on the editor groups model
+	 * (for example, install editor group listeners).
+	 *
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
+	 */
+	readonly whenReady: Promise<void>;
+
+	/**
+	 * A promise that resolves when groups have been restored in
+	 * the editor part.
+	 *
+	 * For groups with active editor, the promise will resolve
+	 * when the visible editor has finished to resolve.
+	 *
+	 * Use the `whenReady` property to not await editors to
+	 * resolve.
+	 */
+	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Find out if the editor part has UI state to restore
+	 * from a previous session.
+	 */
+	readonly hasRestorableState: boolean;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
@@ -375,16 +411,6 @@ export interface IEditorGroupsContainer {
 	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
-	 * Access the options of the editor part.
-	 */
-	readonly partOptions: IEditorPartOptions;
-
-	/**
-	 * An event that notifies when editor part options change.
-	 */
-	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
-
-	/**
 	 * Allows to register a drag and drop target for editors
 	 * on the provided `container`.
 	 */
@@ -413,40 +439,9 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	readonly contentDimension: IDimension;
 
 	/**
-	 * A property that indicates when groups have been created
-	 * and are ready to be used in the editor part.
+	 * Find out if an editor group is currently maximized.
 	 */
-	readonly isReady: boolean;
-
-	/**
-	 * A promise that resolves when groups have been created
-	 * and are ready to be used in the editor part.
-	 *
-	 * Await this promise to safely work on the editor groups model
-	 * (for example, install editor group listeners).
-	 *
-	 * Use the `whenRestored` property to await visible editors
-	 * having fully resolved.
-	 */
-	readonly whenReady: Promise<void>;
-
-	/**
-	 * A promise that resolves when groups have been restored in
-	 * the editor part.
-	 *
-	 * For groups with active editor, the promise will resolve
-	 * when the visible editor has finished to resolve.
-	 *
-	 * Use the `whenReady` property to not await editors to
-	 * resolve.
-	 */
-	readonly whenRestored: Promise<void>;
-
-	/**
-	 * Find out if the editor part has UI state to restore
-	 * from a previous session.
-	 */
-	readonly hasRestorableState: boolean;
+	hasMaximizedGroup(): boolean;
 
 	/**
 	 * Enable or disable centered editor layout.
@@ -478,6 +473,12 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 	close(): void;
 }
 
+export interface IAuxiliaryEditorPartCreateEvent {
+	readonly part: IAuxiliaryEditorPart;
+	readonly instantiationService: IInstantiationService;
+	readonly disposables: DisposableStore;
+}
+
 /**
  * The main service to interact with editor groups across all opened editor parts.
  */
@@ -488,7 +489,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	/**
 	 * An event for when a new auxiliary editor part is created.
 	 */
-	readonly onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }>;
+	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPartCreateEvent>;
 
 	/**
 	 * Provides access to the currently active editor part.
@@ -514,6 +515,16 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Get the editor part that is rooted in the provided container.
 	 */
 	getPart(container: unknown /* HTMLElement */): IEditorPart;
+
+	/**
+	 * Access the options of the editor part.
+	 */
+	readonly partOptions: IEditorPartOptions;
+
+	/**
+	 * An event that notifies when editor part options change.
+	 */
+	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
 	 * Opens a new window with a full editor part instantiated
@@ -577,6 +588,11 @@ export interface IEditorGroup {
 	 * group is moved to different locations.
 	 */
 	readonly id: GroupIdentifier;
+
+	/**
+	 * The identifier of the `CodeWindow` this editor group is part of.
+	 */
+	readonly windowId: number;
 
 	/**
 	 * A number that indicates the position of this group in the visual

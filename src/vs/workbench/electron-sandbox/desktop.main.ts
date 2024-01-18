@@ -78,7 +78,7 @@ export class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Apply fullscreen early if configured
-		setFullscreen(!!this.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen, mainWindow);
 	}
 
 	private reviveUris() {
@@ -116,8 +116,10 @@ export class DesktopMain extends Disposable {
 		// and before the workbench is created to prevent flickering.
 		// We also need to respect that zoom level can be configured per
 		// workspace, so we need the resolved configuration service.
+		// Finally, it is possible for the window to have a custom
+		// zoom level that is not derived from settings.
 		// (fixes https://github.com/microsoft/vscode/issues/187982)
-		this.applyConfiguredWindowZoomLevel(services.configurationService);
+		this.applyWindowZoomLevel(services.configurationService);
 
 		// Create Workbench
 		const workbench = new Workbench(mainWindow.document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
@@ -132,11 +134,16 @@ export class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 	}
 
-	private applyConfiguredWindowZoomLevel(configurationService: IConfigurationService) {
-		const windowConfig = configurationService.getValue<IWindowsConfiguration>();
-		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+	private applyWindowZoomLevel(configurationService: IConfigurationService) {
+		let zoomLevel: number | undefined = undefined;
+		if (this.configuration.isCustomZoomLevel && typeof this.configuration.zoomLevel === 'number') {
+			zoomLevel = this.configuration.zoomLevel;
+		} else {
+			const windowConfig = configurationService.getValue<IWindowsConfiguration>();
+			zoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
+		}
 
-		applyZoom(windowZoomLevel);
+		applyZoom(zoomLevel, mainWindow);
 	}
 
 	private getExtraClasses(): string[] {
