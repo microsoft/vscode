@@ -461,6 +461,8 @@
 		"--vscode-notificationsWarningIcon-foreground",
 		"--vscode-outputView-background",
 		"--vscode-outputViewStickyScroll-background",
+		"--vscode-activityBarTop-activeBorder",
+		"--vscode-activityBarTop-foreground",
 		"--vscode-panel-background",
 		"--vscode-panel-border",
 		"--vscode-panel-dropBorder",
