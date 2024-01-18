@@ -147,12 +147,19 @@ class VsCodeFixAllCodeAction extends VsCodeCodeAction {
 class CodeActionSet {
 	private readonly _actions = new Set<VsCodeCodeAction>();
 	private readonly _fixAllActions = new Map<{}, VsCodeCodeAction>();
+	private readonly _aiActions = new Set<VsCodeCodeAction>();
 
-	public get values(): Iterable<VsCodeCodeAction> {
-		return this._actions;
+	public *values(): Iterable<VsCodeCodeAction> {
+		yield* this._actions;
+		yield* this._aiActions;
 	}
 
 	public addAction(action: VsCodeCodeAction) {
+		if (action.isAI) {
+			// there are no separate fixAllActions for AI, and no duplicates, so return immediately
+			this._aiActions.add(action);
+			return;
+		}
 		for (const existing of this._actions) {
 			if (action.tsAction.fixName === existing.tsAction.fixName && equals(action.edit, existing.edit)) {
 				this._actions.delete(existing);
@@ -261,7 +268,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			}
 		}
 
-		const allActions = Array.from(results.values);
+		const allActions = Array.from(results.values());
 		for (const action of allActions) {
 			action.isPreferred = isPreferredFix(action, allActions);
 		}
@@ -326,7 +333,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
 			command: ApplyCodeActionCommand.ID,
-			arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
+			arguments: [{ action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 			title: ''
 		};
 		actions.push(codeAction);
@@ -386,7 +393,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 					title: '',
 					arguments: [{
 						command: ApplyCodeActionCommand.ID,
-						arguments: [{ action: action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
+						arguments: [{ action, diagnostic, document } satisfies ApplyCodeActionCommand_args],
 						title: ''
 					}, {
 						command: EditorChatFollowUp.ID,
