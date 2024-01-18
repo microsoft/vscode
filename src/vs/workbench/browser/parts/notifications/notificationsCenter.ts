@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/notificationsCenter';
+import 'vs/css!./media/notificationsActions';
 import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
@@ -24,11 +26,6 @@ import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { mainWindow } from 'vs/base/browser/window';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/notificationsCenter.css', import.meta.url)
-importCss('./media/notificationsActions.css', import.meta.url)
-
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
@@ -390,3 +387,4 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}
 	}
 }
+
