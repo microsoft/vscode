@@ -14,7 +14,7 @@ import { IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
-import { createMatches, FuzzyScore } from 'vs/base/common/filters';
+import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -37,8 +37,9 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, CONTEXT_VARIABLES_FOCUSED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { ErrorScope, Expression, getUriForDebugMemory, Scope, StackFrame, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
+import { ErrorScope, Expression, Scope, StackFrame, Variable, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -254,7 +255,7 @@ const getVariablesContext = (variable: Variable): IVariablesContext => ({
 async function getContextForVariableMenuWithDataAccess(parentContext: IContextKeyService, variable: Variable) {
 	const session = variable.getSession();
 	if (!session || !session.capabilities.supportsDataBreakpoints) {
-		return getContextForVariableMenu(parentContext, variable);
+		return getContextForVariableMenuBase(parentContext, variable);
 	}
 
 	const contextKeys: [string, unknown][] = [];
@@ -280,25 +281,15 @@ async function getContextForVariableMenuWithDataAccess(parentContext: IContextKe
 		}
 	}
 
-	return getContextForVariableMenu(parentContext, variable, contextKeys);
+	return getContextForVariableMenuBase(parentContext, variable, contextKeys);
 }
 
 /**
  * Gets a context key overlay that has context for the given variable.
  */
-function getContextForVariableMenu(parentContext: IContextKeyService, variable: Variable, additionalContext: [string, unknown][] = []) {
-	const session = variable.getSession();
-	const contextKeys: [string, unknown][] = [
-		[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, variable.variableMenuContext || ''],
-		[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!variable.evaluateName],
-		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && variable.memoryReference !== undefined],
-		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly') || variable.presentationHint?.lazy],
-		...additionalContext,
-	];
-
+function getContextForVariableMenuBase(parentContext: IContextKeyService, variable: Variable, additionalContext: [string, unknown][] = []) {
 	variableInternalContext = variable;
-
-	return parentContext.createOverlay(contextKeys);
+	return getContextForVariable(parentContext, variable, additionalContext);
 }
 
 function isStackFrame(obj: any): obj is IStackFrame {
@@ -454,7 +445,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
 		const variable = expression as Variable;
-		const contextKeyService = getContextForVariableMenu(this.contextKeyService, variable);
+		const contextKeyService = getContextForVariableMenuBase(this.contextKeyService, variable);
 		const menu = this.menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 
 		const primary: IAction[] = [];

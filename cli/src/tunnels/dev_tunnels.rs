@@ -575,6 +575,7 @@ impl DevTunnels {
 			None => {
 				let new_tunnel = Tunnel {
 					tags: self.get_tags(name),
+					cluster_id: Some("euw".to_string()),
 					..Default::default()
 				};
 

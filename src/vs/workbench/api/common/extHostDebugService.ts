@@ -25,6 +25,7 @@ import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import { IExtHostConfiguration } from '../common/extHostConfiguration';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -50,6 +51,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider, trigger: vscode.DebugConfigurationProviderTriggerKind): vscode.Disposable;
 	registerDebugAdapterDescriptorFactory(extension: IExtensionDescription, type: string, factory: vscode.DebugAdapterDescriptorFactory): vscode.Disposable;
 	registerDebugAdapterTrackerFactory(type: string, factory: vscode.DebugAdapterTrackerFactory): vscode.Disposable;
+	registerDebugVisualizationProvider<T extends vscode.DebugVisualization>(extension: IExtensionDescription, id: string, provider: vscode.DebugVisualizationProvider<T>): vscode.Disposable;
 	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
@@ -96,6 +98,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private _debugAdapters: Map<number, IDebugAdapter>;
 	private _debugAdaptersTrackers: Map<number, vscode.DebugAdapterTracker>;
+	private readonly _debugVisualizationProviders = new Map<string, vscode.DebugVisualizationProvider<vscode.DebugVisualization>>();
 
 	private _signService: ISignService | undefined;
 
@@ -207,6 +210,23 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		const result: vscode.Breakpoint[] = [];
 		this._breakpoints.forEach(bp => result.push(bp));
 		return result;
+	}
+
+	public $disposeDebugVisualizers(ids: number[]): void {
+
+	}
+
+	public registerDebugVisualizationProvider<T extends vscode.DebugVisualization>(manifest: IExtensionDescription, id: string, provider: vscode.DebugVisualizationProvider<T>): vscode.Disposable {
+		if (!manifest.contributes?.debugVisualizers?.some(r => r.id === id)) {
+			throw new Error(`Extensions may only call registerDebugVisualizationProvider() for renderers they contribute (got ${id})`);
+		}
+
+		if (this._debugVisualizationProviders.has(id)) {
+			throw new Error(`A debug visualization provider with id '${id}' is already registered`);
+		}
+
+		this._debugVisualizationProviders.set(id, provider);
+		return toDisposable(() => this._debugVisualizationProviders.delete(id));
 	}
 
 	public addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void> {
