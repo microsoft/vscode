@@ -347,6 +347,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				LayoutSettings.ACTIVITY_BAR_LOCATION,
 				LayoutSettings.COMMAND_CENTER,
 				LayoutSettings.EDITOR_ACTIONS_LOCATION,
+				LayoutSettings.LAYOUT_ACTIONS,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 				'window.menuBarVisibility',
@@ -1229,31 +1230,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return false;
 		}
 
-		const nativeTitleBarVisible = hasNativeTitlebar(this.configurationService);
+		const nativeTitleBarEnabled = hasNativeTitlebar(this.configurationService);
 		const showCustomTitleBar = this.configurationService.getValue<CustomTitleBarVisibility>(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY);
-		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarVisible || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && this.state.runtime.mainWindowFullscreen) {
+		if (showCustomTitleBar === CustomTitleBarVisibility.NEVER && nativeTitleBarEnabled || showCustomTitleBar === CustomTitleBarVisibility.WINDOWED && this.state.runtime.mainWindowFullscreen) {
 			return false;
 		}
 
-		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
-			return true;
-		}
-
-		// with the activity bar on top, we should always show
-		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
-			return true;
-		}
-
-		// with the editor actions on top, we should always show
-		const editorActionsLocation = this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
-		const editorTabsMode = this.configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
-		if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
+		if (!this.isTitleBarEmpty(nativeTitleBarEnabled)) {
 			return true;
 		}
 
 		// Hide custom title bar when native title bar and custom title bar is empty
-		if (nativeTitleBarVisible) {
+		if (nativeTitleBarEnabled) {
 			return false;
 		}
 
@@ -1286,6 +1274,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default:
 				return isWeb ? false : !this.state.runtime.mainWindowFullscreen || this.state.runtime.menuBar.toggled;
 		}
+	}
+
+	private isTitleBarEmpty(nativeTitleBarEnabled: boolean): boolean {
+		// with the command center enabled, we should always show
+		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
+			return false;
+		}
+
+		// with the activity bar on top, we should always show
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+			return false;
+		}
+
+		// with the editor actions on top, we should always show
+		const editorActionsLocation = this.configurationService.getValue<EditorActionsLocation>(LayoutSettings.EDITOR_ACTIONS_LOCATION);
+		const editorTabsMode = this.configurationService.getValue<EditorTabsMode>(LayoutSettings.EDITOR_TABS_MODE);
+		if (editorActionsLocation === EditorActionsLocation.TITLEBAR || editorActionsLocation === EditorActionsLocation.DEFAULT && editorTabsMode === EditorTabsMode.NONE) {
+			return false;
+		}
+
+		// Layout don't show with native title bar
+		if (!nativeTitleBarEnabled && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS)) {
+			return false;
+		}
+
+		return true;
 	}
 
 	private shouldShowBannerFirst(): boolean {

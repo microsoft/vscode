@@ -566,7 +566,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
-			'workbench.layoutControl.enabled': {
+			[LayoutSettings.LAYOUT_ACTIONS]: {
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': isWeb ?

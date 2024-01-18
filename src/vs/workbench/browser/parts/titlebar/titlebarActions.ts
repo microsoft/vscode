@@ -69,8 +69,7 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 	constructor() {
 		super({
 			id: `toggle.${ToggleCustomTitleBar.settingsID}`,
-			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
-			toggled: ContextKeyExpr.true(),
+			title: localize('toggle.hideCustomTitleBar', 'Hide Custom Title Bar'),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE), group: '3_toggle' },
 			]
@@ -84,13 +83,12 @@ registerAction2(class ToggleCustomTitleBar extends Action2 {
 });
 
 registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
-	static readonly settingsID = TitleBarSetting.TITLE_BAR_STYLE;
+	static readonly settingsID = TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY;
 
 	constructor() {
 		super({
 			id: `toggle.${ToggleCustomTitleBarWindowed.settingsID}.windowed`,
-			title: localize('toggle.customTitleBarWindowed', 'Custom Title Bar In Full Screen'),
-			toggled: ContextKeyExpr.true(),
+			title: localize('toggle.hideCustomTitleBarInFullScreen', 'Hide Custom Title Bar In Full Screen'),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 0, when: IsMainWindowFullscreenContext, group: '3_toggle' },
 			]

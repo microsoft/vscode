@@ -322,7 +322,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Actions
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle) && this.actionToolBar) {
-			const affectsLayoutControl = event.affectsConfiguration('workbench.layoutControl.enabled');
+			const affectsLayoutControl = event.affectsConfiguration(LayoutSettings.LAYOUT_ACTIONS);
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 
 			if (affectsLayoutControl || affectsActivityControl) {
@@ -699,7 +699,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	private get layoutControlEnabled(): boolean {
-		return !this.isAuxiliary && this.configurationService.getValue<boolean>('workbench.layoutControl.enabled') !== false && !hasNativeTitlebar(this.configurationService, this.titleBarStyle);
+		return !this.isAuxiliary && this.configurationService.getValue<boolean>(LayoutSettings.LAYOUT_ACTIONS) !== false && !hasNativeTitlebar(this.configurationService, this.titleBarStyle);
 	}
 
 	protected get isCommandCenterVisible() {
@@ -710,7 +710,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		return this.editorGroupService.partOptions.editorActionsLocation === EditorActionsLocation.TITLEBAR ||
 			(
 				this.editorGroupService.partOptions.editorActionsLocation === EditorActionsLocation.DEFAULT &&
-				this.editorGroupService.partOptions.showTabs === EditorTabsMode.MULTIPLE
+				this.editorGroupService.partOptions.showTabs === EditorTabsMode.NONE
 			);
 	}
 

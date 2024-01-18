@@ -39,6 +39,7 @@ export const enum LayoutSettings {
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',
+	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 }
 
 export const enum ActivityBarPosition {
