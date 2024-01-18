@@ -8,6 +8,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { Constants } from 'vs/base/common/uint';
+import 'vs/css!./viewLines';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { HorizontalPosition, HorizontalRange, IViewLines, LineVisibleRanges, VisibleRanges } from 'vs/editor/browser/view/renderingContext';
 import { IVisibleLinesHost, VisibleLinesCollection } from 'vs/editor/browser/view/viewLayer';
@@ -23,10 +24,6 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { Viewport } from 'vs/editor/common/viewModel';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./viewLines.css', import.meta.url)
-
 
 class LastRenderedData {
 
