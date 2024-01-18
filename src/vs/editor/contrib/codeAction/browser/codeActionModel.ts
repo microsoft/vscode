@@ -46,7 +46,7 @@ class CodeActionOracle extends Disposable {
 		this._register(this._editor.onDidChangeCursorPosition(() => this._tryAutoTrigger()));
 	}
 
-	public async trigger(trigger: CodeActionTrigger): Promise<void> {
+	public trigger(trigger: CodeActionTrigger): void {
 		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
 		this._signalChange(selection ? { trigger, selection } : undefined);
 	}
