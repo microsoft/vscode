@@ -871,9 +871,13 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		if (result === KeywordRecognitionStatus.Recognized) {
 			if (this.hostService.hasFocus) {
 				this.commandService.executeCommand(this.getKeywordCommand());
-			} else {
-				this.handleKeywordActivation();
 			}
+
+			// Immediately start another keyboard activation session
+			// because we cannot assume that the command we execute
+			// will trigger a speech recognition session.
+
+			this.handleKeywordActivation();
 		}
 	}
 
