@@ -54,6 +54,9 @@ const getNewCssImportLines = (newCssImports) => {
     return newCssImportLines;
 };
 const updateCssImports = (content) => {
+    if (!hasCssImport(content)) {
+        return content;
+    }
     const lines = content.split('\n');
     const lastImportLineIndex = getLastImportLineIndex(lines);
     if (lastImportLineIndex === -1) {

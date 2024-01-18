@@ -63,6 +63,9 @@ const getNewCssImportLines = (newCssImports: string[]) => {
 }
 
 export const updateCssImports = (content: string) => {
+	if (!hasCssImport(content)) {
+		return content
+	}
 	const lines = content.split('\n')
 	const lastImportLineIndex = getLastImportLineIndex(lines)
 	if (lastImportLineIndex === -1) {
