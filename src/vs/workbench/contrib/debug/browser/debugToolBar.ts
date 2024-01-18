@@ -13,6 +13,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import 'vs/css!./media/debugToolBar';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { ICommandAction, ICommandActionTitle } from 'vs/platform/action/common/action';
@@ -39,10 +40,6 @@ import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from '
 import { Codicon } from 'vs/base/common/codicons';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { clamp } from 'vs/base/common/numbers';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/debugToolBar.css', import.meta.url)
-
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_TOOLBAR_Y_KEY = 'debug.actionswidgety';
