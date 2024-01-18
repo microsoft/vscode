@@ -905,8 +905,8 @@ class KeywordActivationStatusEntry extends Disposable {
 
 	private static STATUS_NAME = localize('keywordActivation.status.name', "Voice Keyword Activation");
 	private static STATUS_COMMAND = 'keywordActivation.status.command';
-	private static STATUS_ACTIVE = localize('keywordActivation.status.active', "Voice Keyword Activation: Active");
-	private static STATUS_INACTIVE = localize('keywordActivation.status.inactive', "Voice Keyword Activation: Inactive");
+	private static STATUS_ACTIVE = localize('keywordActivation.status.active', "Listening to 'Hey Code'...");
+	private static STATUS_INACTIVE = localize('keywordActivation.status.inactive', "Waiting for voice chat to end...");
 
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
@@ -952,11 +952,11 @@ class KeywordActivationStatusEntry extends Disposable {
 	private getStatusEntryProperties(): IStatusbarEntry {
 		return {
 			name: KeywordActivationStatusEntry.STATUS_NAME,
-			text: '$(mic)',
+			text: this.speechService.hasActiveKeywordRecognition ? '$(mic-filled)' : '$(mic)',
 			tooltip: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
 			ariaLabel: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
 			command: KeywordActivationStatusEntry.STATUS_COMMAND,
-			kind: this.speechService.hasActiveKeywordRecognition ? 'prominent' : 'standard'
+			kind: 'prominent'
 		};
 	}
 
