@@ -11,6 +11,7 @@ import { ICreateGrammarResult, TMGrammarFactory } from 'vs/workbench/services/te
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import type { IOnigLib, IRawTheme, StackDiff } from 'vscode-textmate';
 import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer';
+import { importAMDNodeModule } from 'vs/amdX.js';
 
 /**
  * Defines the worker entry point. Must be exported and named `create`.
@@ -50,6 +51,19 @@ export interface StateDeltas {
 	stateDeltas: (StackDiff | null)[];
 }
 
+const loadSpecialModule = (uri: string) => {
+	console.log({ uri })
+	const nodeModulesIndex = uri.indexOf('node_modules')
+	if (nodeModulesIndex === -1) {
+		return import(uri)
+	}
+	const start = nodeModulesIndex + 'node_modules/'.length
+	const end = uri.indexOf('/', start)
+	const moduleName = uri.slice(start, end)
+	const rest = uri.slice(end + 1)
+	return importAMDNodeModule(moduleName, rest);
+}
+
 export class TextMateTokenizationWorker {
 	private readonly _host: ITextMateWorkerHost;
 	private readonly _models = new Map</* controllerId */ number, TextMateWorkerTokenizer>();
@@ -79,8 +93,9 @@ export class TextMateTokenizationWorker {
 
 	private async _loadTMGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): Promise<TMGrammarFactory> {
 		const uri = this._createData.textmateMainUri;
-		const vscodeTextmate = await import(uri);
-		const vscodeOniguruma = await import(this._createData.onigurumaMainUri);
+
+		const vscodeTextmate = await loadSpecialModule(uri);
+		const vscodeOniguruma = await loadSpecialModule(this._createData.onigurumaMainUri);
 		const response = await fetch(this._createData.onigurumaWASMUri);
 
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.

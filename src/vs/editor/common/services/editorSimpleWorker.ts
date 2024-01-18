@@ -819,11 +819,12 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				resolve(getAllMethodNames(this._foreignModule));
 			};
 
-			if (!isEsm) {
-				require([moduleId], onModuleCallback, reject);
-			} else {
+			if (isEsm) {
 				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
+				globalThis.exports = {}
 				import(url).then(onModuleCallback).catch(reject);
+			} else {
+				require([moduleId], onModuleCallback, reject);
 			}
 		});
 		// ESM-comment-end
