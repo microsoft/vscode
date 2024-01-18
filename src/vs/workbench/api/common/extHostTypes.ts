@@ -4205,4 +4205,9 @@ export enum SpeechToTextStatus {
 	Stopped = 4
 }
 
+export enum KeywordRecognitionStatus {
+	Recognized = 1,
+	Stopped = 2
+}
+
 //#endregion
