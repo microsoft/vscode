@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DocumentOnDropEdit } from 'vs/editor/common/languages';
 import { sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 
@@ -18,6 +19,7 @@ function createTestEdit(providerId: string, args?: Partial<DropEdit>): DropEdit 
 }
 
 suite('sortEditsByYieldTo', () => {
+
 	test('Should noop for empty edits', () => {
 		const edits: DropEdit[] = [];
 
@@ -62,4 +64,6 @@ suite('sortEditsByYieldTo', () => {
 
 		assert.deepStrictEqual(sortEditsByYieldTo(edits).map(x => x.providerId), ['c', 'a', 'b']);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
