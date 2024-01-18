@@ -140,10 +140,8 @@ export class TerminalSpeechToTextSession extends Disposable {
 	private _updateInput(e: ISpeechToTextEvent): void {
 		if (e.text) {
 			let input = e.text.replaceAll(/[.,?;!]/g, '');
-
-			for (const symbol of Object.values(symbolMap)) {
-				const regex: RegExp = new RegExp(symbol + '\b');
-				input = input.replace(regex, symbolMap[symbol]);
+			for (const symbol of Object.entries(symbolMap)) {
+				input = input.replace(new RegExp('\\b' + symbol[0] + '\\b'), symbol[1]);
 			}
 			this._input = ' ' + input;
 		}
