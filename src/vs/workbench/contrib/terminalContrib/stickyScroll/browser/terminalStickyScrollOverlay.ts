@@ -12,6 +12,7 @@ import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -28,10 +29,6 @@ import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private'
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/stickyScroll.css', import.meta.url)
-
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
