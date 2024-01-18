@@ -64,40 +64,38 @@ registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 });
 
 registerAction2(class ToggleCustomTitleBar extends Action2 {
-	static readonly settingsID = TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY;
-
 	constructor() {
 		super({
-			id: `toggle.${ToggleCustomTitleBar.settingsID}`,
+			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}`,
 			title: localize('toggle.hideCustomTitleBar', 'Hide Custom Title Bar'),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE), group: '3_toggle' },
+				{ id: MenuId.TitleBarTitleContext, order: 0, when: ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE), group: '3_toggle' },
 			]
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]): void {
 		const configService = accessor.get(IConfigurationService);
-		configService.updateValue(ToggleCustomTitleBar.settingsID, CustomTitleBarVisibility.NEVER);
+		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.NEVER);
 	}
 });
 
 registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
-	static readonly settingsID = TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY;
-
 	constructor() {
 		super({
-			id: `toggle.${ToggleCustomTitleBarWindowed.settingsID}.windowed`,
+			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}.windowed`,
 			title: localize('toggle.hideCustomTitleBarInFullScreen', 'Hide Custom Title Bar In Full Screen'),
 			menu: [
 				{ id: MenuId.TitleBarContext, order: 0, when: IsMainWindowFullscreenContext, group: '3_toggle' },
+				{ id: MenuId.TitleBarTitleContext, order: 0, when: IsMainWindowFullscreenContext, group: '3_toggle' },
 			]
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]): void {
 		const configService = accessor.get(IConfigurationService);
-		configService.updateValue(ToggleCustomTitleBarWindowed.settingsID, CustomTitleBarVisibility.WINDOWED);
+		configService.updateValue(TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY, CustomTitleBarVisibility.WINDOWED);
 	}
 });
 
