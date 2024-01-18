@@ -231,6 +231,22 @@ suite('InlineChatSession', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function makeEditAsAi(edit: EditOperation | EditOperation[]) {
+		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
+		assertType(session);
+		session.hunkData.ignoreTextModelNChanges = true;
+		try {
+			editor.executeEdits('test', Array.isArray(edit) ? edit : [edit]);
+		} finally {
+			session.hunkData.ignoreTextModelNChanges = false;
+		}
+		await session.hunkData.recompute();
+	}
+
+	function makeEdit(edit: EditOperation | EditOperation[]) {
+		editor.executeEdits('test', Array.isArray(edit) ? edit : [edit]);
+	}
+
 	test('Create, release', async function () {
 
 		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
@@ -246,18 +262,19 @@ suite('InlineChatSession', function () {
 		assertType(session);
 		assert.ok(session.textModelN === model);
 
-		editor.executeEdits('test', [EditOperation.insert(new Position(1, 1), 'AI_EDIT\n')]);
+		await makeEditAsAi(EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'));
 
-		await session.hunkData.recompute();
+
 		assert.strictEqual(session.hunkData.size, 1);
-		const [hunk] = session.hunkData.getInfo();
+		let [hunk] = session.hunkData.getInfo();
 		assertType(hunk);
 
 		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
 		assert.strictEqual(hunk.getState(), HunkState.Pending);
 		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 7 }));
 
-		editor.executeEdits('test', [EditOperation.insert(new Position(1, 3), 'foobar')]);
+		await makeEditAsAi(EditOperation.insert(new Position(1, 3), 'foobar'));
+		[hunk] = session.hunkData.getInfo();
 		assert.ok(hunk.getRangesN()[0].equalsRange({ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 13 }));
 
 		inlineChatSessionService.releaseSession(session);
@@ -270,9 +287,8 @@ suite('InlineChatSession', function () {
 		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
-		editor.executeEdits('test', [EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
 
-		await session.hunkData.recompute();
 		assert.strictEqual(session.hunkData.size, 2);
 		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
 
@@ -292,9 +308,8 @@ suite('InlineChatSession', function () {
 		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
 		assertType(session);
 
-		editor.executeEdits('test', [EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
 
-		await session.hunkData.recompute();
 		assert.strictEqual(session.hunkData.size, 2);
 		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
 
@@ -321,13 +336,12 @@ suite('InlineChatSession', function () {
 		assert.strictEqual(session.hunkData.size, 0);
 
 		// ROUND #1
-		editor.executeEdits('test', [
+		await makeEditAsAi([
 			EditOperation.insert(new Position(1, 1), 'AI1'),
 			EditOperation.insert(new Position(4, 1), 'AI2'),
 			EditOperation.insert(new Position(19, 1), 'AI3')
 		]);
 
-		await session.hunkData.recompute();
 		assert.strictEqual(session.hunkData.size, 2); // AI1, AI2 are merged into one hunk, AI3 is a separate hunk
 
 		let [first, second] = session.hunkData.getInfo();
@@ -347,10 +361,9 @@ suite('InlineChatSession', function () {
 
 
 		// ROUND #2
-		editor.executeEdits('test', [
+		await makeEditAsAi([
 			EditOperation.insert(new Position(7, 1), 'AI4'),
 		]);
-		await session.hunkData.recompute();
 		assert.strictEqual(session.hunkData.size, 2);
 
 		[first, second] = session.hunkData.getInfo();
@@ -359,4 +372,117 @@ suite('InlineChatSession', function () {
 
 		inlineChatSessionService.releaseSession(session);
 	});
+
+	test('HunkData, (mirror) edit before', async function () {
+
+		const lines = ['one', 'two', 'three'];
+		model.setValue(lines.join('\n'));
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI WAS HERE', 'three'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), lines.join('\n'));
+
+		makeEdit([EditOperation.replace(new Range(1, 1, 1, 4), 'ONE')]);
+		assert.strictEqual(session.textModelN.getValue(), ['ONE', 'two', 'AI WAS HERE', 'three'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['ONE', 'two', 'three'].join('\n'));
+	});
+
+	test('HunkData, (mirror) edit after', async function () {
+
+		const lines = ['one', 'two', 'three', 'four', 'five'];
+		model.setValue(lines.join('\n'));
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 1);
+		const [hunk] = session.hunkData.getInfo();
+
+		makeEdit([EditOperation.insert(new Position(1, 1), 'USER1')]);
+		assert.strictEqual(session.textModelN.getValue(), ['USER1one', 'two', 'AI_EDIT', 'three', 'four', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['USER1one', 'two', 'three', 'four', 'five'].join('\n'));
+
+		makeEdit([EditOperation.insert(new Position(5, 1), 'USER2')]);
+		assert.strictEqual(session.textModelN.getValue(), ['USER1one', 'two', 'AI_EDIT', 'three', 'USER2four', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['USER1one', 'two', 'three', 'USER2four', 'five'].join('\n'));
+
+		hunk.acceptChanges();
+		assert.strictEqual(session.textModelN.getValue(), ['USER1one', 'two', 'AI_EDIT', 'three', 'USER2four', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['USER1one', 'two', 'AI_EDIT', 'three', 'USER2four', 'five'].join('\n'));
+	});
+
+	test('HunkData, (mirror) edit inside ', async function () {
+
+		const lines = ['one', 'two', 'three'];
+		model.setValue(lines.join('\n'));
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI WAS HERE\n')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI WAS HERE', 'three'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), lines.join('\n'));
+
+		makeEdit([EditOperation.replace(new Range(3, 4, 3, 7), 'wwaaassss')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI wwaaassss HERE', 'three'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three'].join('\n'));
+	});
+
+	test('HunkData, (mirror) edit after, multi turn', async function () {
+
+		const lines = ['one', 'two', 'three', 'four', 'five'];
+		model.setValue(lines.join('\n'));
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 1);
+
+		makeEdit([EditOperation.insert(new Position(5, 1), 'FOO')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI_EDIT', 'three', 'FOOfour', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'five'].join('\n'));
+
+		await makeEditAsAi([EditOperation.insert(new Position(2, 4), ' zwei')]);
+		assert.strictEqual(session.hunkData.size, 1);
+
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two zwei', 'AI_EDIT', 'three', 'FOOfour', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'five'].join('\n'));
+
+		makeEdit([EditOperation.replace(new Range(6, 3, 6, 5), 'vefivefi')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two zwei', 'AI_EDIT', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
+	});
+
+	test('HunkData, (mirror) edit after, multi turn 2', async function () {
+
+		const lines = ['one', 'two', 'three', 'four', 'five'];
+		model.setValue(lines.join('\n'));
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(3, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 1);
+
+		makeEdit([EditOperation.insert(new Position(5, 1), 'FOO')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'two', 'AI_EDIT', 'three', 'FOOfour', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'five'].join('\n'));
+
+		await makeEditAsAi([EditOperation.insert(new Position(2, 4), 'zwei')]);
+		assert.strictEqual(session.hunkData.size, 1);
+
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'twozwei', 'AI_EDIT', 'three', 'FOOfour', 'five'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'five'].join('\n'));
+
+		makeEdit([EditOperation.replace(new Range(6, 3, 6, 5), 'vefivefi')]);
+		assert.strictEqual(session.textModelN.getValue(), ['one', 'twozwei', 'AI_EDIT', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
+		assert.strictEqual(session.textModel0.getValue(), ['one', 'two', 'three', 'FOOfour', 'fivefivefi'].join('\n'));
+	});
+
 });
