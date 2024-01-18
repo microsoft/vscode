@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
-import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -28,6 +28,8 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 
 export type TelemetryData = {
@@ -409,17 +411,27 @@ export class HunkData {
 
 	private static readonly _HUNK_TRACKED_RANGE = ModelDecorationOptions.register({
 		description: 'inline-chat-hunk-tracked-range',
+		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	});
 
 	private static readonly _HUNK_THRESHOLD = 8;
 
+	private readonly _store = new DisposableStore();
 	private readonly _data = new Map<RawHunk, { textModelNDecorations: string[]; textModel0Decorations: string[]; state: HunkState }>();
+	private _ignoreChanges: boolean = false;
 
 	constructor(
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		private readonly _textModel0: ITextModel,
 		private readonly _textModelN: ITextModel,
-	) { }
+	) {
+
+		this._store.add(_textModelN.onDidChangeContent(e => {
+			if (!this._ignoreChanges) {
+				this._mirrorChanges(e);
+			}
+		}));
+	}
 
 	dispose(): void {
 		if (!this._textModelN.isDisposed()) {
@@ -436,6 +448,104 @@ export class HunkData {
 				}
 			});
 		}
+		this._data.clear();
+		this._store.dispose();
+	}
+
+	set ignoreTextModelNChanges(value: boolean) {
+		this._ignoreChanges = value;
+	}
+
+	get ignoreTextModelNChanges(): boolean {
+		return this._ignoreChanges;
+	}
+
+	private _mirrorChanges(event: IModelContentChangedEvent) {
+
+		// mirror textModelN changes to textModel0 execept for those that
+		// overlap with a hunk
+
+		type HunkRangePair = { rangeN: Range; range0: Range };
+		const hunkRanges: HunkRangePair[] = [];
+
+		const ranges0: Range[] = [];
+
+		for (const { textModelNDecorations, textModel0Decorations, state } of this._data.values()) {
+
+			if (state === HunkState.Pending) {
+				// pending means the hunk's changes aren't "sync'd" yet
+				for (let i = 1; i < textModelNDecorations.length; i++) {
+					const rangeN = this._textModelN.getDecorationRange(textModelNDecorations[i]);
+					const range0 = this._textModel0.getDecorationRange(textModel0Decorations[i]);
+					if (rangeN && range0) {
+						hunkRanges.push({ rangeN, range0 });
+					}
+				}
+
+			} else if (state === HunkState.Accepted) {
+				// accepted means the hunk's changes are also in textModel0
+				for (let i = 1; i < textModel0Decorations.length; i++) {
+					const range = this._textModel0.getDecorationRange(textModel0Decorations[i]);
+					if (range) {
+						ranges0.push(range);
+					}
+				}
+			}
+		}
+
+		hunkRanges.sort((a, b) => Range.compareRangesUsingStarts(a.rangeN, b.rangeN));
+		ranges0.sort(Range.compareRangesUsingStarts);
+
+		const edits: IIdentifiedSingleEditOperation[] = [];
+
+		for (const change of event.changes) {
+
+			let isOverlapping = false;
+
+			let pendingChangesLen = 0;
+
+			for (const { rangeN, range0 } of hunkRanges) {
+				if (rangeN.getEndPosition().isBefore(Range.getStartPosition(change.range))) {
+					// pending hunk _before_ this change. When projecting into textModel0 we need to
+					// subtract that. Because diffing is relaxed it might include changes that are not
+					// actual insertions/deletions. Therefore we need to take the length of the original
+					// range into account.
+					pendingChangesLen += this._textModelN.getValueLengthInRange(rangeN);
+					pendingChangesLen -= this._textModel0.getValueLengthInRange(range0);
+
+				} else if (Range.areIntersectingOrTouching(rangeN, change.range)) {
+					isOverlapping = true;
+					break;
+
+				} else {
+					// hunks past this change aren't relevant
+					break;
+				}
+			}
+
+			if (isOverlapping) {
+				// hunk overlaps, it grew
+				continue;
+			}
+
+			const offset0 = change.rangeOffset - pendingChangesLen;
+			const start0 = this._textModel0.getPositionAt(offset0);
+
+			let acceptedChangesLen = 0;
+			for (const range of ranges0) {
+				if (range.getEndPosition().isBefore(start0)) {
+					// accepted hunk _before_ this projected change. When projecting into textModel0
+					// we need to add that
+					acceptedChangesLen += this._textModel0.getValueLengthInRange(range);
+				}
+			}
+
+			const start = this._textModel0.getPositionAt(offset0 + acceptedChangesLen);
+			const end = this._textModel0.getPositionAt(offset0 + acceptedChangesLen + change.rangeLength);
+			edits.push(EditOperation.replace(Range.fromPositions(start, end), change.text));
+		}
+
+		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
 	async recompute() {

@@ -681,12 +681,6 @@ export class Repository implements Disposable {
 	private _onDidChangeBranchProtection = new EventEmitter<void>();
 	readonly onDidChangeBranchProtection: Event<void> = this._onDidChangeBranchProtection.event;
 
-	private _onDidStartCommitMessageGeneration = new EventEmitter<void>();
-	readonly onDidStartCommitMessageGeneration: Event<void> = this._onDidStartCommitMessageGeneration.event;
-
-	private _onDidEndCommitMessageGeneration = new EventEmitter<void>();
-	readonly onDidEndCommitMessageGeneration: Event<void> = this._onDidEndCommitMessageGeneration.event;
-
 	@memoize
 	get onDidChangeOperations(): Event<void> {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);

@@ -64,7 +64,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 import { IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
-import { ISpeechProviderMetadata, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
+import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
@@ -1159,11 +1159,15 @@ export interface MainThreadSpeechShape extends IDisposable {
 	$unregisterProvider(handle: number): void;
 
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void;
+	$emitKeywordRecognitionEvent(session: number, event: IKeywordRecognitionEvent): void;
 }
 
 export interface ExtHostSpeechShape {
 	$createSpeechToTextSession(handle: number, session: number): Promise<void>;
 	$cancelSpeechToTextSession(session: number): Promise<void>;
+
+	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
+	$cancelKeywordRecognitionSession(session: number): Promise<void>;
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {
