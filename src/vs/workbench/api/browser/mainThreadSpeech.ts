@@ -102,15 +102,11 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void {
 		const providerSession = this.speechToTextSessions.get(session);
-		if (providerSession) {
-			providerSession.onDidChange.fire(event);
-		}
+		providerSession?.onDidChange.fire(event);
 	}
 
 	$emitKeywordRecognitionEvent(session: number, event: IKeywordRecognitionEvent): void {
 		const providerSession = this.keywordRecognitionSessions.get(session);
-		if (providerSession) {
-			providerSession.onDidChange.fire(event);
-		}
+		providerSession?.onDidChange.fire(event);
 	}
 }
