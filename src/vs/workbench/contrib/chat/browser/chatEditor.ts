@@ -20,10 +20,6 @@ import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInp
 import { IChatViewState, ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/chatEditor.css', import.meta.url)
-
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target: { sessionId: string } | { providerId: string } | { data: ISerializableChatData };
