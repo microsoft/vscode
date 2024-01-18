@@ -127,7 +127,9 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	}
 
 	setState(_state: StickyScrollWidgetState | undefined, foldingModel: FoldingModel | null, _rebuildFromLine?: number): void {
-		if ((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state))) {
+		if (_rebuildFromLine === undefined &&
+			((!this._previousState && !_state) || (this._previousState && this._previousState.equals(_state)))
+		) {
 			return;
 		}
 		const isWidgetHeightZero = this._isWidgetHeightZero(_state);

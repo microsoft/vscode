@@ -32,7 +32,7 @@ export interface IWindowsMainService {
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
 	readonly onDidMaximizeWindow: Event<ICodeWindow>;
 	readonly onDidUnmaximizeWindow: Event<ICodeWindow>;
-	readonly onDidChangeFullScreen: Event<ICodeWindow>;
+	readonly onDidChangeFullScreen: Event<{ window: ICodeWindow; fullscreen: boolean }>;
 	readonly onDidTriggerSystemContextMenu: Event<{ readonly window: ICodeWindow; readonly x: number; readonly y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
