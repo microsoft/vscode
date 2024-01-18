@@ -42,7 +42,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IInlineChatSavingService } from './inlineChatSavingService';
 import { EmptyResponse, ErrorResponse, ExpansionState, ReplyResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from './inlineChatSessionService';
-import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { EditModeStrategy, IEditObserver, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { IInlineChatMessageAppender, InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatProgressItem, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseFeedbackKind, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -127,7 +127,6 @@ export class InlineChatController implements IEditorContribution {
 
 	private _session?: Session;
 	private _strategy?: EditModeStrategy;
-	private _ignoreModelContentChanged = false;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -390,11 +389,11 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
-			if (!this._ignoreModelContentChanged && this._strategy?.hasFocus()) {
+			if (!this._session?.hunkData.ignoreTextModelNChanges && this._strategy?.hasFocus()) {
 				this._ctxUserDidEdit.set(altVersionNow !== this._editor.getModel()?.getAlternativeVersionId());
 			}
 
-			if (this._ignoreModelContentChanged || this._strategy?.hasFocus()) {
+			if (this._session?.hunkData.ignoreTextModelNChanges || this._strategy?.hasFocus()) {
 				return;
 			}
 
@@ -479,10 +478,10 @@ export class InlineChatController implements IEditorContribution {
 			}
 			if (lastExchange.response instanceof ReplyResponse) {
 				try {
-					this._ignoreModelContentChanged = true;
+					this._session.hunkData.ignoreTextModelNChanges = true;
 					await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
 				} finally {
-					this._ignoreModelContentChanged = false;
+					this._session.hunkData.ignoreTextModelNChanges = false;
 				}
 			}
 			return State.MAKE_REQUEST;
@@ -933,19 +932,20 @@ export class InlineChatController implements IEditorContribution {
 		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
 		const editOperations = actualEdits.map(TextEdit.asEditOperation);
 
-		try {
-			this._ignoreModelContentChanged = true;
-			this._inlineChatSavingService.markChanged(this._session);
-			this._session.wholeRange.trackEdits(editOperations);
-			if (opts) {
-				await this._strategy.makeProgressiveChanges(editOperations, opts);
-			} else {
-				await this._strategy.makeChanges(editOperations);
-			}
-			this._ctxDidEdit.set(this._session.hasChangedText);
-		} finally {
-			this._ignoreModelContentChanged = false;
+		const editsObserver: IEditObserver = {
+			start: () => this._session!.hunkData.ignoreTextModelNChanges = true,
+			stop: () => this._session!.hunkData.ignoreTextModelNChanges = false,
+		};
+
+		this._inlineChatSavingService.markChanged(this._session);
+		this._session.wholeRange.trackEdits(editOperations);
+		if (opts) {
+			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts);
+		} else {
+			await this._strategy.makeChanges(editOperations, editsObserver);
 		}
+		this._ctxDidEdit.set(this._session.hasChangedText);
+
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
@@ -1190,7 +1190,7 @@ async function showMessageResponse(accessor: ServicesAccessor, query: string, re
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const widget = await chatWidgetService.revealViewForProvider(providerId);
 	if (widget && widget.viewModel) {
-		chatService.addCompleteRequest(widget.viewModel.sessionId, query, { message: response });
+		chatService.addCompleteRequest(widget.viewModel.sessionId, query, undefined, { message: response });
 		widget.focusLastMessage();
 	}
 }

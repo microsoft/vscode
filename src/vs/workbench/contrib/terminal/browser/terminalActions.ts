@@ -20,7 +20,7 @@ import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/a
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -64,6 +64,8 @@ import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleVi
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { TerminalSpeechToTextSession } from 'vs/workbench/contrib/terminal/browser/terminalSpeechToText';
+import { HasSpeechProvider } from 'vs/workbench/contrib/speech/common/speechService';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1639,6 +1641,34 @@ export function registerTerminalActions() {
 			} else {
 				console.warn(`Unmatched terminal item: "${item}"`);
 			}
+		}
+	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StartSpeechToText,
+		title: {
+			value: localize('workbench.action.startTerminalSpeechToText', "Start Terminal Speech To Text"),
+			original: 'Start Terminal Speech To Text'
+		},
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalSpeechToTextSession.getInstance(instantiationService).start();
+		}
+	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.StopSpeechToText,
+		title: {
+			value: localize('workbench.action.stopTerminalSpeechToText', "Stop Terminal Speech To Text"),
+			original: 'Stop Terminal Speech To Text'
+		},
+		precondition: ContextKeyExpr.and(HasSpeechProvider, sharedWhenClause.terminalAvailable),
+		f1: true,
+		run: (activeInstance, c, accessor) => {
+			const instantiationService = accessor.get(IInstantiationService);
+			TerminalSpeechToTextSession.getInstance(instantiationService).stop(true);
 		}
 	});
 }

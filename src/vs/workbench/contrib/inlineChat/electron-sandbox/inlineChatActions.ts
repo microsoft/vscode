@@ -16,9 +16,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StartVoiceChatAction, StopListeningAction } from 'vs/workbench/contrib/chat/electron-sandbox/actions/voiceChatActions';
-import { CTX_INLINE_CHAT_HAS_PROVIDER, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { localize2 } from 'vs/nls';
 
 
 export class StartSessionAction extends EditorAction2 {
@@ -45,31 +46,11 @@ export class StartSessionAction extends EditorAction2 {
 
 		const configService = accessor.get(IConfigurationService);
 		const speechService = accessor.get(ISpeechService);
-		const keybindingService = accessor.get(IKeybindingService);
-		const commandService = accessor.get(ICommandService);
 
 		if (configService.getValue<boolean>(InlineChatConfigKeys.HoldToSpeech) // enabled
-			&& speechService.hasSpeechProvider  // possible
+			&& speechService.hasSpeechProvider // possible
 		) {
-
-			const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
-			if (holdMode) { // holding keys
-				let listening = false;
-				const handle = disposableTimeout(() => {
-					// start VOICE input
-					commandService.executeCommand(StartVoiceChatAction.ID);
-					listening = true;
-				}, 100);
-
-				holdMode.finally(() => {
-					if (listening) {
-						commandService.executeCommand(StopListeningAction.ID).finally(() => {
-							InlineChatController.get(editor)?.acceptInput();
-						});
-					}
-					handle.dispose();
-				});
-			}
+			holdForSpeech(accessor, InlineChatController.get(editor), this.desc.id);
 		}
 
 		let options: InlineChatRunOptions | undefined;
@@ -79,4 +60,51 @@ export class StartSessionAction extends EditorAction2 {
 		}
 		InlineChatController.get(editor)?.run({ ...options });
 	}
+}
+
+export class HoldToSpeak extends AbstractInlineChatAction {
+
+	constructor() {
+		super({
+			id: 'inlineChat.holdForSpeech',
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_INLINE_CHAT_VISIBLE),
+			title: localize2('holdForSpeech', "Hold for Speech"),
+			keybinding: {
+				when: EditorContextKeys.textInputFocus,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
+			},
+		});
+	}
+
+	override runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ...args: any[]): void {
+		holdForSpeech(accessor, ctrl, this.desc.id);
+	}
+}
+
+function holdForSpeech(accessor: ServicesAccessor, ctrl: InlineChatController | null, commandId: string): void {
+	const keybindingService = accessor.get(IKeybindingService);
+	const commandService = accessor.get(ICommandService);
+	if (!ctrl) {
+		return;
+	}
+	const holdMode = keybindingService.enableKeybindingHoldMode(commandId);
+	if (!holdMode) {
+		return;
+	}
+	let listening = false;
+	const handle = disposableTimeout(() => {
+		// start VOICE input
+		commandService.executeCommand(StartVoiceChatAction.ID);
+		listening = true;
+	}, 250);
+
+	holdMode.finally(() => {
+		if (listening) {
+			commandService.executeCommand(StopListeningAction.ID).finally(() => {
+				ctrl!.acceptInput();
+			});
+		}
+		handle.dispose();
+	});
 }

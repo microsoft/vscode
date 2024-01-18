@@ -3,41 +3,45 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .inline-chat-quick-voice {
-	background-color: var(--vscode-editor-background);
+.terminal-speech-to-text {
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 	padding: 2px;
 	border-radius: 8px;
 	display: flex;
 	align-items: center;
-	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
 	white-space: nowrap;
 	z-index: 1000;
 }
 
-.monaco-editor .inline-chat-quick-voice .codicon.codicon-mic-filled {
+.terminal-speech-to-text.codicon.codicon-mic-filled {
 	display: flex;
 	align-items: center;
 	width: 16px;
 	height: 16px;
 }
 
-.monaco-editor .inline-chat-quick-voice.recording .codicon.codicon-mic-filled {
+.terminal-speech-to-text.recording.codicon.codicon-mic-filled {
 	color: var(--vscode-activityBarBadge-background);
-	animation: ani-inline-chat 1s infinite;
+	animation: ani-terminal-speech 1s infinite;
 }
 
-@keyframes ani-inline-chat {
+@keyframes ani-terminal-speech {
 	0% {
-		color: var(--vscode-editorCursor-background);
+		color: var(--vscode-terminalCursor-background);
 	}
+
 	50% {
 		color: var(--vscode-activityBarBadge-background);
 	}
+
 	100% {
-		color: var(--vscode-editorCursor-background);
+		color: var(--vscode-terminalCursor-background);
 	}
 }
 
-.monaco-editor .inline-chat-quick-voice .message.preview {
-	opacity: .4;
+.terminal-speech-progress-text {
+	font-style: italic;
+	color: var(--vscode-editorGhostText-foreground) !important;
+	border: 1px solid var(--vscode-editorGhostText-border);
+	z-index: 1000;
 }

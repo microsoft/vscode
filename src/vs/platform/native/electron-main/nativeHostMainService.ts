@@ -94,8 +94,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	);
 
 	readonly onDidChangeWindowFullScreen = Event.any(
-		Event.map(this.windowsMainService.onDidChangeFullScreen, window => window.id),
-		Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, window => window.id)
+		Event.map(this.windowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen })),
+		Event.map(this.auxiliaryWindowsMainService.onDidChangeFullScreen, e => ({ windowId: e.window.id, fullscreen: e.fullscreen }))
 	);
 
 	readonly onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));

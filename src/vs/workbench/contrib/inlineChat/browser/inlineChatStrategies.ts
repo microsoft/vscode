@@ -39,6 +39,11 @@ import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX
 import { HunkState } from './inlineChatSession';
 import { assertType } from 'vs/base/common/types';
 
+export interface IEditObserver {
+	start(): void;
+	stop(): void;
+}
+
 export abstract class EditModeStrategy {
 
 	protected static _decoBlock = ModelDecorationOptions.register({
@@ -80,9 +85,9 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.fire();
 	}
 
-	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions): Promise<void>;
 
-	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void>;
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
@@ -239,7 +244,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await undoModelUntil(modelN, targetAltVersion);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
 		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
 			let last: Position | null = null;
 			for (const edit of undoEdits) {
@@ -252,7 +257,9 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		if (++this._editCount === 1) {
 			this._editor.pushUndoStop();
 		}
+		obs.start();
 		this._editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
+		obs.stop();
 	}
 
 	override async undoChanges(altVersionId: number): Promise<void> {
@@ -261,7 +268,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -280,7 +287,7 @@ export class LivePreviewStrategy extends EditModeStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token));
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), undefined, obs);
 		}
 
 		await renderTask;
@@ -398,7 +405,7 @@ export interface AsyncTextEdit {
 	readonly newText: AsyncIterable<string>;
 }
 
-export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdit, progress?: IProgress<IValidEditOperation[]>) {
+export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdit, progress?: IProgress<IValidEditOperation[]>, obs?: IEditObserver) {
 
 	const [id] = model.deltaDecorations([], [{
 		range: edit.range,
@@ -423,11 +430,12 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 		const edit = first
 			? EditOperation.replace(range, part) // first edit needs to override the "anchor"
 			: EditOperation.insert(range.getEndPosition(), part);
-
+		obs?.start();
 		model.pushEditOperations(null, [edit], (undoEdits) => {
 			progress?.report(undoEdits);
 			return null;
 		});
+		obs?.stop();
 		first = false;
 	}
 }
@@ -578,15 +586,15 @@ export class LiveStrategy extends EditModeStrategy {
 		await undoModelUntil(textModelN, altVersionId);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[]): Promise<void> {
-		return this._makeChanges(edits, undefined);
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
+		return this._makeChanges(edits, obs, undefined);
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-		return this._makeChanges(edits, opts);
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+		return this._makeChanges(edits, obs, opts);
 	}
 
-	private async _makeChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions | undefined): Promise<void> {
+	private async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined): Promise<void> {
 
 		// push undo stop before first edit
 		if (++this._editCount === 1) {
@@ -619,15 +627,17 @@ export class LiveStrategy extends EditModeStrategy {
 				const wordCount = countWords(edit.text ?? '');
 				const speed = wordCount / durationInSec;
 				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress);
+				await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token), progress, obs);
 			}
 
 		} else {
 			// SYNC
+			obs.start();
 			this._editor.executeEdits('inline-chat-live', edits, undoEdits => {
 				progress.report(undoEdits);
 				return null;
 			});
+			obs.stop();
 		}
 	}
 

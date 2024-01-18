@@ -86,7 +86,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			invoke: async (request, progress, history, token) => {
 				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request.sessionId, request.requestId, request, { history }, token) ?? {};
+					return await this._proxy.$invokeAgent(handle, request, { history }, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
 				}
