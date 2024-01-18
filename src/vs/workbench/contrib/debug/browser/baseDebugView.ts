@@ -138,7 +138,7 @@ export interface IExpressionTemplateData {
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
 	actionBar?: ActionBar;
-	elementDisposable: IDisposable[];
+	elementDisposable: DisposableStore;
 	templateDisposable: IDisposable;
 	label: HighlightedLabel;
 	lazyButton: HTMLElement;
@@ -174,7 +174,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 			actionBar = templateDisposable.add(new ActionBar(expression));
 		}
 
-		const template: IExpressionTemplateData = { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: [], templateDisposable, lazyButton, currentElement: undefined };
+		const template: IExpressionTemplateData = { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: new DisposableStore(), templateDisposable, lazyButton, currentElement: undefined };
 
 		templateDisposable.add(dom.addDisposableListener(lazyButton, dom.EventType.CLICK, () => {
 			if (template.currentElement) {
@@ -188,6 +188,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	public abstract renderElement(node: ITreeNode<T, FuzzyScore>, index: number, data: IExpressionTemplateData): void;
 
 	protected renderExpressionElement(element: IExpression, node: ITreeNode<T, FuzzyScore>, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
 		data.currentElement = element;
 		this.renderExpression(node.element, data, createMatches(node.filterData));
 		if (data.actionBar) {
@@ -197,7 +198,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		if (element === selectedExpression?.expression || (element instanceof Variable && element.errorMessage)) {
 			const options = this.getInputBoxOptions(element, !!selectedExpression?.settingWatch);
 			if (options) {
-				data.elementDisposable.push(this.renderInputBox(data.name, data.value, data.inputBoxContainer, options));
+				data.elementDisposable.add(this.renderInputBox(data.name, data.value, data.inputBoxContainer, options));
 			}
 		}
 	}
@@ -259,12 +260,11 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	protected renderActionBar?(actionBar: ActionBar, expression: IExpression, data: IExpressionTemplateData): void;
 
 	disposeElement(node: ITreeNode<T, FuzzyScore>, index: number, templateData: IExpressionTemplateData): void {
-		dispose(templateData.elementDisposable);
-		templateData.elementDisposable = [];
+		templateData.elementDisposable.clear();
 	}
 
 	disposeTemplate(templateData: IExpressionTemplateData): void {
-		dispose(templateData.elementDisposable);
+		templateData.elementDisposable.dispose();
 		templateData.templateDisposable.dispose();
 	}
 }
