@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss';
 import { IBoundarySashes, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, AutoSizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
@@ -13,8 +12,7 @@ import { Emitter, Event, Relay } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { rot } from 'vs/base/common/numbers';
 import { isUndefined } from 'vs/base/common/types';
-
-importCss('./gridview.css', import.meta.url)
+import 'vs/css!./gridview';
 
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 export { LayoutPriority, Sizing } from 'vs/base/browser/ui/splitview/splitview';
