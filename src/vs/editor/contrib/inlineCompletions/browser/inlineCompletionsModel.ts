@@ -319,6 +319,16 @@ export class InlineCompletionsModel extends Disposable {
 					...completion.additionalTextEdits
 				]
 			);
+			const length = lengthOfText(completion.insertText);
+			// need to update all the cursor positions
+			const _primaryPosition = addPositions(completion.range.getStartPosition(), length);
+			editor.setSelections([
+				Selection.fromPositions(_primaryPosition, _primaryPosition),
+				...secondaryPositions.map(pos => {
+					const _position = addPositions(pos, length);
+					return Selection.fromPositions(_position, _position);
+				}),
+			], 'inlineCompletionAccept');
 		}
 
 		if (completion.command) {
