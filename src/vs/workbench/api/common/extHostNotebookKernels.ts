@@ -25,6 +25,7 @@ import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/no
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import * as vscode from 'vscode';
+import { variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier;
@@ -461,7 +462,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);
 
-			if (resultCount++ >= 100) {
+			if (resultCount++ >= variablePageSize) {
 				return;
 			}
 		}

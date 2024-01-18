@@ -6,7 +6,7 @@
 import { IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, VariablesResult, variablePageSize } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export interface INotebookScope {
 	type: 'root';
@@ -65,9 +65,9 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 	async getIndexedChildren(parent: INotebookVariableElement, kernel: INotebookKernel) {
 		const childNodes: INotebookVariableElement[] = [];
 
-		if (parent.indexedChildrenCount > 100) {
-			for (let start = 0; start < parent.indexedChildrenCount; start += 100) {
-				let end = start + 100;
+		if (parent.indexedChildrenCount > variablePageSize) {
+			for (let start = 0; start < parent.indexedChildrenCount; start += variablePageSize) {
+				let end = start + variablePageSize;
 				if (end > parent.indexedChildrenCount) {
 					end = parent.indexedChildrenCount;
 				}
@@ -89,7 +89,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 			for await (const variable of variables) {
 				childNodes.push(this.createVariableElement(variable, parent.notebook));
-				if (childNodes.length >= 100) {
+				if (childNodes.length >= variablePageSize) {
 					break;
 				}
 			}
