@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/notificationsToasts';
 import { localize } from 'vs/nls';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -25,10 +26,6 @@ import { IntervalCounter } from 'vs/base/common/async';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
 import { mainWindow } from 'vs/base/browser/window';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/notificationsToasts.css', import.meta.url)
-
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
