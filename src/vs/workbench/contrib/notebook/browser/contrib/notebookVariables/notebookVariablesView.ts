@@ -55,8 +55,10 @@ export class NotebookVariablesView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this._register(this.editorService.onDidActiveEditorChange(this.handleActiveEditorChange.bind(this)));
-		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
 		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
+		this._register(this.notebookExecutionStateService.onDidChangeExecution(this.handleExecutionStateChange.bind(this)));
+
+		this.setActiveNotebook();
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -75,7 +77,9 @@ export class NotebookVariablesView extends ViewPane {
 			});
 
 		this.tree.layout();
-		this.tree.setInput({ type: 'root', notebook: this.activeNotebook });
+		if (this.activeNotebook) {
+			this.tree.setInput({ type: 'root', notebook: this.activeNotebook });
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -83,15 +87,21 @@ export class NotebookVariablesView extends ViewPane {
 		this.tree?.layout(height, width);
 	}
 
-	private handleActiveEditorChange() {
+	setActiveNotebook() {
+		const current = this.activeNotebook;
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane && activeEditorPane.getId() === 'workbench.editor.notebook') {
 			const notebookDocument = getNotebookEditorFromEditorPane(activeEditorPane)?.getViewModel()?.notebookDocument;
-			if (notebookDocument && notebookDocument !== this.activeNotebook) {
-				this.activeNotebook = notebookDocument;
-				this.tree?.setInput({ type: 'root', notebook: this.activeNotebook });
-				this.tree?.updateChildren();
-			}
+			this.activeNotebook = notebookDocument;
+		}
+
+		return current !== this.activeNotebook;
+	}
+
+	private handleActiveEditorChange() {
+		if (this.setActiveNotebook() && this.activeNotebook) {
+			this.tree?.setInput({ type: 'root', notebook: this.activeNotebook });
+			this.tree?.updateChildren();
 		}
 	}
 
