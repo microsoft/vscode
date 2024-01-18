@@ -12,6 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { InlineCompletionContext, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
@@ -416,11 +417,25 @@ export class InlineCompletionsModel extends Disposable {
 			this._isAcceptingPartially = true;
 			try {
 				editor.pushUndoStop();
+				// need to change the positions here
+				const selections = editor.getSelections() ?? [];
+				const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
 				editor.executeEdits('inlineSuggestion.accept', [
+					// maybe can join everything
 					EditOperation.replace(Range.fromPositions(position), partialText),
+					...secondaryPositions.map(pos => EditOperation.replace(Range.fromPositions(pos), partialText)),
 				]);
+
 				const length = lengthOfText(partialText);
-				editor.setPosition(addPositions(position, length), 'inlineCompletionPartialAccept');
+				// need to update all the cursor positions
+				const _primaryPosition = addPositions(position, length);
+				editor.setSelections([
+					Selection.fromPositions(_primaryPosition, _primaryPosition),
+					...secondaryPositions.map(pos => {
+						const _position = addPositions(pos, length);
+						return Selection.fromPositions(_position, _position);
+					}),
+				], 'inlineCompletionPartialAccept');
 			} finally {
 				this._isAcceptingPartially = false;
 			}

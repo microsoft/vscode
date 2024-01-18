@@ -652,12 +652,14 @@ suite('Inline Completions', () => {
 					await timeout(1000);
 
 					model.acceptNextWord(editor);
+					model.acceptNextWord(editor);
 
 					assert.deepStrictEqual(
 						editor.getValue(),
 						[
 							`let a`,
-							`let a`
+							`let a`,
+							``
 						].join('\n')
 					);
 				}
