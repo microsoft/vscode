@@ -33,7 +33,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 		return TerminalSpeechToTextSession._instance;
 	}
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
-	private _disposables = new DisposableStore();
+	private readonly _disposables: DisposableStore;
 	constructor(
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@ITerminalService readonly _terminalService: ITerminalService,
@@ -43,6 +43,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 		super();
 		this._register(this._terminalService.onDidChangeActiveInstance(() => this.stop()));
 		this._register(this._terminalService.onDidDisposeInstance(() => this.stop()));
+		this._disposables = this._register(new DisposableStore());
 	}
 
 	start(): void {
@@ -55,7 +56,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 			this._terminalService.activeInstance?.sendText(this._input, false);
 			this.stop();
 		}, voiceTimeout));
-		this._cancellationTokenSource = new CancellationTokenSource();
+		this._cancellationTokenSource = this._register(new CancellationTokenSource());
 		const session = this._disposables.add(this._speechService.createSpeechToTextSession(this._cancellationTokenSource!.token));
 
 		this._disposables.add(session.onDidChange((e) => {
