@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/progressService';
 
 import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -26,10 +27,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/progressService.css', import.meta.url)
-
 
 export class ProgressService extends Disposable implements IProgressService {
 
