@@ -250,7 +250,6 @@ class AdditionalLinesWidget extends Disposable {
 			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
 			if (heightInLines > 0) {
 				const domNode = document.createElement('div');
-				domNode.className = 'ghost-text-decoration';
 				renderLines(domNode, tabSize, additionalLines, this.editor.getOptions(), this.languageIdCodec);
 
 				this._viewZoneId = changeAccessor.addZone({
