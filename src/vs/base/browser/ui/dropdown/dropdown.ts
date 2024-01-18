@@ -5,7 +5,6 @@
 
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent } from 'vs/base/browser/dom';
-import { importCss } from 'vs/base/browser/importCss';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -14,9 +13,7 @@ import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable } from 'vs/base/common/lifecycle';
-
-importCss('./dropdown.css', import.meta.url)
-
+import 'vs/css!./dropdown';
 
 export interface ILabelRenderer {
 	(container: HTMLElement): IDisposable | null;
