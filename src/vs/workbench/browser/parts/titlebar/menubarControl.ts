@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/menubarControl';
 import { localize, localize2 } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
@@ -40,10 +41,6 @@ import { isICommandActionToggleInfo } from 'vs/platform/action/common/action';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { defaultMenuStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { mainWindow } from 'vs/base/browser/window';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/menubarControl.css', import.meta.url)
-
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
