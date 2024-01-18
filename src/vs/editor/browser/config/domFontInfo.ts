@@ -6,11 +6,9 @@
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
-export function applyFontInfo(domNode: FastDomNode<HTMLElement> | HTMLElement, fontInfo: BareFontInfo, opts: { excludeFontFamily: boolean } = { excludeFontFamily: false }): void {
+export function applyFontInfo(domNode: FastDomNode<HTMLElement> | HTMLElement, fontInfo: BareFontInfo): void {
 	if (domNode instanceof FastDomNode) {
-		if (!opts.excludeFontFamily) {
-			domNode.setFontFamily(fontInfo.getMassagedFontFamily());
-		}
+		domNode.setFontFamily(fontInfo.getMassagedFontFamily());
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setFontFeatureSettings(fontInfo.fontFeatureSettings);
@@ -18,9 +16,7 @@ export function applyFontInfo(domNode: FastDomNode<HTMLElement> | HTMLElement, f
 		domNode.setLineHeight(fontInfo.lineHeight);
 		domNode.setLetterSpacing(fontInfo.letterSpacing);
 	} else {
-		if (!opts.excludeFontFamily) {
-			domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
-		}
+		domNode.style.fontFamily = fontInfo.getMassagedFontFamily();
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.fontFeatureSettings = fontInfo.fontFeatureSettings;

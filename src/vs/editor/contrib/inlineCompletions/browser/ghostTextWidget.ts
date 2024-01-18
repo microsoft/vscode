@@ -319,7 +319,7 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	}
 	sb.appendString('</div>');
 
-	applyFontInfo(domNode, fontInfo, { excludeFontFamily: true });
+	applyFontInfo(domNode, fontInfo);
 	const html = sb.build();
 	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
 	domNode.innerHTML = trustedhtml as string;
