@@ -1477,12 +1477,7 @@ export type SCMRawResourceSplices = [
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
 	readonly label: string;
-	readonly upstream?: SCMRemoteHistoryItemGroupDto;
-}
-
-export interface SCMRemoteHistoryItemGroupDto {
-	readonly id: string;
-	readonly label: string;
+	readonly base?: Omit<SCMHistoryItemGroupDto, 'base'>;
 }
 
 export interface SCMHistoryItemDto {
@@ -2241,7 +2236,6 @@ export interface ExtHostSCMShape {
 	$provideHistoryItems(sourceControlHandle: number, historyItemGroupId: string, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined>;
 	$provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined>;
 	$provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined>;
-	$resolveHistoryItemGroupBase(sourceControlHandle: number, historyItemGroupId: string, token: CancellationToken): Promise<SCMHistoryItemGroupDto | undefined>;
 	$resolveHistoryItemGroupCommonAncestor(sourceControlHandle: number, historyItemGroupId1: string, historyItemGroupId2: string, token: CancellationToken): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
 
