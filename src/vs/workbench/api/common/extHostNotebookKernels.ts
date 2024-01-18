@@ -431,7 +431,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		let parent: vscode.Variable | undefined = undefined;
-		if (parentId) {
+		if (parentId !== undefined) {
 			parent = this.variableStore[parentId];
 			if (!parent) {
 				// request for unknown parent
@@ -446,6 +446,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
 		const variableResults = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
 
+		let resultCount = 0;
 		for await (const result of variableResults) {
 			if (token.isCancellationRequested) {
 				return;
@@ -459,6 +460,10 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			};
 			this.variableStore[variable.id] = result.variable;
 			this._proxy.$receiveVariable(requestId, variable);
+
+			if (resultCount++ >= 100) {
+				return;
+			}
 		}
 	}
 
