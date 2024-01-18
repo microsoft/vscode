@@ -3448,6 +3448,13 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+export class DebugVisualization {
+	iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+	visualization?: vscode.Command | vscode.TreeDataProvider<unknown>;
+
+	constructor(public name: string) { }
+}
+
 //#endregion
 
 @es5ClassCompat

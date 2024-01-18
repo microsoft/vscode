@@ -55,7 +55,7 @@ import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/c
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatAsyncContent, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
+import { DebugConfigurationProviderTriggerKind, MainThreadDebugVisualization, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugVisualization, IDebugVisualizationContext } from 'vs/workbench/contrib/debug/common/debug';
 import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -1562,6 +1562,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$appendDebugConsole(value: string): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void>;
+	$registerDebugVisualizer(extensionId: string, id: string): void;
+	$unregisterDebugVisualizer(extensionId: string, id: string): void;
 }
 
 export interface IOpenUriOptions {
@@ -2352,6 +2354,10 @@ export interface ExtHostDebugServiceShape {
 	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 	$acceptDebugSessionNameChanged(session: IDebugSessionDto, name: string): void;
 	$acceptStackFrameFocus(focus: IThreadFocusDto | IStackFrameFocusDto | undefined): void;
+	$provideDebugVisualizers(extensionId: string, id: string, context: IDebugVisualizationContext, token: CancellationToken): Promise<IDebugVisualization.Serialized[]>;
+	$resolveDebugVisualizer(id: number, token: CancellationToken): Promise<MainThreadDebugVisualization>;
+	$executeDebugVisualizerCommand(id: number): Promise<void>;
+	$disposeDebugVisualizers(ids: number[]): void;
 }
 
 

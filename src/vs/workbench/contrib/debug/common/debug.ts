@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, UriComponents, URI as uri } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -84,6 +84,9 @@ export const CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED = new RawContextKey<boolean>('
 export const CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED = new RawContextKey<boolean>('suspendDebuggeeSupported', false, { type: 'boolean', description: nls.localize('suspendDebuggeeSupported', "True when the focused session supports the suspend debuggee capability.") });
 export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>('variableEvaluateNamePresent', false, { type: 'boolean', description: nls.localize('variableEvaluateNamePresent', "True when the focused variable has an 'evalauteName' field set.") });
 export const CONTEXT_VARIABLE_IS_READONLY = new RawContextKey<boolean>('variableIsReadonly', false, { type: 'boolean', description: nls.localize('variableIsReadonly', "True when the focused variable is read-only.") });
+export const CONTEXT_VARIABLE_VALUE = new RawContextKey<boolean>('variableValue', false, { type: 'string', description: nls.localize('variableValue', "Value of the variable, present for debug visualization clauses.") });
+export const CONTEXT_VARIABLE_TYPE = new RawContextKey<boolean>('variableType', false, { type: 'string', description: nls.localize('variableType', "Type of the variable, present for debug visualization clauses.") });
+export const CONTEXT_VARIABLE_NAME = new RawContextKey<boolean>('variableName', false, { type: 'string', description: nls.localize('variableName', "Name of the variable, present for debug visualization clauses.") });
 export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false, { type: 'boolean', description: nls.localize('exceptionWidgetVisible', "True when the exception widget is visible.") });
 export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
 export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false, { type: 'boolean', description: nls.localize('multiSessionDebug', "True when there is more than 1 active debug session.") });
@@ -1246,4 +1249,49 @@ export interface IReplConfiguration {
 
 export interface IReplOptions {
 	readonly replConfiguration: IReplConfiguration;
+}
+
+export interface IDebugVisualizationContext {
+	variable: DebugProtocol.Variable;
+	containerId?: string;
+	frameId?: number;
+	threadId: number;
+	sessionId: string;
+}
+
+export const enum DebugVisualizationType {
+	Command,
+	Tree,
+}
+
+export type MainThreadDebugVisualization = {
+	type: DebugVisualizationType.Command;
+};  // todo: tree
+
+export interface IDebugVisualization {
+	id: number;
+	name: string;
+	iconPath: { light?: URI; dark: URI } | undefined;
+	iconClass: string | undefined;
+	visualization: MainThreadDebugVisualization | undefined;
+}
+
+export namespace IDebugVisualization {
+	export interface Serialized {
+		id: number;
+		name: string;
+		iconPath?: { light?: UriComponents; dark: UriComponents };
+		iconClass?: string;
+		visualization?: MainThreadDebugVisualization;
+	}
+
+	export const deserialize = (v: Serialized): IDebugVisualization => ({
+		id: v.id,
+		name: v.name,
+		iconPath: v.iconPath && { light: URI.revive(v.iconPath.light), dark: URI.revive(v.iconPath.dark) },
+		iconClass: v.iconClass,
+		visualization: v.visualization,
+	});
+
+	export const serialize = (visualizer: IDebugVisualization): Serialized => visualizer;
 }
