@@ -111,5 +111,5 @@ function fixEsmImports(relative: string, content: string) {
 }
 
 export function fixEsmFile(relative: string, content: string) {
-	return updateCssImports(fixEsmImports(relative, content))
+	return fixEsmImports(relative, updateCssImports(content))
 }
