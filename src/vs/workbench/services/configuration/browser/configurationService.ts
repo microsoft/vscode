@@ -15,7 +15,7 @@ import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from 'vs/p
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from 'vs/platform/configuration/common/configuration';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
-import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING } from 'vs/workbench/services/configuration/common/configuration';
+import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, TASKS_CONFIGURATION_KEY, LAUNCH_CONFIGURATION_KEY } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
@@ -1331,39 +1331,37 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IConfigurationService private readonly configurationService: WorkspaceService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
-
 		const { user, workspace } = configurationService.keys();
-		for (const key of user) {
-			this.reportConfiguration(key, ConfigurationTarget.USER_LOCAL);
+		const updatedUserSettings: { [key: string]: any } = {};
+		for (const k of user) {
+			if (!k.startsWith(`${TASKS_CONFIGURATION_KEY}.`) && !k.startsWith(`${LAUNCH_CONFIGURATION_KEY}.`)) {
+				updatedUserSettings[k] = this.getValueToReport(k, ConfigurationTarget.USER_LOCAL) ?? '';
+			}
 		}
-		for (const key of workspace) {
-			this.reportConfiguration(key, ConfigurationTarget.WORKSPACE);
+		const updatedWorkspaceSettings: { [key: string]: any } = {};
+		for (const k of workspace) {
+			if (!k.startsWith(`${TASKS_CONFIGURATION_KEY}.`) && !k.startsWith(`${LAUNCH_CONFIGURATION_KEY}.`)) {
+				updatedWorkspaceSettings[k] = this.getValueToReport(k, ConfigurationTarget.WORKSPACE) ?? '';
+			}
 		}
-	}
-
-	private reportConfiguration(key: string, target: ConfigurationTarget): void {
-		type UpdateConfigurationClassification = {
+		type UpdatedSettingsClassification = {
 			owner: 'sandy081';
-			comment: 'Event which fires for updated configurations';
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration file was updated i.e user or workspace' };
-			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What configuration key was updated' };
-			value?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Value of the key that was updated' };
+			comment: 'Event reporting updated settings';
+			settings: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'stringified updated settings object' };
 		};
-		type UpdateConfigurationEvent = {
-			source: string;
-			key: string;
-			value?: any;
+		type UpdatedSettingsEvent = {
+			settings: string;
 		};
-		this.telemetryService.publicLog2<UpdateConfigurationEvent, UpdateConfigurationClassification>('updateConfiguration', {
-			source: ConfigurationTargetToString(target),
-			key,
-			value: this.getValueToReport(key, target)
-		});
+		telemetryService.publicLog2<UpdatedSettingsEvent, UpdatedSettingsClassification>('updatedsettings:user', { settings: JSON.stringify(updatedUserSettings) });
+		telemetryService.publicLog2<UpdatedSettingsEvent, UpdatedSettingsClassification>('updatedsettings:workspace', { settings: JSON.stringify(updatedWorkspaceSettings) });
 	}
 
+	/**
+	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
+	 */
 	private getValueToReport(key: string, target: ConfigurationTarget): any {
 		const schema = this.configurationRegistry.getConfigurationProperties()[key];
 		if (!schema) {
