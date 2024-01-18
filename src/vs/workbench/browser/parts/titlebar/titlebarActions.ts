@@ -64,7 +64,7 @@ registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 });
 
 registerAction2(class ToggleCustomTitleBar extends Action2 {
-	static readonly settingsID = TitleBarSetting.TITLE_BAR_STYLE;
+	static readonly settingsID = TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY;
 
 	constructor() {
 		super({
