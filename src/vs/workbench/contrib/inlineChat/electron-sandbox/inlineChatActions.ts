@@ -49,7 +49,7 @@ export class StartSessionAction extends EditorAction2 {
 		const commandService = accessor.get(ICommandService);
 
 		if (configService.getValue<boolean>(InlineChatConfigKeys.HoldToSpeech) // enabled
-			&& speechService.hasSpeechProvider  // possible
+			&& speechService.hasSpeechProvider // possible
 		) {
 
 			const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
@@ -59,7 +59,7 @@ export class StartSessionAction extends EditorAction2 {
 					// start VOICE input
 					commandService.executeCommand(StartVoiceChatAction.ID);
 					listening = true;
-				}, 100);
+				}, 250);
 
 				holdMode.finally(() => {
 					if (listening) {
