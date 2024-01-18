@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./mouseCursor.css', import.meta.url)
+import 'vs/css!./mouseCursor';
 
 export const MOUSE_CURSOR_TEXT_CSS_CLASS_NAME = `monaco-mouse-cursor-text`;
