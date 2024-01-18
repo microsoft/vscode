@@ -19,6 +19,7 @@ import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/no
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
 import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Delayer } from 'vs/base/common/async';
 
 export class ToggleNotebookStickyScroll extends Action2 {
 
@@ -185,10 +186,14 @@ export class NotebookStickyScroll extends Disposable {
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
-			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
-				this.updateContent(recompute);
-			}
+			const d = new Delayer(100);
+			d.trigger(() => {
+				d.dispose();
+				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight(), this.renderedStickyLines);
+				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
+					this.updateContent(recompute);
+				}
+			});
 		}));
 	}
 
@@ -379,37 +384,21 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 				return newMap;
 			}
 
-			// cases: next section has a parent, so adjust based on find the shared parent -------------------------------------------------
-			// shrink until sizes are the same, then render the next section
-			else if (nextSectionStickyHeight === currentSectionStickyHeight) {
-				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(nextCellEntry, 100, notebookEditor); // !document why I use 100 and don't compute linesToRender
+			// case: next section is the same size or bigger, render next entry -----------------------------------------------------------
+			else if (nextSectionStickyHeight >= currentSectionStickyHeight) {
+				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(nextCellEntry, 100, notebookEditor);
 				return newMap;
 			}
-			// next section is larger than current section, don't shrink, render another
-			else if (nextSectionStickyHeight > currentSectionStickyHeight) {
-				// if the difference is greater than 22, throw an error. this shouldn't be possible
-				if (nextSectionStickyHeight - currentSectionStickyHeight > 22) {
-					throw new Error('next > curr, but diff > 22');
-				}
-				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(nextCellEntry, 100, notebookEditor); // !document why I use 100 and don't compute linesToRender
-				return newMap;
-			}
-			// next section is smaller than current section, shrink until the you find the shared node then re-render
+			// case: next section is the smaller, shrink until next section height is greater than the available space ---------------------
 			else if (nextSectionStickyHeight < currentSectionStickyHeight) {
 				const availableSpace = sectionBottom - editorScrollTop;
 
-				if (nextSectionStickyHeight === renderedLines.length * 22) {
-					if (availableSpace > (renderedLines.length + 1) * 22) {
-						const linesToRender = Math.floor((availableSpace) / 22);
-						const newMap = NotebookStickyScroll.checkCollapsedStickyLines(cellEntry, linesToRender, notebookEditor);
-						return newMap;
-					} else {
-						const newMap = NotebookStickyScroll.checkCollapsedStickyLines(nextCellEntry, 100, notebookEditor);
-						return newMap;
-					}
-				} else {
+				if (availableSpace >= nextSectionStickyHeight) {
 					const linesToRender = Math.floor((availableSpace) / 22);
 					const newMap = NotebookStickyScroll.checkCollapsedStickyLines(cellEntry, linesToRender, notebookEditor);
+					return newMap;
+				} else {
+					const newMap = NotebookStickyScroll.checkCollapsedStickyLines(nextCellEntry, 100, notebookEditor);
 					return newMap;
 				}
 			}

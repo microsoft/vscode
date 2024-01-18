@@ -1074,7 +1074,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					return;
 				}
 
-				if (this._dimension) { // TODO @Yoyokrazy: think this logic is unnecessary in this situation
+				if (this._dimension) {
 					if (sizeDelta > 0) { // delta > 0 ==> sticky is growing, cell list shrinking
 						this.layout(this._dimension);
 						this.setScrollTop(this.scrollTop + sizeDelta);
