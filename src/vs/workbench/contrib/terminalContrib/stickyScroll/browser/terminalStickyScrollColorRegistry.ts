@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/stickyScroll';
 import { Color } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/stickyScroll.css', import.meta.url)
-
 
 export const terminalStickyScrollBackground = registerColor('terminalStickyScroll.background', {
 	light: null,
