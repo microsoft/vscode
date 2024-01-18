@@ -17,6 +17,35 @@ import { IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilit
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 
+const symbolMap: { [key: string]: string } = {
+	'Ampersand': '&',
+	'ampersand': '&',
+	'Dollar': '$',
+	'dollar': '$',
+	'Percent': '%',
+	'percent': '%',
+	'Asterisk': '*',
+	'asterisk': '*',
+	'Plus': '+',
+	'plus': '+',
+	'Equals': '=',
+	'equals': '=',
+	'Exclamation': '!',
+	'exclamation': '!',
+	'Slash': '/',
+	'slash': '/',
+	'Backslash': '\\',
+	'backslash': '\\',
+	'Dot': '.',
+	'dot': '.',
+	'Period': '.',
+	'period': '.',
+	'Quote': '\'',
+	'quote': '\'',
+	'double quote': '"',
+	'Double quote': '"',
+};
+
 export class TerminalSpeechToTextSession extends Disposable {
 	private _input: string = '';
 	private _ghostText: IDecoration | undefined;
@@ -111,37 +140,9 @@ export class TerminalSpeechToTextSession extends Disposable {
 	private _updateInput(e: ISpeechToTextEvent): void {
 		if (e.text) {
 			let input = e.text.replaceAll(/[.,?;!]/g, '');
-			const symbolMap: { [key: string]: string } = {
-				'Ampersand': '&',
-				'ampersand': '&',
-				'Dollar': '$',
-				'dollar': '$',
-				'Percent': '%',
-				'percent': '%',
-				'Asterisk': '*',
-				'asterisk': '*',
-				'Plus': '+',
-				'plus': '+',
-				'Equals': '=',
-				'equals': '=',
-				'Exclamation': '!',
-				'exclamation': '!',
-				'Slash': '/',
-				'slash': '/',
-				'Backslash': '\\',
-				'backslash': '\\',
-				'Dot': '.',
-				'dot': '.',
-				'Period': '.',
-				'period': '.',
-				'Quote': '\'',
-				'quote': '\'',
-				'double quote': '"',
-				'Double quote': '"',
-			};
 
-			for (const symbol in symbolMap) {
-				const regex: RegExp = new RegExp(symbol);
+			for (const symbol of Object.values(symbolMap)) {
+				const regex: RegExp = new RegExp(symbol + '\b');
 				input = input.replace(regex, symbolMap[symbol]);
 			}
 			this._input = ' ' + input;
