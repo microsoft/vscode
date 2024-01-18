@@ -6,7 +6,7 @@
 import 'vs/css!./inlineChatQuickVoice';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -17,10 +17,11 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { h, reset } from 'vs/base/browser/dom';
+import { getWindow, h, reset, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const CTX_QUICK_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineChat.quickChatInProgress', false);
 
@@ -33,14 +34,29 @@ export class StartAction extends EditorAction2 {
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS.toNegated()),
 			f1: true,
-			// keybinding: {
-			// 	primary: KeyChord(KeyCode.F12, KeyCode.F12),
-			// 	weight: KeybindingWeight.WorkbenchContrib
-			// }
+			keybinding: {
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI),
+				weight: KeybindingWeight.WorkbenchContrib + 100
+			}
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor) {
+		const keybindingService = accessor.get(IKeybindingService);
+
+		const holdMode = keybindingService.enableKeybindingHoldMode(this.desc.id);
+		if (holdMode) {
+			let shouldCallStop = false;
+			const handle = setTimeout(() => {
+				shouldCallStop = true;
+			}, 500);
+			holdMode.finally(() => {
+				clearTimeout(handle);
+				if (shouldCallStop) {
+					InlineChatQuickVoice.get(editor)?.stop();
+				}
+			});
+		}
 		InlineChatQuickVoice.get(editor)?.start();
 	}
 }
@@ -55,13 +71,13 @@ export class StopAction extends EditorAction2 {
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CTX_QUICK_CHAT_IN_PROGRESS),
 			f1: true,
 			keybinding: {
-				primary: KeyCode.Escape,
-				weight: KeybindingWeight.WorkbenchContrib
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI),
+				weight: KeybindingWeight.WorkbenchContrib + 100
 			}
 		});
 	}
 
-	override runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]) {
+	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		InlineChatQuickVoice.get(editor)?.stop();
 	}
 }
@@ -93,12 +109,14 @@ class QuickVoiceWidget implements IContentWidget {
 	private readonly _domNode = document.createElement('div');
 	private readonly _elements = h('.inline-chat-quick-voice@main', [
 		h('span@mic'),
-		h('span@message'),
+		h('span.message@message'),
 	]);
 
 	constructor(private readonly _editor: ICodeEditor) {
 		this._domNode.appendChild(this._elements.root);
 		this._domNode.style.zIndex = '1000';
+		this._domNode.tabIndex = -1;
+		this._domNode.style.outline = 'none';
 		reset(this._elements.mic, renderIcon(Codicon.micFilled));
 	}
 
@@ -134,8 +152,13 @@ class QuickVoiceWidget implements IContentWidget {
 
 	// ---
 
-	updateInput(input: string | undefined): void {
+	updateInput(input: string | undefined, isDefinite: boolean): void {
+		this._elements.message.classList.toggle('preview', !isDefinite);
 		this._elements.message.textContent = input ?? '';
+	}
+
+	focus(): void {
+		this._domNode.focus();
 	}
 
 	active(): void {
@@ -144,7 +167,7 @@ class QuickVoiceWidget implements IContentWidget {
 
 	reset(): void {
 		this._elements.main.classList.remove('recording');
-		this.updateInput(undefined);
+		this.updateInput(undefined, true);
 	}
 }
 
@@ -179,8 +202,11 @@ export class InlineChatQuickVoice implements IEditorContribution {
 		this._editor.addContentWidget(this._widget);
 		this._ctxQuickChatInProgress.set(true);
 
-		let message: string | undefined;
+		runAtThisOrScheduleAtNextAnimationFrame(getWindow(this._widget.getDomNode()), () => {
+			this._widget.focus(); // requires RAF because...
+		});
 
+		let message: string | undefined;
 		const session = this._speechService.createSpeechToTextSession(cts.token);
 		const listener = session.onDidChange(e => {
 
@@ -195,12 +221,11 @@ export class InlineChatQuickVoice implements IEditorContribution {
 				case SpeechToTextStatus.Stopped:
 					break;
 				case SpeechToTextStatus.Recognizing:
-					// TODO@jrieken special rendering for "in-flight" message?
-					this._widget.updateInput(!message ? e.text : `${message} ${e.text}`);
+					this._widget.updateInput(!message ? e.text : `${message} ${e.text}`, false);
 					break;
 				case SpeechToTextStatus.Recognized:
 					message = !message ? e.text : `${message} ${e.text}`;
-					this._widget.updateInput(message);
+					this._widget.updateInput(message, true);
 					break;
 			}
 		});
