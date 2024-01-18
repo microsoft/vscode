@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/editorplaceholder';
 import { localize } from 'vs/nls';
 import { truncate, truncateMiddle } from 'vs/base/common/strings';
 import Severity from 'vs/base/common/severity';
@@ -28,10 +29,6 @@ import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { FileChangeType, FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/editorplaceholder.css', import.meta.url)
-
 
 export interface IEditorPlaceholderContents {
 	icon: string;
