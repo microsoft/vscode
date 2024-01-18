@@ -46,20 +46,20 @@ const symbolMap: { [key: string]: string } = {
 	'Double quote': '"',
 };
 
-export class TerminalSpeechToTextSession extends Disposable {
+export class TerminalVoiceSession extends Disposable {
 	private _input: string = '';
 	private _ghostText: IDecoration | undefined;
 	private _decoration: IDecoration | undefined;
 	private _marker: IXtermMarker | undefined;
 	private _ghostTextMarker: IXtermMarker | undefined;
-	private static _instance: TerminalSpeechToTextSession | undefined = undefined;
+	private static _instance: TerminalVoiceSession | undefined = undefined;
 	private _acceptTranscriptionScheduler: RunOnceScheduler | undefined;
-	static getInstance(instantiationService: IInstantiationService): TerminalSpeechToTextSession {
-		if (!TerminalSpeechToTextSession._instance) {
-			TerminalSpeechToTextSession._instance = instantiationService.createInstance(TerminalSpeechToTextSession);
+	static getInstance(instantiationService: IInstantiationService): TerminalVoiceSession {
+		if (!TerminalVoiceSession._instance) {
+			TerminalVoiceSession._instance = instantiationService.createInstance(TerminalVoiceSession);
 		}
 
-		return TerminalSpeechToTextSession._instance;
+		return TerminalVoiceSession._instance;
 	}
 	private _cancellationTokenSource: CancellationTokenSource | undefined;
 	private readonly _disposables: DisposableStore;
@@ -163,7 +163,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 			x: xterm.buffer.active.cursorX ?? 0,
 		});
 		this._decoration?.onRender((e: HTMLElement) => {
-			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-speech-to-text', 'recording');
+			e.classList.add(...ThemeIcon.asClassNameArray(Codicon.micFilled), 'terminal-voice', 'recording');
 			e.style.transform = 'translate(-5px, -5px)';
 		});
 	}
@@ -193,7 +193,7 @@ export class TerminalSpeechToTextSession extends Disposable {
 			x: xterm.buffer.active.cursorX + 1 ?? 0,
 		});
 		this._ghostText?.onRender((e: HTMLElement) => {
-			e.classList.add('terminal-speech-progress-text');
+			e.classList.add('terminal-voice-progress-text');
 			e.textContent = text;
 			e.style.width = 'fit-content';
 		});
