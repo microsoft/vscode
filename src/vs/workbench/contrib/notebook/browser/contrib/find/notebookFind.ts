@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/notebookFind';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
@@ -24,10 +25,6 @@ import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/notebookFind.css', import.meta.url)
-
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
@@ -203,3 +200,4 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 
 	return false;
 });
+
