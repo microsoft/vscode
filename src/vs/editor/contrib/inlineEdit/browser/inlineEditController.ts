@@ -43,6 +43,8 @@ export class InlineEditController extends Disposable {
 
 	private _currentRequestCts: CancellationTokenSource | undefined;
 
+	private _jumpBackPosition: Position | undefined;
+
 	constructor(
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -168,15 +170,13 @@ export class InlineEditController extends Disposable {
 		this._rulerDecorations.set([decoration]);
 	}
 
-	public async showNext() {
-		const edit = await this.fetchInlineEdit(this.editor, true);
-		this.clear(false);
-		if (!edit) {
+	public async jumpBack() {
+		if (!this._jumpBackPosition) {
 			return;
 		}
-		this.showSingleInlineEdit(edit);
-		this.showRulerDecoration(edit);
-		this.jumpToCurrent();
+		this.editor.setPosition(this._jumpBackPosition);
+		//if position is outside viewports, scroll to it
+		this.editor.revealPositionInCenterIfOutsideViewport(this._jumpBackPosition);
 	}
 
 	public accept(): void {
@@ -212,6 +212,8 @@ export class InlineEditController extends Disposable {
 		if (!this._currentWidget) {
 			return;
 		}
+		this._jumpBackPosition = this.editor.getSelection()?.getStartPosition();
+
 		const data = this._currentWidget[1];
 		this.editor.setPosition(Position.lift(data.position));
 		//if position is outside viewports, scroll to it

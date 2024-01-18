@@ -54,15 +54,15 @@ export class JumpToInlineEdit extends EditorAction {
 	}
 }
 
-export class NextInlineEdit extends EditorAction {
+export class JumpBackInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.inlineEdit.next',
-			label: 'Next Inline Edit',
-			alias: 'Next Inline Edit',
+			id: 'editor.action.inlineEdit.jumpBack',
+			label: 'Jump Back from Inline Edit',
+			alias: 'Jump Back from Inline Edit',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
-				weight: KeybindingWeight.EditorContrib + 1,
+				weight: KeybindingWeight.EditorContrib + 10,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.writable, InlineEditController.cursorAtInlineEditContext)
 			},
@@ -71,7 +71,7 @@ export class NextInlineEdit extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
-		controller?.showNext();
+		controller?.jumpBack();
 	}
 }
 
