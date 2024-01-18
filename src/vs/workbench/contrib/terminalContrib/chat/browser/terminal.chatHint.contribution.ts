@@ -12,6 +12,7 @@ import { ITerminalProcessManager, ITerminalProcessInfo } from 'vs/workbench/cont
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 
 class TerminalChatHintContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chatHint';
@@ -37,25 +38,18 @@ class TerminalChatHintContribution extends Disposable implements ITerminalContri
 		this._xterm = xterm;
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (capability) {
-			const disposable = capability.onCommandStarted(() => {
-				// TODO: why doesn't Event.Once work here?
-				this._addChatHint();
-				disposable.dispose();
-			});
-			this._register(disposable);
+			this._register(Event.once(capability.onCommandStarted)(() => this._addChatHint()));
 		} else {
 			this._register(this._instance.capabilities.onDidAddCapability(e => {
-				// const enums are undefined in here, so we have to use the number... :(
-				if (e.id === 2) {
+				if (e.capability.type === TerminalCapability.CommandDetection) {
 					const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-					const disposable = capability!.onCommandStarted(() => {
-						// TODO: why doesn't Event.Once work here?
-						this._addChatHint();
-						disposable.dispose();
-					});
-					this._register(disposable);
+					this._register(Event.once(capability!.onCommandStarted)(() => this._addChatHint()));
 				}
 			}));
+		}
+
+		if (!this._chatHint && !this._chatService.getProviderInfos().length) {
+			this._register(Event.once(this._chatService.onDidRegisterProvider)(() => this._addChatHint()));
 		}
 	}
 
