@@ -87,8 +87,8 @@ registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
 			id: `toggle.${TitleBarSetting.CUSTOM_TITLE_BAR_VISIBILITY}.windowed`,
 			title: localize('toggle.hideCustomTitleBarInFullScreen', 'Hide Custom Title Bar In Full Screen'),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 0, when: IsMainWindowFullscreenContext, group: '3_toggle' },
-				{ id: MenuId.TitleBarTitleContext, order: 0, when: IsMainWindowFullscreenContext, group: '3_toggle' },
+				{ id: MenuId.TitleBarContext, order: 1, when: IsMainWindowFullscreenContext, group: '3_toggle' },
+				{ id: MenuId.TitleBarTitleContext, order: 1, when: IsMainWindowFullscreenContext, group: '3_toggle' },
 			]
 		});
 	}
