@@ -5,16 +5,13 @@
 
 import { $, append, createStyleSheet, EventHelper, EventLike, getWindow } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
-import { importCss } from 'vs/base/browser/importCss';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
-
-importCss('./sash.css', import.meta.url)
-
+import 'vs/css!./sash';
 
 /**
  * Allow the sashes to be visible at runtime.
