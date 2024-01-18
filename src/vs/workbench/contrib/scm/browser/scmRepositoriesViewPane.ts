@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
@@ -25,10 +26,6 @@ import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workben
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/scm.css', import.meta.url)
-
 import { MenuId } from 'vs/platform/actions/common/actions';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
