@@ -10,7 +10,7 @@ import { INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/no
 
 export interface INotebookScope {
 	type: 'root';
-	readonly notebook: NotebookTextModel | undefined;
+	readonly notebook: NotebookTextModel;
 }
 
 export interface INotebookVariableElement {
@@ -20,11 +20,10 @@ export interface INotebookVariableElement {
 	readonly value: string;
 	readonly indexedChildrenCount: number;
 	readonly hasNamedChildren: boolean;
+	readonly notebook: NotebookTextModel;
 }
 
 export class NotebookVariableDataSource implements IAsyncDataSource<INotebookScope, INotebookVariableElement> {
-
-	private notebook: NotebookTextModel | undefined = undefined;
 
 	constructor(private readonly notebookKernelService: INotebookKernelService) { }
 
@@ -34,32 +33,28 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 
 	async getChildren(element: INotebookScope | INotebookVariableElement): Promise<Array<INotebookVariableElement>> {
 		if (element.type === 'root') {
-			this.notebook = element.notebook;
-			return this.getRootVariables();
+			return this.getRootVariables(element.notebook);
 		} else {
 			return this.getVariables(element);
 		}
 	}
 
 	async getVariables(parent: INotebookVariableElement): Promise<INotebookVariableElement[]> {
-		if (!this.notebook) {
-			return [];
-		}
-		const selectedKernel = this.notebookKernelService.getMatchingKernel(this.notebook).selected;
+		const selectedKernel = this.notebookKernelService.getMatchingKernel(parent.notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
 
 			let children: INotebookVariableElement[] = [];
 			if (parent.hasNamedChildren) {
-				const variables = selectedKernel.provideVariables(this.notebook.uri, parent.id, 'named', 0, CancellationToken.None);
+				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.id, 'named', 0, CancellationToken.None);
 				const childNodes = await variables
-					.map(variable => { return this.createVariableElement(variable); })
+					.map(variable => { return this.createVariableElement(variable, parent.notebook); })
 					.toPromise();
 				children = children.concat(childNodes);
 			}
 			if (parent.indexedChildrenCount > 0) {
-				const variables = selectedKernel.provideVariables(this.notebook.uri, parent.id, 'indexed', 0, CancellationToken.None);
+				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.id, 'indexed', 0, CancellationToken.None);
 				const childNodes = await variables
-					.map(variable => { return this.createVariableElement(variable); })
+					.map(variable => { return this.createVariableElement(variable, parent.notebook); })
 					.toPromise();
 				children = children.concat(childNodes);
 			}
@@ -69,25 +64,22 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		return [];
 	}
 
-	async getRootVariables(): Promise<INotebookVariableElement[]> {
-		if (!this.notebook) {
-			return [];
-		}
-
-		const selectedKernel = this.notebookKernelService.getMatchingKernel(this.notebook).selected;
+	async getRootVariables(notebook: NotebookTextModel): Promise<INotebookVariableElement[]> {
+		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
-			const variables = selectedKernel.provideVariables(this.notebook.uri, undefined, 'named', 0, CancellationToken.None);
+			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
 			return await variables
-				.map(variable => { return this.createVariableElement(variable); })
+				.map(variable => { return this.createVariableElement(variable, notebook); })
 				.toPromise();
 		}
 
 		return [];
 	}
 
-	private createVariableElement(variable: VariablesResult): INotebookVariableElement {
+	private createVariableElement(variable: VariablesResult, notebook: NotebookTextModel): INotebookVariableElement {
 		return {
 			type: 'variable',
+			notebook,
 			...variable
 		};
 	}
