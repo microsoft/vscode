@@ -39,9 +39,11 @@ import { Color } from 'vs/base/common/color';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isNumber } from 'vs/base/common/types';
-import { AccessibilityVoiceSettingId, SpeechTimeoutDefault } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -751,6 +753,15 @@ registerThemingParticipant((theme, collector) => {
 
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
 
+	private static SETTINGS_ID = 'accessibility.voice.keywordActivation';
+
+	private static SETTINGS_VALUE = {
+		OFF: 'off',
+		INLINE_CHAT: 'inlineChat',
+		QUICK_CHAT: 'quickChat',
+		VIEW_CHAT: 'chatInView'
+	};
+
 	private activeSession: CancellationTokenSource | undefined = undefined;
 
 	constructor(
@@ -764,16 +775,50 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private registerListeners(): void {
-		this._register(Event.runAndSubscribe(this.speechService.onDidRegisterSpeechProvider, () => this.handleKeywordActivation()));
+		this._register(Event.runAndSubscribe(this.speechService.onDidRegisterSpeechProvider, () => {
+			this.updateConfiguration();
+			this.handleKeywordActivation();
+		}));
 
 		this._register(this.speechService.onDidStartSpeechToTextSession(() => this.handleKeywordActivation()));
 		this._register(this.speechService.onDidEndSpeechToTextSession(() => this.handleKeywordActivation()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(AccessibilityVoiceSettingId.KeywordActivation)) {
+			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
 				this.handleKeywordActivation();
 			}
 		}));
+	}
+
+	private updateConfiguration(): void {
+		if (!this.speechService.hasSpeechProvider) {
+			return; // these settings require a speech provider
+		}
+
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		registry.registerConfiguration({
+			...accessibilityConfigurationNodeBase,
+			properties: {
+				[KeywordActivationContribution.SETTINGS_ID]: {
+					'type': 'string',
+					'enum': [
+						KeywordActivationContribution.SETTINGS_VALUE.OFF,
+						KeywordActivationContribution.SETTINGS_VALUE.VIEW_CHAT,
+						KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT,
+						KeywordActivationContribution.SETTINGS_VALUE.INLINE_CHAT
+					],
+					'enumDescriptions': [
+						localize('voice.keywordActivation.off', "Keyword activation is disabled."),
+						localize('voice.keywordActivation.chatInView', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the chat view."),
+						localize('voice.keywordActivation.quickChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the quick chat."),
+						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor.")
+					],
+					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
+					'default': 'off',
+					'tags': ['accessibility']
+				}
+			}
+		});
 	}
 
 	private handleKeywordActivation(): void {
@@ -782,7 +827,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		}
 
 		const enabled =
-			this.configurationService.getValue(AccessibilityVoiceSettingId.KeywordActivation) === 'on' &&
+			this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF &&
 			!this.speechService.hasActiveSpeechToTextSession;
 		if (
 			(enabled && this.activeSession) ||
@@ -814,7 +859,19 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		}
 
 		if (result === KeywordRecognitionStatus.Recognized) {
-			this.commandService.executeCommand(StartVoiceChatAction.ID);
+			this.commandService.executeCommand(this.getKeywordCommand());
+		}
+	}
+
+	private getKeywordCommand(): string {
+		const setting = this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID);
+		switch (setting) {
+			case KeywordActivationContribution.SETTINGS_VALUE.INLINE_CHAT:
+				return InlineVoiceChatAction.ID;
+			case KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT:
+				return QuickVoiceChatAction.ID;
+			default:
+				return VoiceChatInChatViewAction.ID;
 		}
 	}
 

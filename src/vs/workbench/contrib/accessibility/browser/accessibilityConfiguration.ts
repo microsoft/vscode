@@ -76,7 +76,7 @@ const baseProperty: object = {
 	tags: ['accessibility']
 };
 
-const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+export const accessibilityConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	id: 'accessibility',
 	title: localize('accessibilityConfigurationTitle', "Accessibility"),
 	type: 'object'
@@ -296,8 +296,7 @@ export function registerAccessibilityConfiguration() {
 }
 
 export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout',
-	KeywordActivation = 'accessibility.voice.keywordActivation',
+	SpeechTimeout = 'accessibility.voice.speechTimeout'
 }
 export const SpeechTimeoutDefault = 1200;
 
@@ -326,16 +325,6 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'default': SpeechTimeoutDefault,
 					'minimum': 0,
 					'tags': ['accessibility']
-				},
-				[AccessibilityVoiceSettingId.KeywordActivation]: {
-					'type': 'string',
-					'enum': ['off', 'on'],
-					'enumDescriptions': [
-						localize('voice.keywordActivation.off', "Keyword activation is disabled."),
-						localize('voice.keywordActivation.on', "Keyword activation is enabled and listening for 'Hey Code' to start a speech to text transcription session."),
-					],
-					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be recognized to start a speech to text transcription session."),
-					'default': 'off'
 				}
 			}
 		});
