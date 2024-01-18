@@ -26,6 +26,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ltrim } from 'vs/base/common/strings';
+import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { IQuickInputOptions } from 'vs/platform/quickinput/browser/quickInput';
 import { quickInputButtonToAction } from 'vs/platform/quickinput/browser/quickInputUtils';
@@ -34,10 +35,6 @@ import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { isDark } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/quickInput.css', import.meta.url)
-
 
 const $ = dom.$;
 
