@@ -6,23 +6,30 @@
 //@ts-check
 'use strict';
 
-const performance = require('./vs/base/common/performance');
+import * as performance from './vs/base/common/performance.js';
 performance.mark('code/fork/start');
 
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
+import { createRequire } from 'module';
+
+
+const require = createRequire(import.meta.url)
+
+// @ts-ignore
+const { enableASARSupport } = require('./bootstrap.cjs')
+
+const { removeGlobalNodeModuleLookupPaths, injectNodeModuleLookupPath } = require('./bootstrap-node.cjs');
 
 // Crash reporter
 configureCrashReporter();
 
 // Remove global paths from the node module lookup
-bootstrapNode.removeGlobalNodeModuleLookupPaths();
+removeGlobalNodeModuleLookupPaths();
 
 // Enable ASAR in our forked processes
-bootstrap.enableASARSupport();
+enableASARSupport();
 
 if (process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']) {
-	bootstrapNode.injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
+	injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 }
 
 // Configure: pipe logging to parent process
@@ -41,7 +48,11 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load AMD entry point
-require('./bootstrap-amd.cjs').load(process.env['VSCODE_AMD_ENTRYPOINT']);
+require('./bootstrap-amd.cjs')
+
+const entryPath = './' + process.env.VSCODE_AMD_ENTRYPOINT + '.js'
+console.log({ entryPath })
+import(entryPath);
 
 
 //#region Helpers

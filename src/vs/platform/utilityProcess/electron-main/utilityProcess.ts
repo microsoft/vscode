@@ -245,7 +245,7 @@ export class UtilityProcess extends Disposable {
 
 		console.log('absolute path', absolutePath)
 		// Fork utility process
-		this.process = utilityProcess.fork(absolutePath, args, {
+		this.process = utilityProcess.fork(modulePath, args, {
 			serviceName,
 			env,
 			execArgv,
