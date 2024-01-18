@@ -487,6 +487,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Text Title
 		if (!this.isCommandCenterVisible) {
+			// Don't show title in custom titlebar when native title is shown
 			if (!hasNativeTitlebar(this.configurationService, this.titleBarStyle)) {
 
 				this.title.innerText = this.windowTitle.value;

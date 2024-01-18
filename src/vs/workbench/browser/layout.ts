@@ -370,7 +370,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(addDisposableListener(this.mainContainer, EventType.SCROLL, () => this.mainContainer.scrollTop = 0));
 
 		// Menubar visibility changes
-		if ((isWindows || isLinux || isWeb) && !hasNativeTitlebar(this.configurationService)) {
+		const showingCustomMenu = (isWindows || isLinux || isWeb) && !hasNativeTitlebar(this.configurationService);
+		if (showingCustomMenu) {
 			this._register(this.titleService.onMenubarVisibilityChange(visible => this.onMenubarToggled(visible)));
 		}
 
@@ -1240,7 +1241,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
-		// Hide custom title bar when native title bar and custom title bar is empty
+		// Hide custom title bar when native title bar enabled and custom title bar is empty
 		if (nativeTitleBarEnabled) {
 			return false;
 		}

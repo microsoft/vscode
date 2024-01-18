@@ -173,8 +173,8 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
 	}
 
-	const useCustomTitleStyle = !hasNativeTitlebar(configurationService);
-	if (useCustomTitleStyle) {
+	const hideNativeTitleBar = !hasNativeTitlebar(configurationService);
+	if (hideNativeTitleBar) {
 		options.titleBarStyle = 'hidden';
 		if (!isMacintosh) {
 			options.frame = false;

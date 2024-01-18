@@ -127,10 +127,10 @@ export function isFileToOpen(uriToOpen: IWindowOpenable): uriToOpen is IFileToOp
 export type MenuBarVisibility = 'classic' | 'visible' | 'toggle' | 'hidden' | 'compact';
 
 export function getMenuBarVisibility(configurationService: IConfigurationService): MenuBarVisibility {
-	const titleBarStyle = getTitleBarStyle(configurationService);
+	const nativeTitleBarEnabled = hasNativeTitlebar(configurationService);
 	const menuBarVisibility = configurationService.getValue<MenuBarVisibility | 'default'>('window.menuBarVisibility');
 
-	if (menuBarVisibility === 'default' || (titleBarStyle !== TitlebarStyle.CUSTOM && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
+	if (menuBarVisibility === 'default' || (nativeTitleBarEnabled && menuBarVisibility === 'compact') || (isMacintosh && isNative)) {
 		return 'classic';
 	} else {
 		return menuBarVisibility;
@@ -182,6 +182,7 @@ export const enum CustomTitleBarVisibility {
 }
 
 export function hasCustomTitlebar(configurationService: IConfigurationService, titleBarStyle?: TitlebarStyle): boolean {
+	// Returns if it possible to have a custom title bar in the curren session
 	// Does not imply that the title bar is visible
 
 	return true;
