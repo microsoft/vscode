@@ -475,7 +475,7 @@ class CodeActionAdapter {
 				}
 
 				// Ensures that this is either a Range[] or an empty array so we don't get Array<Range | undefined>
-				const range = candidate.editRanges ?? [];
+				const range = candidate.ranges ?? [];
 
 				// new school: convert code action
 				actions.push({
@@ -487,7 +487,7 @@ class CodeActionAdapter {
 					kind: candidate.kind && candidate.kind.value,
 					isPreferred: candidate.isPreferred,
 					isAI: isProposedApiEnabled(this._extension, 'codeActionAI') ? candidate.isAI : false,
-					editRanges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
+					ranges: isProposedApiEnabled(this._extension, 'codeActionRanges') ? coalesce(range.map(typeConvert.Range.from)) : undefined,
 					disabled: candidate.disabled?.reason
 				});
 			}

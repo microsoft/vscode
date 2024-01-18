@@ -749,7 +749,7 @@ export interface CodeAction {
 	isPreferred?: boolean;
 	isAI?: boolean;
 	disabled?: string;
-	editRanges?: IRange[];
+	ranges?: IRange[];
 }
 
 export const enum CodeActionTriggerType {

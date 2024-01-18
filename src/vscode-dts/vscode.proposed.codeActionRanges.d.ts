@@ -7,10 +7,13 @@ declare module 'vscode' {
 
 	export interface CodeAction {
 		/**
-		 * A range of text that should be highlighted from the Code Action.
 		 *
-		 * Ex: A refactoring action will highlight the range of text that will be changed.
+		 *
+		 *
+		 * The range to which this Code Action applies to, which will be highlighted.
+
+		 * Ex: A refactoring action will highlight the range of text that will be affected.
 		 */
-		editRanges?: Range[];
+		ranges?: Range[];
 	}
 }

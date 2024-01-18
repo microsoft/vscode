@@ -1982,7 +1982,7 @@ export interface ICodeActionDto {
 	isPreferred?: boolean;
 	isAI?: boolean;
 	disabled?: string;
-	editRanges?: IRange[];
+	ranges?: IRange[];
 }
 
 export interface ICodeActionListDto {
