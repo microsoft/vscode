@@ -5,6 +5,7 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ArrayQueue } from 'vs/base/common/arrays';
+import 'vs/css!./glyphMargin';
 import { IGlyphMarginWidget, IGlyphMarginWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -15,10 +16,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { GlyphMarginLane } from 'vs/editor/common/model';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./glyphMargin.css', import.meta.url)
-
 
 /**
  * Represents a decoration that should be shown along the lines from `startLineNumber` to `endLineNumber`.
