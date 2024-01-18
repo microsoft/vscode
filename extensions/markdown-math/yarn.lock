@@ -12,10 +12,10 @@
   resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.72.0.tgz#8943dc3cef0ced2dfb1e04c0a933bd289e7d5199"
   integrity sha512-5iTjb39DpLn03ULUwrDR3L2Dy59RV4blSUHy0oLdQuIY11PhgWO4mXIcoFS0VxY1GZQ4IcjSf3ooT2Jrrcahnw==
 
-"@vscode/markdown-it-katex@^1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@vscode/markdown-it-katex/-/markdown-it-katex-1.0.2.tgz#27ba579fa3896b2944b71209dd30d0f983983f11"
-  integrity sha512-QY/OnOHPTqc8tQoCoAjVblILX4yE6xGZHKODtiTKqA328OXra+lSpeJO5Ouo9AAvrs9AwcCLz6xvW3zwcsPBQg==
+"@vscode/markdown-it-katex@^1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@vscode/markdown-it-katex/-/markdown-it-katex-1.0.3.tgz#5364e4dbcb0f7e7fd2fdab3847ba5d6b0c3ce9d9"
+  integrity sha512-a8ppdac0CG2lAQC6E6lT8dxmXkUk9gRtYNtILx31FyrPEwj875AAHc6tpRGeJBpWMpiMtcvz7ymWYBwYgxuFmw==
   dependencies:
     katex "^0.16.4"
 
