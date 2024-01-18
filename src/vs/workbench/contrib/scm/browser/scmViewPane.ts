@@ -3329,44 +3329,66 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
+		if (!historyProvider || !currentHistoryItemGroup || !currentHistoryItemGroup.base || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
 			return [];
 		}
 
 		const children: SCMHistoryItemGroupTreeElement[] = [];
 		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
-		let historyItemGroupDetails = historyProviderCacheEntry?.historyItemGroupDetails;
 
-		if (!historyItemGroupDetails) {
-			historyItemGroupDetails = await historyProvider.resolveHistoryItemGroupDetails(currentHistoryItemGroup);
+		let incomingHistoryItemGroup = historyProviderCacheEntry?.incomingHistoryItemGroup;
+		let outgoingHistoryItemGroup = historyProviderCacheEntry?.outgoingHistoryItemGroup;
+
+		if (!incomingHistoryItemGroup || !outgoingHistoryItemGroup) {
+			// Common ancestor, ahead, behind
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
+			if (!ancestor) {
+				return [];
+			}
+
+			incomingHistoryItemGroup = {
+				id: currentHistoryItemGroup.base.id,
+				label: currentHistoryItemGroup.base.label,
+				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.label),
+				icon: Codicon.arrowCircleDown,
+				direction: 'incoming',
+				ancestor: ancestor.id,
+				count: ancestor.behind,
+				repository: element,
+				type: 'historyItemGroup'
+			};
+
+			outgoingHistoryItemGroup = {
+				id: currentHistoryItemGroup.id,
+				label: currentHistoryItemGroup.label,
+				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes to {0}", currentHistoryItemGroup.label),
+				icon: Codicon.arrowCircleUp,
+				direction: 'outgoing',
+				ancestor: ancestor.id,
+				count: ancestor.ahead,
+				repository: element,
+				type: 'historyItemGroup'
+			};
+
 			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
-				historyItemGroupDetails
+				incomingHistoryItemGroup,
+				outgoingHistoryItemGroup
 			});
 		}
 
 		// Incoming
-		if (historyItemGroupDetails?.incoming &&
+		if (incomingHistoryItemGroup &&
 			(showIncomingChanges === 'always' ||
-				(showIncomingChanges === 'auto' && (historyItemGroupDetails.incoming.count ?? 0) > 0))) {
-			children.push({
-				...historyItemGroupDetails.incoming,
-				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", historyItemGroupDetails.incoming.label),
-				repository: element,
-				type: 'historyItemGroup'
-			});
+				(showIncomingChanges === 'auto' && (incomingHistoryItemGroup.count ?? 0) > 0))) {
+			children.push(incomingHistoryItemGroup);
 		}
 
 		// Outgoing
-		if (historyItemGroupDetails?.outgoing &&
+		if (outgoingHistoryItemGroup &&
 			(showOutgoingChanges === 'always' ||
-				(showOutgoingChanges === 'auto' && (historyItemGroupDetails.outgoing.count ?? 0) > 0))) {
-			children.push({
-				...historyItemGroupDetails.outgoing,
-				ariaLabel: localize('outgoingChangesAriaLabel', "Outgoing changes from {0}", historyItemGroupDetails.outgoing.label),
-				repository: element,
-				type: 'historyItemGroup'
-			});
+				(showOutgoingChanges === 'auto' && (outgoingHistoryItemGroup.count ?? 0) > 0))) {
+			children.push(outgoingHistoryItemGroup);
 		}
 
 		return children;
@@ -3540,7 +3562,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 	private getHistoryProviderCacheEntry(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
 		return this.historyProviderCache.get(repository) ?? {
-			historyItemGroupDetails: undefined,
+			incomingHistoryItemGroup: undefined,
+			outgoingHistoryItemGroup: undefined,
 			historyItems: new Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>(),
 			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
 		};
