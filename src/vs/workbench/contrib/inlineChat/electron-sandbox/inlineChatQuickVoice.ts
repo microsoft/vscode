@@ -17,11 +17,13 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { getWindow, h, reset, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const CTX_QUICK_CHAT_IN_PROGRESS = new RawContextKey<boolean>('inlineChat.quickChatInProgress', false);
 
@@ -107,17 +109,27 @@ class QuickVoiceWidget implements IContentWidget {
 	readonly suppressMouseDown = true;
 
 	private readonly _domNode = document.createElement('div');
-	private readonly _elements = h('.inline-chat-quick-voice@main', [
-		h('span@mic'),
-		h('span.message@message'),
+	private readonly _elements = dom.h('.inline-chat-quick-voice@main', [
+		dom.h('span@mic'),
+		dom.h('span.message@message'),
 	]);
+
+	private _focusTracker: dom.IFocusTracker | undefined;
+
+	private readonly _onDidBlur = new Emitter<void>();
+	readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
 	constructor(private readonly _editor: ICodeEditor) {
 		this._domNode.appendChild(this._elements.root);
 		this._domNode.style.zIndex = '1000';
 		this._domNode.tabIndex = -1;
 		this._domNode.style.outline = 'none';
-		reset(this._elements.mic, renderIcon(Codicon.micFilled));
+		dom.reset(this._elements.mic, renderIcon(Codicon.micFilled));
+	}
+
+	dispose(): void {
+		this._focusTracker?.dispose();
+		this._onDidBlur.dispose();
 	}
 
 	getId(): string {
@@ -150,6 +162,13 @@ class QuickVoiceWidget implements IContentWidget {
 		return null;
 	}
 
+	afterRender(): void {
+		this._domNode.focus();
+		this._focusTracker?.dispose();
+		this._focusTracker = dom.trackFocus(this._domNode);
+		this._focusTracker.onDidBlur(() => this._onDidBlur.fire());
+	}
+
 	// ---
 
 	updateInput(input: string | undefined, isDefinite: boolean): void {
@@ -157,17 +176,19 @@ class QuickVoiceWidget implements IContentWidget {
 		this._elements.message.textContent = input ?? '';
 	}
 
-	focus(): void {
-		this._domNode.focus();
+	show() {
+		this._editor.addContentWidget(this);
 	}
 
 	active(): void {
 		this._elements.main.classList.add('recording');
 	}
 
-	reset(): void {
+	hide() {
 		this._elements.main.classList.remove('recording');
 		this.updateInput(undefined, true);
+		this._editor.removeContentWidget(this);
+		this._focusTracker?.dispose();
 	}
 }
 
@@ -179,6 +200,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 		return editor.getContribution<InlineChatQuickVoice>(InlineChatQuickVoice.ID);
 	}
 
+	private readonly _store = new DisposableStore();
 	private readonly _ctxQuickChatInProgress: IContextKey<boolean>;
 	private readonly _widget: QuickVoiceWidget;
 	private _finishCallback?: (abort: boolean) => void;
@@ -188,23 +210,24 @@ export class InlineChatQuickVoice implements IEditorContribution {
 		@ISpeechService private readonly _speechService: ISpeechService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		this._widget = new QuickVoiceWidget(this._editor);
+		this._widget = this._store.add(new QuickVoiceWidget(this._editor));
+		this._widget.onDidBlur(() => this._finishCallback?.(true), undefined, this._store);
 		this._ctxQuickChatInProgress = CTX_QUICK_CHAT_IN_PROGRESS.bindTo(contextKeyService);
 	}
 
 	dispose(): void {
 		this._finishCallback?.(true);
+		this._ctxQuickChatInProgress.reset();
+		this._store.dispose();
 	}
 
 	start() {
 
-		const cts = new CancellationTokenSource();
-		this._editor.addContentWidget(this._widget);
-		this._ctxQuickChatInProgress.set(true);
+		this._finishCallback?.(true);
 
-		runAtThisOrScheduleAtNextAnimationFrame(getWindow(this._widget.getDomNode()), () => {
-			this._widget.focus(); // requires RAF because...
-		});
+		const cts = new CancellationTokenSource();
+		this._widget.show();
+		this._ctxQuickChatInProgress.set(true);
 
 		let message: string | undefined;
 		const session = this._speechService.createSpeechToTextSession(cts.token);
@@ -233,8 +256,7 @@ export class InlineChatQuickVoice implements IEditorContribution {
 		const done = (abort: boolean) => {
 			cts.dispose(true);
 			listener.dispose();
-			this._widget.reset();
-			this._editor.removeContentWidget(this._widget);
+			this._widget.hide();
 			this._ctxQuickChatInProgress.reset();
 
 			if (!abort && message) {
@@ -252,5 +274,4 @@ export class InlineChatQuickVoice implements IEditorContribution {
 	cancel(): void {
 		this._finishCallback?.(true);
 	}
-
 }
