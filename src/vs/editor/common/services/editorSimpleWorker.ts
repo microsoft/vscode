@@ -28,6 +28,9 @@ import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
+
+const isEsm = true
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -811,12 +814,17 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		}
 		// ESM-comment-begin
 		return new Promise<any>((resolve, reject) => {
-			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
+			const onModuleCallback = (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
-
 				resolve(getAllMethodNames(this._foreignModule));
+			};
 
-			}, reject);
+			if (!isEsm) {
+				require([moduleId], onModuleCallback, reject);
+			} else {
+				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
+				import(url).then(onModuleCallback).catch(reject);
+			}
 		});
 		// ESM-comment-end
 
