@@ -761,7 +761,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		OFF: 'off',
 		INLINE_CHAT: 'inlineChat',
 		QUICK_CHAT: 'quickChat',
-		VIEW_CHAT: 'chatInView'
+		VIEW_CHAT: 'chatInView',
+		CHAT_IN_CONTEXT: 'chatInContext'
 	};
 
 	private activeSession: CancellationTokenSource | undefined = undefined;
@@ -815,13 +816,15 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 						KeywordActivationContribution.SETTINGS_VALUE.OFF,
 						KeywordActivationContribution.SETTINGS_VALUE.VIEW_CHAT,
 						KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT,
-						KeywordActivationContribution.SETTINGS_VALUE.INLINE_CHAT
+						KeywordActivationContribution.SETTINGS_VALUE.INLINE_CHAT,
+						KeywordActivationContribution.SETTINGS_VALUE.CHAT_IN_CONTEXT
 					],
 					'enumDescriptions': [
 						localize('voice.keywordActivation.off', "Keyword activation is disabled."),
 						localize('voice.keywordActivation.chatInView', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the chat view."),
 						localize('voice.keywordActivation.quickChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the quick chat."),
-						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor.")
+						localize('voice.keywordActivation.inlineChat', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor."),
+						localize('voice.keywordActivation.chatInContext', "Keyword activation is enabled and listening for 'Hey Code' to start a voice chat session in the active editor or view depending on keyboard focus.")
 					],
 					'description': localize('voice.keywordActivation', "Controls whether the phrase 'Hey Code' should be speech recognized to start a voice chat session."),
 					'default': 'off',
@@ -877,6 +880,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 				return InlineVoiceChatAction.ID;
 			case KeywordActivationContribution.SETTINGS_VALUE.QUICK_CHAT:
 				return QuickVoiceChatAction.ID;
+			case KeywordActivationContribution.SETTINGS_VALUE.CHAT_IN_CONTEXT:
+				return StartVoiceChatAction.ID;
 			default:
 				return VoiceChatInChatViewAction.ID;
 		}
