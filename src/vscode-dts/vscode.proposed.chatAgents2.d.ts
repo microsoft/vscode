@@ -270,8 +270,7 @@ declare module 'vscode' {
 	export type ChatAgentContentProgress =
 		| ChatAgentContent
 		| ChatAgentFileTree
-		| ChatAgentInlineContentReference
-		| ChatAgentTask;
+		| ChatAgentInlineContentReference;
 
 	export type ChatAgentMetadataProgress =
 		| ChatAgentUsedContext
@@ -320,24 +319,6 @@ declare module 'vscode' {
 		 * The content as a string of markdown source.
 		 */
 		content: string;
-	}
-
-	/**
-	 * Represents a piece of the chat response's content that is resolved asynchronously. It is rendered immediately with a placeholder,
-	 * which is replaced once the full content is available.
-	 */
-	export interface ChatAgentTask {
-		/**
-		 * The markdown string to be rendered immediately.
-		 */
-		placeholder: string;
-
-		/**
-		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
-		 */
-		// TODO@API Should this be an async iterable or progress instance instead
-		// TODO@API Should this include more inline-renderable items like `ChatAgentInlineContentReference`
-		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
 	}
 
 	/**

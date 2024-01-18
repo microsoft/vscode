@@ -98,20 +98,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 
 					if ('placeholder' in progress && 'resolvedContent' in progress) {
-						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(request.requestId, convertedProgress), progress.resolvedContent]);
-						raceCancellation(resolvedContent, token).then(res => {
-							if (!res) {
-								return; /* Cancelled */
-							}
-							const [progressHandle, progressContent] = res;
-							const convertedContent = typeConvert.ChatResponseProgress.from(agent.extension, progressContent);
-							if (!convertedContent) {
-								this._logService.error('Unknown progress type: ' + JSON.stringify(progressContent));
-								return;
-							}
-
-							this._proxy.$handleProgressChunk(request.requestId, convertedContent, progressHandle ?? undefined);
-						});
+						// Ignore for now, this is the deleted Task type
 					} else {
 						this._proxy.$handleProgressChunk(request.requestId, convertedProgress);
 					}
