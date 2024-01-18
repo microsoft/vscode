@@ -24,4 +24,4 @@ registerAction2(StopListeningInQuickChatAction);
 registerAction2(StopListeningInInlineChatAction);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(KeywordActivationContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(KeywordActivationContribution, LifecyclePhase.Ready);

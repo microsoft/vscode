@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -23,7 +23,7 @@ import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/wo
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
@@ -44,6 +44,8 @@ import { IChatExecuteActionContext } from 'vs/workbench/contrib/chat/browser/act
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -753,9 +755,9 @@ registerThemingParticipant((theme, collector) => {
 
 export class KeywordActivationContribution extends Disposable implements IWorkbenchContribution {
 
-	private static SETTINGS_ID = 'accessibility.voice.keywordActivation';
+	static SETTINGS_ID = 'accessibility.voice.keywordActivation';
 
-	private static SETTINGS_VALUE = {
+	static SETTINGS_VALUE = {
 		OFF: 'off',
 		INLINE_CHAT: 'inlineChat',
 		QUICK_CHAT: 'quickChat',
@@ -767,9 +769,13 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	constructor(
 		@ISpeechService private readonly speechService: ISpeechService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
+
+		this._register(instantiationService.createInstance(KeywordActivationStatusEntry));
 
 		this.registerListeners();
 	}
@@ -787,6 +793,10 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
 				this.handleKeywordActivation();
 			}
+		}));
+
+		this._register(this.editorGroupService.onDidCreateAuxiliaryEditorPart(({ instantiationService, disposables }) => {
+			disposables.add(instantiationService.createInstance(KeywordActivationStatusEntry));
 		}));
 	}
 
@@ -822,11 +832,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private handleKeywordActivation(): void {
-		if (!this.speechService.hasSpeechProvider) {
-			return; // we require a speech provider
-		}
-
 		const enabled =
+			this.speechService.hasSpeechProvider &&
 			this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF &&
 			!this.speechService.hasActiveSpeechToTextSession;
 		if (
@@ -884,5 +891,71 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		this.activeSession?.dispose();
 
 		super.dispose();
+	}
+}
+
+class KeywordActivationStatusEntry extends Disposable {
+
+	private readonly entry = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
+	private static STATUS_NAME = localize('keywordActivation.status.name', "Voice Keyword Activation");
+	private static STATUS_COMMAND = 'keywordActivation.status.command';
+	private static STATUS_ACTIVE = localize('keywordActivation.status.active', "Voice Keyword Activation: Active");
+	private static STATUS_INACTIVE = localize('keywordActivation.status.inactive', "Voice Keyword Activation: Inactive");
+
+	constructor(
+		@ISpeechService private readonly speechService: ISpeechService,
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+
+		CommandsRegistry.registerCommand(KeywordActivationStatusEntry.STATUS_COMMAND, () => this.commandService.executeCommand('workbench.action.openSettings', KeywordActivationContribution.SETTINGS_ID));
+
+		this.registerListeners();
+		this.updateStatusEntry();
+	}
+
+	private registerListeners(): void {
+		this._register(this.speechService.onDidStartKeywordRecognition(() => this.updateStatusEntry()));
+		this._register(this.speechService.onDidEndKeywordRecognition(() => this.updateStatusEntry()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(KeywordActivationContribution.SETTINGS_ID)) {
+				this.updateStatusEntry();
+			}
+		}));
+	}
+
+	private updateStatusEntry(): void {
+		const visible = this.configurationService.getValue(KeywordActivationContribution.SETTINGS_ID) !== KeywordActivationContribution.SETTINGS_VALUE.OFF;
+		if (visible) {
+			if (!this.entry.value) {
+				this.createStatusEntry();
+			}
+
+			this.updateStatusLabel();
+		} else {
+			this.entry.clear();
+		}
+	}
+
+	private createStatusEntry() {
+		this.entry.value = this.statusbarService.addEntry(this.getStatusEntryProperties(), 'status.voiceKeywordActivation', StatusbarAlignment.RIGHT, 103);
+	}
+
+	private getStatusEntryProperties(): IStatusbarEntry {
+		return {
+			name: KeywordActivationStatusEntry.STATUS_NAME,
+			text: '$(mic)',
+			tooltip: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
+			ariaLabel: this.speechService.hasActiveKeywordRecognition ? KeywordActivationStatusEntry.STATUS_ACTIVE : KeywordActivationStatusEntry.STATUS_INACTIVE,
+			command: KeywordActivationStatusEntry.STATUS_COMMAND,
+			kind: this.speechService.hasActiveKeywordRecognition ? 'prominent' : 'standard'
+		};
+	}
+
+	private updateStatusLabel(): void {
+		this.entry.value?.update(this.getStatusEntryProperties());
 	}
 }

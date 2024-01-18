@@ -81,6 +81,11 @@ export interface ISpeechService {
 	 */
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
 
+	readonly onDidStartKeywordRecognition: Event<void>;
+	readonly onDidEndKeywordRecognition: Event<void>;
+
+	readonly hasActiveKeywordRecognition: boolean;
+
 	/**
 	 * Starts to recognize a keyword from the default microphone. The returned
 	 * status indicates if the keyword was recognized or if the session was
@@ -139,7 +144,7 @@ export class SpeechService extends Disposable implements ISpeechService {
 	readonly onDidEndSpeechToTextSession = this._onDidEndSpeechToTextSession.event;
 
 	private _activeSpeechToTextSession: ISpeechToTextSession | undefined = undefined;
-	get hasActiveSpeechToTextSession(): boolean { return !!this._activeSpeechToTextSession; }
+	get hasActiveSpeechToTextSession() { return !!this._activeSpeechToTextSession; }
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
@@ -180,6 +185,15 @@ export class SpeechService extends Disposable implements ISpeechService {
 		return session;
 	}
 
+	private readonly _onDidStartKeywordRecognition = this._register(new Emitter<void>());
+	readonly onDidStartKeywordRecognition = this._onDidStartKeywordRecognition.event;
+
+	private readonly _onDidEndKeywordRecognition = this._register(new Emitter<void>());
+	readonly onDidEndKeywordRecognition = this._onDidEndKeywordRecognition.event;
+
+	private _activeKeywordRecognitionSession: IKeywordRecognitionSession | undefined = undefined;
+	get hasActiveKeywordRecognition() { return !!this._activeKeywordRecognitionSession; }
+
 	async recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus> {
 		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
@@ -188,7 +202,32 @@ export class SpeechService extends Disposable implements ISpeechService {
 			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
 
-		const session = provider.createKeywordRecognitionSession(token);
-		return (await Event.toPromise(session.onDidChange)).status;
+		const session = this._activeKeywordRecognitionSession = provider.createKeywordRecognitionSession(token);
+		this._onDidStartKeywordRecognition.fire();
+
+		const disposables = new DisposableStore();
+
+		const onSessionStoppedOrCanceled = () => {
+			if (session === this._activeKeywordRecognitionSession) {
+				this._activeKeywordRecognitionSession = undefined;
+				this._onDidEndKeywordRecognition.fire();
+			}
+
+			disposables.dispose();
+		};
+
+		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+
+		disposables.add(session.onDidChange(e => {
+			if (e.status === KeywordRecognitionStatus.Stopped) {
+				onSessionStoppedOrCanceled();
+			}
+		}));
+
+		try {
+			return (await Event.toPromise(session.onDidChange)).status;
+		} finally {
+			onSessionStoppedOrCanceled();
+		}
 	}
 }
