@@ -32,7 +32,7 @@ elif [ -f /usr/lib/libstdc++.so.6 ]; then
 	libstdcpp_path='/usr/lib/libstdc++.so.6'
 elif [ -f /sbin/ldconfig ]; then
     # Look up path
-    libstdcpp_paths=$(ldconfig -p | grep 'libstdc++.so.6')
+    libstdcpp_paths=$(/sbin/ldconfig -p | grep 'libstdc++.so.6')
 
     if [ "$(echo "$libstdcpp_paths" | wc -l)" -gt 1 ]; then
         libstdcpp_path=$(echo "$libstdcpp_paths" | grep "$LDCONFIG_ARCH" | awk '{print $NF}')
