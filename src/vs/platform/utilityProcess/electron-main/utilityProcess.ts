@@ -226,6 +226,7 @@ export class UtilityProcess extends Disposable {
 		this.configuration = configuration;
 
 		const serviceName = `${this.configuration.type}-${this.id}`;
+		// @ts-ignore
 		const modulePath = FileAccess.asFileUri('bootstrap-fork.js').fsPath;
 		const args = this.configuration.args ?? [];
 		const execArgv = this.configuration.execArgv ?? [];

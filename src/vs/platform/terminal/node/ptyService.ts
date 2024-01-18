@@ -977,6 +977,7 @@ class MutationLogger<T> {
 }
 
 class XtermSerializer implements ITerminalSerializer {
+	// @ts-ignore
 	private readonly _xterm: XtermTerminal;
 	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;

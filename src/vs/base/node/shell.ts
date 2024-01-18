@@ -43,6 +43,7 @@ function getSystemShellUnixLike(os: platform.OperatingSystem, env: platform.IPro
 				try {
 					// It's possible for $SHELL to be unset, this API reads /etc/passwd. See https://github.com/github/codespaces/issues/1639
 					// Node docs: "Throws a SystemError if a user has no username or homedir."
+					// @ts-ignore
 					unixLikeTerminal = userInfo().shell;
 				} catch (err) { }
 			}
