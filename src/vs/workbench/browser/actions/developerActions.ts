@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/actions';
 
 import { localize, localize2 } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -38,10 +39,6 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import product from 'vs/platform/product/common/product';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/actions.css', import.meta.url)
-
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class InspectContextKeysAction extends Action2 {
