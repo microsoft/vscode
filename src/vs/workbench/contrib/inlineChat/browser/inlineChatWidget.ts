@@ -64,7 +64,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 
@@ -597,7 +597,7 @@ export class InlineChatWidget {
 			expansionState = ExpansionState.NOT_CROPPED;
 		} else {
 			const sessionModel = this._chatMessageDisposables.add(new ChatModel(message.providerId, undefined, this._logService, this._chatAgentService));
-			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, message.requestId, !isIncomplete, false, undefined));
+			const responseModel = this._chatMessageDisposables.add(new ChatResponseModel(message.message, sessionModel, undefined, undefined, message.requestId, !isIncomplete, false, undefined));
 			const viewModel = this._chatMessageDisposables.add(new ChatResponseViewModel(responseModel, this._logService));
 			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
 			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
@@ -635,9 +635,9 @@ export class InlineChatWidget {
 		return resultingAppender;
 	}
 
-	updateFollowUps(items: IChatReplyFollowup[], onFollowup: (followup: IChatReplyFollowup) => void): void;
+	updateFollowUps(items: IChatFollowup[], onFollowup: (followup: IChatFollowup) => void): void;
 	updateFollowUps(items: undefined): void;
-	updateFollowUps(items: IChatReplyFollowup[] | undefined, onFollowup?: ((followup: IChatReplyFollowup) => void)) {
+	updateFollowUps(items: IChatFollowup[] | undefined, onFollowup?: ((followup: IChatFollowup) => void)) {
 		this._followUpDisposables.clear();
 		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
 		reset(this._elements.followUps);

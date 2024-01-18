@@ -354,6 +354,7 @@ export class SearchView extends ViewPane {
 		// remove old model and use the new searchModel
 		searchModel.location = SearchModelLocation.PANEL;
 		searchModel.replaceActive = this.viewModel.isReplaceActive();
+		searchModel.replaceString = this.searchWidget.getReplaceValue();
 		this._onSearchResultChangedDisposable?.dispose();
 		this._onSearchResultChangedDisposable = this._register(searchModel.onSearchResultChanged((event) => this.onSearchResultsChanged(event)));
 
@@ -1613,8 +1614,6 @@ export class SearchView extends ViewPane {
 			}
 		}
 
-		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
-
 		const hasResults = !this.viewModel.searchResult.isEmpty();
 		if (completed?.exit === SearchCompletionExitCode.NewSearchStarted) {
 			return;
@@ -1735,6 +1734,8 @@ export class SearchView extends ViewPane {
 
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
+
+		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
 		return result.asyncResults.then((complete) => {
 			clearTimeout(slowTimer);

@@ -199,6 +199,9 @@ class CompressibleStickyScrollDelegate<T, TFilterData> implements IStickyScrollD
 			const compressedNode = this.modelProvider().getCompressedTreeNode(stickyNode.node.element);
 
 			if (compressedNode.element) {
+				if (compressedNode.element.incompressible) {
+					break;
+				}
 				elements.push(...compressedNode.element.elements);
 			}
 		}
