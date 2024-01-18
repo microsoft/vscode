@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./currentLineHighlight';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -13,9 +14,6 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/currentLineHighlight.css', import.meta.url)
 import { Position } from 'vs/editor/common/core/position';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
