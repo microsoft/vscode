@@ -304,10 +304,17 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(completion.snippetInfo.range.getStartPosition(), 'inlineCompletionAccept');
 			SnippetController2.get(editor)?.insert(completion.snippetInfo.snippet, { undoStopBefore: false });
 		} else {
+			const selections = editor.getSelections() ?? [];
+			const secondaryPositions = selections.slice(1).map(selection => selection.getPosition());
+			const secondaryInsertText = state.ghostText.getFullInsertText(
+				this.textModel.getLineContent(state.ghostText.lineNumber),
+				selections[0].getPosition().column
+			);
 			editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
 					EditOperation.replaceMove(completion.range, completion.insertText),
+					...secondaryPositions.map(pos => EditOperation.replaceMove(Range.fromPositions(pos), secondaryInsertText)),
 					...completion.additionalTextEdits
 				]
 			);

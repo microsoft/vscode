@@ -49,6 +49,20 @@ export class GhostText {
 		return text.substring(this.parts[0].column - 1);
 	}
 
+	getFullInsertText(lineText: string, cursorColumn: number): string {
+		let result = '';
+		let lastCol = cursorColumn;
+		for (const part of this.parts) {
+			if (part.column < lastCol) {
+				continue;
+			}
+			result += lineText.substring(lastCol - 1, part.column - 1);
+			result += part.lines.join('\n');
+			lastCol = part.column;
+		}
+		return result;
+	}
+
 	isEmpty(): boolean {
 		return this.parts.every(p => p.lines.length === 0);
 	}
@@ -109,6 +123,10 @@ export class GhostTextReplacement {
 				{ range: replaceRange, text: this.newLines.join('\n') }
 			]);
 		}
+	}
+
+	getFullInsertText(lineText: string): string {
+		return this.newLines.join('\n');
 	}
 
 	get lineCount(): number {

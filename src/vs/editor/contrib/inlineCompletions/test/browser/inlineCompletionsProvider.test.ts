@@ -9,6 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
@@ -560,6 +561,71 @@ suite('Inline Completions', () => {
 				]);
 			}
 		);
+	});
+
+
+	suite('multi cursor', () => {
+		test('test1', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console\nconsole\n');
+					editor.setSelections([
+						new Selection(1, 1000, 1, 1000),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: 'console.log("hello");',
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					model.accept(editor);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						`console.log("hello");
+console.log("hello");
+`
+					);
+				}
+			);
+		});
+
+		test('test2', async function () {
+			const provider = new MockInlineCompletionsProvider();
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					context.keyboardType('console.log()\nconsole.log\n');
+					editor.setSelections([
+						new Selection(1, 12, 1, 12),
+						new Selection(2, 1000, 2, 1000),
+					]);
+
+					provider.setReturnValue({
+						insertText: 'console.log("hello");',
+						range: new Range(1, 1, 1, 1000),
+					});
+
+					model.triggerExplicitly();
+					await timeout(1000);
+
+					model.accept(editor);
+
+					assert.deepStrictEqual(
+						editor.getValue(),
+						`console.log("hello");
+console.log("hello");
+`
+					);
+				}
+			);
+		});
 	});
 });
 
