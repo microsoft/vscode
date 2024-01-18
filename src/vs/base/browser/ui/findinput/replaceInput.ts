@@ -14,10 +14,9 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import 'vs/css!./findInput';
 import * as nls from 'vs/nls';
-import { importCss } from 'vs/base/browser/importCss';
 
-importCss('./findInput.css', import.meta.url)
 
 export interface IReplaceInputOptions {
 	readonly placeholder?: string;
