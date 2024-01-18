@@ -913,7 +913,7 @@ export class ClearTestResultsAction extends Action2 {
 			id: TestCommandId.ClearTestResultsAction,
 			title: localize2('testing.clearResults', 'Clear All Results'),
 			category,
-			icon: Codicon.trash,
+			icon: Codicon.clearAll,
 			menu: [{
 				id: MenuId.TestPeekTitle,
 			}, {
