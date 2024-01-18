@@ -810,7 +810,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		}
 
 		if (session === this.activeSession) {
-			this.disableKeywordActivation(); // done (TODO@bpasero cancel should not be needed with node-speech@1.1.1)
+			this.activeSession = undefined;
 		}
 
 		if (result === KeywordRecognitionStatus.Recognized) {
