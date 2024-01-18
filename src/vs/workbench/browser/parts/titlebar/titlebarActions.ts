@@ -21,7 +21,7 @@ class ToggleConfigAction extends Action2 {
 
 	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean, showInCustomTitleBarWhenNativeTitle: boolean) {
 		let when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
-		when = showInCustomTitleBarWhenNativeTitle ? when : ContextKeyExpr.and(when, ContextKeyExpr.equals(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE).negate())!;
+		when = showInCustomTitleBarWhenNativeTitle ? when : ContextKeyExpr.and(when, ContextKeyExpr.equals(`config.${TitleBarSetting.TITLE_BAR_STYLE}`, TitlebarStyle.NATIVE).negate())!;
 
 		super({
 			id: `toggle.${section}`,
