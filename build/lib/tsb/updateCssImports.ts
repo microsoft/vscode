@@ -77,5 +77,8 @@ export const updateCssImports = (content: string) => {
 	const newLinesBottom = lines.slice(lastImportLineIndex + 1)
 	const newLines = [...newLinesTop, ...newCssImportLines, ...newLinesBottom]
 	const newContent = newLines.join('\n')
+	if (newContent.includes('vs/css!')) {
+		throw new Error(`css transformation error`)
+	}
 	return newContent
 }
