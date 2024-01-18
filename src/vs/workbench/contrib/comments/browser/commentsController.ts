@@ -9,6 +9,7 @@ import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/review';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -44,10 +45,6 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { URI } from 'vs/base/common/uri';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./media/review.css', import.meta.url)
-
 
 export const ID = 'editor.contrib.review';
 
