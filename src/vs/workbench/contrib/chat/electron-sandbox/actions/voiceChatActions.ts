@@ -45,6 +45,7 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -772,7 +773,8 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		@ICommandService private readonly commandService: ICommandService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -867,7 +869,11 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		this.activeSession = undefined;
 
 		if (result === KeywordRecognitionStatus.Recognized) {
-			this.commandService.executeCommand(this.getKeywordCommand());
+			if (this.hostService.hasFocus) {
+				this.commandService.executeCommand(this.getKeywordCommand());
+			} else {
+				this.handleKeywordActivation();
+			}
 		}
 	}
 
