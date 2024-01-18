@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./selections';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/browser/view/renderingContext';
@@ -11,10 +12,6 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./selections.css', import.meta.url)
-
 
 const enum CornerStyle {
 	EXTERN,
