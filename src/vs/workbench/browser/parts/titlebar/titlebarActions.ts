@@ -12,15 +12,16 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IAction } from 'vs/base/common/actions';
-import { IsAuxiliaryWindowFocusedContext } from 'vs/workbench/common/contextkeys';
+import { IsAuxiliaryWindowFocusedContext, IsMainWindowFullscreenContext } from 'vs/workbench/common/contextkeys';
+import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from 'vs/platform/window/common/window';
 
 // --- Context Menu Actions --- //
 
 class ToggleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean, showInCustomToolBar: boolean) {
+	constructor(private readonly section: string, title: string, order: number, mainWindowOnly: boolean, showInCustomTitleBarWhenNativeTitle: boolean) {
 		let when = mainWindowOnly ? IsAuxiliaryWindowFocusedContext.toNegated() : ContextKeyExpr.true();
-		when = showInCustomToolBar ? when : ContextKeyExpr.and(when, ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native').negate())!;
+		when = showInCustomTitleBarWhenNativeTitle ? when : ContextKeyExpr.and(when, ContextKeyExpr.equals(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE).negate())!;
 
 		super({
 			id: `toggle.${section}`,
@@ -62,23 +63,43 @@ registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	}
 });
 
-registerAction2(class ToggleCustomToolBar extends Action2 {
-	static readonly settingsID = `window.showCustomTitleBar`;
+registerAction2(class ToggleCustomTitleBar extends Action2 {
+	static readonly settingsID = TitleBarSetting.TITLE_BAR_STYLE;
 
 	constructor() {
 		super({
-			id: `toggle.${ToggleCustomToolBar.settingsID}`,
-			title: localize('toggle.toolBar', 'Custom Title Bar'),
+			id: `toggle.${ToggleCustomTitleBar.settingsID}`,
+			title: localize('toggle.customTitleBar', 'Custom Title Bar'),
 			toggled: ContextKeyExpr.true(),
 			menu: [
-				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(`config.window.titleBarStyle`, 'native'), group: '3_toggle' },
+				{ id: MenuId.TitleBarContext, order: 0, when: ContextKeyExpr.equals(TitleBarSetting.TITLE_BAR_STYLE, TitlebarStyle.NATIVE), group: '3_toggle' },
 			]
 		});
 	}
 
 	run(accessor: ServicesAccessor, ...args: any[]): void {
 		const configService = accessor.get(IConfigurationService);
-		configService.updateValue(ToggleCustomToolBar.settingsID, 'never');
+		configService.updateValue(ToggleCustomTitleBar.settingsID, CustomTitleBarVisibility.NEVER);
+	}
+});
+
+registerAction2(class ToggleCustomTitleBarWindowed extends Action2 {
+	static readonly settingsID = TitleBarSetting.TITLE_BAR_STYLE;
+
+	constructor() {
+		super({
+			id: `toggle.${ToggleCustomTitleBarWindowed.settingsID}.windowed`,
+			title: localize('toggle.customTitleBarWindowed', 'Custom Title Bar In Full Screen'),
+			toggled: ContextKeyExpr.true(),
+			menu: [
+				{ id: MenuId.TitleBarContext, order: 0, when: IsMainWindowFullscreenContext, group: '3_toggle' },
+			]
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		configService.updateValue(ToggleCustomTitleBarWindowed.settingsID, CustomTitleBarVisibility.WINDOWED);
 	}
 });
 
