@@ -19,10 +19,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import * as nls from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./inPlaceReplace.css', import.meta.url)
-
+import 'vs/css!./inPlaceReplace';
 
 class InPlaceReplaceController implements IEditorContribution {
 
