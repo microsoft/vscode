@@ -928,22 +928,26 @@ export function isGlobalStylesheet(node: Node): boolean {
 }
 
 /**
- * Optimized variant of createStyleSheet function which minimizes dom repaint
- * @returns
+ * A version of createStyleSheet which has a unified API to initialize/set the style content.
  */
 export function createStyleSheet2(): WrappedStyleElement {
 	return new WrappedStyleElement();
 }
 
 class WrappedStyleElement {
-
+	private _currentCssStyle = '';
 	private _styleSheet: HTMLStyleElement | undefined = undefined;
 
-	public setStyle(style: string): void {
+	public setStyle(cssStyle: string): void {
+		if (cssStyle !== this._currentCssStyle) {
+			return;
+		}
+		this._currentCssStyle = cssStyle;
+
 		if (!this._styleSheet) {
-			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = style);
+			this._styleSheet = createStyleSheet(mainWindow.document.head, (s) => s.innerText = cssStyle);
 		} else {
-			this._styleSheet.innerText = style;
+			this._styleSheet.innerText = cssStyle;
 		}
 	}
 

@@ -3995,7 +3995,7 @@ export interface IInlineSuggestOptions {
 	keepOnBlur?: boolean;
 
 	/**
-	 * Font family for inline suggest suggestions.
+	 * Font family for inline suggestions.
 	 */
 	fontFamily?: string | 'default';
 }

@@ -116,11 +116,13 @@ export class InlineCompletionsController extends Disposable {
 
 		const styleElement = this._register(createStyleSheet2());
 		this._register(autorun(reader => {
-			const _fontFamily = this._fontFamily.read(reader);
-			const fontFamily = _fontFamily === '' || _fontFamily === 'default' ? 'unset' : _fontFamily;
-			styleElement.setStyle(`.monaco-editor .ghost-text-decoration, .monaco-editor .ghost-text-decoration-preview, .monaco-editor .ghost-text {
-				font-family: ${fontFamily};
-			}`);
+			const fontFamily = this._fontFamily.read(reader);
+			styleElement.setStyle(fontFamily === '' || fontFamily === 'default' ? `` : `
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .ghost-text-decoration-preview,
+.monaco-editor .ghost-text {
+	font-family: ${fontFamily};
+}`);
 		}));
 
 		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {
