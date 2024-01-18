@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { updateCssImports } from './updateCssImports.js'
+
 const RE_IMPORT = /^import(.*)('|")(.*)('|")/
 const RE_EXPORT = /^export(.*)from ('|")(.*)('|")/
 const RE_FROM_END = /\} from ('|")(.*)('|")/
@@ -109,5 +111,5 @@ function fixEsmImports(relative: string, content: string) {
 }
 
 export function fixEsmFile(relative: string, content: string) {
-	return fixEsmImports(relative, content)
+	return updateCssImports(fixEsmImports(relative, content))
 }
