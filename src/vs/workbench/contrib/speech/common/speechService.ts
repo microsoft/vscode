@@ -168,6 +168,9 @@ export class SpeechService extends Disposable implements ISpeechService {
 		};
 
 		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
+		}
 
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
@@ -217,6 +220,9 @@ export class SpeechService extends Disposable implements ISpeechService {
 		};
 
 		disposables.add(token.onCancellationRequested(() => onSessionStoppedOrCanceled()));
+		if (token.isCancellationRequested) {
+			onSessionStoppedOrCanceled();
+		}
 
 		disposables.add(session.onDidChange(e => {
 			if (e.status === KeywordRecognitionStatus.Stopped) {

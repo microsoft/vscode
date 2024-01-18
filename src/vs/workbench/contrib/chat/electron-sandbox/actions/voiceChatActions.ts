@@ -860,13 +860,11 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	private async enableKeywordActivation(): Promise<void> {
 		const session = this.activeSession = new CancellationTokenSource();
 		const result = await this.speechService.recognizeKeyword(session.token);
-		if (session.token.isCancellationRequested) {
+		if (session.token.isCancellationRequested || session !== this.activeSession) {
 			return; // cancelled
 		}
 
-		if (session === this.activeSession) {
-			this.activeSession = undefined;
-		}
+		this.activeSession = undefined;
 
 		if (result === KeywordRecognitionStatus.Recognized) {
 			this.commandService.executeCommand(this.getKeywordCommand());
