@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, detectFullscreen, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, EventHelper, EventType, getActiveWindow, getWindow, getWindowById, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
@@ -136,11 +136,11 @@ export abstract class BaseWindow extends Disposable {
 	//#endregion
 
 	private registerFullScreenListeners(targetWindowId: number): void {
-		this._register(this.hostService.onDidChangeFullScreen(windowId => {
+		this._register(this.hostService.onDidChangeFullScreen(({ windowId, fullscreen }) => {
 			if (windowId === targetWindowId) {
 				const targetWindow = getWindowById(targetWindowId);
 				if (targetWindow) {
-					setFullscreen(!!detectFullscreen(targetWindow.window), targetWindow.window);
+					setFullscreen(fullscreen, targetWindow.window);
 				}
 			}
 		}));

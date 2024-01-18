@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { onDidChangeFullscreen, onDidChangeZoomLevel } from 'vs/base/browser/browser';
-import { detectFullscreen, hide, show } from 'vs/base/browser/dom';
+import { isFullscreen, onDidChangeFullscreen, onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { hide, show } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isNative } from 'vs/base/common/platform';
@@ -134,7 +134,7 @@ export class AuxiliaryEditorPart {
 				// Make sure to hide the custom title when we enter
 				// fullscren mode and show it when we lave it.
 
-				const fullscreen = detectFullscreen(auxiliaryWindow.window);
+				const fullscreen = isFullscreen(auxiliaryWindow.window);
 				const oldTitlebarPartVisible = titlebarPartVisible;
 				titlebarPartVisible = !fullscreen;
 				if (titlebarPart && oldTitlebarPartVisible !== titlebarPartVisible) {
