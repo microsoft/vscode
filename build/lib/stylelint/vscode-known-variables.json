@@ -807,7 +807,6 @@
 		"--z-index-notebook-progress-bar",
 		"--z-index-notebook-scrollbar",
 		"--z-index-run-button-container",
-		"--z-index-notebook-sticky-scroll",
 		"--zoom-factor",
 		"--test-bar-width"
 	]
