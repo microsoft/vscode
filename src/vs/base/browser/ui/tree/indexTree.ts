@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importCss } from 'vs/base/browser/importCss';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { AbstractTree, IAbstractTreeOptions } from 'vs/base/browser/ui/tree/abstractTree';
 import { IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeModel, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
-
-importCss('./media/tree.css', import.meta.url)
+import 'vs/css!./media/tree';
 
 export interface IIndexTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> { }
 
