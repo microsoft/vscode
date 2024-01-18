@@ -11,10 +11,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { StandaloneColorPickerController } from 'vs/editor/contrib/colorPicker/browser/standaloneColorPickerWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { importCss } from 'vs/base/browser/importCss';
-
-importCss('./colorPicker.css', import.meta.url)
-
+import 'vs/css!./colorPicker';
 
 export class ShowOrFocusStandaloneColorPicker extends EditorAction2 {
 	constructor() {
